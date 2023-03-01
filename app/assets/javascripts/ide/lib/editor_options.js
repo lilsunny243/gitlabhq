@@ -1,3 +1,5 @@
+import { getCssVariable } from '~/lib/utils/css_utils';
+
 export const defaultEditorOptions = {
   model: null,
   readOnly: false,
@@ -9,6 +11,7 @@ export const defaultEditorOptions = {
   wordWrap: 'on',
   glyphMargin: true,
   automaticLayout: true,
+  fontFamily: getCssVariable('--code-editor-font'),
 };
 
 export const defaultDiffOptions = {
@@ -27,7 +30,6 @@ export const defaultDiffEditorOptions = {
 };
 
 export const defaultModelOptions = {
-  endOfLine: 0,
   insertFinalNewline: true,
   trimTrailingWhitespace: false,
 };

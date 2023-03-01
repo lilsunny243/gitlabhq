@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe Gitlab::Analytics::CycleAnalytics::RecordsFetcher do
-  around do |example|
-    Timecop.freeze { example.run }
+  before_all do
+    freeze_time
   end
 
   let(:params) { { from: 1.year.ago, current_user: user } }
@@ -58,7 +58,7 @@ RSpec.describe Gitlab::Analytics::CycleAnalytics::RecordsFetcher do
       let_it_be(:issue2) { create(:issue, project: project, confidential: true) }
 
       let(:stage) do
-        build(:cycle_analytics_project_stage, {
+        build(:cycle_analytics_stage, {
           start_event_identifier: :plan_stage_start,
           end_event_identifier: :issue_first_mentioned_in_commit,
           project: project
@@ -88,7 +88,7 @@ RSpec.describe Gitlab::Analytics::CycleAnalytics::RecordsFetcher do
       let(:mr1) { create(:merge_request, created_at: 5.days.ago, source_project: project, allow_broken: true) }
       let(:mr2) { create(:merge_request, created_at: 4.days.ago, source_project: project, allow_broken: true) }
       let(:stage) do
-        build(:cycle_analytics_project_stage, {
+        build(:cycle_analytics_stage, {
           start_event_identifier: :merge_request_created,
           end_event_identifier: :merge_request_merged,
           project: project
@@ -110,10 +110,10 @@ RSpec.describe Gitlab::Analytics::CycleAnalytics::RecordsFetcher do
     let_it_be(:issue3) { create(:issue, project: project) }
 
     let(:stage) do
-      build(:cycle_analytics_project_stage, {
+      build(:cycle_analytics_stage, {
         start_event_identifier: :plan_stage_start,
         end_event_identifier: :issue_first_mentioned_in_commit,
-        project: project
+        namespace: project.project_namespace
       })
     end
 

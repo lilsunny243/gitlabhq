@@ -4,6 +4,8 @@ class OauthAccessToken < Doorkeeper::AccessToken
   belongs_to :resource_owner, class_name: 'User'
   belongs_to :application, class_name: 'Doorkeeper::Application'
 
+  validates :expires_in, presence: true
+
   alias_attribute :user, :resource_owner
 
   scope :latest_per_application, -> { select('distinct on(application_id) *').order(application_id: :desc, created_at: :desc) }
@@ -31,8 +33,6 @@ class OauthAccessToken < Doorkeeper::AccessToken
   # have `reuse_access_tokens` disabled and we also hash tokens.
   # This ensures we don't accidentally return a hashed token value.
   def self.matching_token_for(application, resource_owner, scopes)
-    return if Feature.enabled?(:hash_oauth_tokens)
-
-    super
+    # no-op
   end
 end

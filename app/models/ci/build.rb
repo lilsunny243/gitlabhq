@@ -7,11 +7,10 @@ module Ci
     include Ci::Contextable
     include TokenAuthenticatable
     include AfterCommitQueue
-    include ObjectStorage::BackgroundMove
     include Presentable
     include Importable
     include Ci::HasRef
-    include HasDeploymentName
+    include Ci::TrackEnvironmentUsage
 
     extend ::Gitlab::Utils::Override
 
@@ -34,12 +33,12 @@ module Ci
 
     DEPLOYMENT_NAMES = %w[deploy release rollout].freeze
 
-    has_one :deployment, as: :deployable, class_name: 'Deployment'
-    has_one :pending_state, class_name: 'Ci::BuildPendingState', inverse_of: :build
+    has_one :deployment, as: :deployable, class_name: 'Deployment', inverse_of: :deployable
+    has_one :pending_state, class_name: 'Ci::BuildPendingState', foreign_key: :build_id, inverse_of: :build
     has_one :queuing_entry, class_name: 'Ci::PendingBuild', foreign_key: :build_id
     has_one :runtime_metadata, class_name: 'Ci::RunningBuild', foreign_key: :build_id
     has_many :trace_chunks, class_name: 'Ci::BuildTraceChunk', foreign_key: :build_id, inverse_of: :build
-    has_many :report_results, class_name: 'Ci::BuildReportResult', inverse_of: :build
+    has_many :report_results, class_name: 'Ci::BuildReportResult', foreign_key: :build_id, inverse_of: :build
     has_one :namespace, through: :project
 
     # Projects::DestroyService destroys Ci::Pipelines, which use_fast_destroy on :job_artifacts
@@ -47,19 +46,23 @@ module Ci
     # DELETE queries when the Ci::Build is destroyed. The next step is to remove `dependent: :destroy`.
     # Details: https://gitlab.com/gitlab-org/gitlab/-/issues/24644#note_689472685
     has_many :job_artifacts, class_name: 'Ci::JobArtifact', foreign_key: :job_id, dependent: :destroy, inverse_of: :job # rubocop:disable Cop/ActiveRecordDependent
-    has_many :job_variables, class_name: 'Ci::JobVariable', foreign_key: :job_id
+    has_many :job_variables, class_name: 'Ci::JobVariable', foreign_key: :job_id, inverse_of: :job
     has_many :sourced_pipelines, class_name: 'Ci::Sources::Pipeline', foreign_key: :source_job_id
 
-    has_many :pages_deployments, inverse_of: :ci_build
+    has_many :pages_deployments, foreign_key: :ci_build_id, inverse_of: :ci_build
 
     Ci::JobArtifact.file_types.each do |key, value|
-      has_one :"job_artifacts_#{key}", -> { where(file_type: value) }, class_name: 'Ci::JobArtifact', inverse_of: :job, foreign_key: :job_id
+      has_one :"job_artifacts_#{key}", -> { where(file_type: value) }, class_name: 'Ci::JobArtifact', foreign_key: :job_id, inverse_of: :job
     end
 
-    has_one :runner_session, class_name: 'Ci::BuildRunnerSession', validate: true, inverse_of: :build
-    has_one :trace_metadata, class_name: 'Ci::BuildTraceMetadata', inverse_of: :build
+    has_one :runner_machine_build, class_name: 'Ci::RunnerMachineBuild', foreign_key: :build_id, inverse_of: :build,
+      autosave: true
+    has_one :runner_machine, through: :runner_machine_build, class_name: 'Ci::RunnerMachine'
 
-    has_many :terraform_state_versions, class_name: 'Terraform::StateVersion', inverse_of: :build, foreign_key: :ci_build_id
+    has_one :runner_session, class_name: 'Ci::BuildRunnerSession', validate: true, foreign_key: :build_id, inverse_of: :build
+    has_one :trace_metadata, class_name: 'Ci::BuildTraceMetadata', foreign_key: :build_id, inverse_of: :build
+
+    has_many :terraform_state_versions, class_name: 'Terraform::StateVersion', foreign_key: :ci_build_id, inverse_of: :build
 
     accepts_nested_attributes_for :runner_session, update_only: true
     accepts_nested_attributes_for :job_variables
@@ -69,35 +72,11 @@ module Ci
     delegate :service_specification, to: :runner_session, allow_nil: true
     delegate :gitlab_deploy_token, to: :project
     delegate :harbor_integration, to: :project
+    delegate :apple_app_store_integration, to: :project
+    delegate :google_play_integration, to: :project
     delegate :trigger_short_token, to: :trigger_request, allow_nil: true
     delegate :ensure_persistent_ref, to: :pipeline
-
-    ##
-    # Since Gitlab 11.5, deployments records started being created right after
-    # `ci_builds` creation. We can look up a relevant `environment` through
-    # `deployment` relation today.
-    # (See more https://gitlab.com/gitlab-org/gitlab-foss/merge_requests/22380)
-    #
-    # Since Gitlab 12.9, we started persisting the expanded environment name to
-    # avoid repeated variables expansion in `action: stop` builds as well.
-    def persisted_environment
-      return unless has_environment?
-
-      strong_memoize(:persisted_environment) do
-        # This code path has caused N+1s in the past, since environments are only indirectly
-        # associated to builds and pipelines; see https://gitlab.com/gitlab-org/gitlab/-/issues/326445
-        # We therefore batch-load them to prevent dormant N+1s until we found a proper solution.
-        BatchLoader.for(expanded_environment_name).batch(key: project_id) do |names, loader, args|
-          Environment.where(name: names, project: args[:key]).find_each do |environment|
-            loader.call(environment.name, environment)
-          end
-        end
-      end
-    end
-
-    def persisted_environment=(environment)
-      strong_memoize(:persisted_environment) { environment }
-    end
+    delegate :enable_debug_trace!, to: :metadata
 
     serialize :options # rubocop:disable Cop/ActiveRecordSerialize
     serialize :yaml_variables, Gitlab::Serializer::Ci::Variables # rubocop:disable Cop/ActiveRecordSerialize
@@ -108,15 +87,31 @@ module Ci
     validates :ref, presence: true
 
     scope :not_interruptible, -> do
-      joins(:metadata).where.not('ci_builds_metadata.id' => Ci::BuildMetadata.scoped_build.with_interruptible.select(:id))
+      joins(:metadata)
+        .where.not(Ci::BuildMetadata.table_name => { id: Ci::BuildMetadata.scoped_build.with_interruptible.select(:id) })
     end
 
     scope :unstarted, -> { where(runner_id: nil) }
+
+    scope :with_any_artifacts, -> do
+      where('EXISTS (?)',
+        Ci::JobArtifact.select(1).where("#{Ci::Build.quoted_table_name}.id = #{Ci::JobArtifact.quoted_table_name}.job_id")
+      )
+    end
+
     scope :with_downloadable_artifacts, -> do
       where('EXISTS (?)',
         Ci::JobArtifact.select(1)
-          .where('ci_builds.id = ci_job_artifacts.job_id')
+          .where("#{Ci::Build.quoted_table_name}.id = #{Ci::JobArtifact.quoted_table_name}.job_id")
           .where(file_type: Ci::JobArtifact::DOWNLOADABLE_TYPES)
+      )
+    end
+
+    scope :with_erasable_artifacts, -> do
+      where('EXISTS (?)',
+        Ci::JobArtifact.select(1)
+          .where("#{Ci::Build.quoted_table_name}.id = #{Ci::JobArtifact.quoted_table_name}.job_id")
+        .where(file_type: Ci::JobArtifact.erasable_file_types)
       )
     end
 
@@ -125,11 +120,11 @@ module Ci
     end
 
     scope :with_existing_job_artifacts, ->(query) do
-      where('EXISTS (?)', ::Ci::JobArtifact.select(1).where('ci_builds.id = ci_job_artifacts.job_id').merge(query))
+      where('EXISTS (?)', ::Ci::JobArtifact.select(1).where("#{Ci::Build.quoted_table_name}.id = #{Ci::JobArtifact.quoted_table_name}.job_id").merge(query))
     end
 
     scope :without_archived_trace, -> do
-      where('NOT EXISTS (?)', Ci::JobArtifact.select(1).where('ci_builds.id = ci_job_artifacts.job_id').trace)
+      where('NOT EXISTS (?)', Ci::JobArtifact.select(1).where("#{Ci::Build.quoted_table_name}.id = #{Ci::JobArtifact.quoted_table_name}.job_id").trace)
     end
 
     scope :with_artifacts, ->(artifact_scope) do
@@ -139,7 +134,7 @@ module Ci
 
     scope :eager_load_job_artifacts, -> { includes(:job_artifacts) }
     scope :eager_load_tags, -> { includes(:tags) }
-    scope :eager_load_for_archiving_trace, -> { includes(:project, :pending_state) }
+    scope :eager_load_for_archiving_trace, -> { preload(:project, :pending_state) }
 
     scope :eager_load_everything, -> do
       includes(
@@ -172,13 +167,13 @@ module Ci
     scope :manual_actions, -> { where(when: :manual, status: COMPLETED_STATUSES + %i[manual]) }
     scope :scheduled_actions, -> { where(when: :delayed, status: COMPLETED_STATUSES + %i[scheduled]) }
     scope :ref_protected, -> { where(protected: true) }
-    scope :with_live_trace, -> { where('EXISTS (?)', Ci::BuildTraceChunk.where('ci_builds.id = ci_build_trace_chunks.build_id').select(1)) }
+    scope :with_live_trace, -> { where('EXISTS (?)', Ci::BuildTraceChunk.where("#{quoted_table_name}.id = #{Ci::BuildTraceChunk.quoted_table_name}.build_id").select(1)) }
     scope :with_stale_live_trace, -> { with_live_trace.finished_before(12.hours.ago) }
     scope :finished_before, -> (date) { finished.where('finished_at < ?', date) }
     scope :license_management_jobs, -> { where(name: %i(license_management license_scanning)) } # handle license rename https://gitlab.com/gitlab-org/gitlab/issues/8911
 
     scope :with_secure_reports_from_config_options, -> (job_types) do
-      joins(:metadata).where("ci_builds_metadata.config_options -> 'artifacts' -> 'reports' ?| array[:job_types]", job_types: job_types)
+      joins(:metadata).where("#{Ci::BuildMetadata.quoted_table_name}.config_options -> 'artifacts' -> 'reports' ?| array[:job_types]", job_types: job_types)
     end
 
     scope :with_coverage, -> { where.not(coverage: nil) }
@@ -189,13 +184,13 @@ module Ci
 
     add_authentication_token_field :token, encrypted: :required
 
-    before_save :ensure_token
-
     after_save :stick_build_if_status_changed
 
     after_create unless: :importing? do |build|
       run_after_commit { build.execute_hooks }
     end
+
+    after_commit :track_ci_secrets_management_id_tokens_usage, on: :create, if: :id_tokens?
 
     class << self
       # This is needed for url_for to work,
@@ -208,16 +203,13 @@ module Ci
         preload(:job_artifacts_archive, :job_artifacts, :tags, project: [:namespace])
       end
 
-      def extra_accessors
-        []
-      end
-
       def clone_accessors
         %i[pipeline project ref tag options name
            allow_failure stage stage_idx trigger_request
            yaml_variables when environment coverage_regex
            description tag_list protected needs_attributes
-           job_variables_attributes resource_group scheduling_type ci_stage].freeze
+           job_variables_attributes resource_group scheduling_type
+           ci_stage partition_id id_tokens].freeze
       end
     end
 
@@ -265,6 +257,11 @@ module Ci
 
       before_transition on: :enqueue do |build|
         !build.waiting_for_deployment_approval? # If false is returned, it stops the transition
+      end
+
+      before_transition any => [:pending] do |build|
+        build.ensure_token
+        true
       end
 
       after_transition created: :scheduled do |build|
@@ -398,29 +395,21 @@ module Ci
 
     def detailed_status(current_user)
       Gitlab::Ci::Status::Build::Factory
-        .new(self.present, current_user)
+        .new(present, current_user)
         .fabricate!
     end
 
     def other_manual_actions
-      pipeline.manual_actions.reject { |action| action.name == self.name }
-    end
-
-    def environment_manual_actions
-      pipeline.manual_actions.filter { |action| action.expanded_environment_name == self.expanded_environment_name }
+      pipeline.manual_actions.reject { |action| action.name == name }
     end
 
     def other_scheduled_actions
-      pipeline.scheduled_actions.reject { |action| action.name == self.name }
-    end
-
-    def environment_scheduled_actions
-      pipeline.scheduled_actions.filter { |action| action.expanded_environment_name == self.expanded_environment_name }
+      pipeline.scheduled_actions.reject { |action| action.name == name }
     end
 
     def pages_generator?
       Gitlab.config.pages.enabled &&
-        self.name == 'pages'
+        name == 'pages'
     end
 
     def runnable?
@@ -439,7 +428,16 @@ module Ci
     end
 
     def waiting_for_deployment_approval?
-      manual? && starts_environment? && deployment&.blocked?
+      manual? && deployment_job? && deployment&.blocked?
+    end
+
+    def outdated_deployment?
+      strong_memoize(:outdated_deployment) do
+        deployment_job? &&
+          incomplete? &&
+          project.ci_forward_deployment_enabled? &&
+          deployment&.older_than_last_successful_deployment?
+      end
     end
 
     def schedulable?
@@ -467,7 +465,7 @@ module Ci
     end
 
     def retries_count
-      pipeline.builds.retried.where(name: self.name).count
+      pipeline.builds.retried.where(name: name).count
     end
 
     override :all_met_to_become_pending?
@@ -483,8 +481,34 @@ module Ci
       Gitlab::Ci::Build::Prerequisite::Factory.new(self).unmet
     end
 
+    def persisted_environment
+      return unless has_environment_keyword?
+
+      strong_memoize(:persisted_environment) do
+        # This code path has caused N+1s in the past, since environments are only indirectly
+        # associated to builds and pipelines; see https://gitlab.com/gitlab-org/gitlab/-/issues/326445
+        # We therefore batch-load them to prevent dormant N+1s until we found a proper solution.
+        BatchLoader.for(expanded_environment_name).batch(key: project_id) do |names, loader, args|
+          Environment.where(name: names, project: args[:key]).find_each do |environment|
+            loader.call(environment.name, environment)
+          end
+        end
+      end
+    end
+
+    def persisted_environment=(environment)
+      strong_memoize(:persisted_environment) { environment }
+    end
+
+    # If build.persisted_environment is a BatchLoader, we need to remove
+    # the method proxy in order to clone into new item here
+    # https://github.com/exAspArk/batch-loader/issues/31
+    def actual_persisted_environment
+      persisted_environment.respond_to?(:__sync) ? persisted_environment.__sync : persisted_environment
+    end
+
     def expanded_environment_name
-      return unless has_environment?
+      return unless has_environment_keyword?
 
       strong_memoize(:expanded_environment_name) do
         # We're using a persisted expanded environment name in order to avoid
@@ -498,7 +522,7 @@ module Ci
     end
 
     def expanded_kubernetes_namespace
-      return unless has_environment?
+      return unless has_environment_keyword?
 
       namespace = options.dig(:environment, :kubernetes, :namespace)
 
@@ -509,24 +533,24 @@ module Ci
       end
     end
 
-    def has_environment?
+    def has_environment_keyword?
       environment.present?
     end
 
-    def starts_environment?
-      has_environment? && self.environment_action == 'start'
+    def deployment_job?
+      has_environment_keyword? && environment_action == 'start'
     end
 
     def stops_environment?
-      has_environment? && self.environment_action == 'stop'
+      has_environment_keyword? && environment_action == 'stop'
     end
 
     def environment_action
-      self.options.fetch(:environment, {}).fetch(:action, 'start') if self.options
+      options.fetch(:environment, {}).fetch(:action, 'start') if options
     end
 
     def environment_tier_from_options
-      self.options.dig(:environment, :deployment_tier) if self.options
+      options.dig(:environment, :deployment_tier) if options
     end
 
     def environment_tier
@@ -577,6 +601,8 @@ module Ci
           .append(key: 'CI_REPOSITORY_URL', value: repo_url.to_s, public: false)
           .concat(deploy_token_variables)
           .concat(harbor_variables)
+          .concat(apple_app_store_variables)
+          .concat(google_play_variables)
       end
     end
 
@@ -618,6 +644,20 @@ module Ci
       return [] unless harbor_integration.try(:activated?)
 
       Gitlab::Ci::Variables::Collection.new(harbor_integration.ci_variables)
+    end
+
+    def apple_app_store_variables
+      return [] unless apple_app_store_integration.try(:activated?)
+      return [] unless pipeline.protected_ref?
+
+      Gitlab::Ci::Variables::Collection.new(apple_app_store_integration.ci_variables)
+    end
+
+    def google_play_variables
+      return [] unless google_play_integration.try(:activated?)
+      return [] unless pipeline.protected_ref?
+
+      Gitlab::Ci::Variables::Collection.new(google_play_integration.ci_variables)
     end
 
     def features
@@ -706,26 +746,8 @@ module Ci
       job_artifacts.of_report_type(:test).exists?
     end
 
-    def has_old_trace?
-      old_trace.present?
-    end
-
-    def trace=(data)
-      raise NotImplementedError
-    end
-
-    def old_trace
-      read_attribute(:trace)
-    end
-
-    def erase_old_trace!
-      return unless has_old_trace?
-
-      update_column(:trace, nil)
-    end
-
     def ensure_trace_metadata!
-      Ci::BuildTraceMetadata.find_or_upsert_for!(id)
+      Ci::BuildTraceMetadata.find_or_upsert_for!(id, partition_id)
     end
 
     def artifacts_expose_as
@@ -742,6 +764,10 @@ module Ci
 
     def valid_token?(token)
       self.token && token.present? && ActiveSupport::SecurityUtils.secure_compare(token, self.token)
+    end
+
+    def remove_token!
+      update!(token_encrypted: nil)
     end
 
     # acts_as_taggable uses this method create/remove tags with contexts
@@ -784,7 +810,7 @@ module Ci
       return unless project
       return if user&.blocked?
 
-      ActiveRecord::Associations::Preloader.new.preload([self], { runner: :tags })
+      ActiveRecord::Associations::Preloader.new(records: [self], associations: { runner: :tags }).call
 
       project.execute_hooks(build_data.dup, :job_hooks) if project.has_active_hooks?(:job_hooks)
       project.execute_integrations(build_data.dup, :job_hooks) if project.has_active_integrations?(:job_hooks)
@@ -815,47 +841,12 @@ module Ci
       end
     end
 
-    def erase_erasable_artifacts!
-      if project.refreshing_build_artifacts_size?
-        Gitlab::ProjectStatsRefreshConflictsLogger.warn_artifact_deletion_during_stats_refresh(
-          method: 'Ci::Build#erase_erasable_artifacts!',
-          project_id: project_id
-        )
-      end
-
-      destroyed_artifacts = job_artifacts.erasable.destroy_all # rubocop: disable Cop/DestroyAll
-
-      Gitlab::Ci::Artifacts::Logger.log_deleted(destroyed_artifacts, 'Ci::Build#erase_erasable_artifacts!')
-
-      destroyed_artifacts
-    end
-
-    def erase(opts = {})
-      return false unless erasable?
-
-      if project.refreshing_build_artifacts_size?
-        Gitlab::ProjectStatsRefreshConflictsLogger.warn_artifact_deletion_during_stats_refresh(
-          method: 'Ci::Build#erase',
-          project_id: project_id
-        )
-      end
-
-      # TODO: We should use DestroyBatchService here
-      # See https://gitlab.com/gitlab-org/gitlab/-/issues/369132
-      destroyed_artifacts = job_artifacts.destroy_all # rubocop: disable Cop/DestroyAll
-
-      Gitlab::Ci::Artifacts::Logger.log_deleted(destroyed_artifacts, 'Ci::Build#erase')
-
-      erase_trace!
-      update_erased!(opts[:erased_by])
-    end
-
     def erasable?
       complete? && (artifacts? || has_job_artifacts? || has_trace?)
     end
 
     def erased?
-      !self.erased_at.nil?
+      !erased_at.nil?
     end
 
     def artifacts_expired?
@@ -888,20 +879,24 @@ module Ci
     end
 
     def keep_artifacts!
-      self.update(artifacts_expire_at: nil)
-      self.job_artifacts.update_all(expire_at: nil)
+      update(artifacts_expire_at: nil)
+      job_artifacts.update_all(expire_at: nil)
     end
 
-    def artifacts_file_for_type(type)
+    def artifact_for_type(type)
       file_types = Ci::JobArtifact.associated_file_types_for(type)
       file_types_ids = file_types&.map { |file_type| Ci::JobArtifact.file_types[file_type] }
-      job_artifacts.find_by(file_type: file_types_ids)&.file
+      job_artifacts.find_by(file_type: file_types_ids)
     end
 
     def steps
       [Gitlab::Ci::Build::Step.from_commands(self),
        Gitlab::Ci::Build::Step.from_release(self),
        Gitlab::Ci::Build::Step.from_after_script(self)].compact
+    end
+
+    def runtime_hooks
+      Gitlab::Ci::Build::Hook.from_hooks(self)
     end
 
     def image
@@ -923,8 +918,9 @@ module Ci
 
       return cache unless project.ci_separated_caches
 
-      type_suffix = pipeline.protected_ref? ? 'protected' : 'non_protected'
       cache.map do |entry|
+        type_suffix = !entry[:unprotect] && pipeline.protected_ref? ? 'protected' : 'non_protected'
+
         entry.merge(key: "#{entry[:key]}-#{type_suffix}")
       end
     end
@@ -1013,7 +1009,7 @@ module Ci
 
     def collect_codequality_reports!(codequality_report)
       each_report(Ci::JobArtifact.file_types_for_report(:codequality)) do |file_type, blob|
-        Gitlab::Ci::Parsers.fabricate!(file_type).parse!(blob, codequality_report)
+        Gitlab::Ci::Parsers.fabricate!(file_type).parse!(blob, codequality_report, { project: project, commit_sha: pipeline.sha })
       end
 
       codequality_report
@@ -1033,7 +1029,7 @@ module Ci
 
     # Virtual deployment status depending on the environment status.
     def deployment_status
-      return unless starts_environment?
+      return unless deployment_job?
 
       if success?
         return successful_deployment_status
@@ -1085,7 +1081,8 @@ module Ci
       # TODO: Have `debug_mode?` check against data on sent back from runner
       # to capture all the ways that variables can be set.
       # See (https://gitlab.com/gitlab-org/gitlab/-/issues/290955)
-      variables['CI_DEBUG_TRACE']&.value&.casecmp('true') == 0
+      variables['CI_DEBUG_TRACE']&.value&.casecmp('true') == 0 ||
+        variables['CI_DEBUG_SERVICES']&.value&.casecmp('true') == 0
     end
 
     def drop_with_exit_code!(failure_reason, exit_code)
@@ -1114,11 +1111,11 @@ module Ci
     # without actually loading data.
     #
     def all_queuing_entries
-      ::Ci::PendingBuild.where(build_id: self.id)
+      ::Ci::PendingBuild.where(build_id: id)
     end
 
     def all_runtime_metadata
-      ::Ci::RunningBuild.where(build_id: self.id)
+      ::Ci::RunningBuild.where(build_id: id)
     end
 
     def shared_runner_build?
@@ -1140,18 +1137,6 @@ module Ci
         .dig(:allow_failure_criteria, :exit_codes)
         .to_a
         .include?(exit_code)
-    end
-
-    def track_deployment_usage
-      Gitlab::Utils::UsageData.track_usage_event('ci_users_executing_deployment_job', user_id) if user_id.present? && count_user_deployment?
-    end
-
-    def track_verify_usage
-      Gitlab::Utils::UsageData.track_usage_event('ci_users_executing_verify_environment_job', user_id) if user_id.present? && count_user_verification?
-    end
-
-    def count_user_verification?
-      has_environment? && environment_action == 'verify'
     end
 
     def each_report(report_types)
@@ -1183,6 +1168,11 @@ module Ci
       else
         group_name
       end
+    end
+
+    override :format_token
+    def format_token(token)
+      "#{partition_id.to_s(16)}_#{token}"
     end
 
     protected
@@ -1233,21 +1223,13 @@ module Ci
       job_artifacts.select { |artifact| artifact.file_type.in?(report_types) }
     end
 
-    def erase_trace!
-      trace.erase!
-    end
-
-    def update_erased!(user = nil)
-      self.update(erased_by: user, erased_at: Time.current, artifacts_expire_at: nil)
-    end
-
     def environment_url
       options&.dig(:environment, :url) || persisted_environment&.external_url
     end
 
     def environment_status
       strong_memoize(:environment_status) do
-        if has_environment? && merge_request
+        if has_environment_keyword? && merge_request
           EnvironmentStatus.new(project, persisted_environment, merge_request, pipeline.sha)
         end
       end
@@ -1258,14 +1240,34 @@ module Ci
     end
 
     def job_jwt_variables
-      Gitlab::Ci::Variables::Collection.new.tap do |variables|
-        break variables unless Feature.enabled?(:ci_job_jwt, project)
+      if project.ci_cd_settings.opt_in_jwt?
+        id_tokens_variables
+      else
+        predefined_jwt_variables.concat(id_tokens_variables)
+      end
+    end
 
+    def predefined_jwt_variables
+      Gitlab::Ci::Variables::Collection.new.tap do |variables|
         jwt = Gitlab::Ci::Jwt.for_build(self)
         jwt_v2 = Gitlab::Ci::JwtV2.for_build(self)
         variables.append(key: 'CI_JOB_JWT', value: jwt, public: false, masked: true)
         variables.append(key: 'CI_JOB_JWT_V1', value: jwt, public: false, masked: true)
         variables.append(key: 'CI_JOB_JWT_V2', value: jwt_v2, public: false, masked: true)
+      rescue OpenSSL::PKey::RSAError, Gitlab::Ci::Jwt::NoSigningKeyError => e
+        Gitlab::ErrorTracking.track_exception(e)
+      end
+    end
+
+    def id_tokens_variables
+      return [] unless id_tokens?
+
+      Gitlab::Ci::Variables::Collection.new.tap do |variables|
+        id_tokens.each do |var_name, token_data|
+          token = Gitlab::Ci::JwtV2.for_build(self, aud: token_data['aud'])
+
+          variables.append(key: var_name, value: token, public: false, masked: true)
+        end
       rescue OpenSSL::PKey::RSAError, Gitlab::Ci::Jwt::NoSigningKeyError => e
         Gitlab::ErrorTracking.track_exception(e)
       end
@@ -1297,6 +1299,23 @@ module Ci
           .build_completed_report_type_counter(report_type)
           .increment(status: status)
       end
+    end
+
+    def track_ci_secrets_management_id_tokens_usage
+      ::Gitlab::UsageDataCounters::HLLRedisCounter.track_event('i_ci_secrets_management_id_tokens_build_created', values: user_id)
+
+      Gitlab::Tracking.event(
+        self.class.to_s,
+        'create_id_tokens',
+        namespace: namespace,
+        user: user,
+        label: 'redis_hll_counters.ci_secrets_management.i_ci_secrets_management_id_tokens_build_created_monthly',
+        ultimate_namespace_id: namespace.root_ancestor.id,
+        context: [Gitlab::Tracking::ServicePingContext.new(
+          data_source: :redis_hll,
+          event: 'i_ci_secrets_management_id_tokens_build_created'
+        ).to_context]
+      )
     end
   end
 end

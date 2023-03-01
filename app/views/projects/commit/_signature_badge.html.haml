@@ -1,34 +1,33 @@
 - signature = local_assigns.fetch(:signature)
 - title = local_assigns.fetch(:title)
+- description = local_assigns.fetch(:description, nil)
 - label = local_assigns.fetch(:label)
-- css_class = local_assigns.fetch(:css_class)
-- icon = local_assigns.fetch(:icon)
-- show_user = local_assigns.fetch(:show_user, false)
-
-- css_classes = commit_signature_badge_classes(css_class)
+- variant = local_assigns.fetch(:variant)
 
 - title = capture do
-  .gpg-popover-status
-    .gpg-popover-icon{ class: css_class }
-      = sprite_icon(icon)
+  .signature-popover
     %div
-      = title
+      %strong
+        = title
+
+      %p.gl-my-3
+        = description
 
 - content = capture do
-  - if show_user
-    .clearfix
-      - uri_signature_badge_user = "projects/commit/#{"x509/" if x509_signature?(signature)}signature_badge_user"
-      = render partial: "#{uri_signature_badge_user}", locals: { signature: signature }
-
-  - if x509_signature?(signature)
+  - if signature.x509?
     = render partial: "projects/commit/x509/certificate_details", locals: { signature: signature }
 
-    = link_to(_('Learn more about X.509 signed commits'), help_page_path('user/project/repository/x509_signed_commits/index.md'), class: 'gpg-popover-help-link')
+    = link_to(_('Learn more about X.509 signed commits'), help_page_path('user/project/repository/x509_signed_commits/index.md'), class: 'gl-link gl-display-block')
+  - elsif signature.ssh?
+    = _('SSH key fingerprint:')
+    %span.gl-font-monospace= signature.key_fingerprint_sha256 || _('Unknown')
+
+    = link_to(_('Learn about signing commits with SSH keys.'), help_page_path('user/project/repository/ssh_signed_commits/index.md'), class: 'gl-link gl-display-block gl-mt-3')
   - else
     = _('GPG Key ID:')
-    %span.monospace= signature.gpg_key_primary_keyid
+    %span.gl-font-monospace= signature.gpg_key_primary_keyid
 
-    = link_to(_('Learn more about signing commits'), help_page_path('user/project/repository/gpg_signed_commits/index.md'), class: 'gpg-popover-help-link gl-display-block')
+    = link_to(_('Learn about signing commits'), help_page_path('user/project/repository/gpg_signed_commits/index.md'), class: 'gl-link gl-display-block gl-mt-3')
 
-%a{ role: 'button', tabindex: 0, class: css_classes, data: { toggle: 'popover', html: 'true', placement: 'top', title: title, content: content } }
-  = label
+%a.signature-badge.gl-display-flex{ role: 'button', tabindex: 0, data: { toggle: 'popover', html: 'true', placement: 'top', title: title, content: content } }
+  = gl_badge_tag label, variant: variant

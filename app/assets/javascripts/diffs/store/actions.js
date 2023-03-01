@@ -5,15 +5,17 @@ import {
   historyPushState,
   scrollToElement,
 } from '~/lib/utils/common_utils';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_WARNING } from '~/flash';
 import { diffViewerModes } from '~/ide/constants';
 import axios from '~/lib/utils/axios_utils';
 
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_NOT_FOUND, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import Poll from '~/lib/utils/poll';
 import { mergeUrlParams, getLocationHash } from '~/lib/utils/url_utility';
 import { __, s__ } from '~/locale';
 import notesEventHub from '~/notes/event_hub';
+import { generateTreeList } from '~/diffs/utils/tree_worker_utils';
+import { sortTree } from '~/ide/stores/utils';
 import {
   PARALLEL_DIFF_VIEW_TYPE,
   INLINE_DIFF_VIEW_TYPE,
@@ -52,7 +54,6 @@ import { isCollapsed } from '../utils/diff_file';
 import { markFileReview, setReviewsForMergeRequest } from '../utils/file_reviews';
 import { getDerivedMergeRequestInformation } from '../utils/merge_request';
 import { queueRedisHllEvents } from '../utils/queue_events';
-import TreeWorker from '../workers/tree_worker';
 import * as types from './mutation_types';
 import {
   getDiffPositionByLineCode,
@@ -199,20 +200,12 @@ export const fetchDiffFilesBatch = ({ commit, state, dispatch }) => {
 };
 
 export const fetchDiffFilesMeta = ({ commit, state }) => {
-  const worker = new TreeWorker();
   const urlParams = {
     view: 'inline',
+    w: state.showWhitespace ? '0' : '1',
   };
 
   commit(types.SET_LOADING, true);
-  eventHub.$emit(EVT_PERF_MARK_FILE_TREE_START);
-
-  worker.addEventListener('message', ({ data }) => {
-    commit(types.SET_TREE_DATA, data);
-    eventHub.$emit(EVT_PERF_MARK_FILE_TREE_END);
-
-    worker.terminate();
-  });
 
   return axios
     .get(mergeUrlParams(urlParams, state.endpointMetadata))
@@ -224,13 +217,27 @@ export const fetchDiffFilesMeta = ({ commit, state }) => {
       commit(types.SET_MERGE_REQUEST_DIFFS, data.merge_request_diffs || []);
       commit(types.SET_DIFF_METADATA, strippedData);
 
-      worker.postMessage(data.diff_files);
+      eventHub.$emit(EVT_PERF_MARK_FILE_TREE_START);
+      const { treeEntries, tree } = generateTreeList(data.diff_files);
+      eventHub.$emit(EVT_PERF_MARK_FILE_TREE_END);
+      commit(types.SET_TREE_DATA, {
+        treeEntries,
+        tree: sortTree(tree),
+      });
 
       return data;
     })
-    .catch(() => worker.terminate());
+    .catch((error) => {
+      if (error.response.status === HTTP_STATUS_NOT_FOUND) {
+        createAlert({
+          message: __('Building your merge request. Wait a few moments, then refresh this page.'),
+          variant: VARIANT_WARNING,
+        });
+      } else {
+        throw error;
+      }
+    });
 };
-
 export const fetchCoverageFiles = ({ commit, state }) => {
   const coveragePoll = new Poll({
     resource: {
@@ -239,14 +246,14 @@ export const fetchCoverageFiles = ({ commit, state }) => {
     data: state.endpointCoverage,
     method: 'getCoverageReports',
     successCallback: ({ status, data }) => {
-      if (status === httpStatusCodes.OK) {
+      if (status === HTTP_STATUS_OK) {
         commit(types.SET_COVERAGE_DATA, data);
 
         coveragePoll.stop();
       }
     },
     errorCallback: () =>
-      createFlash({
+      createAlert({
         message: __('Something went wrong on our end. Please try again!'),
       }),
   });
@@ -435,20 +442,27 @@ export const scrollToLineIfNeededParallel = (_, line) => {
   }
 };
 
-export const loadCollapsedDiff = ({ commit, getters, state }, file) =>
-  axios
-    .get(file.load_collapsed_diff_url, {
-      params: {
-        commit_id: getters.commitId,
-        w: state.showWhitespace ? '0' : '1',
-      },
-    })
-    .then((res) => {
-      commit(types.ADD_COLLAPSED_DIFFS, {
-        file,
-        data: res.data,
-      });
+export const loadCollapsedDiff = ({ commit, getters, state }, file) => {
+  const versionPath = state.mergeRequestDiff?.version_path;
+  const loadParams = {
+    commit_id: getters.commitId,
+    w: state.showWhitespace ? '0' : '1',
+  };
+
+  if (versionPath) {
+    const { diffId, startSha } = getDerivedMergeRequestInformation({ endpoint: versionPath });
+
+    loadParams.diff_id = diffId;
+    loadParams.start_sha = startSha;
+  }
+
+  return axios.get(file.load_collapsed_diff_url, { params: loadParams }).then((res) => {
+    commit(types.ADD_COLLAPSED_DIFFS, {
+      file,
+      data: res.data,
     });
+  });
+};
 
 /**
  * Toggles the file discussions after user clicked on the toggle discussions button.
@@ -509,7 +523,7 @@ export const saveDiffDiscussion = ({ state, dispatch }, { note, formData }) => {
     .then(() => dispatch('updateResolvableDiscussionsCounts', null, { root: true }))
     .then(() => dispatch('closeDiffFileCommentForm', formData.diffFile.file_hash))
     .catch(() =>
-      createFlash({
+      createAlert({
         message: s__('MergeRequests|Saving the comment failed'),
       }),
     );
@@ -619,7 +633,7 @@ export const cacheTreeListWidth = (_, size) => {
 
 export const receiveFullDiffError = ({ commit }, filePath) => {
   commit(types.RECEIVE_FULL_DIFF_ERROR, filePath);
-  createFlash({
+  createAlert({
     message: s__('MergeRequest|Error loading full diff. Please try again.'),
   });
 };
@@ -757,7 +771,7 @@ export const setSuggestPopoverDismissed = ({ commit, state }) =>
       commit(types.SET_SHOW_SUGGEST_POPOVER);
     })
     .catch(() => {
-      createFlash({
+      createAlert({
         message: s__('MergeRequest|Error dismissing suggestion popover. Please try again.'),
       });
     });
@@ -805,20 +819,20 @@ export function moveToNeighboringCommit({ dispatch, state }, { direction }) {
   }
 }
 
-export const setCurrentDiffFileIdFromNote = ({ commit, state, rootGetters }, noteId) => {
+export const setCurrentDiffFileIdFromNote = ({ commit, getters, rootGetters }, noteId) => {
   const note = rootGetters.notesById[noteId];
 
   if (!note) return;
 
   const fileHash = rootGetters.getDiscussion(note.discussion_id).diff_file?.file_hash;
 
-  if (fileHash && state.diffFiles.some((f) => f.file_hash === fileHash)) {
+  if (fileHash && getters.flatBlobsList.some((f) => f.fileHash === fileHash)) {
     commit(types.SET_CURRENT_DIFF_FILE, fileHash);
   }
 };
 
-export const navigateToDiffFileIndex = ({ commit, state }, index) => {
-  const fileHash = state.diffFiles[index].file_hash;
+export const navigateToDiffFileIndex = ({ commit, getters }, index) => {
+  const { fileHash } = getters.flatBlobsList[index];
   document.location.hash = fileHash;
 
   commit(types.SET_CURRENT_DIFF_FILE, fileHash);

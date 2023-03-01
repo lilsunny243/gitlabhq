@@ -13,21 +13,37 @@ module HasUserType
     project_bot: 6,
     migration_bot: 7,
     security_bot: 8,
-    automation_bot: 9
+    automation_bot: 9,
+    admin_bot: 11,
+    suggested_reviewers_bot: 12,
+    service_account: 13
   }.with_indifferent_access.freeze
 
-  BOT_USER_TYPES = %w[alert_bot project_bot support_bot visual_review_bot migration_bot security_bot automation_bot].freeze
-  NON_INTERNAL_USER_TYPES = %w[human project_bot service_user].freeze
+  BOT_USER_TYPES = %w[
+    alert_bot
+    project_bot
+    support_bot
+    visual_review_bot
+    migration_bot
+    security_bot
+    automation_bot
+    admin_bot
+    suggested_reviewers_bot
+    service_account
+  ].freeze
+
+  # `service_account` allows instance/namespaces to configure a user for external integrations/automations
+  # `service_user` is an internal, `gitlab-com`-specific user type for integrations like suggested reviewers
+  NON_INTERNAL_USER_TYPES = %w[human project_bot service_user service_account].freeze
   INTERNAL_USER_TYPES = (USER_TYPES.keys - NON_INTERNAL_USER_TYPES).freeze
 
   included do
     scope :humans, -> { where(user_type: :human) }
     scope :bots, -> { where(user_type: BOT_USER_TYPES) }
-    scope :without_bots, -> { humans.or(where.not(user_type: BOT_USER_TYPES)) }
-    scope :bots_without_project_bot, -> { where(user_type: BOT_USER_TYPES - ['project_bot']) }
+    scope :without_bots, -> { humans.or(where(user_type: USER_TYPES.keys - BOT_USER_TYPES)) }
     scope :non_internal, -> { humans.or(where(user_type: NON_INTERNAL_USER_TYPES)) }
-    scope :without_ghosts, -> { humans.or(where.not(user_type: :ghost)) }
-    scope :without_project_bot, -> { humans.or(where.not(user_type: :project_bot)) }
+    scope :without_ghosts, -> { humans.or(where(user_type: USER_TYPES.keys - ['ghost'])) }
+    scope :without_project_bot, -> { humans.or(where(user_type: USER_TYPES.keys - ['project_bot'])) }
     scope :human_or_service_user, -> { humans.or(where(user_type: :service_user)) }
 
     enum user_type: USER_TYPES
@@ -41,10 +57,8 @@ module HasUserType
     BOT_USER_TYPES.include?(user_type)
   end
 
-  # The explicit check for project_bot will be removed with Bot Categorization
-  # Ref: https://gitlab.com/gitlab-org/gitlab/-/issues/213945
   def internal?
-    ghost? || (bot? && !project_bot?)
+    INTERNAL_USER_TYPES.include?(user_type)
   end
 
   def redacted_name(viewing_user)

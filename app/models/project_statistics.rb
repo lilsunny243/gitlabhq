@@ -7,26 +7,36 @@ class ProjectStatistics < ApplicationRecord
   belongs_to :project
   belongs_to :namespace
 
-  default_value_for :wiki_size, 0
-  default_value_for :snippets_size, 0
+  attribute :wiki_size, default: 0
+  attribute :snippets_size, default: 0
 
   counter_attribute :build_artifacts_size
-  counter_attribute :storage_size
+  counter_attribute :packages_size
 
-  counter_attribute_after_flush do |project_statistic|
-    Namespaces::ScheduleAggregationWorker.perform_async(project_statistic.namespace_id)
+  counter_attribute_after_commit do |project_statistics|
+    project_statistics.refresh_storage_size!
+
+    Namespaces::ScheduleAggregationWorker.perform_async(project_statistics.namespace_id)
   end
 
   before_save :update_storage_size
 
   COLUMNS_TO_REFRESH = [:repository_size, :wiki_size, :lfs_objects_size, :commit_count, :snippets_size, :uploads_size, :container_registry_size].freeze
-  INCREMENTABLE_COLUMNS = {
-    build_artifacts_size: %i[storage_size],
-    packages_size: %i[storage_size],
-    pipeline_artifacts_size: %i[storage_size],
-    snippets_size: %i[storage_size]
-  }.freeze
+  INCREMENTABLE_COLUMNS = [
+    :pipeline_artifacts_size,
+    :snippets_size
+  ].freeze
   NAMESPACE_RELATABLE_COLUMNS = [:repository_size, :wiki_size, :lfs_objects_size, :uploads_size, :container_registry_size].freeze
+  STORAGE_SIZE_COMPONENTS = [
+    :repository_size,
+    :wiki_size,
+    :lfs_objects_size,
+    :build_artifacts_size,
+    :packages_size,
+    :snippets_size,
+    :pipeline_artifacts_size,
+    :uploads_size
+  ].freeze
 
   scope :for_project_ids, ->(project_ids) { where(project_id: project_ids) }
 
@@ -39,17 +49,18 @@ class ProjectStatistics < ApplicationRecord
   def refresh!(only: [])
     return if Gitlab::Database.read_only?
 
-    COLUMNS_TO_REFRESH.each do |column, generator|
-      if only.empty? || only.include?(column)
-        public_send("update_#{column}") # rubocop:disable GitlabSecurity/PublicSend
-      end
+    columns_to_update = only.empty? ? COLUMNS_TO_REFRESH : COLUMNS_TO_REFRESH & only
+    columns_to_update.each do |column|
+      public_send("update_#{column}") # rubocop:disable GitlabSecurity/PublicSend
     end
 
     if only.empty? || only.any? { |column| NAMESPACE_RELATABLE_COLUMNS.include?(column) }
       schedule_namespace_aggregation_worker
     end
 
-    save!
+    detect_race_on_record(log_fields: { caller: __method__, attributes: columns_to_update }) do
+      save!
+    end
   end
 
   def update_commit_count
@@ -84,8 +95,7 @@ class ProjectStatistics < ApplicationRecord
   # and the column can be nil.
   # This means that, when the columns were added, all rows had nil
   # values on them.
-  # Therefore, any call to any of those methods will return nil instead
-  # of 0, because `default_value_for` works with new records, not existing ones.
+  # Therefore, any call to any of those methods will return nil instead of 0.
   #
   # These two methods provide consistency and avoid returning nil.
   def wiki_size
@@ -97,59 +107,68 @@ class ProjectStatistics < ApplicationRecord
   end
 
   def update_storage_size
-    storage_size = repository_size +
-                   wiki_size +
-                   lfs_objects_size +
-                   build_artifacts_size +
-                   packages_size +
-                   snippets_size +
-                   pipeline_artifacts_size +
-                   uploads_size
-
-    self.storage_size = storage_size
+    self.storage_size = storage_size_components.sum { |component| method(component).call }
   end
 
-  # Since this incremental update method does not call update_storage_size above,
-  # we have to update the storage_size here as additional column.
-  # Additional columns are updated depending on key => [columns], which allows
-  # to update statistics which are and also those which aren't included in storage_size
-  # or any other additional summary column in the future.
-  def self.increment_statistic(project, key, amount)
-    raise ArgumentError, "Cannot increment attribute: #{key}" unless INCREMENTABLE_COLUMNS.key?(key)
-    return if amount == 0
+  def refresh_storage_size!
+    detect_race_on_record(log_fields: { caller: __method__, attributes: :storage_size }) do
+      update!(storage_size: storage_size_sum)
+    end
+  end
+
+  # Since this incremental update method does not call update_storage_size above through before_save,
+  # we have to update the storage_size separately.
+  #
+  # For counter attributes, storage_size will be refreshed after the counter is flushed,
+  # through counter_attribute_after_commit
+  #
+  # For non-counter attributes, storage_size is updated depending on key => [columns] in INCREMENTABLE_COLUMNS
+  def self.increment_statistic(project, key, increment)
+    return if project.pending_delete?
 
     project.statistics.try do |project_statistics|
-      if project_statistics.counter_attribute_enabled?(key)
-        statistics_to_increment = [key] + INCREMENTABLE_COLUMNS[key].to_a
-        statistics_to_increment.each do |statistic|
-          project_statistics.delayed_increment_counter(statistic, amount)
-        end
-      else
-        legacy_increment_statistic(project, key, amount)
-      end
+      project_statistics.increment_statistic(key, increment)
     end
   end
 
-  def self.legacy_increment_statistic(project, key, amount)
-    where(project_id: project.id).columns_to_increment(key, amount)
-
-    Namespaces::ScheduleAggregationWorker.perform_async( # rubocop: disable CodeReuse/Worker
-      project.namespace_id)
-  end
-
-  def self.columns_to_increment(key, amount)
-    updates = ["#{key} = COALESCE(#{key}, 0) + (#{amount})"]
-
-    if (additional = INCREMENTABLE_COLUMNS[key])
-      additional.each do |column|
-        updates << "#{column} = COALESCE(#{column}, 0) + (#{amount})"
-      end
+  def self.bulk_increment_statistic(project, key, increments)
+    unless Feature.enabled?(:project_statistics_bulk_increment, type: :development)
+      total_amount = Gitlab::Counters::Increment.new(amount: increments.sum(&:amount))
+      return increment_statistic(project, key, total_amount)
     end
 
-    update_all(updates.join(', '))
+    return if project.pending_delete?
+
+    project.statistics.try do |project_statistics|
+      project_statistics.bulk_increment_statistic(key, increments)
+    end
+  end
+
+  def increment_statistic(key, increment)
+    raise ArgumentError, "Cannot increment attribute: #{key}" unless incrementable_attribute?(key)
+
+    increment_counter(key, increment)
+  end
+
+  def bulk_increment_statistic(key, increments)
+    raise ArgumentError, "Cannot increment attribute: #{key}" unless incrementable_attribute?(key)
+
+    bulk_increment_counter(key, increments)
   end
 
   private
+
+  def incrementable_attribute?(key)
+    INCREMENTABLE_COLUMNS.include?(key) || counter_attribute_enabled?(key)
+  end
+
+  def storage_size_components
+    STORAGE_SIZE_COMPONENTS
+  end
+
+  def storage_size_sum
+    storage_size_components.map { |component| "COALESCE (#{component}, 0)" }.join(' + ').freeze
+  end
 
   def schedule_namespace_aggregation_worker
     run_after_commit do

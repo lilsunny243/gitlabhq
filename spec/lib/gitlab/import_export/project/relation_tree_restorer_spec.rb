@@ -9,7 +9,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::ImportExport::Project::RelationTreeRestorer do
+RSpec.describe Gitlab::ImportExport::Project::RelationTreeRestorer, feature_category: :importers do
   let_it_be(:importable, reload: true) do
     create(:project, :builds_enabled, :issues_disabled, name: 'project', path: 'project')
   end
@@ -21,15 +21,15 @@ RSpec.describe Gitlab::ImportExport::Project::RelationTreeRestorer do
   let(:reader) { Gitlab::ImportExport::Reader.new(shared: shared) }
   let(:relation_tree_restorer) do
     described_class.new(
-      user:                  user,
-      shared:                shared,
-      relation_reader:       relation_reader,
-      object_builder:        Gitlab::ImportExport::Project::ObjectBuilder,
-      members_mapper:        members_mapper,
-      relation_factory:      Gitlab::ImportExport::Project::RelationFactory,
-      reader:                reader,
-      importable:            importable,
-      importable_path:       'project',
+      user: user,
+      shared: shared,
+      relation_reader: relation_reader,
+      object_builder: Gitlab::ImportExport::Project::ObjectBuilder,
+      members_mapper: members_mapper,
+      relation_factory: Gitlab::ImportExport::Project::RelationFactory,
+      reader: reader,
+      importable: importable,
+      importable_path: 'project',
       importable_attributes: attributes
     )
   end
@@ -50,6 +50,7 @@ RSpec.describe Gitlab::ImportExport::Project::RelationTreeRestorer do
         expect(project.custom_attributes.count).to eq(2)
         expect(project.project_badges.count).to eq(2)
         expect(project.snippets.count).to eq(1)
+        expect(project.commit_notes.count).to eq(3)
       end
     end
   end

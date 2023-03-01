@@ -4,12 +4,15 @@ module Gitlab
   module GitalyClient
     class OperationService
       include Gitlab::EncodingHelper
+      include WithFeatureFlagActors
 
       MAX_MSG_SIZE = 128.kilobytes.freeze
 
       def initialize(repository)
         @gitaly_repo = repository.gitaly_repository
         @repository = repository
+
+        self.repository_actor = repository
       end
 
       def rm_tag(tag_name, user)
@@ -19,7 +22,7 @@ module Gitlab
           user: Gitlab::Git::User.from_gitlab(user).to_gitaly
         )
 
-        response = GitalyClient.call(@repository.storage, :operation_service, :user_delete_tag, request, timeout: GitalyClient.long_timeout)
+        response = gitaly_client_call(@repository.storage, :operation_service, :user_delete_tag, request, timeout: GitalyClient.long_timeout)
 
         if pre_receive_error = response.pre_receive_error.presence
           raise Gitlab::Git::PreReceiveError, pre_receive_error
@@ -36,12 +39,7 @@ module Gitlab
           timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
         )
 
-        response = GitalyClient.call(@repository.storage, :operation_service, :user_create_tag, request, timeout: GitalyClient.long_timeout)
-        if pre_receive_error = response.pre_receive_error.presence
-          raise Gitlab::Git::PreReceiveError, pre_receive_error
-        elsif response.exists
-          raise Gitlab::Git::Repository::TagExistsError
-        end
+        response = gitaly_client_call(@repository.storage, :operation_service, :user_create_tag, request, timeout: GitalyClient.long_timeout)
 
         Gitlab::Git::Tag.new(@repository, response.tag)
       rescue GRPC::BadStatus => e
@@ -73,20 +71,28 @@ module Gitlab
           user: Gitlab::Git::User.from_gitlab(user).to_gitaly,
           start_point: encode_binary(start_point)
         )
-        response = GitalyClient.call(@repository.storage, :operation_service,
+        response = gitaly_client_call(@repository.storage, :operation_service,
                                      :user_create_branch, request, timeout: GitalyClient.long_timeout)
-
-        if response.pre_receive_error.present?
-          raise Gitlab::Git::PreReceiveError, response.pre_receive_error
-        end
 
         branch = response.branch
         return unless branch
 
         target_commit = Gitlab::Git::Commit.decorate(@repository, branch.target_commit)
         Gitlab::Git::Branch.new(@repository, branch.name, target_commit.id, target_commit)
-      rescue GRPC::FailedPrecondition => ex
-        raise Gitlab::Git::Repository::InvalidRef, ex
+      rescue GRPC::BadStatus => e
+        detailed_error = GitalyClient.decode_detailed_error(e)
+
+        case detailed_error&.error
+        when :custom_hook
+          raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
+                                                 fallback_message: e.details)
+        else
+          if e.code == GRPC::Core::StatusCodes::FAILED_PRECONDITION
+            raise Gitlab::Git::Repository::InvalidRef, e
+          end
+
+          raise
+        end
       end
 
       def user_update_branch(branch_name, user, newrev, oldrev)
@@ -98,7 +104,7 @@ module Gitlab
           oldrev: encode_binary(oldrev)
         )
 
-        response = GitalyClient.call(@repository.storage, :operation_service,
+        response = gitaly_client_call(@repository.storage, :operation_service,
                                      :user_update_branch, request, timeout: GitalyClient.long_timeout)
 
         if pre_receive_error = response.pre_receive_error.presence
@@ -113,12 +119,8 @@ module Gitlab
           user: Gitlab::Git::User.from_gitlab(user).to_gitaly
         )
 
-        response = GitalyClient.call(@repository.storage, :operation_service,
-                                     :user_delete_branch, request, timeout: GitalyClient.long_timeout)
-
-        if pre_receive_error = response.pre_receive_error.presence
-          raise Gitlab::Git::PreReceiveError, pre_receive_error
-        end
+        gitaly_client_call(@repository.storage, :operation_service,
+                           :user_delete_branch, request, timeout: GitalyClient.long_timeout)
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
@@ -144,15 +146,15 @@ module Gitlab
           timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
         )
 
-        response = GitalyClient.call(@repository.storage, :operation_service,
+        response = gitaly_client_call(@repository.storage, :operation_service,
                                      :user_merge_to_ref, request, timeout: GitalyClient.long_timeout)
 
         response.commit_id
       end
 
-      def user_merge_branch(user, source_sha, target_branch, message)
+      def user_merge_branch(user, source_sha:, target_branch:, message:, target_sha: nil)
         request_enum = QueueEnumerator.new
-        response_enum = GitalyClient.call(
+        response_enum = gitaly_client_call(
           @repository.storage,
           :operation_service,
           :user_merge_branch,
@@ -166,6 +168,7 @@ module Gitlab
             user: Gitlab::Git::User.from_gitlab(user).to_gitaly,
             commit_id: source_sha,
             branch: encode_binary(target_branch),
+            expected_old_oid: target_sha,
             message: encode_binary(message),
             timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
           )
@@ -182,7 +185,6 @@ module Gitlab
         raise Gitlab::Git::CommitError, 'failed to apply merge to branch' unless branch_update.commit_id.present?
 
         Gitlab::Git::OperationService::BranchUpdate.from_gitaly(branch_update)
-
       rescue GRPC::BadStatus => e
         detailed_error = GitalyClient.decode_detailed_error(e)
 
@@ -205,15 +207,16 @@ module Gitlab
         request_enum.close
       end
 
-      def user_ff_branch(user, source_sha, target_branch)
+      def user_ff_branch(user, source_sha:, target_branch:, target_sha: nil)
         request = Gitaly::UserFFBranchRequest.new(
           repository: @gitaly_repo,
           user: Gitlab::Git::User.from_gitlab(user).to_gitaly,
           commit_id: source_sha,
-          branch: encode_binary(target_branch)
+          branch: encode_binary(target_branch),
+          expected_old_oid: target_sha
         )
 
-        response = GitalyClient.call(
+        response = gitaly_client_call(
           @repository.storage,
           :operation_service,
           :user_ff_branch,
@@ -231,32 +234,61 @@ module Gitlab
       end
 
       def user_cherry_pick(user:, commit:, branch_name:, message:, start_branch_name:, start_repository:, dry_run: false)
-        call_cherry_pick_or_revert(:cherry_pick,
-                                   user: user,
-                                   commit: commit,
-                                   branch_name: branch_name,
-                                   message: message,
-                                   start_branch_name: start_branch_name,
-                                   start_repository: start_repository,
-                                   dry_run: dry_run)
+        response = call_cherry_pick_or_revert(:cherry_pick,
+                                              user: user,
+                                              commit: commit,
+                                              branch_name: branch_name,
+                                              message: message,
+                                              start_branch_name: start_branch_name,
+                                              start_repository: start_repository,
+                                              dry_run: dry_run)
+
+        Gitlab::Git::OperationService::BranchUpdate.from_gitaly(response.branch_update)
+      rescue GRPC::BadStatus => e
+        detailed_error = GitalyClient.decode_detailed_error(e)
+
+        case detailed_error&.error
+        when :access_check
+          access_check_error = detailed_error.access_check
+          # These messages were returned from internal/allowed API calls
+          raise Gitlab::Git::PreReceiveError.new(fallback_message: access_check_error.error_message)
+        when :cherry_pick_conflict
+          raise Gitlab::Git::Repository::CreateTreeError, 'CONFLICT'
+        when :changes_already_applied
+          raise Gitlab::Git::Repository::CreateTreeError, 'EMPTY'
+        when :target_branch_diverged
+          raise Gitlab::Git::CommitError, 'branch diverged'
+        else
+          raise e
+        end
       end
 
       def user_revert(user:, commit:, branch_name:, message:, start_branch_name:, start_repository:, dry_run: false)
-        call_cherry_pick_or_revert(:revert,
-                                   user: user,
-                                   commit: commit,
-                                   branch_name: branch_name,
-                                   message: message,
-                                   start_branch_name: start_branch_name,
-                                   start_repository: start_repository,
-                                   dry_run: dry_run)
+        response = call_cherry_pick_or_revert(:revert,
+                                              user: user,
+                                              commit: commit,
+                                              branch_name: branch_name,
+                                              message: message,
+                                              start_branch_name: start_branch_name,
+                                              start_repository: start_repository,
+                                              dry_run: dry_run)
+
+        if response.pre_receive_error.presence
+          raise Gitlab::Git::PreReceiveError, response.pre_receive_error
+        elsif response.commit_error.presence
+          raise Gitlab::Git::CommitError, response.commit_error
+        elsif response.create_tree_error.presence
+          raise Gitlab::Git::Repository::CreateTreeError, response.create_tree_error_code
+        end
+
+        Gitlab::Git::OperationService::BranchUpdate.from_gitaly(response.branch_update)
       end
 
       def rebase(user, rebase_id, branch:, branch_sha:, remote_repository:, remote_branch:, push_options: [])
         request_enum = QueueEnumerator.new
         rebase_sha = nil
 
-        response_enum = GitalyClient.call(
+        response_enum = gitaly_client_call(
           @repository.storage,
           :operation_service,
           :user_rebase_confirmable,
@@ -322,7 +354,7 @@ module Gitlab
           timestamp: Google::Protobuf::Timestamp.new(seconds: time.to_i)
         )
 
-        response = GitalyClient.call(
+        response = gitaly_client_call(
           @repository.storage,
           :operation_service,
           :user_squash,
@@ -364,7 +396,7 @@ module Gitlab
           timestamp: Google::Protobuf::Timestamp.new(seconds: Time.now.utc.to_i)
         )
 
-        response = GitalyClient.call(
+        response = gitaly_client_call(
           @repository.storage,
           :operation_service,
           :user_update_submodule,
@@ -410,7 +442,7 @@ module Gitlab
           end
         end
 
-        response = GitalyClient.call(
+        response = gitaly_client_call(
           @repository.storage, :operation_service, :user_commit_files, req_enum,
           timeout: GitalyClient.long_timeout, remote_storage: start_repository&.storage)
 
@@ -423,9 +455,33 @@ module Gitlab
         end
 
         Gitlab::Git::OperationService::BranchUpdate.from_gitaly(response.branch_update)
-      end
-      # rubocop:enable Metrics/ParameterLists
+      rescue GRPC::BadStatus => e
+        detailed_error = GitalyClient.decode_detailed_error(e)
 
+        case detailed_error&.error
+        when :access_check
+          access_check_error = detailed_error.access_check
+          # These messages were returned from internal/allowed API calls
+          raise Gitlab::Git::PreReceiveError.new(fallback_message: access_check_error.error_message)
+        when :custom_hook
+          raise Gitlab::Git::PreReceiveError.new(custom_hook_error_message(detailed_error.custom_hook),
+                                                 fallback_message: e.details)
+        when :index_update
+          raise Gitlab::Git::Index::IndexError, index_error_message(detailed_error.index_update)
+        else
+          # Some invalid path errors are caught by Gitaly directly and returned
+          # as an :index_update error, while others are found by libgit2 and
+          # come as generic errors. We need to convert the latter as IndexErrors
+          # as well.
+          if e.to_status.details.start_with?('invalid path')
+            raise Gitlab::Git::Index::IndexError, e.to_status.details
+          end
+
+          raise e
+        end
+      end
+
+      # rubocop:enable Metrics/ParameterLists
       def user_commit_patches(user, branch_name, patches)
         header = Gitaly::UserApplyPatchRequest::Header.new(
           repository: @gitaly_repo,
@@ -445,7 +501,7 @@ module Gitlab
           end
         end
 
-        response = GitalyClient.call(@repository.storage, :operation_service,
+        response = gitaly_client_call(@repository.storage, :operation_service,
                                      :user_apply_patch, chunks, timeout: GitalyClient.long_timeout)
 
         Gitlab::Git::OperationService::BranchUpdate.from_gitaly(response.branch_update)
@@ -481,7 +537,7 @@ module Gitlab
           dry_run: dry_run
         )
 
-        response = GitalyClient.call(
+        gitaly_client_call(
           @repository.storage,
           :operation_service,
           :"user_#{rpc}",
@@ -489,37 +545,6 @@ module Gitlab
           remote_storage: start_repository.storage,
           timeout: GitalyClient.long_timeout
         )
-
-        handle_cherry_pick_or_revert_response(response)
-      rescue GRPC::BadStatus => e
-        detailed_error = GitalyClient.decode_detailed_error(e)
-
-        case detailed_error&.error
-        when :access_check
-          access_check_error = detailed_error.access_check
-          # These messages were returned from internal/allowed API calls
-          raise Gitlab::Git::PreReceiveError.new(fallback_message: access_check_error.error_message)
-        when :cherry_pick_conflict
-          raise Gitlab::Git::Repository::CreateTreeError, 'CONFLICT'
-        when :changes_already_applied
-          raise Gitlab::Git::Repository::CreateTreeError, 'EMPTY'
-        when :target_branch_diverged
-          raise Gitlab::Git::CommitError, 'branch diverged'
-        else
-          raise e
-        end
-      end
-
-      def handle_cherry_pick_or_revert_response(response)
-        if response.pre_receive_error.presence
-          raise Gitlab::Git::PreReceiveError, response.pre_receive_error
-        elsif response.commit_error.presence
-          raise Gitlab::Git::CommitError, response.commit_error
-        elsif response.create_tree_error.presence
-          raise Gitlab::Git::Repository::CreateTreeError, response.create_tree_error_code
-        end
-
-        Gitlab::Git::OperationService::BranchUpdate.from_gitaly(response.branch_update)
       end
 
       # rubocop:disable Metrics/ParameterLists
@@ -562,6 +587,27 @@ module Gitlab
         # Gitaly error as a fallback.
         custom_hook_output = custom_hook_error.stderr.presence || custom_hook_error.stdout
         EncodingHelper.encode!(custom_hook_output)
+      end
+
+      def index_error_message(index_error)
+        encoded_path = EncodingHelper.encode!(index_error.path)
+
+        case index_error.error_type
+        when :ERROR_TYPE_EMPTY_PATH
+          "You must provide a file path"
+        when :ERROR_TYPE_INVALID_PATH
+          "invalid path: '#{encoded_path}'"
+        when :ERROR_TYPE_DIRECTORY_EXISTS
+          "A directory with this name already exists"
+        when :ERROR_TYPE_DIRECTORY_TRAVERSAL
+          "Path cannot include directory traversal"
+        when :ERROR_TYPE_FILE_EXISTS
+          "A file with this name already exists"
+        when :ERROR_TYPE_FILE_NOT_FOUND
+          "A file with this name doesn't exist"
+        else
+          "Unknown error performing git operation"
+        end
       end
     end
   end

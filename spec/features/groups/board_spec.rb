@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Group Boards' do
+RSpec.describe 'Group Boards', feature_category: :team_planning do
   include DragTo
   include MobileHelpers
   include BoardHelpers
@@ -14,6 +14,8 @@ RSpec.describe 'Group Boards' do
     let_it_be(:project) { create(:project_empty_repo, group: group) }
 
     before do
+      stub_feature_flags(apollo_boards: false)
+
       group.add_maintainer(user)
 
       sign_in(user)
@@ -23,8 +25,10 @@ RSpec.describe 'Group Boards' do
 
     it 'adds an issue to the backlog' do
       page.within(find('.board', match: :first)) do
-        issue_title = 'New Issue'
-        click_button 'New issue'
+        dropdown = first("[data-testid='header-list-actions']")
+        dropdown.click
+        issue_title = 'Create new issue'
+        click_button issue_title
 
         wait_for_requests
 
@@ -35,7 +39,7 @@ RSpec.describe 'Group Boards' do
         page.within("[data-testid='project-select-dropdown']") do
           find('button.gl-dropdown-toggle').click
 
-          find('.gl-new-dropdown-item button').click
+          find('.gl-dropdown-item button').click
         end
 
         click_button 'Create issue'
@@ -60,6 +64,8 @@ RSpec.describe 'Group Boards' do
     let_it_be(:issue2) { create(:issue, title: 'issue2', project: project2) }
 
     before do
+      stub_feature_flags(apollo_boards: false)
+
       project1.add_guest(user)
       project2.add_reporter(user)
 

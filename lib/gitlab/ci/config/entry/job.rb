@@ -12,16 +12,16 @@ module Gitlab
 
           ALLOWED_WHEN = %w[on_success on_failure always manual delayed].freeze
           ALLOWED_KEYS = %i[tags script image services start_in artifacts
-                            cache dependencies before_script after_script
+                            cache dependencies before_script after_script hooks
                             environment coverage retry parallel interruptible timeout
-                            release].freeze
+                            release id_tokens].freeze
 
           validations do
             validates :config, allowed_keys: Gitlab::Ci::Config::Entry::Job.allowed_keys + PROCESSABLE_ALLOWED_KEYS
             validates :script, presence: true
 
             with_options allow_nil: true do
-              validates :when, inclusion: {
+              validates :when, type: String, inclusion: {
                 in: ALLOWED_WHEN,
                 message: "should be one of: #{ALLOWED_WHEN.join(', ')}"
               }
@@ -57,6 +57,10 @@ module Gitlab
 
           entry :after_script, Entry::Commands,
             description: 'Commands that will be executed when finishing job.',
+            inherit: true
+
+          entry :hooks, Entry::Hooks,
+            description: 'Commands that will be executed on Runner before/after some events; clone, build-script.',
             inherit: true
 
           entry :cache, Entry::Caches,
@@ -116,6 +120,11 @@ module Gitlab
             description: 'Indicates whether this job is allowed to fail or not.',
             inherit: false
 
+          entry :id_tokens, ::Gitlab::Config::Entry::ComposableHash,
+            description: 'Configured JWTs for this job',
+            inherit: false,
+            metadata: { composable_class: ::Gitlab::Ci::Config::Entry::IdToken }
+
           attributes :script, :tags, :when, :dependencies,
                      :needs, :retry, :parallel, :start_in,
                      :interruptible, :timeout,
@@ -155,10 +164,12 @@ module Gitlab
               artifacts: artifacts_value,
               release: release_value,
               after_script: after_script_value,
+              hooks: hooks_value,
               ignore: ignored?,
               allow_failure_criteria: allow_failure_criteria,
               needs: needs_defined? ? needs_value : nil,
-              scheduling_type: needs_defined? ? :dag : :stage
+              scheduling_type: needs_defined? ? :dag : :stage,
+              id_tokens: id_tokens_value
             ).compact
           end
 

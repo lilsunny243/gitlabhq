@@ -2,19 +2,24 @@
 
 require 'spec_helper'
 
-RSpec.describe 'ProjectCiCdSettingsUpdate' do
+RSpec.describe 'ProjectCiCdSettingsUpdate', feature_category: :continuous_integration do
   include GraphqlHelpers
 
   let_it_be(:project) do
-    create(:project, keep_latest_artifact: true, ci_job_token_scope_enabled: true)
-      .tap(&:save!)
+    create(:project,
+      keep_latest_artifact: true,
+      ci_outbound_job_token_scope_enabled: true,
+      ci_inbound_job_token_scope_enabled: true
+    ).tap(&:save!)
   end
 
   let(:variables) do
     {
       full_path: project.full_path,
       keep_latest_artifact: false,
-      job_token_scope_enabled: false
+      job_token_scope_enabled: false,
+      inbound_job_token_scope_enabled: false,
+      opt_in_jwt: true
     }
   end
 
@@ -62,7 +67,7 @@ RSpec.describe 'ProjectCiCdSettingsUpdate' do
       project.reload
 
       expect(response).to have_gitlab_http_status(:success)
-      expect(project.ci_job_token_scope_enabled).to eq(false)
+      expect(project.ci_outbound_job_token_scope_enabled).to eq(false)
     end
 
     it 'does not update job_token_scope_enabled if not specified' do
@@ -73,7 +78,38 @@ RSpec.describe 'ProjectCiCdSettingsUpdate' do
       project.reload
 
       expect(response).to have_gitlab_http_status(:success)
-      expect(project.ci_job_token_scope_enabled).to eq(true)
+      expect(project.ci_outbound_job_token_scope_enabled).to eq(true)
+    end
+
+    describe 'inbound_job_token_scope_enabled' do
+      it 'updates inbound_job_token_scope_enabled' do
+        post_graphql_mutation(mutation, current_user: user)
+
+        project.reload
+
+        expect(response).to have_gitlab_http_status(:success)
+        expect(project.ci_inbound_job_token_scope_enabled).to eq(false)
+      end
+
+      it 'does not update inbound_job_token_scope_enabled if not specified' do
+        variables.except!(:inbound_job_token_scope_enabled)
+
+        post_graphql_mutation(mutation, current_user: user)
+
+        project.reload
+
+        expect(response).to have_gitlab_http_status(:success)
+        expect(project.ci_inbound_job_token_scope_enabled).to eq(true)
+      end
+    end
+
+    it 'updates ci_opt_in_jwt' do
+      post_graphql_mutation(mutation, current_user: user)
+
+      project.reload
+
+      expect(response).to have_gitlab_http_status(:success)
+      expect(project.ci_opt_in_jwt).to eq(true)
     end
 
     context 'when bad arguments are provided' do

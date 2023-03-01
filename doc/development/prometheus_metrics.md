@@ -1,10 +1,10 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Working with Prometheus Metrics **(FREE)**
+# Working with Prometheus Metrics
 
 ## Adding to the library
 
@@ -36,7 +36,7 @@ After you add or change an existing common metric, you must [re-run the import s
 Or, you can create a database migration:
 
 ```ruby
-class ImportCommonMetrics < Gitlab::Database::Migration[1.0]
+class ImportCommonMetrics < Gitlab::Database::Migration[2.1]
   def up
     ::Gitlab::DatabaseImporters::CommonMetrics::Importer.new.execute
   end

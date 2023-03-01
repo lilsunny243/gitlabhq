@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Plan
 group: Optimize
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Value stream analytics for projects **(FREE)**
@@ -32,7 +32,7 @@ Value stream analytics is also available for [groups](../group/value_stream_anal
 
 To view value stream analytics for your project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Analytics > Value stream**.
 1. To view metrics for a particular stage, select a stage below the **Filter results** text box.
 1. Optional. Filter the results:
@@ -61,7 +61,7 @@ Value stream analytics shows the median time spent by issues or merge requests i
 
 To view the median time spent in each stage:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Analytics > Value stream**.
 1. Optional. Filter the results:
    1. Select the **Filter results** text box.
@@ -81,7 +81,7 @@ Value stream analytics shows the lead time and cycle time for issues in your pro
 
 To view the lead time and cycle time for issues:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Analytics > Value stream**.
 1. Optional. Filter the results:
    1. Select the **Filter results** text box.
@@ -101,7 +101,7 @@ Lead time for changes is the median duration between when a merge request is mer
 
 To view the lead time for changes for merge requests in your project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Analytics > Value stream**.
 1. Optional. Filter the results:
    1. Select the **Filter results** text box.
@@ -113,19 +113,26 @@ To view the lead time for changes for merge requests in your project:
 
 The **Lead Time for Changes** metrics display below the **Filter results** text box.
 
-## View number of successful deployments **(PREMIUM)**
+## View number of successful deployments **(FREE)**
 
-To view deployment metrics, you must have a
+Prerequisites:
+
+- To view deployment metrics, you must have a
 [production environment configured](../../ci/environments/index.md#deployment-tier-of-environments).
 
-Value stream analytics shows the following deployment metrics for your project:
+Value stream analytics shows the following deployment metrics for your project within the specified date range:
 
 - Deploys: The number of successful deployments in the date range.
 - Deployment Frequency: The average number of successful deployments per day in the date range.
 
+If you have a GitLab Premium or Ultimate subscription:
+
+- The number of successful deployments is calculated with DORA data.
+- The data is filtered based on environment and environment tier.
+
 To view deployment metrics for your project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Analytics > Value stream**.
 1. Optional. Filter the results:
    1. Select the **Filter results** text box.
@@ -197,7 +204,7 @@ Value stream analytics records the following times for each stage:
 - **Review**: 14:00 to 19:00: 5 hrs
 - **Staging**: 19:00 to 19:30: 30 minutes
 
-There are some additional considerations for this example:
+Keep in mind the following observations related to this example:
 
 - Although this example specifies the issue number in a later commit, the process
 still collects analytics data for the issue.
@@ -207,3 +214,33 @@ as every merge request should be tested.
 stream analytics dashboard shows the calculated median elapsed time for these issues.
 - Value stream analytics identifies production environments based on the
 [deployment tier of environments](../../ci/environments/index.md#deployment-tier-of-environments).
+
+## Troubleshooting
+
+### 100% CPU utilization by Sidekiq `cronjob:analytics_cycle_analytics`
+
+It is possible that Value stream analytics background jobs
+strongly impact performance by monopolizing CPU resources.
+
+To recover from this situation:
+
+1. Disable the feature for all projects in [the Rails console](../../administration/operations/rails_console.md),
+   and remove existing jobs:
+
+   ```ruby
+   Project.find_each do |p|
+     p.analytics_access_level='disabled';
+     p.save!
+   end
+
+   Analytics::CycleAnalytics::GroupStage.delete_all
+   Analytics::CycleAnalytics::Aggregation.delete_all
+   ```
+
+1. Configure a [Sidekiq routing](../../administration/sidekiq/processing_specific_job_classes.md)
+   with for example a single `feature_category=value_stream_management`
+   and multiple `feature_category!=value_stream_management` entries.
+   Find other relevant queue metadata in the
+   [Enterprise Edition list](../../administration/sidekiq/processing_specific_job_classes.md#list-of-available-job-classes).
+1. Enable value stream analytics for one project after another.
+   You might need to tweak the Sidekiq routing further according to your performance requirements.

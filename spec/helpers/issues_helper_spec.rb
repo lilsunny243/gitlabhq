@@ -3,9 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe IssuesHelper do
-  let(:project) { create(:project) }
-  let(:issue) { create :issue, project: project }
-  let(:ext_project) { create :redmine_project }
+  let_it_be(:project) { create(:project) }
+  let_it_be_with_reload(:issue) { create(:issue, project: project) }
 
   describe '#work_item_type_icon' do
     it 'returns icon of all standard base types' do
@@ -267,7 +266,9 @@ RSpec.describe IssuesHelper do
         issue_type: 'issue',
         new_issue_path: new_project_issue_path(project, { add_related_issue: issue.iid }),
         project_path: project.full_path,
-        report_abuse_path: new_abuse_report_path(user_id: issue.author.id, ref_url: issue_url(issue)),
+        report_abuse_path: add_category_abuse_reports_path,
+        reported_user_id: issue.author.id,
+        reported_from_url: issue_url(issue),
         submit_as_spam_path: mark_as_spam_project_issue_path(project, issue)
       }
 
@@ -299,7 +300,6 @@ RSpec.describe IssuesHelper do
         import_csv_issues_path: '#',
         initial_email: project.new_issuable_address(current_user, 'issue'),
         initial_sort: current_user&.user_preference&.issues_sort,
-        is_anonymous_search_disabled: 'true',
         is_issue_repositioning_disabled: 'true',
         is_project: 'true',
         is_public_visibility_restricted: Gitlab::CurrentSettings.restricted_visibility_levels ? 'false' : '',
@@ -322,10 +322,6 @@ RSpec.describe IssuesHelper do
   end
 
   describe '#project_issues_list_data' do
-    before do
-      stub_feature_flags(disable_anonymous_search: true)
-    end
-
     context 'when user is signed in' do
       it_behaves_like 'issues list data' do
         let(:current_user) { double.as_null_object }
@@ -378,6 +374,31 @@ RSpec.describe IssuesHelper do
       }
 
       expect(helper.group_issues_list_data(group, current_user)).to include(expected)
+    end
+  end
+
+  describe '#dashboard_issues_list_data' do
+    let(:current_user) { double.as_null_object }
+
+    it 'returns expected result' do
+      allow(helper).to receive(:current_user).and_return(current_user)
+      allow(helper).to receive(:image_path).and_return('#')
+      allow(helper).to receive(:url_for).and_return('#')
+
+      expected = {
+        autocomplete_award_emojis_path: autocomplete_award_emojis_path,
+        calendar_path: '#',
+        dashboard_labels_path: dashboard_labels_path(format: :json, include_ancestor_groups: true),
+        dashboard_milestones_path: dashboard_milestones_path(format: :json),
+        empty_state_with_filter_svg_path: '#',
+        empty_state_without_filter_svg_path: '#',
+        initial_sort: current_user&.user_preference&.issues_sort,
+        is_public_visibility_restricted: Gitlab::CurrentSettings.restricted_visibility_levels ? 'false' : '',
+        is_signed_in: current_user.present?.to_s,
+        rss_path: '#'
+      }
+
+      expect(helper.dashboard_issues_list_data(current_user)).to include(expected)
     end
   end
 
@@ -452,62 +473,13 @@ RSpec.describe IssuesHelper do
     end
   end
 
-  describe '#status_box_class' do
-    context 'when object is expired' do
-      it 'returns orange background' do
-        milestone = build(:milestone, due_date: Date.today.prev_month)
-        expect(helper.status_box_class(milestone)).to eq('gl-bg-orange-500')
-      end
-    end
-
-    context 'when object is merged' do
-      it 'returns blue background' do
-        merge_request = build(:merge_request, :merged)
-        expect(helper.status_box_class(merge_request)).to eq('badge-info')
-      end
-    end
-
-    context 'when object is closed' do
-      it 'returns red background' do
-        merge_request = build(:merge_request, :closed)
-        expect(helper.status_box_class(merge_request)).to eq('badge-danger')
-      end
-    end
-
-    context 'when object is upcoming' do
-      it 'returns gray background' do
-        milestone = build(:milestone, start_date: Date.today.next_month)
-        expect(helper.status_box_class(milestone)).to eq('gl-bg-gray-500')
-      end
-    end
-
-    context 'when object is opened' do
-      it 'returns green background' do
-        merge_request = build(:merge_request, :opened)
-        expect(helper.status_box_class(merge_request)).to eq('badge-success')
-      end
-    end
-  end
-
   describe '#issue_hidden?' do
     context 'when issue is hidden' do
       let_it_be(:banned_user) { build(:user, :banned) }
       let_it_be(:hidden_issue) { build(:issue, author: banned_user) }
 
-      context 'when `ban_user_feature_flag` feature flag is enabled' do
-        it 'returns `true`' do
-          expect(helper.issue_hidden?(hidden_issue)).to eq(true)
-        end
-      end
-
-      context 'when `ban_user_feature_flag` feature flag is disabled' do
-        before do
-          stub_feature_flags(ban_user_feature_flag: false)
-        end
-
-        it 'returns `false`' do
-          expect(helper.issue_hidden?(hidden_issue)).to eq(false)
-        end
+      it 'returns `true`' do
+        expect(helper.issue_hidden?(hidden_issue)).to eq(true)
       end
     end
 

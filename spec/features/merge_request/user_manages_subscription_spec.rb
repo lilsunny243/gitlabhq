@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User manages subscription', :js do
+RSpec.describe 'User manages subscription', :js, feature_category: :code_review_workflow do
   let(:project) { create(:project, :public, :repository) }
   let(:merge_request) { create(:merge_request, source_project: project, target_project: project) }
   let(:user) { create(:user) }
@@ -43,21 +43,17 @@ RSpec.describe 'User manages subscription', :js do
     it 'toggles subscription' do
       wait_for_requests
 
-      click_button 'Toggle dropdown'
+      find('[data-testid="merge-request-actions"]').click
 
       expect(page).to have_selector('.gl-toggle:not(.is-checked)')
       find('[data-testid="notifications-toggle"] .gl-toggle').click
 
       wait_for_requests
 
-      click_button 'Toggle dropdown'
-
       expect(page).to have_selector('.gl-toggle.is-checked')
       find('[data-testid="notifications-toggle"] .gl-toggle').click
 
       wait_for_requests
-
-      click_button 'Toggle dropdown'
 
       expect(page).to have_selector('.gl-toggle:not(.is-checked)')
     end

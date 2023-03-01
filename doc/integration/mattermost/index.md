@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Mattermost
@@ -123,7 +123,7 @@ http://mattermost.example.com/signup/gitlab/complete
 http://mattermost.example.com/login/gitlab/complete
 ```
 
-Note that you do not need to select any options under **Scopes**. Choose **Save application**.
+Make sure to select the **Trusted** and **Confidential** settings. Under **Scopes**, select `read_user`. Then, choose **Save application**.
 
 Once the application is created you are provided with an `Application ID` and `Secret`. One other piece of information needed is the URL of GitLab instance.
 Return to the server running GitLab Mattermost and edit the `/etc/gitlab/gitlab.rb` configuration file as follows using the values you received above:
@@ -132,7 +132,7 @@ Return to the server running GitLab Mattermost and edit the `/etc/gitlab/gitlab.
 mattermost['gitlab_enable'] = true
 mattermost['gitlab_id'] = "12345656"
 mattermost['gitlab_secret'] = "123456789"
-mattermost['gitlab_scope'] = ""
+mattermost['gitlab_scope'] = "read_user"
 mattermost['gitlab_auth_endpoint'] = "http://gitlab.example.com/oauth/authorize"
 mattermost['gitlab_token_endpoint'] = "http://gitlab.example.com/oauth/token"
 mattermost['gitlab_user_api_endpoint'] = "http://gitlab.example.com/api/v4/user"
@@ -140,7 +140,7 @@ mattermost['gitlab_user_api_endpoint'] = "http://gitlab.example.com/api/v4/user"
 
 Save the changes and then run `sudo gitlab-ctl reconfigure`. If there are no errors your GitLab and GitLab Mattermost should be configured correctly.
 
-### Specify numeric user and group identifiers
+## Specify numeric user and group identifiers
 
 Omnibus GitLab creates a user and group `mattermost`. You can specify the
 numeric identifiers for these users in `/etc/gitlab/gitlab.rb` as follows:
@@ -152,7 +152,7 @@ mattermost['gid'] = 1234
 
 Run `sudo gitlab-ctl reconfigure` to apply the changes.
 
-### Setting custom environment variables
+## Setting custom environment variables
 
 If necessary you can set custom environment variables to be used by Mattermost
 via `/etc/gitlab/gitlab.rb`. This can be useful if the Mattermost server
@@ -165,7 +165,7 @@ mattermost['env'] = {"HTTP_PROXY" => "my_proxy", "HTTPS_PROXY" => "my_proxy", "N
 
 Run `sudo gitlab-ctl reconfigure` to apply the changes.
 
-### Connecting to the bundled PostgreSQL database
+## Connecting to the bundled PostgreSQL database
 
 If you need to connect to the bundled PostgreSQL database and are using the default Omnibus GitLab database configuration, you can connect as
 the PostgreSQL superuser:
@@ -174,14 +174,14 @@ the PostgreSQL superuser:
 sudo gitlab-psql -d mattermost_production
 ```
 
-### Back up GitLab Mattermost
+## Back up GitLab Mattermost
 
 GitLab Mattermost is not included in the regular [Omnibus GitLab backup](../../raketasks/backup_restore.md) Rake task.
 
 The general Mattermost [backup and disaster recovery](https://docs.mattermost.com/deploy/backup-disaster-recovery.html) documentation can be used as a guide
 on what needs to be backed up.
 
-#### Back up the bundled PostgreSQL database
+### Back up the bundled PostgreSQL database
 
 If you need to back up the bundled PostgreSQL database and are using the default Omnibus GitLab database configuration, you can back up using this command:
 
@@ -189,7 +189,7 @@ If you need to back up the bundled PostgreSQL database and are using the default
 sudo -i -u gitlab-psql -- /opt/gitlab/embedded/bin/pg_dump -h /var/opt/gitlab/postgresql mattermost_production | gzip > mattermost_dbdump_$(date --rfc-3339=date).sql.gz
 ```
 
-#### Back up the `data` directory and `config.json`
+### Back up the `data` directory and `config.json`
 
 Mattermost has a `data` directory and `config.json` file that need to be backed up as well:
 
@@ -197,7 +197,7 @@ Mattermost has a `data` directory and `config.json` file that need to be backed 
 sudo tar -zcvf mattermost_data_$(date --rfc-3339=date).gz -C /var/opt/gitlab/mattermost data config.json
 ```
 
-### Restore GitLab Mattermost
+## Restore GitLab Mattermost
 
 If you have previously [created a backup of GitLab Mattermost](#back-up-gitlab-mattermost), you can run the following commands to restore it:
 
@@ -227,11 +227,11 @@ sudo chown mattermost:mattermost /var/opt/gitlab/mattermost/config.json
 sudo gitlab-ctl start mattermost
 ```
 
-### Mattermost Command Line Tools (CLI)
+## Mattermost Command Line Tools (CLI)
 
 [`mmctl`](https://docs.mattermost.com/manage/mmctl-command-line-tool.html) is a CLI tool for the Mattermost server which is installed locally and uses the Mattermost API, but may also be used remotely. You must configure Mattermost either for local connections or authenticate as an administrator with local login credentials (not through GitLab SSO). The executable is located at `/opt/gitlab/embedded/bin/mmctl`.
 
-#### Use `mmctl` through a local connection
+### Use `mmctl` through a local connection
 
 For local connections, the `mmctl` binary and Mattermost must be run from the same server. To enable the local socket:
 
@@ -269,10 +269,10 @@ wd3g5zpepjgbfjgpdjaas7yj6a: feedbackbot (feedbackbot@localhost)
 There are 4 users on local instance
 ```
 
-#### Use `mmctl` through a remote connection
+### Use `mmctl` through a remote connection
 
 For remote connections or local connections where the socket cannot be used,
-create a non SSO user and give that user admin privileges. Those credentials
+create a non SSO user and give that user administrator privileges. Those credentials
 can then be used to authenticate `mmctl`:
 
 ```shell
@@ -307,7 +307,7 @@ These settings can also be configured in `/var/opt/gitlab/mattermost/config.json
 
 Enabling this feature allows users to control how often they receive email notifications.
 
-Email batching can be enabled in the Mattermost **System Console** by going to the **Environment > SMTP** tab, and setting the **Enable Email Batching** setting to **True**.
+Email batching can be enabled in the Mattermost **System Console** by navigating to the **Environment > SMTP** tab, and setting the **Enable Email Batching** setting to **True**.
 
 This setting can also be configured in `/var/opt/gitlab/mattermost/config.json`.
 
@@ -360,7 +360,7 @@ When upgrading the Mattermost version, it is essential to check the
 for Mattermost to address any changes or migrations that need to be performed.
 
 Starting with GitLab 11.0, GitLab Mattermost can be upgraded through the regular Omnibus GitLab update process. When upgrading previous versions of
-GitLab, the update process can only be used if Mattermost configuration settings have not been changed outside of GitLab. That is, no changes to Mattermost's `config.json`
+GitLab, the update process can only be used if Mattermost configuration settings have not been changed outside of GitLab. That is, no changes to the Mattermost `config.json`
 file have been made - either directly or via the Mattermost **System Console**, which saves changes to `config.json`.
 
 If you are upgrading to at least GitLab 11.0 or have only configured Mattermost using `gitlab.rb`, you can upgrade GitLab using Omnibus and then run `gitlab-ctl reconfigure` to upgrade GitLab Mattermost to the latest version.
@@ -402,7 +402,7 @@ generates the `config.json` file, and instead passes limited configuration setti
 The settings that continue to be supported in `gitlab.rb` can be found in
 [`gitlab.rb.template`](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/files/gitlab-config-template/gitlab.rb.template).
 
-From GitLab 11.0, other Mattermost settings can be configured through Mattermost's System Console,
+From GitLab 11.0, other Mattermost settings can be configured through the Mattermost System Console,
 by editing `/var/opt/gitlab/mattermost/config.json`, or by using `mattermost['env']` in `gitlab.rb`.
 
 If you would like to keep configuring Mattermost using `gitlab.rb`, you can take the following actions
@@ -490,9 +490,9 @@ If you encounter any issues [visit the GitLab Mattermost troubleshooting forum](
 
 If you choose to upgrade Mattermost outside of the Omnibus GitLab automation, [follow this guide](https://docs.mattermost.com/administration/upgrade.html).
 
-## OAuth2 sequence diagram
+## OAuth 2.0 sequence diagram
 
-The following image is a sequence diagram for how GitLab works as an OAuth2
+The following image is a sequence diagram for how GitLab works as an OAuth 2.0
 provider for Mattermost. You can use this to troubleshoot errors
 in getting the integration to work:
 
@@ -520,9 +520,8 @@ sequenceDiagram
 
 ## Community support resources
 
-For help and support around your GitLab Mattermost deployment please see:
+For help and support around your GitLab Mattermost deployment, see:
 
-- [Troubleshooting Forum](https://forum.mattermost.com/t/how-to-use-the-troubleshooting-forum/150) for configuration questions and issues.
-- [Troubleshooting FAQ](https://docs.mattermost.com/install/troubleshooting.html).
+- [Troubleshooting Mattermost issues](https://docs.mattermost.com/install/troubleshooting.html).
 - [Mattermost GitLab Issues Support Handbook](https://docs.mattermost.com/process/support.html?highlight=omnibus#gitlab-issues).
 - [GitLab Mattermost issue tracker](https://gitlab.com/gitlab-org/gitlab-mattermost/-/issues) for verified bugs with repro steps.

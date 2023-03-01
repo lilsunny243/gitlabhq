@@ -5,7 +5,7 @@ RSpec.shared_context 'project navbar structure' do
 
   let(:security_and_compliance_nav_item) do
     {
-      nav_item: _('Security & Compliance'),
+      nav_item: _('Security and Compliance'),
       nav_sub_items: [
         (_('Audit events') if Gitlab.ee?),
         _('Configuration')
@@ -67,8 +67,8 @@ RSpec.shared_context 'project navbar structure' do
       {
         nav_item: _('Deployments'),
         nav_sub_items: [
-          _('Feature Flags'),
           _('Environments'),
+          _('Feature Flags'),
           _('Releases')
         ]
       },
@@ -85,8 +85,7 @@ RSpec.shared_context 'project navbar structure' do
           _('Metrics'),
           _('Error Tracking'),
           _('Alerts'),
-          _('Incidents'),
-          _('Product Analytics')
+          _('Incidents')
         ]
       },
       {
@@ -109,8 +108,9 @@ RSpec.shared_context 'project navbar structure' do
           _('Webhooks'),
           _('Access Tokens'),
           _('Repository'),
+          _('Merge requests'),
           _('CI/CD'),
-          _('Packages & Registries'),
+          _('Packages and registries'),
           _('Monitor'),
           s_('UsageQuota|Usage Quotas')
         ]
@@ -139,7 +139,8 @@ RSpec.shared_context 'group navbar structure' do
         _('Repository'),
         _('CI/CD'),
         _('Applications'),
-        _('Packages & Registries')
+        _('Packages and registries'),
+        _('Domain Verification')
       ]
     }
   end
@@ -164,7 +165,7 @@ RSpec.shared_context 'group navbar structure' do
 
   let(:security_and_compliance_nav_item) do
     {
-      nav_item: _('Security & Compliance'),
+      nav_item: _('Security and Compliance'),
       nav_sub_items: [
         _('Audit events')
       ]
@@ -217,6 +218,52 @@ RSpec.shared_context 'group navbar structure' do
         nav_sub_items: []
       },
       (analytics_nav_item if Gitlab.ee?)
+    ]
+  end
+end
+
+RSpec.shared_context 'dashboard navbar structure' do
+  let(:structure) do
+    [
+      {
+        nav_item: "Your work",
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Projects"),
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Groups"),
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Issues"),
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Merge requests"),
+        nav_sub_items: [
+          _('Assigned 0'),
+          _('Review requests 0')
+        ]
+      },
+      {
+        nav_item: _("To-Do List"),
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Milestones"),
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Snippets"),
+        nav_sub_items: []
+      },
+      {
+        nav_item: _("Activity"),
+        nav_sub_items: []
+      }
     ]
   end
 end

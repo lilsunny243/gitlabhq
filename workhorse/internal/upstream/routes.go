@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"gitlab.com/gitlab-org/labkit/log"
 	"gitlab.com/gitlab-org/labkit/tracing"
@@ -51,6 +52,7 @@ const (
 	geoGitProjectPattern = `^/[^-].+\.git/` // Prevent matching routes like /-/push_from_secondary
 	projectPattern       = `^/([^/]+/){1,}[^/]+/`
 	apiProjectPattern    = apiPattern + `v4/projects/[^/]+` // API: Projects can be encoded via group%2Fsubgroup%2Fproject
+	apiGroupPattern      = apiPattern + `v4/groups/[^/]+`
 	apiTopicPattern      = apiPattern + `v4/topics`
 	snippetUploadPattern = `^/uploads/personal_snippet`
 	userUploadPattern    = `^/uploads/user`
@@ -221,7 +223,7 @@ func configureRoutes(u *upstream) {
 	mimeMultipartUploader := upload.Multipart(api, signingProxy, preparer)
 
 	tempfileMultipartProxy := upload.FixedPreAuthMultipart(api, proxy, preparer)
-	ciAPIProxyQueue := queueing.QueueRequests("ci_api_job_requests", tempfileMultipartProxy, u.APILimit, u.APIQueueLimit, u.APIQueueTimeout)
+	ciAPIProxyQueue := queueing.QueueRequests("ci_api_job_requests", tempfileMultipartProxy, u.APILimit, u.APIQueueLimit, u.APIQueueTimeout, prometheus.DefaultRegisterer)
 	ciAPILongPolling := builds.RegisterHandler(ciAPIProxyQueue, u.watchKeyHandler, u.APICILongPollingDuration)
 
 	dependencyProxyInjector.SetUploadHandler(requestBodyUploader)
@@ -302,6 +304,7 @@ func configureRoutes(u *upstream) {
 		// we need to declare each routes until we have fixed all the routes on the rails codebase.
 		// Overall status can be seen at https://gitlab.com/groups/gitlab-org/-/epics/1802#current-status
 		u.route("POST", apiProjectPattern+`/wikis/attachments\z`, tempfileMultipartProxy),
+		u.route("POST", apiGroupPattern+`/wikis/attachments\z`, tempfileMultipartProxy),
 		u.route("POST", apiPattern+`graphql\z`, tempfileMultipartProxy),
 		u.route("POST", apiTopicPattern, tempfileMultipartProxy),
 		u.route("PUT", apiTopicPattern, tempfileMultipartProxy),
@@ -332,6 +335,10 @@ func configureRoutes(u *upstream) {
 		// Group Avatar
 		u.route("POST", apiPattern+`v4/groups\z`, tempfileMultipartProxy),
 		u.route("PUT", apiPattern+`v4/groups/[^/]+\z`, tempfileMultipartProxy),
+
+		// User Avatar
+		u.route("POST", apiPattern+`v4/users\z`, tempfileMultipartProxy),
+		u.route("PUT", apiPattern+`v4/users/[0-9]+\z`, tempfileMultipartProxy),
 
 		// Explicitly proxy API requests
 		u.route("", apiPattern, proxy),
@@ -418,7 +425,7 @@ func configureRoutes(u *upstream) {
 func denyWebsocket(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if websocket.IsWebSocketUpgrade(r) {
-			helper.HTTPError(w, r, "websocket upgrade not allowed", http.StatusBadRequest)
+			httpError(w, r, "websocket upgrade not allowed", http.StatusBadRequest)
 			return
 		}
 

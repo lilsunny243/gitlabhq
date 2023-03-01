@@ -2,9 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Trace::Archive do
+RSpec.describe Gitlab::Ci::Trace::Archive, feature_category: :scalability do
   context 'with transactional fixtures' do
-    let_it_be(:job) { create(:ci_build, :success, :trace_live) }
+    let_it_be_with_reload(:job) { create(:ci_build, :success, :trace_live) }
     let_it_be_with_reload(:trace_metadata) { create(:ci_build_trace_metadata, build: job) }
     let_it_be(:src_checksum) do
       job.trace.read { |stream| Digest::MD5.hexdigest(stream.raw) }
@@ -69,15 +69,6 @@ RSpec.describe Gitlab::Ci::Trace::Archive do
         context 'when the object store is disabled' do
           before do
             stub_artifacts_object_storage(enabled: false)
-          end
-
-          it_behaves_like 'skips validations'
-          include_context 'with FIPS'
-        end
-
-        context 'with background_upload enabled' do
-          before do
-            stub_artifacts_object_storage(background_upload: true)
           end
 
           it_behaves_like 'skips validations'

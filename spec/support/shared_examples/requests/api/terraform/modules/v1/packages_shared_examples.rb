@@ -63,9 +63,9 @@ RSpec.shared_examples 'redirects to version download' do |user_type, status, add
     it 'returns a valid response' do
       subject
 
-      expect(request.url).to include 'module-1/system/download'
+      expect(request.url).to include "#{package.name}/download"
       expect(response.headers).to include 'Location'
-      expect(response.headers['Location']).to include 'module-1/system/1.0.1/download'
+      expect(response.headers['Location']).to include "#{package.name}/1.0.1/download"
     end
   end
 end
@@ -264,21 +264,11 @@ RSpec.shared_examples 'process terraform module upload' do |user_type, status, a
       end
 
       context 'and direct upload disabled' do
-        context 'and background upload disabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: false)
-          end
-
-          it_behaves_like 'creates terraform module package files'
+        let(:fog_connection) do
+          stub_package_file_object_storage(direct_upload: false)
         end
 
-        context 'and background upload enabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: true)
-          end
-
-          it_behaves_like 'creates terraform module package files'
-        end
+        it_behaves_like 'creates terraform module package files'
       end
     end
   end

@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Repository **(FREE)**
@@ -15,7 +15,7 @@ Each [project](../index.md) contains a repository.
 
 To create a repository, you can:
 
-- [Create a project](../../../user/project/working_with_projects.md#create-a-project) or
+- [Create a project](../../../user/project/index.md#create-a-project) or
 - [Fork an existing project](forking_workflow.md).
 
 ## Add files to a repository
@@ -49,7 +49,7 @@ to a branch in the repository. When you use the command line, you can commit mul
   on their respective thread.
 - **Cherry-pick a commit:**
   In GitLab, you can
-  [cherry-pick a commit](../merge_requests/cherry_pick_changes.md#cherry-pick-a-commit)
+  [cherry-pick a commit](../merge_requests/cherry_pick_changes.md#cherry-pick-a-single-commit)
   from the UI.
 - **Revert a commit:**
   [Revert a commit](../merge_requests/revert_changes.md#revert-a-commit)
@@ -86,12 +86,27 @@ Visual Studio Code:
 - From the GitLab interface:
   1. Go to the project's overview page.
   1. Select **Clone**.
-  1. Under either the **HTTPS** or **SSH** method, select **Clone with Visual Studio Code**.
+  1. Under **Open in your IDE**, select **Visual Studio Code (SSH)** or **Visual Studio Code (HTTPS)**.
   1. Select a folder to clone the project into.
 
      After Visual Studio Code clones your project, it opens the folder.
 - From Visual Studio Code, with the [extension](vscode.md) installed, use the
   extension's [`Git: Clone` command](https://marketplace.visualstudio.com/items?itemName=GitLab.gitlab-workflow#clone-gitlab-projects).
+
+### Clone and open in IntelliJ IDEA
+
+All projects can be cloned into [IntelliJ IDEA](https://www.jetbrains.com/idea/)
+from the GitLab user interface.
+
+Prerequisites:
+
+- The [Jetbrains Toolbox App](https://www.jetbrains.com/toolbox-app/) must be also be installed.
+
+To do this:
+
+1. Go to the project's overview page.
+1. Select **Clone**.
+1. Under **Open in your IDE**, select **IntelliJ IDEA (SSH)** or **IntelliJ IDEA (HTTPS)**.
 
 ## Download the code in a repository
 
@@ -110,6 +125,9 @@ You can download the source code that's stored in a repository.
      Available extensions: `zip`, `tar`, `tar.gz`, and `tar.bz2`.
    - **Artifacts:**
      Download the artifacts from the latest CI job.
+
+The checksums of generated archives can change even if the repository itself doesn't
+change. This can occur, for example, if Git or a third-party library that GitLab uses changes.
 
 ## Repository languages
 
@@ -153,7 +171,7 @@ contents of the file's [markup language](https://en.wikipedia.org/wiki/Lightweig
 | [reStructuredText](https://docutils.sourceforge.io/rst.html) | `rst` |
 | [AsciiDoc](../../asciidoc.md) | `adoc`, `ad`, `asciidoc` |
 | [Textile](https://textile-lang.com/) | `textile` |
-| [Rdoc](http://rdoc.sourceforge.net/doc/index.html)  | `rdoc` |
+| [Rdoc](https://rdoc.sourceforge.net/doc/index.html)  | `rdoc` |
 | [Org mode](https://orgmode.org/) | `org` |
 | [creole](http://www.wikicreole.org/) | `creole` |
 | [MediaWiki](https://www.mediawiki.org/wiki/MediaWiki) | `wiki`, `mediawiki` |
@@ -264,9 +282,7 @@ to fetch configuration from a project that is renamed or moved.
 - [Repository API](../../../api/repositories.md).
 - [Find files](file_finder.md) in a repository.
 - [Branches](branches/index.md).
-- [File templates](web_editor.md#template-dropdowns).
 - [Create a directory](web_editor.md#create-a-directory).
-- [Start a merge request](web_editor.md#tips).
 - [Find file history](git_history.md).
 - [Identify changes by line (Git blame)](git_blame.md).
 - [Use Jupyter notebooks with GitLab](jupyter_notebooks/index.md).
@@ -306,3 +322,33 @@ The same approach should also allow misidentified file types to be fixed.
    ```
 
   `*.txt` files have an entry in the heuristics file. This example prevents parsing of these files.
+
+### Search sequence of pushes to a repository
+
+If it seems that a commit has gone "missing", search the sequence of pushes to a repository.
+[This StackOverflow article](https://stackoverflow.com/questions/13468027/the-mystery-of-the-missing-commit-across-merges)
+describes how you can end up in this state without a force push. Another cause can be a misconfigured [server hook](../../../administration/server_hooks.md) that changes a HEAD ref in a `git reset` operation.
+
+If you look at the output from the sample code below for the target branch, you
+see a discontinuity in the from/to commits as you step through the output.
+The `commit_from` of each new push should equal the `commit_to` of the previous push.
+A break in that sequence indicates one or more commits have been "lost" from the repository history.
+
+Using the [rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session), the following example checks the last 100 pushes and prints the `commit_from` and `commit_to` entries:
+
+```ruby
+p = Project.find_by_full_path('project/path')
+p.events.pushed_action.last(100).each do |e|
+  puts "%-20.20s %8s...%8s (%s)", e.push_event_payload[:ref], e.push_event_payload[:commit_from], e.push_event_payload[:commit_to], e.author.try(:username)
+end ; nil
+```
+
+Example output showing break in sequence at line 4:
+
+```plaintext
+master f21b07713251e04575908149bdc8ac1f105aabc3...6bc56c1f46244792222f6c85b11606933af171de root
+master 6bc56c1f46244792222f6c85b11606933af171de...132da6064f5d3453d445fd7cb452b148705bdc1b root
+master 132da6064f5d3453d445fd7cb452b148705bdc1b...a62e1e693150a2e46ace0ce696cd4a52856dfa65 root
+master 58b07b719a4b0039fec810efa52f479ba1b84756...f05321a5b5728bd8a89b7bf530aa44043c951dce root
+master f05321a5b5728bd8a89b7bf530aa44043c951dce...7d02e575fd790e76a3284ee435368279a5eb3773 root
+```

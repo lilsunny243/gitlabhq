@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Packages::Package, type: :model do
+RSpec.describe Packages::Package, type: :model, feature_category: :package_registry do
   include SortingHelper
   using RSpec::Parameterized::TableSyntax
 
@@ -14,6 +14,7 @@ RSpec.describe Packages::Package, type: :model do
     it { is_expected.to have_many(:dependency_links).inverse_of(:package) }
     it { is_expected.to have_many(:tags).inverse_of(:package) }
     it { is_expected.to have_many(:build_infos).inverse_of(:package) }
+    it { is_expected.to have_many(:installable_nuget_package_files).inverse_of(:package) }
     it { is_expected.to have_one(:conan_metadatum).inverse_of(:package) }
     it { is_expected.to have_one(:maven_metadatum).inverse_of(:package) }
     it { is_expected.to have_one(:debian_publication).inverse_of(:package).class_name('Packages::Debian::Publication') }
@@ -21,6 +22,7 @@ RSpec.describe Packages::Package, type: :model do
     it { is_expected.to have_one(:nuget_metadatum).inverse_of(:package) }
     it { is_expected.to have_one(:rubygems_metadatum).inverse_of(:package) }
     it { is_expected.to have_one(:npm_metadatum).inverse_of(:package) }
+    it { is_expected.to have_one(:rpm_metadatum).inverse_of(:package) }
   end
 
   describe '.with_debian_codename' do
@@ -29,6 +31,26 @@ RSpec.describe Packages::Package, type: :model do
     subject { described_class.with_debian_codename(publication.distribution.codename).to_a }
 
     it { is_expected.to contain_exactly(publication.package) }
+  end
+
+  describe '.with_debian_codename_or_suite' do
+    let_it_be(:distribution1) { create(:debian_project_distribution, :with_suite) }
+    let_it_be(:distribution2) { create(:debian_project_distribution, :with_suite) }
+
+    let_it_be(:package1) { create(:debian_package, published_in: distribution1) }
+    let_it_be(:package2) { create(:debian_package, published_in: distribution2) }
+
+    context 'with a codename' do
+      subject { described_class.with_debian_codename_or_suite(distribution1.codename).to_a }
+
+      it { is_expected.to contain_exactly(package1) }
+    end
+
+    context 'with a suite' do
+      subject { described_class.with_debian_codename_or_suite(distribution2.suite).to_a }
+
+      it { is_expected.to contain_exactly(package2) }
+    end
   end
 
   describe '.with_composer_target' do
@@ -707,12 +729,14 @@ RSpec.describe Packages::Package, type: :model do
   describe '#destroy' do
     let(:package) { create(:npm_package) }
     let(:package_file) { package.package_files.first }
-    let(:project_statistics) { ProjectStatistics.for_project_ids(package.project.id).first }
+    let(:project_statistics) { package.project.statistics }
 
-    it 'affects project statistics' do
-      expect { package.destroy! }
-        .to change { project_statistics.reload.packages_size }
-              .from(package_file.size).to(0)
+    subject(:destroy!) { package.destroy! }
+
+    it 'updates the project statistics' do
+      expect(project_statistics).to receive(:increment_counter).with(:packages_size, have_attributes(amount: -package_file.size))
+
+      destroy!
     end
   end
 
@@ -903,6 +927,14 @@ RSpec.describe Packages::Package, type: :model do
       it { is_expected.to match_array([pypi_package]) }
     end
 
+    describe '.with_case_insensitive_version' do
+      let_it_be(:nuget_package) { create(:nuget_package, version: '1.0.0-ABC') }
+
+      subject { described_class.with_case_insensitive_version('1.0.0-abC') }
+
+      it { is_expected.to match_array([nuget_package]) }
+    end
+
     context 'status scopes' do
       let_it_be(:default_package) { create(:maven_package, :default) }
       let_it_be(:hidden_package) { create(:maven_package, :hidden) }
@@ -960,12 +992,12 @@ RSpec.describe Packages::Package, type: :model do
   end
 
   context 'sorting' do
-    let_it_be(:project) { create(:project, name: 'aaa' ) }
-    let_it_be(:project2) { create(:project, name: 'bbb' ) }
-    let_it_be(:package1) { create(:package, project: project ) }
-    let_it_be(:package2) { create(:package, project: project2 ) }
-    let_it_be(:package3) { create(:package, project: project2 ) }
-    let_it_be(:package4) { create(:package, project: project ) }
+    let_it_be(:project) { create(:project, name: 'aaa') }
+    let_it_be(:project2) { create(:project, name: 'bbb') }
+    let_it_be(:package1) { create(:package, project: project) }
+    let_it_be(:package2) { create(:package, project: project2) }
+    let_it_be(:package3) { create(:package, project: project2) }
+    let_it_be(:package4) { create(:package, project: project) }
 
     it 'orders packages by their projects name ascending' do
       expect(Packages::Package.order_project_name).to eq([package1, package4, package2, package3])
@@ -1036,14 +1068,16 @@ RSpec.describe Packages::Package, type: :model do
     let_it_be(:project) { create(:project) }
     let_it_be(:package) { create(:maven_package, project: project) }
     let_it_be(:package2) { create(:maven_package, project: project) }
-    let_it_be(:package3) { create(:maven_package, project: project, name: 'foo') }
+    let_it_be(:package3) { create(:maven_package, :error, project: project) }
+    let_it_be(:package4) { create(:maven_package, project: project, name: 'foo') }
+    let_it_be(:pending_destruction_package) { create(:maven_package, :pending_destruction, project: project) }
 
     it 'returns other package versions of the same package name belonging to the project' do
-      expect(package.versions).to contain_exactly(package2)
+      expect(package.versions).to contain_exactly(package2, package3)
     end
 
     it 'does not return different packages' do
-      expect(package.versions).not_to include(package3)
+      expect(package.versions).not_to include(package4)
     end
   end
 
@@ -1354,6 +1388,18 @@ RSpec.describe Packages::Package, type: :model do
       end
 
       it { is_expected.to eq(normalized_name) }
+    end
+  end
+
+  describe '#touch_last_downloaded_at' do
+    let_it_be(:package) { create(:package) }
+
+    subject { package.touch_last_downloaded_at }
+
+    it 'updates the downloaded_at' do
+      expect(::Gitlab::Database::LoadBalancing::Session).to receive(:without_sticky_writes).and_call_original
+      expect { subject }
+        .to change(package, :last_downloaded_at).from(nil).to(instance_of(ActiveSupport::TimeWithZone))
     end
   end
 end

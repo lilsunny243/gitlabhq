@@ -1,22 +1,35 @@
 <script>
 import { GlFilteredSearchToken } from '@gitlab/ui';
 import fuzzaldrinPlus from 'fuzzaldrin-plus';
-import { mapActions } from 'vuex';
 import { orderBy } from 'lodash';
 import BoardFilteredSearch from 'ee_else_ce/boards/components/board_filtered_search.vue';
-import { BoardType } from '~/boards/constants';
 import axios from '~/lib/utils/axios_utils';
 import { joinPaths } from '~/lib/utils/url_utility';
-import issueBoardFilters from '~/boards/issue_board_filters';
-import { TYPE_USER } from '~/graphql_shared/constants';
+import issueBoardFilters from 'ee_else_ce/boards/issue_board_filters';
+import { TYPENAME_USER } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { __ } from '~/locale';
 import {
+  OPERATORS_IS_NOT,
+  OPERATORS_IS,
+  TOKEN_TITLE_ASSIGNEE,
+  TOKEN_TITLE_AUTHOR,
+  TOKEN_TITLE_CONFIDENTIAL,
+  TOKEN_TITLE_LABEL,
+  TOKEN_TITLE_MILESTONE,
   TOKEN_TITLE_MY_REACTION,
-  OPERATOR_IS_AND_IS_NOT,
-  OPERATOR_IS_ONLY,
+  TOKEN_TITLE_RELEASE,
+  TOKEN_TITLE_TYPE,
+  TOKEN_TYPE_ASSIGNEE,
+  TOKEN_TYPE_AUTHOR,
+  TOKEN_TYPE_CONFIDENTIAL,
+  TOKEN_TYPE_LABEL,
+  TOKEN_TYPE_MILESTONE,
+  TOKEN_TYPE_MY_REACTION,
+  TOKEN_TYPE_RELEASE,
+  TOKEN_TYPE_TYPE,
 } from '~/vue_shared/components/filtered_search_bar/constants';
-import AuthorToken from '~/vue_shared/components/filtered_search_bar/tokens/author_token.vue';
+import UserToken from '~/vue_shared/components/filtered_search_bar/tokens/user_token.vue';
 import EmojiToken from '~/vue_shared/components/filtered_search_bar/tokens/emoji_token.vue';
 import LabelToken from '~/vue_shared/components/filtered_search_bar/tokens/label_token.vue';
 import MilestoneToken from '~/vue_shared/components/filtered_search_bar/tokens/milestone_token.vue';
@@ -28,75 +41,48 @@ export default {
     INCIDENT: 'INCIDENT',
   },
   i18n: {
-    search: __('Search'),
-    epic: __('Epic'),
-    label: __('Label'),
-    author: __('Author'),
-    assignee: __('Assignee'),
-    type: __('Type'),
     incident: __('Incident'),
     issue: __('Issue'),
-    milestone: __('Milestone'),
-    release: __('Release'),
-    confidential: __('Confidential'),
   },
   components: { BoardFilteredSearch },
-  inject: ['isSignedIn', 'releasesFetchPath', 'fullPath', 'boardType'],
+  inject: ['isSignedIn', 'releasesFetchPath', 'fullPath', 'isGroupBoard'],
   computed: {
-    isGroupBoard() {
-      return this.boardType === BoardType.group;
-    },
-    epicsGroupPath() {
-      return this.isGroupBoard
-        ? this.fullPath
-        : this.fullPath.slice(0, this.fullPath.lastIndexOf('/'));
-    },
     tokensCE() {
-      const {
-        label,
-        author,
-        assignee,
-        issue,
-        incident,
-        type,
-        milestone,
-        release,
-        confidential,
-      } = this.$options.i18n;
+      const { issue, incident } = this.$options.i18n;
       const { types } = this.$options;
-      const { fetchAuthors, fetchLabels } = issueBoardFilters(
+      const { fetchUsers, fetchLabels, fetchMilestones } = issueBoardFilters(
         this.$apollo,
         this.fullPath,
-        this.boardType,
+        this.isGroupBoard,
       );
 
       const tokens = [
         {
           icon: 'user',
-          title: assignee,
-          type: 'assignee',
-          operators: OPERATOR_IS_AND_IS_NOT,
-          token: AuthorToken,
+          title: TOKEN_TITLE_ASSIGNEE,
+          type: TOKEN_TYPE_ASSIGNEE,
+          operators: OPERATORS_IS_NOT,
+          token: UserToken,
           unique: true,
-          fetchAuthors,
-          preloadedAuthors: this.preloadedAuthors(),
+          fetchUsers,
+          preloadedUsers: this.preloadedUsers(),
         },
         {
           icon: 'pencil',
-          title: author,
-          type: 'author',
-          operators: OPERATOR_IS_AND_IS_NOT,
+          title: TOKEN_TITLE_AUTHOR,
+          type: TOKEN_TYPE_AUTHOR,
+          operators: OPERATORS_IS_NOT,
           symbol: '@',
-          token: AuthorToken,
+          token: UserToken,
           unique: true,
-          fetchAuthors,
-          preloadedAuthors: this.preloadedAuthors(),
+          fetchUsers,
+          preloadedUsers: this.preloadedUsers(),
         },
         {
           icon: 'labels',
-          title: label,
-          type: 'label',
-          operators: OPERATOR_IS_AND_IS_NOT,
+          title: TOKEN_TITLE_LABEL,
+          type: TOKEN_TYPE_LABEL,
+          operators: OPERATORS_IS_NOT,
           token: LabelToken,
           unique: false,
           symbol: '~',
@@ -105,7 +91,7 @@ export default {
         ...(this.isSignedIn
           ? [
               {
-                type: 'my-reaction',
+                type: TOKEN_TYPE_MY_REACTION,
                 title: TOKEN_TITLE_MY_REACTION,
                 icon: 'thumb-up',
                 token: EmojiToken,
@@ -127,12 +113,12 @@ export default {
                 },
               },
               {
-                type: 'confidential',
+                type: TOKEN_TYPE_CONFIDENTIAL,
                 icon: 'eye-slash',
-                title: confidential,
+                title: TOKEN_TITLE_CONFIDENTIAL,
                 unique: true,
                 token: GlFilteredSearchToken,
-                operators: OPERATOR_IS_ONLY,
+                operators: OPERATORS_IS,
                 options: [
                   { icon: 'eye-slash', value: 'yes', title: __('Yes') },
                   { icon: 'eye', value: 'no', title: __('No') },
@@ -141,19 +127,19 @@ export default {
             ]
           : []),
         {
-          type: 'milestone',
-          title: milestone,
+          type: TOKEN_TYPE_MILESTONE,
+          title: TOKEN_TITLE_MILESTONE,
           icon: 'clock',
           symbol: '%',
           token: MilestoneToken,
           unique: true,
           shouldSkipSort: true,
-          fetchMilestones: this.fetchMilestones,
+          fetchMilestones,
         },
         {
           icon: 'issues',
-          title: type,
-          type: 'type',
+          title: TOKEN_TITLE_TYPE,
+          type: TOKEN_TYPE_TYPE,
           token: GlFilteredSearchToken,
           unique: true,
           options: [
@@ -162,8 +148,8 @@ export default {
           ],
         },
         {
-          type: 'release',
-          title: release,
+          type: TOKEN_TYPE_RELEASE,
+          title: TOKEN_TITLE_RELEASE,
           icon: 'rocket',
           token: ReleaseToken,
           fetchReleases: (search) => {
@@ -189,12 +175,11 @@ export default {
     },
   },
   methods: {
-    ...mapActions(['fetchMilestones']),
-    preloadedAuthors() {
+    preloadedUsers() {
       return gon?.current_user_id
         ? [
             {
-              id: convertToGraphQLId(TYPE_USER, gon.current_user_id),
+              id: convertToGraphQLId(TYPENAME_USER, gon.current_user_id),
               name: gon.current_user_fullname,
               username: gon.current_username,
               avatarUrl: gon.current_user_avatar_url,
@@ -207,5 +192,9 @@ export default {
 </script>
 
 <template>
-  <board-filtered-search data-testid="issue-board-filtered-search" :tokens="tokens" />
+  <board-filtered-search
+    data-testid="issue-board-filtered-search"
+    :tokens="tokens"
+    @setFilters="$emit('setFilters', $event)"
+  />
 </template>

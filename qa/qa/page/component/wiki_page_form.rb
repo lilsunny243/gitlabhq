@@ -11,10 +11,16 @@ module QA
 
           base.view 'app/assets/javascripts/pages/shared/wikis/components/wiki_form.vue' do
             element :wiki_title_textbox
-            element :wiki_content_textarea
             element :wiki_message_textbox
             element :wiki_submit_button
-            element :editing_mode_button
+          end
+
+          base.view 'app/assets/javascripts/vue_shared/components/markdown/markdown_editor.vue' do
+            element :markdown_editor_form_field
+          end
+
+          base.view 'app/assets/javascripts/vue_shared/components/markdown/editor_mode_dropdown.vue' do
+            element :editing_mode_switcher
           end
 
           base.view 'app/assets/javascripts/pages/shared/wikis/components/delete_wiki_modal.vue' do
@@ -27,7 +33,7 @@ module QA
         end
 
         def set_content(content)
-          fill_element(:wiki_content_textarea, content)
+          fill_element(:markdown_editor_form_field, content)
         end
 
         def set_message(message)
@@ -35,6 +41,10 @@ module QA
         end
 
         def click_submit
+          # In case any changes were just made, wait for the hidden content field to be updated via a deferred call
+          # before clicking submit. See https://gitlab.com/gitlab-org/gitlab/-/merge_requests/97693#note_1098728562
+          sleep 0.5
+
           click_element(:wiki_submit_button)
 
           QA::Support::Retrier.retry_on_exception do
@@ -48,8 +58,9 @@ module QA
         end
 
         def use_new_editor
-          within_element(:editing_mode_button) do
-            find('label', text: 'Rich text').click
+          click_element(:editing_mode_switcher)
+          within_element(:editing_mode_switcher) do
+            find('button', text: 'Rich text').click
           end
 
           wait_until(reload: false) do

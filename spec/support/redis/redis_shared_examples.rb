@@ -2,8 +2,10 @@
 
 RSpec.shared_examples "redis_shared_examples" do
   include StubENV
+  include TmpdirHelper
 
   let(:test_redis_url) { "redis://redishost:#{redis_port}" }
+  let(:test_cluster_config) { { cluster: [{ host: "redis://redishost", port: redis_port }] } }
   let(:config_file_name) { instance_specific_config_file }
   let(:config_old_format_socket) { "spec/fixtures/config/redis_old_format_socket.yml" }
   let(:config_new_format_socket) { "spec/fixtures/config/redis_new_format_socket.yml" }
@@ -11,20 +13,17 @@ RSpec.shared_examples "redis_shared_examples" do
   let(:new_socket_path) { "/path/to/redis.sock" }
   let(:config_old_format_host) { "spec/fixtures/config/redis_old_format_host.yml" }
   let(:config_new_format_host) { "spec/fixtures/config/redis_new_format_host.yml" }
+  let(:config_cluster_format_host) { "spec/fixtures/config/redis_cluster_format_host.yml" }
   let(:redis_port) { 6379 }
   let(:redis_database) { 99 }
   let(:sentinel_port) { 26379 }
   let(:config_with_environment_variable_inside) { "spec/fixtures/config/redis_config_with_env.yml" }
   let(:config_env_variable_url) { "TEST_GITLAB_REDIS_URL" }
-  let(:rails_root) { Dir.mktmpdir('redis_shared_examples') }
+  let(:rails_root) { mktmpdir }
 
   before do
     allow(described_class).to receive(:config_file_name).and_return(Rails.root.join(config_file_name).to_s)
-    redis_clear_raw_config!(described_class)
-  end
-
-  after do
-    redis_clear_raw_config!(described_class)
+    allow(described_class).to receive(:redis_yml_path).and_return('/dev/null')
   end
 
   describe '.config_file_name' do
@@ -38,49 +37,33 @@ RSpec.shared_examples "redis_shared_examples" do
       FileUtils.mkdir_p(File.join(rails_root, 'config'))
     end
 
-    after do
-      FileUtils.rm_rf(rails_root)
-    end
-
     context 'when there is no config file anywhere' do
       it { expect(subject).to be_nil }
 
-      context 'but resque.yml exists' do
+      context 'and there is a global env override' do
         before do
-          FileUtils.touch(File.join(rails_root, 'config', 'resque.yml'))
+          stub_env('GITLAB_REDIS_CONFIG_FILE', 'global override')
         end
 
-        it { expect(subject).to eq("#{rails_root}/config/resque.yml") }
+        it { expect(subject).to eq('global override') }
 
-        it 'returns a path that exists' do
-          expect(File.file?(subject)).to eq(true)
-        end
-
-        context 'and there is a global env override' do
+        context 'and there is an instance specific config file' do
           before do
-            stub_env('GITLAB_REDIS_CONFIG_FILE', 'global override')
+            FileUtils.touch(File.join(rails_root, instance_specific_config_file))
           end
 
-          it { expect(subject).to eq('global override') }
+          it { expect(subject).to eq("#{rails_root}/#{instance_specific_config_file}") }
 
-          context 'and there is an instance specific config file' do
+          it 'returns a path that exists' do
+            expect(File.file?(subject)).to eq(true)
+          end
+
+          context 'and there is a specific env override' do
             before do
-              FileUtils.touch(File.join(rails_root, instance_specific_config_file))
+              stub_env(environment_config_file_name, 'instance specific override')
             end
 
-            it { expect(subject).to eq("#{rails_root}/#{instance_specific_config_file}") }
-
-            it 'returns a path that exists' do
-              expect(File.file?(subject)).to eq(true)
-            end
-
-            context 'and there is a specific env override' do
-              before do
-                stub_env(environment_config_file_name, 'instance specific override')
-              end
-
-              it { expect(subject).to eq('instance specific override') }
-            end
+            it { expect(subject).to eq('instance specific override') }
           end
         end
       end
@@ -191,6 +174,30 @@ RSpec.shared_examples "redis_shared_examples" do
           end
         end
       end
+
+      context 'with redis cluster format' do
+        let(:config_file_name) { config_cluster_format_host }
+
+        where(:rails_env, :host) do
+          [
+            %w[development development-master],
+            %w[test test-master],
+            %w[production production-master]
+          ]
+        end
+
+        with_them do
+          it 'returns hash with cluster and password' do
+            is_expected.to include(password: 'myclusterpassword',
+                                   cluster: [
+                                     { host: "#{host}1", port: redis_port },
+                                     { host: "#{host}2", port: redis_port }
+                                   ]
+                                  )
+            is_expected.not_to have_key(:url)
+          end
+        end
+      end
     end
   end
 
@@ -221,26 +228,6 @@ RSpec.shared_examples "redis_shared_examples" do
   describe '.version' do
     it 'returns a version' do
       expect(described_class.version).to be_present
-    end
-  end
-
-  describe '._raw_config' do
-    subject { described_class._raw_config }
-
-    let(:config_file_name) { '/var/empty/doesnotexist' }
-
-    it 'is frozen' do
-      expect(subject).to be_frozen
-    end
-
-    it 'returns false when the file does not exist' do
-      expect(subject).to eq(false)
-    end
-
-    it "returns false when the filename can't be determined" do
-      expect(described_class).to receive(:config_file_name).and_return(nil)
-
-      expect(subject).to eq(false)
     end
   end
 
@@ -287,10 +274,6 @@ RSpec.shared_examples "redis_shared_examples" do
         allow(described_class).to receive(:rails_root).and_return(rails_root)
       end
 
-      after do
-        FileUtils.rm_rf(rails_root)
-      end
-
       it 'can run an empty block' do
         expect { described_class.with { nil } }.not_to raise_error
       end
@@ -315,6 +298,14 @@ RSpec.shared_examples "redis_shared_examples" do
 
       it 'returns the correct db' do
         expect(subject).to eq(redis_database)
+      end
+    end
+
+    context 'with cluster-mode' do
+      let(:config_file_name) { config_cluster_format_host }
+
+      it 'returns the correct db' do
+        expect(subject).to eq(0)
       end
     end
   end
@@ -350,6 +341,14 @@ RSpec.shared_examples "redis_shared_examples" do
         is_expected.to be_nil
       end
     end
+
+    context 'when cluster is defined' do
+      let(:config_file_name) { config_cluster_format_host }
+
+      it 'returns nil' do
+        is_expected.to be_nil
+      end
+    end
   end
 
   describe '#sentinels?' do
@@ -366,6 +365,12 @@ RSpec.shared_examples "redis_shared_examples" do
     context 'when sentinels are not defined' do
       let(:config_file_name) { config_old_format_host }
 
+      it { expect(subject).to eq(nil) }
+    end
+
+    context 'when cluster is defined' do
+      let(:config_file_name) { config_cluster_format_host }
+
       it 'returns false' do
         is_expected.to be_falsey
       end
@@ -377,25 +382,72 @@ RSpec.shared_examples "redis_shared_examples" do
       expect(subject).to receive(:fetch_config) { test_redis_url }
       expect(subject.send(:raw_config_hash)).to eq(url: test_redis_url)
     end
+
+    it 'returns cluster config without url key in a hash' do
+      expect(subject).to receive(:fetch_config) { test_cluster_config }
+      expect(subject.send(:raw_config_hash)).to eq(test_cluster_config)
+    end
   end
 
   describe '#fetch_config' do
-    it 'returns false when no config file is present' do
-      allow(described_class).to receive(:_raw_config) { false }
-
-      expect(subject.send(:fetch_config)).to eq false
+    before do
+      FileUtils.mkdir_p(File.join(rails_root, 'config'))
+      # Undo top-level stub of config_file_name because we are testing that method now.
+      allow(described_class).to receive(:config_file_name).and_call_original
+      allow(described_class).to receive(:rails_root).and_return(rails_root)
     end
 
-    it 'returns false when config file is present but has invalid YAML' do
-      allow(described_class).to receive(:_raw_config) { "# development: true" }
+    it 'raises an exception when the config file contains invalid yaml' do
+      Tempfile.open('bad.yml') do |file|
+        file.write('{"not":"yaml"')
+        file.flush
+        allow(described_class).to receive(:config_file_name) { file.path }
 
-      expect(subject.send(:fetch_config)).to eq false
+        expect { subject.send(:fetch_config) }.to raise_error(Psych::SyntaxError)
+      end
     end
 
     it 'has a value for the legacy default URL' do
-      allow(subject).to receive(:fetch_config) { false }
+      allow(subject).to receive(:fetch_config) { nil }
 
       expect(subject.send(:raw_config_hash)).to include(url: a_string_matching(%r{\Aredis://localhost:638[012]\Z}))
+    end
+
+    context 'when redis.yml exists' do
+      subject { described_class.new('test').send(:fetch_config) }
+
+      before do
+        allow(described_class).to receive(:redis_yml_path).and_call_original
+      end
+
+      it 'uses config/redis.yml' do
+        File.write(File.join(rails_root, 'config/redis.yml'), {
+          'test' => { described_class.store_name.underscore => { 'foobar' => 123 } }
+        }.to_json)
+
+        expect(subject).to eq({ 'foobar' => 123 })
+      end
+    end
+
+    context 'when no config file exsits' do
+      subject { described_class.new('test').send(:fetch_config) }
+
+      it 'returns nil' do
+        expect(subject).to eq(nil)
+      end
+
+      context 'but resque.yml exists' do
+        before do
+          FileUtils.mkdir_p(File.join(rails_root, 'config'))
+          File.write(File.join(rails_root, 'config/resque.yml'), {
+            'test' =>  { 'foobar' => 123 }
+          }.to_json)
+        end
+
+        it 'returns the config from resque.yml' do
+          expect(subject).to eq({ 'foobar' => 123 })
+        end
+      end
     end
   end
 

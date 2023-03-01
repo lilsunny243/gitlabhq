@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Container Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Dependency Proxy administration **(FREE SELF)**
@@ -121,14 +121,11 @@ To change the local storage path:
 ### Using object storage
 
 Instead of relying on the local storage, you can use an object storage to
-store the blobs of the Dependency Proxy.
+store the blobs of the Dependency Proxy. In GitLab 13.2 and later, you should use the
+[consolidated object storage settings](../object_storage.md#consolidated-object-storage-configuration).
+This section describes the earlier configuration format. [Migration steps still apply](#migrate-local-dependency-proxy-blobs-and-manifests-to-object-storage).
 
 [Read more about using object storage with GitLab](../object_storage.md).
-
-NOTE:
-In GitLab 13.2 and later, we recommend using the
-[consolidated object storage settings](../object_storage.md#consolidated-object-storage-configuration).
-This section describes the earlier configuration format.
 
 **Omnibus GitLab installations**
 
@@ -215,11 +212,12 @@ For installations from source:
 RAILS_ENV=production sudo -u git -H bundle exec rake gitlab:dependency_proxy:migrate
 ```
 
-You can optionally track progress and verify that all packages migrated successfully using the
+You can optionally track progress and verify that all Dependency Proxy blobs and manifests migrated successfully using the
 [PostgreSQL console](https://docs.gitlab.com/omnibus/settings/database.html#connecting-to-the-bundled-postgresql-database):
 
-- For Omnibus GitLab instances: `sudo gitlab-rails dbconsole`
-- For installations from source: `sudo -u git -H psql -d gitlabhq_production`
+- `sudo gitlab-rails dbconsole` for Omnibus GitLab 14.1 and earlier.
+- `sudo gitlab-rails dbconsole --database main` for Omnibus GitLab 14.2 and later.
+- `sudo -u git -H psql -d gitlabhq_production` for source-installed instances.
 
 Verify that `objectstg` (where `file_store = '2'`) has the count of all Dependency Proxy blobs and
 manifests for each respective query:

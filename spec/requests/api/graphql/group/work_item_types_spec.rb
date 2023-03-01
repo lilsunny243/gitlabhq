@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'getting a list of work item types for a group' do
+RSpec.describe 'getting a list of work item types for a group', feature_category: :team_planning do
   include GraphqlHelpers
 
   let_it_be(:developer) { create(:user) }
@@ -46,7 +46,7 @@ RSpec.describe 'getting a list of work item types for a group' do
     end
   end
 
-  context "when user doesn't have acces to the group" do
+  context "when user doesn't have access to the group" do
     let(:current_user) { create(:user) }
 
     before do
@@ -55,17 +55,6 @@ RSpec.describe 'getting a list of work item types for a group' do
 
     it 'does not return the group' do
       expect(graphql_data).to eq('group' => nil)
-    end
-  end
-
-  context 'when the work_items feature flag is disabled' do
-    before do
-      stub_feature_flags(work_items: false)
-      post_graphql(query, current_user: current_user)
-    end
-
-    it 'returns null' do
-      expect(graphql_data.dig('group', 'workItemTypes')).to be_nil
     end
   end
 end

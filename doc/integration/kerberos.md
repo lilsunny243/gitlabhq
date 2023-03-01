@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 ---
 
 # Kerberos integration **(PREMIUM SELF)**
@@ -99,9 +99,9 @@ to authenticate with Kerberos tokens.
 
 #### Enable single sign-on
 
-See [Configure initial settings](omniauth.md#configure-initial-settings)
-for initial settings to enable single sign-on and add Kerberos servers
-as an identity provider.
+Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+to add `kerberos` as a single sign-on provider. This enables Just-In-Time
+account provisioning for users who do not have an existing GitLab account.
 
 ## Create and link Kerberos accounts
 
@@ -110,22 +110,24 @@ set up GitLab to create a new account when a Kerberos user tries to sign in.
 
 ### Link a Kerberos account to an existing GitLab account
 
+> Kerberos SPNEGO [renamed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/96335) to Kerberos in GitLab 15.4.
+
 If you're an administrator, you can link a Kerberos account to an
 existing GitLab account. To do so:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users**.
 1. Select a user, then select the **Identities** tab.
-1. Select 'Kerberos SPNEGO' in the 'Provider' dropdown box.
+1. From the **Provider** dropdown list, select **Kerberos**.
 1. Make sure the **Identifier** corresponds to the Kerberos username.
 1. Select **Save changes**.
 
 If you're not an administrator:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Account**.
-1. In the **Service sign-in** section, select **Connect Kerberos SPNEGO**.
+1. In the **Service sign-in** section, select **Connect Kerberos**.
    If you don't see a **Service sign-in** Kerberos option, follow the
    requirements in [Enable single sign-on](#enable-single-sign-on).
 
@@ -136,7 +138,8 @@ with your Kerberos credentials.
 
 The first time users sign in to GitLab with their Kerberos accounts,
 GitLab creates a matching account.
-Before you continue, review the [Configure initial settings](omniauth.md#configure-initial-settings) options in Omnibus and GitLab source. You must also include `kerberos`.
+Before you continue, review the [common configuration settings](omniauth.md#configure-common-settings)
+options in Omnibus and GitLab source. You must also include `kerberos`.
 
 With that information at hand:
 
@@ -153,7 +156,7 @@ With that information at hand:
       ```
 
       1. As an administrator, you can confirm the new, blocked account:
-         1. On the top bar, select **Menu > Admin**.
+         1. On the top bar, select **Main menu > Admin**.
          1. On the left sidebar, select **Overview > Users** and review the **Blocked** tab.
       1. You can enable the user.
    1. If `block_auto_created_users` is false, the Kerberos user is
@@ -293,7 +296,7 @@ this can happen in GitLab CI/CD jobs that [authenticate with the CI/CD job token
 1. [Reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
 
 After this change, Git remote URLs have to be updated to
-`https://gitlab.example.com:8443/mygroup/myproject.git` in order to use
+`https://gitlab.example.com:8443/mygroup/myproject.git` to use
 Kerberos ticket-based authentication.
 
 ## Upgrading from password-based to ticket-based Kerberos sign-ins
@@ -305,15 +308,12 @@ We [deprecated](../update/deprecations.md#omniauth-kerberos-gem) password-based
 Kerberos sign-ins in GitLab 14.3 and [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/2908)
 it in GitLab 15.0. You must switch to ticket-based sign in.
 
-Depending on your existing GitLab configuration, the 'Sign in with:
-Kerberos SPNEGO' button may already be visible on your GitLab sign-in
-page. If not, then add the settings [described above](#configuration).
+Depending on your existing GitLab configuration, **Sign in with:
+Kerberos** may already be visible on your GitLab sign-in page.
+If not, then add the settings [described above](#configuration).
 
-Once you have verified that the 'Kerberos SPNEGO' button works
-without entering any passwords, you can proceed to disable
-password-based Kerberos sign-ins. To do this you need only need to
-remove the OmniAuth provider named `kerberos` from your `gitlab.yml` /
-`gitlab.rb` file.
+To disable password-based Kerberos sign-ins, remove the OmniAuth provider
+`kerberos` from your `gitlab.yml`/`gitlab.rb` file.
 
 **For installations from source**
 
@@ -353,10 +353,42 @@ when trying to clone via HTTPS.
 When using Kerberos ticket-based authentication in an Active Directory domain,
 it may be necessary to increase the maximum header size allowed by NGINX,
 as extensions to the Kerberos protocol may result in HTTP authentication headers
-larger than the default size of 8kB. Configure `large_client_header_buffers`
+larger than the default size of 8 kB. Configure `large_client_header_buffers`
 to a larger value in [the NGINX configuration](https://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_buffers).
 
 ## Troubleshooting
+
+### Test connectivity between the GitLab and Kerberos servers
+
+You can use utilities like [`kinit`](https://web.mit.edu/kerberos/krb5-1.12/doc/user/user_commands/kinit.html) and [`klist`](https://web.mit.edu/kerberos/krb5-1.12/doc/user/user_commands/klist.html) to test connectivity between the GitLab server
+and the Kerberos server. How you install these depends on your specific OS.
+
+Use `klist` to see the service principal names (SPN) available in your `keytab` file and the encryption type for each SPN:
+
+```shell
+klist -ke /etc/http.keytab
+```
+
+On an Ubuntu server, the output would look similar to the following:
+
+```shell
+Keytab name: FILE:/etc/http.keytab
+KVNO Principal
+---- --------------------------------------------------------------------------
+   3 HTTP/my.gitlab.domain@MY.REALM (des-cbc-crc)
+   3 HTTP/my.gitlab.domain@MY.REALM (des-cbc-md5)
+   3 HTTP/my.gitlab.domain@MY.REALM (arcfour-hmac)
+   3 HTTP/my.gitlab.domain@MY.REALM (aes256-cts-hmac-sha1-96)
+   3 HTTP/my.gitlab.domain@MY.REALM (aes128-cts-hmac-sha1-96)
+```
+
+Use `kinit` in verbose mode to test whether GitLab can use the keytab file to connect to the Kerberos server:
+
+```shell
+KRB5_TRACE=/dev/stdout kinit -kt /etc/http.keytab HTTP/my.gitlab.domain@MY.REALM
+```
+
+This command shows a detailed output of the authentication process.
 
 ### Unsupported GSSAPI mechanism
 
@@ -365,8 +397,17 @@ mechanisms it supports to GitLab. If it doesn't support any of the mechanisms
 GitLab supports, authentication fails with a message like this in the log:
 
 ```plaintext
-OmniauthKerberosSpnegoController: failed to process Negotiate/Kerberos authentication: gss_accept_sec_context did not return GSS_S_COMPLETE: An unsupported mechanism was requested Unknown error
+OmniauthKerberosController: failed to process Negotiate/Kerberos authentication: gss_accept_sec_context did not return GSS_S_COMPLETE: An unsupported mechanism was requested Unknown error
 ```
+
+There are a number of potential causes and solutions for this error message.
+
+#### Kerberos integration not using a dedicated port
+
+GitLab CI/CD doesn’t work with a Kerberos-enabled GitLab instance unless the Kerberos integration
+is configured to [use a dedicated port](kerberos.md#http-git-access-with-kerberos-token-passwordless-authentication).
+
+#### Lack of connectivity between client machine and Kerberos server
 
 This is usually seen when the browser is unable to contact the Kerberos server
 directly. It falls back to an unsupported mechanism known as
@@ -376,6 +417,8 @@ the GitLab server as an intermediary to the Kerberos server.
 If you're experiencing this error, ensure there is connectivity between the
 client machine and the Kerberos server - this is a prerequisite! Traffic may be
 blocked by a firewall, or the DNS records may be incorrect.
+
+#### Mismatched forward and reverse DNS records for GitLab instance hostname
 
 Another failure mode occurs when the forward and reverse DNS records for the
 GitLab server do not match. Often, Windows clients work in this case while
@@ -388,6 +431,8 @@ To fix this, ensure that the forward and reverse DNS for your GitLab server
 match. So for instance, if you access GitLab as `gitlab.example.com`, resolving
 to IP address `1.2.3.4`, then `4.3.2.1.in-addr.arpa` must be a `PTR` record for
 `gitlab.example.com`.
+
+#### Missing Kerberos libraries on browser or client machine
 
 Finally, it's possible that the browser or client machine lack Kerberos support
 completely. Ensure that the Kerberos libraries are installed and that you can

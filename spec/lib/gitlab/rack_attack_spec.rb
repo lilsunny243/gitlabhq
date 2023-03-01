@@ -35,7 +35,7 @@ RSpec.describe Gitlab::RackAttack, :aggregate_failures do
       allow(fake_rack_attack).to receive(:cache).and_return(fake_cache)
       allow(fake_cache).to receive(:store=)
 
-      fake_rack_attack.const_set('Request', fake_rack_attack_request)
+      fake_rack_attack.const_set(:Request, fake_rack_attack_request)
       stub_const("Rack::Attack", fake_rack_attack)
     end
 
@@ -318,6 +318,20 @@ RSpec.describe Gitlab::RackAttack, :aggregate_failures do
       it 'generates accurate throttled headers' do
         expect(described_class.throttled_response_headers(matched, match_data)).to eql(headers)
       end
+    end
+  end
+
+  describe '.cache_store' do
+    subject { described_class.cache_store }
+
+    it { expect(subject).to be_a(Gitlab::RackAttack::InstrumentedCacheStore) }
+
+    context 'when GITLAB_RACK_ATTACK_NEW_STORE is set' do
+      before do
+        stub_env('GITLAB_RACK_ATTACK_NEW_STORE', '1')
+      end
+
+      it { expect(subject).to be_a(Gitlab::RackAttack::Store) }
     end
   end
 end

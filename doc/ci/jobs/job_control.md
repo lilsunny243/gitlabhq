@@ -1,14 +1,14 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Choose when to run jobs **(FREE)**
 
 When a new pipeline starts, GitLab checks the pipeline configuration to determine
 which jobs should run in that pipeline. You can configure jobs to run depending on
-the status of variables, the pipeline type, and so on.
+factors like the status of variables, or the pipeline type.
 
 To configure a job to be included or excluded from certain pipelines, you can use:
 
@@ -106,6 +106,33 @@ job:
   script:
     - make build
 ```
+
+#### Skip job if the branch is empty
+
+Use [`rules:changes:compare_to`](../yaml/index.md#ruleschangescompare_to) to avoid
+running a job when the branch is empty, which saves CI/CD resources. Compare the
+branch to the default branch, and if the branch:
+
+- Doesn't have changed files, the job doesn't run.
+- Has changed files, the job runs.
+
+For example, in a project with `main` as the default branch:
+
+```yaml
+job:
+  script:
+    - echo "This job only runs for branches that are not empty"
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      changes:
+        compare_to: 'refs/heads/main'
+        paths:
+          - '*'
+```
+
+The rule for this job compares all files and paths (`*`) in the current branch against
+the default branch `main`. The rule matches and the job runs only when there are
+changes to the files in the branch.
 
 ### Complex rules
 
@@ -243,7 +270,7 @@ check the value of the `$CI_PIPELINE_SOURCE` variable:
 | `external`                    | When you use CI services other than GitLab.                                                                                                                                                                                        |
 | `external_pull_request_event` | When an external pull request on GitHub is created or updated. See [Pipelines for external pull requests](../ci_cd_for_external_repos/index.md#pipelines-for-external-pull-requests).                                            |
 | `merge_request_event`         | For pipelines created when a merge request is created or updated. Required to enable [merge request pipelines](../pipelines/merge_request_pipelines.md), [merged results pipelines](../pipelines/merged_results_pipelines.md), and [merge trains](../pipelines/merge_trains.md). |
-| `parent_pipeline`             | For pipelines triggered by a [parent/child pipeline](../pipelines/parent_child_pipelines.md) with `rules`. Use this pipeline source in the child pipeline configuration so that it can be triggered by the parent pipeline.                |
+| `parent_pipeline`             | For pipelines triggered by a [parent/child pipeline](../pipelines/downstream_pipelines.md#parent-child-pipelines) with `rules`. Use this pipeline source in the child pipeline configuration so that it can be triggered by the parent pipeline.                |
 | `pipeline`                    | For [multi-project pipelines](../pipelines/downstream_pipelines.md#multi-project-pipelines) created by [using the API with `CI_JOB_TOKEN`](../pipelines/downstream_pipelines.md#trigger-a-multi-project-pipeline-by-using-the-api), or the [`trigger`](../yaml/index.md#trigger) keyword. |
 | `push`                        | For pipelines triggered by a `git push` event, including for branches and tags.                                                                                                                                                  |
 | `schedule`                    | For [scheduled pipelines](../pipelines/schedules.md).                                                                                                                                                                            |
@@ -288,7 +315,7 @@ Other commonly used variables for `if` clauses:
 - `if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /Merge branch.*/`:
    If the commit branch is the default branch and the commit message title matches a regular expression.
    For example, the default commit message for a merge commit starts with `Merge branch`.
-- `if: $CUSTOM_VARIABLE !~ /regex-expression/`: If the [custom variable](../variables/index.md#custom-cicd-variables)
+- `if: $CUSTOM_VARIABLE !~ /regex-expression/`: If the [custom variable](../variables/index.md)
   `CUSTOM_VARIABLE` does **not** match a regular expression.
 - `if: $CUSTOM_VARIABLE == "value1"`: If the custom variable `CUSTOM_VARIABLE` is
   exactly `value1`.
@@ -578,6 +605,8 @@ To run a manual job, you must have permission to merge to the assigned branch:
    or deployment view.
 1. Next to the manual job, select **Play** (**{play}**).
 
+You can also [add custom CI/CD variables when running a manual job](index.md#specifying-variables-when-running-manual-jobs).
+
 ### Protect manual jobs **(PREMIUM)**
 
 Use [protected environments](../environments/protected_environments.md)
@@ -622,8 +651,9 @@ by authorized users.
 Use [`when: delayed`](../yaml/index.md#when) to execute scripts after a waiting period, or if you want to avoid
 jobs immediately entering the `pending` state.
 
-You can set the period with `start_in` keyword. The value of `start_in` is an elapsed time in seconds, unless a unit is
-provided. `start_in` must be less than or equal to one week. Examples of valid values include:
+You can set the period with `start_in` keyword. The value of `start_in` is an elapsed time
+in seconds, unless a unit is provided. The minimum is one second, and the maximum is one week.
+Examples of valid values include:
 
 - `'5'` (a value with no unit must be surrounded by single quotes)
 - `5 seconds`
@@ -645,6 +675,7 @@ timed rollout 10%:
   script: echo 'Rolling out 10% ...'
   when: delayed
   start_in: 30 minutes
+  environment: production
 ```
 
 To stop the active timer of a delayed job, select **Unschedule** (**{time-out}**).
@@ -698,6 +729,7 @@ deploystacks:
   parallel:
     matrix:
       - PROVIDER: [aws, ovh, gcp, vultr]
+  environment: production/$PROVIDER
 ```
 
 You can also [create a multi-dimensional matrix](../yaml/index.md#parallelmatrix).
@@ -754,6 +786,7 @@ deploystacks:
         STACK: [data]
   tags:
     - ${PROVIDER}-${STACK}
+  environment: $PROVIDER/$STACK
 ```
 
 #### Fetch artifacts from a `parallel:matrix` job
@@ -784,6 +817,7 @@ deploy:
   dependencies:
     - "ruby: [2.7, aws]"
   script: echo hello
+  environment: production
 ```
 
 Quotes around the `dependencies` entry are required.
@@ -951,8 +985,11 @@ Expressions evaluate as `true` if:
 
 For example:
 
-- `$VARIABLE =~ /^content.*/`
-- `$VARIABLE_1 !~ /^content.*/`
+- `if: $VARIABLE =~ /^content.*/`
+- `if: $VARIABLE !~ /^content.*/`
+
+Single-character regular expressions, like `/./`, are not supported and
+produce an `invalid expression syntax` error.
 
 Pattern matching is case-sensitive by default. Use the `i` flag modifier to make a
 pattern case-insensitive. For example: `/pattern/i`.
@@ -1053,7 +1090,7 @@ docker_build:
 
 When the `DOCKERFILES_DIR` variable is expanded in the `changes:` section, the full
 path becomes `path/to/files//*`. The double slashes might cause unexpected behavior
-depending on the keyword used, shell and OS of the runner, and so on.
+depending on factors like the keyword used, or the shell and OS of the runner.
 
 ### `You are not allowed to download code from this project.` error message
 

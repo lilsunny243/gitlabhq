@@ -7,6 +7,7 @@ class BulkImports::Tracker < ApplicationRecord
 
   belongs_to :entity,
     class_name: 'BulkImports::Entity',
+    inverse_of: :trackers,
     foreign_key: :bulk_import_entity_id,
     optional: false
 
@@ -26,7 +27,7 @@ class BulkImports::Tracker < ApplicationRecord
     entity_scope = where(bulk_import_entity_id: entity_id)
     next_stage_scope = entity_scope.with_status(:created).select('MIN(stage)')
 
-    entity_scope.where(stage: next_stage_scope)
+    entity_scope.where(stage: next_stage_scope).with_status(:created)
   }
 
   def self.stage_running?(entity_id, stage)
@@ -60,6 +61,8 @@ class BulkImports::Tracker < ApplicationRecord
 
     event :retry do
       transition started: :enqueued
+      # To avoid errors when retrying a pipeline in case of network errors
+      transition enqueued: :enqueued
     end
 
     event :enqueue do

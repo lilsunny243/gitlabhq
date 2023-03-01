@@ -1,7 +1,7 @@
 ---
 stage: Fulfillment
 group: Purchase
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index, reference
 ---
 
@@ -18,6 +18,10 @@ GitLab subscription management requires access to the Customers Portal.
 GitLab provides the [Customers Portal](../index.md#customers-portal) where you can
 manage your subscriptions and your account details.
 
+Customers are required to use their GitLab.com account to register for a new Customers Portal account.
+
+If you have a legacy Customers Portal account that is not linked to a GitLab.com account, you may still [sign in](https://customers.gitlab.com/customers/sign_in?legacy=true) using an email and password. However, you should [create](https://gitlab.com/users/sign_up) and [link a GitLab.com account](../index.md#change-the-linked-account) to ensure continued access to the Customers Portal.
+
 Customers of resellers do not have access to this portal and should contact their reseller for any
 changes to their subscription.
 
@@ -33,7 +37,7 @@ The cost of a GitLab self-managed subscription is determined by the following:
 Pricing is [tier-based](https://about.gitlab.com/pricing/), so you can choose
 the features that fit your budget. For information on the features available
 for each tier, see the
-[GitLab self-managed feature comparison](https://about.gitlab.com/pricing/self-managed/feature-comparison/).
+[GitLab self-managed feature comparison](https://about.gitlab.com/pricing/feature-comparison/).
 
 ## Subscription seats
 
@@ -42,14 +46,14 @@ according to the [maximum number](#maximum-users) of users enabled during the su
 For instances that aren't offline or on a closed network, the maximum number of
 simultaneous users in the GitLab self-managed installation is checked each quarter.
 
-If an instance is unable to generate a quarterly usage report, the existing [true-up model](#users-over-license) is used.
+If an instance is unable to generate a quarterly usage report, the existing [true up model](#users-over-subscription) is used.
 Prorated charges are not possible without a quarterly usage report.
 
 ### View user totals
 
 You can view users for your license and determine if you've gone over your subscription.
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left menu, select **Subscription**.
 
 The lists of users are displayed.
@@ -63,7 +67,7 @@ billable user, with the following exceptions:
   [blocked users](../../user/admin_area/moderate_users.md#block-a-user) don't count as billable users in the current subscription. When they are either deactivated or blocked they release a _billable user_ seat. However, they may
   count toward overages in the subscribed seat count.
 - Users who are [pending approval](../../user/admin_area/moderate_users.md#users-pending-approval).
-- Members with the Guest role on an Ultimate subscription.
+- Members with the [Guest role on an Ultimate subscription](#free-guest-users).
 - Users without project or group memberships on an Ultimate subscription.
 - GitLab-created service accounts:
   - [Ghost User](../../user/profile/account/delete_account.md#associated-records).
@@ -78,24 +82,40 @@ billable user, with the following exceptions:
 
 The number of _maximum users_ reflects the highest number of billable users for the current license period.
 
-#### Users over license
+#### Users over subscription
 
-The number of _users over license_ shows how many users are in excess of the number allowed by the license. This number reflects the current license period.
+The number of _users over subscription_ shows how many users are in excess of the number allowed by the subscription. This number reflects the current subscription period.
 
 For example, if:
 
-- The license allows 100 users and
+- The subscription allows 100 users and
 - **Maximum users** is 150,
 
 Then this value would be 50.
 
 If the **Maximum users** value is less than or equal to 100, then this value is 0.
 
-A trial license always displays zero for **Users over license**.
+A trial license always displays zero for **Users over subscription**.
 
 If you add more users to your GitLab instance than you are licensed for, payment for the additional users is due [at the time of renewal](../quarterly_reconciliation.md).
 
 If you do not add these users during the renewal process, your license key will not work.
+
+#### Free Guest users **(ULTIMATE)**
+
+In the **Ultimate** tier, users who are assigned the Guest role do not consume a seat.
+The user must not be assigned any other role, anywhere in the instance.
+
+- If your project is private or internal, a user with the Guest role has
+  [a set of permissions](../../user/permissions.md#project-members-permissions).
+- If your project is public, all users, including those with the Guest role
+  can access your project.
+- A user's highest assigned role is updated asynchronously and may take some time to update.
+
+NOTE:
+If a user creates a project, they are assigned the Maintainer or Owner role.
+To prevent a user from creating projects, as an administrator, you can mark the user
+as [external](../../user/admin_area/external_users.md).
 
 ### Tips for managing users and subscription seats
 
@@ -110,41 +130,39 @@ GitLab has several features which can help you manage the number of users:
 
 - Enable the [**Require administrator approval for new sign ups**](../../user/admin_area/settings/sign_up_restrictions.md#require-administrator-approval-for-new-sign-ups)
   option.
-- Enable `block_auto_created_users` for new sign-ups via [LDAP](../../administration/auth/ldap/index.md#basic-configuration-settings) or [OmniAuth](../../integration/omniauth.md#configure-initial-settings).
+- Enable `block_auto_created_users` for new sign-ups via [LDAP](../../administration/auth/ldap/index.md#basic-configuration-settings) or [OmniAuth](../../integration/omniauth.md#configure-common-settings).
 - Enable the [User cap](../../user/admin_area/settings/sign_up_restrictions.md#user-cap)
   option. **Available in GitLab 13.7 and later**.
 - [Disable new sign-ups](../../user/admin_area/settings/sign_up_restrictions.md), and instead manage new
   users manually.
 - View a breakdown of users by role in the [Users statistics](../../user/admin_area/index.md#users-statistics) page.
 
-## Sync your subscription data with GitLab
+## Subscription data synchronization
 
 > Introduced in GitLab 14.1.
 
-Prerequisites:
+Subscription data can be automatically synchronized between your self-managed instance and GitLab.
+To enable subscription data synchronization you must have:
 
-- You must be running GitLab Enterprise Edition (EE).
-- You must have GitLab 14.1 or later.
-- Your instance must be connected to the internet, and not be in an offline environment.
+- GitLab Enterprise Edition (EE), version 14.1 or later.
+- Connection to the internet, and must not have an offline environment.
+- [Activated](../../user/admin_area/license.md) your instance with an activation code.
 
-To sync subscription data between your self-managed instance and GitLab, you must [activate your instance](../../user/admin_area/license.md) with an
-activation code.
-
-After you activate your instance, the following processes are automated:
+When your instance is activated, and data is synchronized, the following processes are automated:
 
 - [Quarterly subscription reconciliation](../quarterly_reconciliation.md).
 - Subscription renewals.
 - Subscription updates, such as adding more seats or upgrading a GitLab tier.
 
-At approximately 03:00 UTC, a daily sync job sends subscription data to the Customers Portal. For this reason, updates and renewals may not
-apply immediately.
+At approximately 03:00 UTC, a daily synchronization job sends subscription data to the Customers
+Portal. For this reason, updates and renewals may not apply immediately.
 
-The data is sent securely through an encrypted HTTPS connection to `customers.gitlab.com` on port `443`.
-If the job fails, it retries up to 12 times over approximately 17 hours.
+The data is sent securely through an encrypted HTTPS connection to `customers.gitlab.com` on port
+`443`. If the job fails, it retries up to 12 times over approximately 17 hours.
 
-### Subscription data that GitLab receives
+### Subscription data
 
-The daily sync job sends **only** the following information to the Customers Portal:
+The daily synchronization job sends **only** the following information to the Customers Portal:
 
 - Date
 - Timestamp
@@ -209,16 +227,11 @@ Example of a license sync request:
 }
 ```
 
-### Troubleshoot automatic subscription sync
+### Manually synchronize your subscription details
 
-If the sync job is not working, ensure you allow network traffic from your GitLab instance
-to IP address `104.18.26.123:443` (`customers.gitlab.com`).
+You can manually synchronize your subscription details at any time.
 
-## Manually sync your subscription details
-
-You can manually sync your subscription details at any time.
-
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Subscription**.
 1. In the **Subscription details** section, select **Sync subscription details**.
 
@@ -241,7 +254,7 @@ instance, ensure you're purchasing enough seats to
 
 If you are an administrator, you can view the status of your subscription:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Subscription**.
 
 The **Subscription** page includes the following details:
@@ -257,17 +270,17 @@ It also displays the following information:
 | Users in License   | The number of users you've paid for in the current license loaded on the system. The number does not change unless you [add seats](#add-seats-to-a-subscription) during your current subscription period. |
 | Billable users     | The daily count of billable users on your system. The count may change as you block, deactivate, or add users to your instance. |
 | Maximum users      | The highest number of billable users on your system during the term of the loaded license. |
-| Users over license | Calculated as `Maximum users` - `Users in License` for the current license term. This number incurs a retroactive charge that must be paid before renewal. |
+| Users over subscription | Calculated as `Maximum users` - `Users in subscription` for the current license term. This number incurs a retroactive charge that must be paid before renewal. |
 
 ## Export your license usage
 
-> Introduced in GitLab 14.6.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66826) in GitLab 14.2.
 
 If you are an administrator, you can export your license usage into a CSV:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Subscription**.
-1. In the top right, select **Export license usage file**.
+1. In the upper-right corner, select **Export license usage file**.
 
 This file contains the information GitLab uses to manually process quarterly reconciliations or renewals. If your instance is firewalled or an offline environment, you must provide GitLab with this information.
 
@@ -290,17 +303,16 @@ NOTES:
 
 ## Renew your subscription
 
-You can renew your subscription starting from 15 days before your subscription expires.
+You can renew your subscription starting from 15 days before your subscription expires. To renew your subscription:
 
-To renew your subscription,
-[prepare for renewal by reviewing your account](#prepare-for-renewal-by-reviewing-your-account),
-then [renew your GitLab self-managed subscription](#renew-a-subscription).
+1. [Prepare for renewal by reviewing your account.](#prepare-for-renewal-by-reviewing-your-account)
+1. [Renew your GitLab self-managed subscription.](#renew-subscription-manually)
 
 ### Prepare for renewal by reviewing your account
 
 The [Customers Portal](https://customers.gitlab.com/customers/sign_in) is your
 tool for renewing and modifying your subscription. Before going ahead with renewal,
-log in and verify or update:
+sign in and verify or update:
 
 - The invoice contact details on the **Account details** page.
 - The credit card on file on the **Payment Methods** page.
@@ -316,18 +328,18 @@ It's important to regularly review your user accounts, because:
   if you renew for too many users.
 - Stale user accounts can be a security risk. A regular review helps reduce this risk.
 
-#### Users over License
+#### Users over subscription
 
-A GitLab subscription is valid for a specific number of seats. The number of users over license
-is the number of _Maximum users_ that exceed the _Users in License_ for the current license term.
+A GitLab subscription is valid for a specific number of seats. The number of users over subscription
+is the number of _maximum users_ that exceed the users in subscription for the current subscription term.
 You must pay for this number of users either before renewal, or at the time of renewal. This is
-known as the _true up_ process.
+called the _true up_ process.
 
-To view the number of _users over license_ go to the **Admin Area**.
+To view the number of users over subscription go to the **Admin Area**.
 
-##### Users over license example
+##### Users over subscription example
 
-You purchase a license for 10 users.
+You purchase a subscription for 10 users.
 
 | Event                                              | Billable users | Maximum users |
 |:---------------------------------------------------|:-----------------|:--------------|
@@ -335,7 +347,7 @@ You purchase a license for 10 users.
 | Two new users join.                                | 12               | 12            |
 | Three users leave and their accounts are removed.  | 9                | 12            |
 
-Users over license = 12 - 10 (Maximum users - users in license)
+Users over subscription = 12 - 10 (Maximum users - users in license)
 
 ### Add seats to a subscription
 
@@ -360,12 +372,11 @@ your instance immediately. If you're using a license file, you receive an update
 To add the seats, [add the license file](../../user/admin_area/license_file.md)
 to your instance.
 
-### Renew a subscription
+### Renew subscription manually
 
 Starting 30 days before a subscription expires, a banner with the expiry date displays for administrators in the GitLab user interface.
-You can renew your subscription starting from 15 days before your subscription expires.
 
-We recommend following these steps during renewal:
+You should follow these steps during renewal:
 
 1. Prior to the renewal date, prune any inactive or unwanted users by [blocking them](../../user/admin_area/moderate_users.md#block-a-user).
 1. Determine if you have a need for user growth in the upcoming subscription.
@@ -377,12 +388,44 @@ You can hover your mouse on the **Renew** button to see the date when it will be
    If you need to change your [GitLab tier](https://about.gitlab.com/pricing/), contact our sales team with [the sales contact form](https://about.gitlab.com/sales/) for assistance as this can't be done in the Customers Portal.
 
 1. In the first box, enter the total number of user licenses you'll need for the upcoming year. Be sure this number is at least **equal to, or greater than** the number of billable users in the system at the time of performing the renewal.
-1. Enter the number of [users over license](#users-over-license) in the second box for the user overage incurred in your previous subscription term.
+1. Enter the number of [users over subscription](#users-over-subscription) in the second box for the user overage incurred in your previous subscription term.
 1. Review your renewal details and complete the payment process.
 1. An activation code for the renewal term is available on the [Manage Purchases](https://customers.gitlab.com/subscriptions) page on the relevant subscription card. Select **Copy activation code** to get a copy.
 1. [Add the activation code](../../user/admin_area/license.md) to your instance.
 
 An invoice is generated for the renewal and available for viewing or download on the [View invoices](https://customers.gitlab.com/receipts) page. If you have difficulty during the renewal process, contact our [support team](https://support.gitlab.com/hc/en-us/requests/new?ticket_form_id=360000071293) for assistance.
+
+### Automatic subscription renewal
+
+When a subscription is set to auto-renew, it renews automatically on the
+expiration date (at midnight UTC) without a gap in available service. Subscriptions purchased through Customers Portal are set to auto-renew by default.
+The number of user licenses is adjusted to fit the [number of billable users in your instance](#view-user-totals) at the time of renewal.
+Before auto-renewal you should [prepare for the renewal](#prepare-for-renewal-by-reviewing-your-account) at least 2 days before the renewal date, so that your changes synchronize to GitLab in time for your renewal. To auto-renew your subscription,
+you must have enabled the [synchronization of subscription data](#subscription-data-synchronization).
+
+You can view and download your renewal invoice on the Customers Portal
+[View invoices](https://customers.gitlab.com/receipts) page. If your account has a [saved credit card](../index.md#change-your-payment-method), the card is charged for the invoice amount. If we are unable to process a payment or the auto-renewal fails for any other reason, you have 14 days to renew your subscription, after which your GitLab tier is downgraded.
+
+#### Email notifications
+
+15 days before a subscription automatically renews, an email is sent with information about the renewal.
+
+- If your credit card is expired, the email tells you how to update it.
+- If you have any outstanding overages or subscription isn't able to auto-renew for any other reason, the email tells you to contact our Sales team or [renew in Customers Portal](#renew-subscription-manually).
+- If there are no issues, the email specifies the names and quantity of the products being renewed. The email also includes the total amount you owe. If your usage increases or decreases before renewal, this amount can change.
+
+#### Enable or disable automatic subscription renewal
+
+To view or change automatic subscription renewal (at the same tier as the
+previous period), sign in to the [Customers Portal](https://customers.gitlab.com/customers/sign_in), and:
+
+- If a **Resume subscription** button is displayed, your subscription was canceled
+  previously. Select it to resume automatic renewal.
+- If a **Cancel subscription** button is displayed, your subscription is set to automatically
+  renew at the end of the subscription period. Select it to cancel automatic renewal.
+
+If you have difficulty during the renewal process, contact the
+[Support team](https://support.gitlab.com/hc/en-us/requests/new?ticket_form_id=360000071293) for assistance.
 
 ## Upgrade your subscription tier
 
@@ -435,10 +478,8 @@ If you have a license file or key, you can activate it [in the Admin Area](../..
 
 ## Contact Support
 
-Learn more about:
-
-- The tiers of [GitLab Support](https://about.gitlab.com/support/).
-- [Submit a request via the Support Portal](https://support.gitlab.com/hc/en-us/requests/new).
+- See the tiers of [GitLab Support](https://about.gitlab.com/support/).
+- [Submit a request](https://support.gitlab.com/hc/en-us/requests/new) through the Support Portal.
 
 We also encourage all users to search our project trackers for known issues and
 existing feature requests in the [GitLab](https://gitlab.com/gitlab-org/gitlab/-/issues/) project.
@@ -447,6 +488,11 @@ These issues are the best avenue for getting updates on specific product plans
 and for communicating directly with the relevant GitLab team members.
 
 ## Troubleshooting
+
+### Subscription data fails to synchronize
+
+If the synchronization job is not working, ensure you allow network traffic from your GitLab
+instance to IP addresses `172.64.146.11:443` and `104.18.41.245:443` (`customers.gitlab.com`).
 
 ### Credit card declined
 
@@ -460,3 +506,38 @@ If your credit card is declined when purchasing a GitLab subscription, possible 
 
 Check with your financial institution to confirm if any of these reasons apply. If they don't
 apply, contact [GitLab Support](https://support.gitlab.com/hc/en-us/requests/new?ticket_form_id=360000071293).
+
+### Check daily and historical billable users
+
+Administrators can get a list of daily and historical billable users in your GitLab instance.
+
+1. [Start a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+1. Count the number of users in the instance:
+
+   ```ruby
+   User.billable.count
+   ```
+
+1. Get the historical maximum number of users on the instance from the past year:
+
+   ```ruby
+   ::HistoricalData.max_historical_user_count(from: 1.year.ago.beginning_of_day, to: Time.current.end_of_day)
+   ```
+
+### Update daily billable and historical users
+
+Administrators can trigger a manual update of the daily and historical billable users in your GitLab instance.
+
+1. [Start a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+1. Force an update of the daily billable users:
+
+   ```ruby
+   identifier = Analytics::UsageTrends::Measurement.identifiers[:billable_users]
+   ::Analytics::UsageTrends::CounterJobWorker.new.perform(identifier, User.minimum(:id), User.maximum(:id), Time.zone.now)
+   ```
+
+1. Force an update of the historical max billable users:
+
+   ```ruby
+   ::HistoricalDataWorker.new.perform
+   ```

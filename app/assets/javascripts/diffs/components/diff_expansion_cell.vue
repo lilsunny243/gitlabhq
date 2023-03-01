@@ -1,7 +1,8 @@
 <script>
-import { GlTooltipDirective, GlSafeHtmlDirective, GlIcon, GlLoadingIcon } from '@gitlab/ui';
+import { GlTooltipDirective, GlIcon, GlLoadingIcon } from '@gitlab/ui';
 import { mapActions } from 'vuex';
-import createFlash from '~/flash';
+import SafeHtml from '~/vue_shared/directives/safe_html';
+import { createAlert } from '~/flash';
 import { s__, sprintf } from '~/locale';
 import { UNFOLD_COUNT, INLINE_DIFF_LINES_KEY } from '../constants';
 import * as utils from '../store/utils';
@@ -21,7 +22,7 @@ export default {
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   props: {
     file: {
@@ -92,7 +93,7 @@ export default {
     ) {
       this.loadMoreLines({ endpoint, params, lineNumbers, fileHash, isExpandDown, nextLineNumbers })
         .catch(() => {
-          createFlash({
+          createAlert({
             message: s__('Diffs|Something went wrong while fetching diff lines.'),
           });
         })
@@ -224,6 +225,7 @@ export default {
       <button
         v-if="showExpandDown"
         :title="s__('Diffs|Next 20 lines')"
+        :aria-label="s__('Diffs|Next 20 lines')"
         :disabled="loading.down"
         type="button"
         class="js-unfold-down gl-rounded-0 gl-border-0 diff-line-expand-button"
@@ -235,6 +237,7 @@ export default {
       <button
         v-if="lineCountBetween !== -1 && lineCountBetween < 20"
         :title="s__('Diffs|Expand all lines')"
+        :aria-label="s__('Diffs|Expand all lines')"
         :disabled="loading.all"
         type="button"
         class="js-unfold-all gl-rounded-0 gl-border-0 diff-line-expand-button"
@@ -246,6 +249,7 @@ export default {
       <button
         v-if="showExpandUp"
         :title="s__('Diffs|Previous 20 lines')"
+        :aria-label="s__('Diffs|Previous 20 lines')"
         :disabled="loading.up"
         type="button"
         class="js-unfold gl-rounded-0 gl-border-0 diff-line-expand-button"

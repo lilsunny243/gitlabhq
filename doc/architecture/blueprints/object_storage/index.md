@@ -1,8 +1,11 @@
 ---
-stage: none
-group: unassigned
-comments: false
-description: 'Object storage: direct_upload consolidation - architecture blueprint.'
+status: accepted
+creation-date: "2021-11-18"
+authors: [ "@nolith" ]
+coach: "@glopezfernandez"
+approvers: [ "@marin" ]
+owning-stage: "~devops::data_stores"
+participating-stages: []
 ---
 
 # Object storage: `direct_upload` consolidation
@@ -59,7 +62,7 @@ This has led to increased complexity across the board, from development
   that would normally be "free".
 - In many cases, we copy around object storage files needlessly
   (for example, [issue #285597](https://gitlab.com/gitlab-org/gitlab/-/issues/285597)).
-  Large files (LFS, packages, and so on) are slow to finalize or don't work
+  Large files (for example, LFS and packages) are slow to finalize or don't work
   at all as a result.
 
 ## Improvements over the current situation
@@ -110,7 +113,7 @@ Because every group of features requires its own bucket, we don't have
 direct upload enabled everywhere. Contributing a new upload requires
 coding it in both Ruby on Rails and Go.
 
-Implementing a new feature that does not yet have a dedicated bucket
+Implementing a new feature that does not have a dedicated bucket
 requires the developer to also create a merge request in Omnibus
 and CNG, as well as coordinate with SREs to configure the new bucket
 for our own environments.
@@ -135,7 +138,7 @@ access to new features without infrastructure chores.
 Our implementation is built on top of a 3rd-party framework where
 every object storage client is a 3rd-party library. Unfortunately some
 of them are unmaintained.
-[We have customers who cannot push 5GB Git LFS objects](https://gitlab.com/gitlab-org/gitlab/-/issues/216442),
+[We have customers who cannot push 5 GB Git LFS objects](https://gitlab.com/gitlab-org/gitlab/-/issues/216442),
 but with such a vital feature implemented in 3rd-party libraries we
 are slowed down in fixing it, and we also rely on external maintainers
 to merge and release fixes.
@@ -197,24 +200,3 @@ require one bucket.
 - [Speed up the monolith, building a smart reverse proxy in Go](https://archive.fosdem.org/2020/schedule/event/speedupmonolith/): a presentation explaining a bit of workhorse history and the challenge we faced in releasing the first cloud-native installation.
 - [Object Storage improvements epic](https://gitlab.com/groups/gitlab-org/-/epics/483).
 - We are moving to GraphQL API, but [we do not support direct upload](https://gitlab.com/gitlab-org/gitlab/-/issues/280819).
-
-## Who
-
-Proposal:
-
-<!-- vale gitlab.Spelling = NO -->
-
-| Role                           | Who                     |
-|--------------------------------|-------------------------|
-| Author                         | Alessio Caiazza         |
-| Architecture Evolution Coach   | Gerardo Lopez-Fernandez |
-| Engineering Leader             | Marin Jankovski         |
-| Domain Expert / Object storage | Stan Hu                 |
-| Domain Expert / Security       | Joern Schneeweisz       |
-
-DRIs:
-
-The DRI for this blueprint is the
-[Object Storage Working Group](https://about.gitlab.com/company/team/structure/working-groups/object-storage/).
-
-<!-- vale gitlab.Spelling = YES -->

@@ -2,7 +2,7 @@
 type: reference, dev
 stage: none
 group: Development
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 ---
 
 # Secure Coding Guidelines
@@ -53,6 +53,10 @@ Each time you implement a new feature/endpoint, whether it is at UI, API or Grap
 
 Be careful to **also test [visibility levels](https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/doc/development/permissions.md#feature-specific-permissions)** and not only project access rights.
 
+The HTTP status code returned when an authorization check fails should generally be `404 Not Found` to avoid revealing information
+about whether or not the requested resource exists. `403 Forbidden` may be appropriate if you need to display a specific message to the user
+about why they cannot access the resource. If you are displaying a generic message such as "access denied", consider returning `404 Not Found` instead.
+
 Some example of well implemented access controls and tests:
 
 1. [example1](https://dev.gitlab.org/gitlab/gitlab-ee/-/merge_requests/710/diffs?diff_id=13750#af40ef0eaae3c1e018809e1d88086e32bccaca40_43_43)
@@ -81,7 +85,7 @@ text = "foo\nbar"
 p text.match /^bar$/
 ```
 
-The output of this example is `#<MatchData "bar">`, as Ruby treats the input `text` line by line. In order to match the whole __string__ the Regex anchors `\A` and `\z` should be used.
+The output of this example is `#<MatchData "bar">`, as Ruby treats the input `text` line by line. To match the whole **string**, the Regex anchors `\A` and `\z` should be used.
 
 #### Impact
 
@@ -262,8 +266,7 @@ value, we **will not** be protected against DNS rebinding.
 
 This is the case with validators such as the `AddressableUrlValidator` (called with `validates :url, addressable_url: {opts}` or `public_url: {opts}`).
 Validation errors are only raised when validations are called, for example when a record is created or saved. If we ignore the value returned by the validation
-when persisting the record, **we need to recheck** its validity before using it. You can learn more about [Time of Check to Time of Use bugs](#time-of-check-to-time-of-use-bugs) in a later section
-of these guidelines.
+when persisting the record, **we need to recheck** its validity before using it. For more information, see [Time of check to time of use bugs](#time-of-check-to-time-of-use-bugs).
 
 #### Feature-specific mitigations
 
@@ -287,7 +290,7 @@ implement.
 - For HTTP connections: Disable redirects or validate the redirect destination
 - To mitigate DNS rebinding attacks, validate and use the first IP address received.
 
-See [`url_blocker_spec.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/lib/gitlab/url_blocker_spec.rb) for examples of SSRF payloads. See [time of check to time of use bugs](#time-of-check-to-time-of-use-bugs) to learn more about DNS rebinding's class of bug.
+See [`url_blocker_spec.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/lib/gitlab/url_blocker_spec.rb) for examples of SSRF payloads. For more information about the DNS-rebinding class of bugs, see [Time of check to time of use bugs](#time-of-check-to-time-of-use-bugs).
 
 Don't rely on methods like `.start_with?` when validating a URL, or make assumptions about which
 part of a string maps to which part of a URL. Use the `URI` class to parse the string, and validate
@@ -406,7 +409,7 @@ References:
 #### XSS mitigation and prevention in JavaScript and Vue
 
 - When updating the content of an HTML element using JavaScript, mark user-controlled values as `textContent` or `nodeValue` instead of `innerHTML`.
-- Avoid using `v-html` with user-controlled data, use [`v-safe-html`](https://gitlab-org.gitlab.io/gitlab-ui/?path=/story/directives-safe-html-directive--default) instead.
+- Avoid using `v-html` with user-controlled data, use [`v-safe-html`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/vue_shared/directives/safe_html.js) instead.
 - Render unsafe or unsanitized content using [`dompurify`](fe_guide/security.md#sanitize-html-output).
 - Consider using [`gl-sprintf`](../../ee/development/i18n/externalization.md#interpolation) to interpolate translated strings securely.
 - Avoid `__()` with translations that contain user-controlled values.
@@ -418,7 +421,7 @@ References:
 ##### Vue
 
 - [isSafeURL](https://gitlab.com/gitlab-org/gitlab/-/blob/v12.7.5-ee/app/assets/javascripts/lib/utils/url_utility.js#L190-207)
-- [GlSprintf](https://gitlab-org.gitlab.io/gitlab-ui/?path=/story/utilities-sprintf--default)
+- [GlSprintf](https://gitlab-org.gitlab.io/gitlab-ui/?path=/docs/utilities-sprintf--sentence-with-link)
 
 #### Content Security Policy
 
@@ -714,13 +717,12 @@ There are some cases where `users` passed in the code is actually referring to a
 
 ```ruby
       def find_user_from_sources
-        strong_memoize(:find_user_from_sources) do
-          deploy_token_from_request ||
-            find_user_from_bearer_token ||
-            find_user_from_job_token ||
-            user_from_warden
-        end
+        deploy_token_from_request ||
+          find_user_from_bearer_token ||
+          find_user_from_job_token ||
+          user_from_warden
       end
+      strong_memoize_attr :find_user_from_sources
 ```
 
 ### Past Vulnerable Code
@@ -850,9 +852,34 @@ In the example above, the `is_admin?` method is overwritten when passing it to t
 
 Working with archive files like `zip`, `tar`, `jar`, `war`, `cpio`, `apk`, `rar` and `7z` presents an area where potentially critical security vulnerabilities can sneak into an application.
 
+### Utilities for safely working with archive files
+
+There are common utilities that can be used to securely work with archive files.
+
+#### Ruby
+
+| Archive type | Utility     |
+|--------------|-------------|
+| `zip`        | `SafeZip`   |
+
+#### `SafeZip`
+
+SafeZip provides a safe interface to extract specific directories or files within a `zip` archive through the `SafeZip::Extract` class.
+
+Example:
+
+```ruby
+Dir.mktmpdir do |tmp_dir|
+  SafeZip::Extract.new(zip_file_path).extract(files: ['index.html', 'app/index.js'], to: tmp_dir)
+  SafeZip::Extract.new(zip_file_path).extract(directories: ['src/', 'test/'], to: tmp_dir)
+rescue SafeZip::Extract::EntrySizeError
+  raise Error, "Path `#{file_path}` has invalid size in the zip!"
+end
+```
+
 ### Zip Slip
 
-In 2018, the security company Snyk [released a blog post](https://snyk.io/research/zip-slip-vulnerability) describing research into a widespread and critical vulnerability present in many libraries and applications which allows an attacker to overwrite arbitrary files on the server file system which, in many cases, can be leveraged to achieve remote code execution. The vulnerability was dubbed Zip Slip.
+In 2018, the security company Snyk [released a blog post](https://security.snyk.io/research/zip-slip-vulnerability) describing research into a widespread and critical vulnerability present in many libraries and applications which allows an attacker to overwrite arbitrary files on the server file system which, in many cases, can be leveraged to achieve remote code execution. The vulnerability was dubbed Zip Slip.
 
 A Zip Slip vulnerability happens when an application extracts an archive without validating and sanitizing the filenames inside the archive for directory traversal sequences that change the file location when the file is extracted.
 
@@ -1067,7 +1094,7 @@ Symlink attacks makes it possible for an attacker to read the contents of arbitr
 
 #### Ruby
 
-For zip files, the [`rubyzip`](https://rubygems.org/gems/rubyzip) Ruby gem is already patched against symlink attacks as it simply ignores symbolic links, so for this vulnerable example we will extract a `tar.gz` file with `Gem::Package::TarReader`:
+For zip files, the [`rubyzip`](https://rubygems.org/gems/rubyzip) Ruby gem is already patched against symlink attacks as it ignores symbolic links, so for this vulnerable example we will extract a `tar.gz` file with `Gem::Package::TarReader`:
 
 ```ruby
 # Vulnerable tar.gz extraction example!
@@ -1206,7 +1233,7 @@ These types of bugs are often seen in environments which allow multi-threading a
 
 ### Examples
 
-**Example 1:** you have a model which accepts a URL as input. When the model is created you verify that the URL's host resolves to a public IP address, to prevent attackers making internal network calls. But DNS records can change ([DNS rebinding](#server-side-request-forgery-ssrf)]). An attacker updates the DNS record to `127.0.0.1`, and when your code resolves those URL's host it results in sending a potentially malicious request to a server on the internal network. The property was valid at the "time of check", but invalid and malicious at "time of use".
+**Example 1:** you have a model which accepts a URL as input. When the model is created you verify that the URL host resolves to a public IP address, to prevent attackers making internal network calls. But DNS records can change ([DNS rebinding](#server-side-request-forgery-ssrf)]). An attacker updates the DNS record to `127.0.0.1`, and when your code resolves those URL host it results in sending a potentially malicious request to a server on the internal network. The property was valid at the "time of check", but invalid and malicious at "time of use".
 
 GitLab-specific example can be found in [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/214401) where, although `Gitlab::UrlBlocker.validate!` was called, the returned value was not used. This made it vulnerable to TOCTOU bug and SSRF protection bypass through [DNS rebinding](#server-side-request-forgery-ssrf). The fix was to [use the validated IP address](https://gitlab.com/gitlab-org/gitlab/-/commit/7af8abd4df9a98f7a1ae7c4ec9840d0a7a8c684d).
 
@@ -1214,7 +1241,7 @@ GitLab-specific example can be found in [this issue](https://gitlab.com/gitlab-o
 
 **Example 3:** you need to fetch a remote file, and perform a `HEAD` request to get and validate the content length and content type. When you subsequently make a `GET` request, though, the file delivered is a different size or different file type. (This is stretching the definition of TOCTOU, but things _have_ changed between time of check and time of use).
 
-**Example 4:** you allow users to upvote a comment if they haven't already. The server is multi-threaded, and you aren't using transactions or an applicable database index. By repeatedly clicking upvote in quick succession a malicious user is able to add multiple upvotes: the requests arrive at the same time, the checks run in parallel and confirm that no upvote exists yet, and so each upvote is written to the database.
+**Example 4:** you allow users to upvote a comment if they haven't already. The server is multi-threaded, and you aren't using transactions or an applicable database index. By repeatedly selecting upvote in quick succession a malicious user is able to add multiple upvotes: the requests arrive at the same time, the checks run in parallel and confirm that no upvote exists yet, and so each upvote is written to the database.
 
 Here's some pseudocode showing an example of a potential TOCTOU bug:
 
@@ -1266,8 +1293,8 @@ This sensitive data must be handled carefully to avoid leaks which could lead to
 - Never commit credentials to repositories.
   - The [Gitleaks Git hook](https://gitlab.com/gitlab-com/gl-security/security-research/gitleaks-endpoint-installer) is recommended for preventing credentials from being committed.
 - Never log credentials under any circumstance. Issue [#353857](https://gitlab.com/gitlab-org/gitlab/-/issues/353857) is an example of credential leaks through log file.
-- When credentials are required in a CI/CD job, use [masked variables](../ci/variables/index.md#mask-a-cicd-variable) to help prevent accidental exposure in the job logs. Be aware that when [debug logging](../ci/variables/index.md#debug-logging) is enabled, all masked CI/CD variables are visible in job logs. Also consider using [protected variables](../ci/variables/index.md#protected-cicd-variables) when possible so that sensitive CI/CD variables are only available to pipelines running on protected branches or protected tags.
-- Proper scanners must be enabled depending on what data those credentials are protecting. See the [Application Security Inventory Policy](https://about.gitlab.com/handbook/engineering/security/security-engineering-and-research/application-security/inventory.html#policies) and our [Data Classification Standards](https://about.gitlab.com/handbook/engineering/security/data-classification-standard.html#data-classification-standards).
+- When credentials are required in a CI/CD job, use [masked variables](../ci/variables/index.md#mask-a-cicd-variable) to help prevent accidental exposure in the job logs. Be aware that when [debug logging](../ci/variables/index.md#enable-debug-logging) is enabled, all masked CI/CD variables are visible in job logs. Also consider using [protected variables](../ci/variables/index.md#protect-a-cicd-variable) when possible so that sensitive CI/CD variables are only available to pipelines running on protected branches or protected tags.
+- Proper scanners must be enabled depending on what data those credentials are protecting. See the [Application Security Inventory Policy](https://about.gitlab.com/handbook/security/security-engineering/application-security/inventory.html#policies) and our [Data Classification Standards](https://about.gitlab.com/handbook/security/data-classification-standard.html#data-classification-standards).
 - To store and/or share credentials between teams, refer to [1Password for Teams](https://about.gitlab.com/handbook/security/#1password-for-teams) and follow [the 1Password Guidelines](https://about.gitlab.com/handbook/security/#1password-guidelines).
 - If you need to share a secret with a team member, use 1Password. Do not share a secret over email, Slack, or other service on the Internet.
 
@@ -1277,7 +1304,7 @@ This sensitive data must be handled carefully to avoid leaks which could lead to
 - Avoid including credentials as part of an HTTP response unless it is absolutely necessary as part of the workflow. For example, generating a PAT for users.
 - Avoid sending credentials in URL parameters, as these can be more easily logged inadvertently during transit.
 
-In the event of credential leak through an MR, issue, or any other medium, [reach out to SIRT team](https://about.gitlab.com/handbook/engineering/security/security-operations/sirt/#-engaging-sirt).
+In the event of credential leak through an MR, issue, or any other medium, [reach out to SIRT team](https://about.gitlab.com/handbook/security/security-operations/sirt/#-engaging-sirt).
 
 ## Serialization
 

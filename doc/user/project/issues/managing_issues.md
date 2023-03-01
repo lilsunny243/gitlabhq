@@ -1,227 +1,12 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Manage issues **(FREE)**
 
-[GitLab Issues](index.md) are the fundamental medium for collaborating on ideas and
-planning work in GitLab.
-
-## Create an issue
-
-When you create an issue, you are prompted to enter the fields of the issue.
-If you know the values you want to assign to an issue, you can use
-[quick actions](../quick_actions.md) to enter them.
-
-You can create an issue in many ways in GitLab:
-
-- [From a project](#from-a-project)
-- [From a group](#from-a-group)
-- [From another issue or incident](#from-another-issue-or-incident)
-- [From an issue board](#from-an-issue-board)
-- [By sending an email](#by-sending-an-email)
-- [Using a URL with prefilled values](#using-a-url-with-prefilled-values)
-- [Using Service Desk](#using-service-desk)
-
-### From a project
-
-Prerequisites:
-
-- You must have at least the Guest role for the project.
-
-To create an issue:
-
-1. On the top bar, select **Menu > Projects** and find your project.
-1. Either:
-
-   - On the left sidebar, select **Issues**, and then, in the top right corner, select **New issue**.
-   - On the top bar, select the plus sign (**{plus-square}**) and then, under **This project**,
-     select **New issue**.
-
-1. Complete the [fields](#fields-in-the-new-issue-form).
-1. Select **Create issue**.
-
-The newly created issue opens.
-
-### From a group
-
-Issues belong to projects, but when you're in a group, you can access and create issues that belong
-to the projects in the group.
-
-Prerequisites:
-
-- You must have at least the Guest role for the project in the group.
-
-To create an issue from a group:
-
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Issues**.
-1. In the top right corner, select **Select project to create issue**.
-1. Select the project you'd like to create an issue for. The button now reflects the selected
-   project.
-1. Select **New issue in `<project name>`**.
-1. Complete the [fields](#fields-in-the-new-issue-form).
-1. Select **Create issue**.
-
-The newly created issue opens.
-
-The project you selected most recently becomes the default for your next visit.
-This can save you a lot of time and clicks, if you mostly create issues for the same project.
-
-### From another issue or incident
-
-> - New issue becoming linked to the issue of origin [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/68226) in GitLab 14.3.
-> - **Relate to…** checkbox [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/198494) in GitLab 14.9.
-
-You can create a new issue from an existing one. The two issues can then be marked as related.
-
-Prerequisites:
-
-- You must have at least the Guest role for the project.
-
-To create an issue from another issue:
-
-1. In an existing issue, select the vertical ellipsis (**{ellipsis_v}**).
-1. Select **New related issue**.
-1. Complete the [fields](#fields-in-the-new-issue-form).
-   The new issue form has a **Relate to issue #123** checkbox, where `123` is the ID of the
-   issue of origin. If you keep this checkbox checked, the two issues become
-   [linked](related_issues.md).
-1. Select **Create issue**.
-
-The newly created issue opens.
-
-### From an issue board
-
-You can create a new issue from an [issue board](../issue_board.md).
-
-Prerequisites:
-
-- You must have at least the Guest role for the project.
-
-To create an issue from a project issue board:
-
-1. On the top bar, select **Menu > Projects** and find your project.
-1. Select **Issues > Boards**.
-1. At the top of a board list, select **New issue** (**{plus-square}**).
-1. Enter the issue's title.
-1. Select **Create issue**.
-
-To create an issue from a group issue board:
-
-1. On the top bar, select **Menu > Groups** and find your group.
-1. Select **Issues > Boards**.
-1. At the top of a board list, select **New issue** (**{plus-square}**).
-1. Enter the issue's title.
-1. Under **Projects**, select the project in the group that the issue should belong to.
-1. Select **Create issue**.
-
-The issue is created and shows up in the board list. It shares the list's characteristic, so, for
-example, if the list is scoped to a label `Frontend`, the new issue also has this label.
-
-### By sending an email
-
-> - Generated email address format changed in GitLab 11.7.
-> - The older format is still supported, so existing aliases and contacts still work.
-
-You can send an email to create an issue in a project on the project's
-**Issues List** page.
-
-Prerequisites:
-
-- Your GitLab instance must have [incoming email](../../../administration/incoming_email.md)
-  configured.
-- There must be at least one issue in the issue list.
-- You must have at least the Guest role for the project.
-
-To email an issue to a project:
-
-1. On the top bar, select **Menu > Projects** and find your project.
-1. Select **Issues**.
-1. At the bottom of the page, select **Email a new issue to this project**.
-1. To copy the email address, select **Copy** (**{copy-to-clipboard}**).
-1. From your email client, send an email to this address.
-   The subject is used as the title of the new issue, and the email body becomes the description.
-   You can use [Markdown](../../markdown.md) and [quick actions](../quick_actions.md).
-
-A new issue is created, with your user as the author.
-You can save this address as a contact in your email client to use it again.
-
-WARNING:
-The email address you see is a private email address, generated just for you.
-**Keep it to yourself**, because anyone who knows it can create issues or merge requests as if they
-were you.
-
-To regenerate the email address:
-
-1. On the issues list, select **Email a new issue to this project**.
-1. Select **reset this token**.
-
-### Using a URL with prefilled values
-
-> - Ability to use both `issuable_template` and `issue[description]` in the same URL [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80554) in GitLab 14.9.
-> - Ability to specify `add_related_issue` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/198494) in GitLab 14.9.
-
-To link directly to the new issue page with prefilled fields, use query
-string parameters in a URL. You can embed a URL in an external
-HTML page to create issues with certain fields prefilled.
-
-| Field                | URL parameter         | Notes                                                                                                                           |
-| -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Title                | `issue[title]`        | Must be [URL-encoded](../../../api/index.md#namespaced-path-encoding).                                                          |
-| Issue type           | `issue[issue_type]`   | Either `incident` or `issue`.                                                                                                   |
-| Description template | `issuable_template`   | Must be [URL-encoded](../../../api/index.md#namespaced-path-encoding).                                                          |
-| Description          | `issue[description]`  | Must be [URL-encoded](../../../api/index.md#namespaced-path-encoding). If used in combination with `issuable_template` or a [default issue template](../description_templates.md#set-a-default-template-for-merge-requests-and-issues), the `issue[description]` value is appended to the template. |
-| Confidential         | `issue[confidential]` | If `true`, the issue is marked as confidential.                                                                                 |
-| Relate to…           | `add_related_issue`   | A numeric issue ID. If present, the issue form shows a [**Relate to…** checkbox](#from-another-issue-or-incident) to optionally link the new issue to the specified existing issue. |
-
-Adapt these examples to form your new issue URL with prefilled fields.
-To create an issue in the GitLab project:
-
-- With a prefilled title and description:
-
-  ```plaintext
-  https://gitlab.com/gitlab-org/gitlab/-/issues/new?issue[title]=Whoa%2C%20we%27re%20half-way%20there&issue[description]=Whoa%2C%20livin%27%20in%20a%20URL
-  ```
-
-- With a prefilled title and description template:
-
-  ```plaintext
-  https://gitlab.com/gitlab-org/gitlab/-/issues/new?issue[title]=Validate%20new%20concept&issuable_template=Feature%20Proposal%20-%20basic
-  ```
-
-- With a prefilled title, description, and marked as confidential:
-
-  ```plaintext
-  https://gitlab.com/gitlab-org/gitlab/-/issues/new?issue[title]=Validate%20new%20concept&issue[description]=Research%20idea&issue[confidential]=true
-  ```
-
-### Using Service Desk
-
-To offer email support, enable [Service Desk](../service_desk.md) for your project.
-
-Now, when your customer sends a new email, a new issue can be created in
-the appropriate project and followed up from there.
-
-### Fields in the new issue form
-
-> Adding the new issue to an epic [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13847) in GitLab 13.1.
-
-When you're creating a new issue, you can complete the following fields:
-
-- Title
-- Type: either issue (default) or incident
-- [Description template](../description_templates.md): overwrites anything in the Description text box
-- Description: you can use [Markdown](../../markdown.md) and [quick actions](../quick_actions.md)
-- Checkbox to make the issue [confidential](confidential_issues.md)
-- [Assignees](#assignee)
-- [Weight](issue_weight.md)
-- [Epic](../../group/epics/index.md)
-- [Due date](due_dates.md)
-- [Milestone](../milestones/index.md)
-- [Labels](../labels.md)
+After you create an issue, you can start working with it.
 
 ## Edit an issue
 
@@ -237,27 +22,23 @@ To edit an issue:
 1. Edit the available fields.
 1. Select **Save changes**.
 
-### Reorder list items in the issue description
+### Remove a task list item
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15260) in GitLab 15.0.
-
-When you view an issue that has a list in the description, you can also reorder the list items.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/377307) in GitLab 15.9.
 
 Prerequisites:
 
-- You must have at least the Reporter role for the project, be the author of the issue, or be
-  assigned to the issue.
-- The issue's description must have an [ordered, unordered](../../markdown.md#lists), or
-  [task](../../markdown.md#task-lists) list.
+- You must have at least the Reporter role for the project, or be the author or assignee of the issue.
 
-To reorder list items, when viewing an issue:
+In an issue description with task list items:
 
-1. Hover over the list item row to make the drag icon (**{drag-vertical}**) visible.
-1. Select and hold the drag icon.
-1. Drag the row to the new position in the list.
-1. Release the drag icon.
+1. Hover over a task list item and select the options menu (**{ellipsis_v}**).
+1. Select **Delete**.
 
-### Bulk edit issues from a project
+The task list item is removed from the issue description.
+Any nested task list items are moved up a nested level.
+
+## Bulk edit issues from a project
 
 > - Assigning epic [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/210470) in GitLab 13.2.
 > - Editing health status [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/218395) in GitLab 13.2.
@@ -271,7 +52,7 @@ Prerequisites:
 
 To edit multiple issues at the same time:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Issues**.
 1. Select **Edit issues**. A sidebar on the right of your screen appears.
 1. Select the checkboxes next to each issue you want to edit.
@@ -281,7 +62,7 @@ To edit multiple issues at the same time:
 When bulk editing issues in a project, you can edit the following attributes:
 
 - Status (open or closed)
-- [Assignees](#assignee)
+- [Assignees](managing_issues.md#assignee)
 - [Epic](../../group/epics/index.md)
 - [Milestone](../milestones/index.md)
 - [Labels](../labels.md)
@@ -304,7 +85,7 @@ Prerequisites:
 
 To edit multiple issues at the same time:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Issues**.
 1. Select **Edit issues**. A sidebar on the right of your screen appears.
 1. Select the checkboxes next to each issue you want to edit.
@@ -340,6 +121,29 @@ To move an issue:
 
 ### Bulk move issues **(FREE SELF)**
 
+#### From the issues list
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15991) in GitLab 15.6.
+
+You can move multiple issues at the same time when you’re in a project.
+You can't move tasks or test cases.
+
+Prerequisite:
+
+- You must have at least the Reporter role for the project.
+
+To move multiple issues at the same time:
+
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Issues**.
+1. Select **Edit issues**. A sidebar on the right of your screen appears.
+1. Select the checkboxes next to each issue you want to move.
+1. From the right sidebar, select **Move selected**.
+1. From the dropdown list, select the destination project.
+1. Select **Move**.
+
+#### From the Rails console
+
 You can move all open issues from one project to another.
 
 Prerequisites:
@@ -362,7 +166,7 @@ To do it:
 
    issues.each do |issue|
       if issue.state != "closed" && issue.moved_to.nil?
-         Issues::MoveService.new(project: project, current_user: admin_user).execute(issue, target_project)
+         Issues::MoveService.new(container: project, current_user: admin_user).execute(issue, target_project)
       else
          puts "issue with id: #{issue.id} and title: #{issue.title} was not moved"
       end
@@ -370,6 +174,26 @@ To do it:
    ```
 
 1. To exit the Rails console, enter `quit`.
+
+## Reorder list items in the issue description
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15260) in GitLab 15.0.
+
+When you view an issue that has a list in the description, you can also reorder the list items.
+
+Prerequisites:
+
+- You must have at least the Reporter role for the project, be the author of the issue, or be
+  assigned to the issue.
+- The issue's description must have an [ordered, unordered](../../markdown.md#lists), or
+  [task](../../markdown.md#task-lists) list.
+
+To reorder list items, when viewing an issue:
+
+1. Hover over the list item row to make the grip icon (**{grip}**) visible.
+1. Select and hold the grip icon.
+1. Drag the row to the new position in the list.
+1. Release the grip icon.
 
 ## Close an issue
 
@@ -396,9 +220,11 @@ A reopened issue is no different from any other open issue.
 
 ### Closing issues automatically
 
-You can close issues automatically by using certain words in the commit message or MR description.
+You can close issues automatically by using certain words, called a _closing pattern_,
+in a commit message or merge request description. Administrators of self-managed GitLab instances
+can [change the default closing pattern](../../../administration/issue_closing_pattern.md).
 
-If a commit message or merge request description contains text matching the [defined pattern](#default-closing-pattern),
+If a commit message or merge request description contains text matching the [closing pattern](#default-closing-pattern),
 all issues referenced in the matched text are closed when either:
 
 - The commit is pushed to a project's [**default** branch](../repository/branches/default.md).
@@ -410,7 +236,7 @@ description:
 - Issues `#4` and `#6` are closed automatically when the MR is merged.
 - Issue `#5` is marked as a [related issue](related_issues.md), but it's not closed automatically.
 
-Alternatively, when you [create a merge request from an issue](../merge_requests/getting_started.md#merge-requests-to-close-issues),
+Alternatively, when you [create a merge request from an issue](../merge_requests/creating_merge_requests.md#from-an-issue),
 it inherits the issue's milestone and labels.
 
 For performance reasons, automatic issue closing is disabled for the very first
@@ -470,7 +296,7 @@ Prerequisites:
 
 To disable automatic issue closing:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Default branch**.
 1. Clear the **Auto-close referenced issues on default branch** checkbox.
@@ -489,8 +315,7 @@ Prerequisites:
 
 - You must have [administrator access](../../../administration/index.md) to your GitLab instance.
 
-To change the default issue closing pattern, edit the
-[`gitlab.rb` or `gitlab.yml` file](../../../administration/issue_closing_pattern.md)
+Learn how to change the default [issue closing pattern](../../../administration/issue_closing_pattern.md).
 of your installation.
 
 ## Change the issue type
@@ -544,6 +369,13 @@ Alternatively, you can use the `/promote` [quick action](../quick_actions.md#iss
 
 Read more about [promoting an issues to epics](../../group/epics/manage_epics.md#promote-an-issue-to-an-epic).
 
+## Promote an issue to an incident
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/296787) in GitLab 14.5.
+> - Quick actions to set issue type as incident upon creation [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/376760) in GitLab 15.8.
+
+You can use the `/promote_to_incident` [quick action](../quick_actions.md) to promote the issue to an [incident](../../../operations/incident_management/incidents.md).
+
 ## Add an issue to an iteration **(PREMIUM)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216158) in GitLab 13.2.
@@ -568,7 +400,7 @@ To view all issues assigned to you:
 Or:
 
 - To use a [keyboard shortcut](../../shortcuts.md), press <kbd>Shift</kbd> + <kbd>i</kbd>.
-- On the top bar, on the top right, select **{issues}** **Issues**.
+- On the top bar, in the upper-right corner, select **Issues** (**{issues}**).
 
 ## Filter the list of issues
 
@@ -577,6 +409,7 @@ Or:
 > - Filtering by type was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322755) in GitLab 13.10 [with a flag](../../../administration/feature_flags.md) named `vue_issues_list`. Disabled by default.
 > - Filtering by type was [enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/322755) in GitLab 14.10.
 > - Filtering by type is generally available in GitLab 15.1. [Feature flag `vue_issues_list`](https://gitlab.com/gitlab-org/gitlab/-/issues/359966) removed.
+> - Filtering by health status [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/218711) in GitLab 15.5.
 
 To filter the list of issues:
 
@@ -585,7 +418,7 @@ To filter the list of issues:
 1. Select or type the operator to use for filtering the attribute. The following operators are
    available:
    - `=`: Is
-   - `!=`: Is not ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/18059) in GitLab 12.7)
+   - `!=`: Is not one of
 1. Enter the text to filter the attribute by.
    You can filter some attributes by **None** or **Any**.
 1. Repeat this process to filter by multiple attributes. Multiple attributes are joined by a logical
@@ -594,11 +427,32 @@ To filter the list of issues:
 GitLab displays the results on-screen, but you can also
 [retrieve them as an RSS feed](../../search/index.md#retrieve-search-results-as-feed).
 
+### Filter with the OR operator
+
+> - OR filtering for author and assignee was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23532) in GitLab 15.6 [with a flag](../../../administration/feature_flags.md) named `or_issuable_queries`. Disabled by default.
+> - OR filtering for label was [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23532) in GitLab 15.8 [with a flag](../../../administration/feature_flags.md) named `or_issuable_queries`. Disabled by default.
+> - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104292) in GitLab 15.9.
+
+FLAG:
+On self-managed GitLab, by default this feature is available.
+To hide the feature, ask an administrator to [disable the feature flag](../../../administration/feature_flags.md) named `or_issuable_queries`.
+On GitLab.com, this feature is available.
+
+When this feature is enabled, you can use the OR operator (**is one of: `||`**)
+when you [filter the list of issues](#filter-the-list-of-issues) by:
+
+- Assignees
+- Author
+- Labels
+
+`is one of` represents an inclusive OR. For example, if you filter by `Assignee is one of Sidney Jones` and
+`Assignee is one of Zhang Wei`, GitLab shows issues where either `Sidney`, `Zhang`, or both of them are assignees.
+
 ### Filter issues by ID
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/39908) in GitLab 12.1.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Issues > List**.
 1. In the **Search** box, type the issue ID. For example, enter filter `#10` to return only issue 10.
 
@@ -625,29 +479,13 @@ Read more about issue references in [GitLab-Flavored Markdown](../../markdown.md
 You can create a comment in an issue by sending an email.
 Sending an email to this address creates a comment that contains the email body.
 
-To learn more about creating comments by sending an email and the necessary configuration, see
+For more information about creating comments by sending an email and the necessary configuration, see
 [Reply to a comment by sending email](../../discussions/index.md#reply-to-a-comment-by-sending-email).
 
 To copy the issue's email address:
 
 1. Go to the issue.
 1. On the right sidebar, next to **Issue email**, select **Copy Reference** (**{copy-to-clipboard}**).
-
-## Real-time sidebar
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/17589) in GitLab 13.3. Disabled by default.
-> - [Enabled on GitLab.com](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/3413) in GitLab 13.9.
-> - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/17589) in GitLab 14.5.
-> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/17589) in GitLab 14.9. Feature flags `real_time_issue_sidebar` and `broadcast_issue_updates` removed.
-
-Some sections of the right sidebar are updated in real time.
-When you're viewing an issue and somebody changes one of the values,
-you can see the change without having to refresh the page.
-
-The following sections are updated in real time:
-
-- [Assignee](#assignee)
-- Labels, [if enabled](../labels.md#real-time-changes-to-labels)
 
 ## Assignee
 
@@ -666,6 +504,8 @@ To change the assignee on an issue:
 1. On the right sidebar, in the **Assignee** section, select **Edit**.
 1. From the dropdown list, select the user to add as an assignee.
 1. Select any area outside the dropdown list.
+
+The assignee is changed without having to refresh the page.
 
 ## Similar issues
 
@@ -686,9 +526,13 @@ Up to five similar issues, sorted by most recently updated, are displayed below 
 > - Health status of closed issues [can't be edited](https://gitlab.com/gitlab-org/gitlab/-/issues/220867) in GitLab 13.4 and later.
 > - Issue health status visible in issue lists [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/45141) in GitLab 13.6.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/213567) in GitLab 13.7.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/218618) in GitLab 15.4: health status is visible on issue cards in issue boards.
 
-To help you track issue statuses, you can assign a status to each issue.
-This status marks issues as progressing as planned or needing attention to keep on schedule.
+To better track the risk in meeting your plans, you can assign a health status to each issue.
+You can use health status to signal to others in your organization whether issues are progressing
+as planned or need attention to stay on schedule.
+
+Incorporate a review of issue health status into your daily stand-up, project status reports, or weekly meetings to address risks to timely delivery of your planned work.
 
 Prerequisites:
 
@@ -704,7 +548,11 @@ To edit health status of an issue:
    - Needs attention (amber)
    - At risk (red)
 
-You can then see the issue's status in the issues list and the epic tree.
+You can see the issue’s health status in:
+
+- Issues list
+- Epic tree
+- Issue cards in issue boards
 
 After an issue is closed, its health status can't be edited and the **Edit** button becomes disabled
 until the issue is reopened.

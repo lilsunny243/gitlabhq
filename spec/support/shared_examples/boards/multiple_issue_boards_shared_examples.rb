@@ -3,6 +3,7 @@
 RSpec.shared_examples 'multiple issue boards' do
   context 'authorized user' do
     before do
+      stub_feature_flags(apollo_boards: false)
       parent.add_maintainer(user)
 
       login_as(user)
@@ -121,8 +122,34 @@ RSpec.shared_examples 'multiple issue boards' do
 
   context 'unauthorized user' do
     before do
+      stub_feature_flags(apollo_boards: false)
       visit boards_path
       wait_for_requests
+    end
+
+    it 'shows current board name' do
+      page.within('.boards-switcher') do
+        expect(page).to have_content(board.name)
+      end
+    end
+
+    it 'shows a list of boards' do
+      in_boards_switcher_dropdown do
+        expect(page).to have_content(board.name)
+        expect(page).to have_content(board2.name)
+      end
+    end
+
+    it 'switches current board' do
+      in_boards_switcher_dropdown do
+        click_button board2.name
+      end
+
+      wait_for_requests
+
+      page.within('.boards-switcher') do
+        expect(page).to have_content(board2.name)
+      end
     end
 
     it 'does not show action links' do

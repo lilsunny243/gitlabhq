@@ -10,8 +10,8 @@
 - base_domain_link_start = link_start % { url: base_domain_path }
 
 - help_link_continouos = link_to sprite_icon('question-o'), help_page_path('topics/autodevops/stages.md', anchor: 'auto-deploy'), target: '_blank', rel: 'noopener noreferrer'
-- help_link_timed = link_to sprite_icon('question-o'), help_page_path('topics/autodevops/customize.md', anchor: 'timed-incremental-rollout-to-production'), target: '_blank', rel: 'noopener noreferrer'
-- help_link_incremental = link_to sprite_icon('question-o'), help_page_path('topics/autodevops/customize.md', anchor: 'incremental-rollout-to-production'), target: '_blank', rel: 'noopener noreferrer'
+- help_link_timed = link_to sprite_icon('question-o'), help_page_path('topics/autodevops/cicd_variables.md', anchor: 'timed-incremental-rollout-to-production'), target: '_blank', rel: 'noopener noreferrer'
+- help_link_incremental = link_to sprite_icon('question-o'), help_page_path('topics/autodevops/cicd_variables.md', anchor: 'incremental-rollout-to-production'), target: '_blank', rel: 'noopener noreferrer'
 
 .row
   .col-lg-12
@@ -41,4 +41,4 @@
                 = form.gitlab_ui_radio_component :deploy_strategy, 'timed_incremental', (s_('CICD|Continuous deployment to production using timed incremental rollout') + ' ' + help_link_timed).html_safe
                 = form.gitlab_ui_radio_component :deploy_strategy, 'manual', (s_('CICD|Automatic deployment to staging, manual deployment to production') + ' ' + help_link_incremental).html_safe
 
-          = f.submit _('Save changes'), class: "btn gl-button btn-confirm gl-mt-5", data: { qa_selector: 'save_changes_button' }
+          = f.submit _('Save changes'), class: "gl-mt-5", data: { qa_selector: 'save_changes_button' }, pajamas_button: true

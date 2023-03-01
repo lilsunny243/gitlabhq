@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Container Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Container Registry API **(FREE)**
@@ -12,7 +12,7 @@ This is the API documentation of the [GitLab Container Registry](../user/package
 
 When the `ci_job_token_scope` feature flag is enabled (it is **disabled by default**), you can use the below endpoints
 from a CI/CD job, by passing the `$CI_JOB_TOKEN` variable as the `JOB-TOKEN` header.
-The job token will only have access to its own project.
+The job token only has access to its own project.
 
 [GitLab administrators with access to the GitLab Rails console](../administration/feature_flags.md)
 can opt to enable it.
@@ -41,7 +41,7 @@ PUT /projects/:id/
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) accessible by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) accessible by the authenticated user. |
 | `container_registry_access_level` | string | no | The desired visibility of the Container Registry. One of `enabled` (default), `private`, or `disabled`. |
 
 Descriptions of the possible values for `container_registry_access_level`:
@@ -83,7 +83,7 @@ Example response:
 ## Container Registry pagination
 
 By default, `GET` requests return 20 results at a time because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 ## List registry repositories
 
@@ -97,7 +97,7 @@ GET /projects/:id/registry/repositories
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) accessible by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) accessible by the authenticated user. |
 | `tags`      | boolean | no | If the parameter is included as true, each repository includes an array of `"tags"` in the response. |
 | `tags_count` | boolean | no | If the parameter is included as true, each repository includes `"tags_count"` in the response ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/32141) in GitLab 13.1). |
 
@@ -142,7 +142,7 @@ GET /groups/:id/registry/repositories
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) accessible by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) accessible by the authenticated user. |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" \
@@ -231,7 +231,7 @@ DELETE /projects/:id/registry/repositories/:repository_id
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `repository_id` | integer | yes | The ID of registry repository. |
 
 ```shell
@@ -251,7 +251,7 @@ GET /projects/:id/registry/repositories/:repository_id/tags
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) accessible by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) accessible by the authenticated user. |
 | `repository_id` | integer | yes | The ID of registry repository. |
 
 ```shell
@@ -286,7 +286,7 @@ GET /projects/:id/registry/repositories/:repository_id/tags/:tag_name
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) accessible by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) accessible by the authenticated user. |
 | `repository_id` | integer | yes | The ID of registry repository. |
 | `tag_name` | string | yes | The name of tag. |
 
@@ -320,7 +320,7 @@ DELETE /projects/:id/registry/repositories/:repository_id/tags/:tag_name
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `repository_id` | integer | yes | The ID of registry repository. |
 | `tag_name` | string | yes | The name of tag. |
 
@@ -330,7 +330,7 @@ curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" \
 ```
 
 This action doesn't delete blobs. To delete them and recycle disk space,
-[run the garbage collection](https://docs.gitlab.com/omnibus/maintenance/index.html#removing-unused-layers-not-referenced-by-manifests).
+[run the garbage collection](../administration/packages/container_registry.md#container-registry-garbage-collection).
 
 ## Delete registry repository tags in bulk
 
@@ -345,7 +345,7 @@ DELETE /projects/:id/registry/repositories/:repository_id/tags
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `repository_id` | integer | yes | The ID of registry repository. |
 | `name_regex` | string | no | The [re2](https://github.com/google/re2/wiki/Syntax) regex of the name to delete. To delete all tags specify `.*`. **Note:** `name_regex` is deprecated in favor of `name_regex_delete`. This field is validated. |
 | `name_regex_delete` | string | yes | The [re2](https://github.com/google/re2/wiki/Syntax) regex of the name to delete. To delete all tags specify `.*`. This field is validated. |
@@ -369,13 +369,13 @@ if successful, and performs the following operations:
 These operations are executed asynchronously and can take time to get executed.
 You can run this at most once an hour for a given container repository. This
 action doesn't delete blobs. To delete them and recycle disk space,
-[run the garbage collection](https://docs.gitlab.com/omnibus/maintenance/index.html#removing-unused-layers-not-referenced-by-manifests).
+[run the garbage collection](../administration/packages/container_registry.md#container-registry-garbage-collection).
 
 WARNING:
 The number of tags deleted by this API is limited on GitLab.com
 because of the scale of the Container Registry there.
 If your Container Registry has a large number of tags to delete,
-only some of them will be deleted, and you might need to call this API multiple times.
+only some of them are deleted, and you might need to call this API multiple times.
 To schedule tags for automatic deletion, use a [cleanup policy](../user/packages/container_registry/reduce_container_registry_storage.md#cleanup-policy) instead.
 
 Examples:
@@ -419,18 +419,51 @@ To query those, follow the Registry's built-in mechanism to obtain and use an
 NOTE:
 These are different from project or personal access tokens in the GitLab application.
 
+### Obtain token from GitLab
+
+```plaintext
+GET ${CI_SERVER_URL}/jwt/auth?service=container_registry&scope=*
+```
+
+You must specify the correct [scopes and actions](https://docs.docker.com/registry/spec/auth/scope/) to retrieve a valid token:
+
+```shell
+$ SCOPE="repository:${CI_REGISTRY_IMAGE}:delete" #or push,pull
+
+$ curl  --request GET --user "${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}" \
+        "https://gitlab.example.com/jwt/auth?service=container_registry&scope=${SCOPE}"
+{"token":" ... "}
+```
+
+### Delete image tags by reference
+
+```plaintext
+DELETE http(s)://${CI_REGISTRY}/v2/${CI_REGISTRY_IMAGE}/tags/reference/${CI_COMMIT_SHORT_SHA}
+```
+
+You can use the token retrieved with the predefined `CI_REGISTRY_USER` and `CI_REGISTRY_PASSWORD` variables to delete container image tags by reference on your GitLab instance.
+The `tag_delete` [Container-Registry-Feature](https://gitlab.com/gitlab-org/container-registry/-/tree/v3.61.0-gitlab/docs-gitlab#api) must be enabled.
+
+```shell
+$ curl  --request DELETE --header "Authorization: Bearer <token_from_above>" \
+        --header "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+        "https://gitlab.example.com:5050/v2/${CI_REGISTRY_IMAGE}/tags/reference/${CI_COMMIT_SHORT_SHA}"
+```
+
 ### Listing all container repositories
 
 ```plaintext
-GET /v2/_catalog
+GET http(s)://${CI_REGISTRY}/v2/_catalog
 ```
 
 To list all container repositories on your GitLab instance, administrator credentials are required:
 
 ```shell
-$ curl --request GET --user "<admin-username>:<admin-password>" "https://gitlab.example.com/jwt/auth?service=container_registry&scope=registry:catalog:*"
+$ SCOPE="registry:catalog:*"
+
+$ curl  --request GET --user "<admin-username>:<admin-password>" \
+        "https://gitlab.example.com/jwt/auth?service=container_registry&scope=${SCOPE}"
 {"token":" ... "}
 
 $ curl --header "Authorization: Bearer <token_from_above>" https://gitlab.example.com:5050/v2/_catalog
-{"repositories":["user/project1", "group/subgroup/project2", ... ]}
 ```

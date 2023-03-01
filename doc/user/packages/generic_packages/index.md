@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Generic Packages Repository **(FREE)**
@@ -13,13 +13,13 @@ Publish generic files, like release binaries, in your project's Package Registry
 
 ## Authenticate to the Package Registry
 
-To authenticate to the Package Registry, you need either a [personal access token](../../../api/index.md#personalprojectgroup-access-tokens),
+To authenticate to the Package Registry, you need either a [personal access token](../../../api/rest/index.md#personalprojectgroup-access-tokens),
 [CI/CD job token](../../../ci/jobs/ci_job_token.md), or [deploy token](../../project/deploy_tokens/index.md).
 
 In addition to the standard API authentication mechanisms, the generic package
 API allows authentication with HTTP Basic authentication for use with tools that
 do not support the other available mechanisms. The `user-id` is not checked and
-may be any value, and the `password` must be either a [personal access token](../../../api/index.md#personalprojectgroup-access-tokens),
+may be any value, and the `password` must be either a [personal access token](../../../api/rest/index.md#personalprojectgroup-access-tokens),
 a [CI/CD job token](../../../ci/jobs/ci_job_token.md), or a [deploy token](../../project/deploy_tokens/index.md).
 
 ## Publish a package file
@@ -28,7 +28,7 @@ When you publish a package file, if the package does not exist, it is created.
 
 Prerequisites:
 
-- You must [authenticate with the API](../../../api/index.md#authentication).
+- You must [authenticate with the API](../../../api/rest/index.md#authentication).
   If authenticating with a deploy token, it must be configured with the `write_package_registry`
   scope. If authenticating with a personal access token or project access token, it must be
   configured with the `api` scope.
@@ -44,7 +44,7 @@ PUT /projects/:id/packages/generic/:package_name/:package_version/:file_name?sta
 
 | Attribute          | Type            | Required | Description                                                                                                                      |
 | -------------------| --------------- | ---------| -------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | integer/string  | yes      | The ID or [URL-encoded path of the project](../../../api/index.md#namespaced-path-encoding).                                              |
+| `id`               | integer/string  | yes      | The ID or [URL-encoded path of the project](../../../api/rest/index.md#namespaced-path-encoding).                                              |
 | `package_name`     | string          | yes      | The package name. It can contain only lowercase letters (`a-z`), uppercase letter (`A-Z`), numbers (`0-9`), dots (`.`), hyphens (`-`), or underscores (`_`).
 | `package_version`  | string          | yes      | The package version. The following regex validates this: `\A(\.?[\w\+-]+\.?)+\z`. You can test your version strings on [Rubular](https://rubular.com/r/aNCV0wG5K14uq8).
 | `file_name`        | string          | yes      | The filename. It can contain only lowercase letters (`a-z`), uppercase letter (`A-Z`), numbers (`0-9`), dots (`.`), hyphens (`-`), or underscores (`_`).
@@ -118,12 +118,12 @@ API or the UI.
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/293755) in GitLab 13.12.
 > - [Required permissions](https://gitlab.com/gitlab-org/gitlab/-/issues/350682) changed from developer to maintainer in GitLab 15.0.
 
-To prevent users from publishing duplicate generic packages, you can use the [GraphQl API](../../../api/graphql/reference/index.md#packagesettings)
+To prevent users from publishing duplicate generic packages, you can use the [GraphQL API](../../../api/graphql/reference/index.md#packagesettings)
 or the UI.
 
 In the UI:
 
-1. For your group, go to **Settings > Packages & Registries**.
+1. For your group, go to **Settings > Packages and registries**.
 1. Expand the **Package Registry** section.
 1. Turn on the **Reject duplicates** toggle.
 1. Optional. To allow some duplicate packages, in the **Exceptions** box enter a regex pattern that
@@ -139,7 +139,7 @@ If multiple packages have the same name, version, and filename, then the most re
 
 Prerequisites:
 
-- You need to [authenticate with the API](../../../api/index.md#authentication). If authenticating with a deploy token, it must be configured with the `read_package_registry` and/or `write_package_registry` scope.
+- You need to [authenticate with the API](../../../api/rest/index.md#authentication). If authenticating with a deploy token, it must be configured with the `read_package_registry` and/or `write_package_registry` scope.
 
 ```plaintext
 GET /projects/:id/packages/generic/:package_name/:package_version/:file_name
@@ -147,7 +147,7 @@ GET /projects/:id/packages/generic/:package_name/:package_version/:file_name
 
 | Attribute          | Type            | Required | Description                                                                         |
 | -------------------| --------------- | ---------| ------------------------------------------------------------------------------------|
-| `id`               | integer/string  | yes      | The ID or [URL-encoded path of the project](../../../api/index.md#namespaced-path-encoding). |
+| `id`               | integer/string  | yes      | The ID or [URL-encoded path of the project](../../../api/rest/index.md#namespaced-path-encoding). |
 | `package_name`     | string          | yes      | The package name.                                                                   |
 | `package_version`  | string          | yes      | The package version.                                                                |
 | `file_name`        | string          | yes      | The filename.                                                                      |
@@ -215,7 +215,7 @@ It also demonstrates how to manage a semantic version for the generic package: s
 
 ### Internal Server error on large file uploads to S3
 
-S3-compatible object storage [limits the size of a single PUT request to 5GB](https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html). If the `aws_signature_version` is set to `2` in the [object storage connection settings](../../../administration/object_storage.md), attempting to publish a package file larger than the 5GB limit can result in a `HTTP 500: Internal Server Error` response.
+S3-compatible object storage [limits the size of a single PUT request to 5 GB](https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html). If the `aws_signature_version` is set to `2` in the [object storage connection settings](../../../administration/object_storage.md), attempting to publish a package file larger than the 5 GB limit can result in a `HTTP 500: Internal Server Error` response.
 
 If you are receiving `HTTP 500: Internal Server Error` responses when publishing large files to S3, set the `aws_signature_version` to `4`:
 

@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # QueryRecorder
@@ -10,7 +10,7 @@ QueryRecorder is a tool for detecting the [N+1 queries problem](https://guides.r
 
 > Implemented in [spec/support/query_recorder.rb](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/support/helpers/query_recorder.rb) via [9c623e3e](https://gitlab.com/gitlab-org/gitlab-foss/commit/9c623e3e5d7434f2e30f7c389d13e5af4ede770a)
 
-As a rule, merge requests [should not increase query counts](../merge_request_performance_guidelines.md#query-counts). If you find yourself adding something like `.includes(:author, :assignee)` to avoid having `N+1` queries, consider using QueryRecorder to enforce this with a test. Without this, a new feature which causes an additional model to be accessed can silently reintroduce the problem.
+As a rule, merge requests [should not increase query counts](../merge_request_concepts/performance.md#query-counts). If you find yourself adding something like `.includes(:author, :assignee)` to avoid having `N+1` queries, consider using QueryRecorder to enforce this with a test. Without this, a new feature which causes an additional model to be accessed can silently reintroduce the problem.
 
 ## How it works
 
@@ -39,15 +39,20 @@ end
 
 As an example you might create 5 issues in between counts, which would cause the query count to increase by 5 if an N+1 problem exists.
 
-In some cases the query count might change slightly between runs for unrelated reasons. In this case you might need to test `exceed_query_limit(control_count + acceptable_change)`, but this should be avoided if possible.
+In some cases, the query count might change slightly between runs for unrelated reasons. In this case you might need to test `exceed_query_limit(control_count + acceptable_change)`, but this should be avoided if possible.
 
 If this test fails, and the control was passed as a `QueryRecorder`, then the
 failure message indicates where the extra queries are by matching queries on
 the longest common prefix, grouping similar queries together.
 
+In some cases, N+1 specs have been written to include three requests: first one to
+warm the cache, second one to establish a control, third one to validate that
+there are no N+1 queries. Rather than make an extra request to warm the cache, prefer two requests
+(control and test) and configure your test to ignore [cached queries](#cached-queries) in N+1 specs.
+
 ## Cached queries
 
-By default, QueryRecorder ignores [cached queries](../merge_request_performance_guidelines.md#cached-queries) in the count. However, it may be better to count
+By default, QueryRecorder ignores [cached queries](../merge_request_concepts/performance.md#cached-queries) in the count. However, it may be better to count
 all queries to avoid introducing an N+1 query that may be masked by the statement cache.
 To do this, this requires the `:use_sql_query_cache` flag to be set.
 You should pass the `skip_cached` variable to `QueryRecorder` and use the `exceed_all_query_limit` matcher:
@@ -62,7 +67,7 @@ end
 
 ## Use request specs instead of controller specs
 
-Use a [request spec](https://gitlab.com/gitlab-org/gitlab-foss/tree/master/spec/requests) when writing a N+1 test on the controller level.
+Use a [request spec](https://gitlab.com/gitlab-org/gitlab/-/tree/master/spec/requests) when writing a N+1 test on the controller level.
 
 Controller specs should not be used to write N+1 tests as the controller is only initialized once per example.
 This could lead to false successes where subsequent "requests" could have queries reduced (for example, because of memoization).
@@ -141,5 +146,6 @@ There are multiple ways to find the source of queries.
 
 - [Bullet](../profiling.md#bullet) For finding `N+1` query problems
 - [Performance guidelines](../performance.md)
-- [Merge request performance guidelines - Query counts](../merge_request_performance_guidelines.md#query-counts)
-- [Merge request performance guidelines - Cached queries](../merge_request_performance_guidelines.md#cached-queries)
+- [Merge request performance guidelines - Query counts](../merge_request_concepts/performance.md#query-counts)
+- [Merge request performance guidelines - Cached queries](../merge_request_concepts/performance.md#cached-queries)
+- [RedisCommands::Recorder](../redis.md#n1-calls-problem) For testing `N+1` calls in Redis

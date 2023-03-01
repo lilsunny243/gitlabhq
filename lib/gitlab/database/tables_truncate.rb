@@ -14,29 +14,38 @@ module Gitlab
       end
 
       def execute
-        raise "Cannot truncate legacy tables in single-db setup" unless Gitlab::Database.has_config?(:ci)
+        raise "Cannot truncate legacy tables in single-db setup" if single_database_setup?
         raise "database is not supported" unless %w[main ci].include?(database_name)
 
         logger&.info "DRY RUN:" if dry_run
 
-        connection = Gitlab::Database.database_base_models[database_name].connection
-
         schemas_for_connection = Gitlab::Database.gitlab_schemas_for_connection(connection)
         tables_to_truncate = Gitlab::Database::GitlabSchema.tables_to_schema.reject do |_, schema_name|
-          (GITLAB_SCHEMAS_TO_IGNORE.union(schemas_for_connection)).include?(schema_name)
+          GITLAB_SCHEMAS_TO_IGNORE.union(schemas_for_connection).include?(schema_name)
         end.keys
+
+        Gitlab::Database::SharedModel.using_connection(connection) do
+          Postgresql::DetachedPartition.find_each do |detached_partition|
+            next if GITLAB_SCHEMAS_TO_IGNORE.union(schemas_for_connection).include?(detached_partition.table_schema)
+
+            tables_to_truncate << detached_partition.fully_qualified_table_name
+          end
+        end
 
         tables_sorted = Gitlab::Database::TablesSortedByForeignKeys.new(connection, tables_to_truncate).execute
         # Checking if all the tables have the write-lock triggers
         # to make sure we are deleting the right tables on the right database.
         tables_sorted.flatten.each do |table_name|
-          query = <<~SQL
-            SELECT COUNT(*) from information_schema.triggers
-            WHERE event_object_table = '#{table_name}'
-            AND trigger_name = 'gitlab_schema_write_trigger_for_#{table_name}'
-          SQL
+          lock_writes_manager = Gitlab::Database::LockWritesManager.new(
+            table_name: table_name,
+            connection: connection,
+            database_name: database_name,
+            with_retries: true,
+            logger: logger,
+            dry_run: dry_run
+          )
 
-          if connection.select_value(query) == 0
+          unless lock_writes_manager.table_locked_for_writes?
             raise "Table '#{table_name}' is not locked for writes. Run the rake task gitlab:db:lock_writes first"
           end
         end
@@ -51,21 +60,45 @@ module Gitlab
         # min_batch_size is the minimum number of new tables to truncate at each stage.
         # But in each stage we have also have to truncate the already truncated tables in the previous stages
         logger&.info "Truncating legacy tables for the database #{database_name}"
-        truncate_tables_in_batches(connection, tables_sorted, min_batch_size)
+        truncate_tables_in_batches(tables_sorted)
       end
 
       private
 
       attr_accessor :database_name, :min_batch_size, :logger, :dry_run, :until_table
 
-      def truncate_tables_in_batches(connection, tables_sorted, min_batch_size)
+      def connection
+        @connection ||= Gitlab::Database.database_base_models[database_name].connection
+      end
+
+      def remove_schema_name(table_with_schema)
+        ActiveRecord::ConnectionAdapters::PostgreSQL::Utils
+          .extract_schema_qualified_name(table_with_schema)
+          .identifier
+      end
+
+      def disable_locks_on_table(table)
+        sql_statement = "SELECT set_config('lock_writes.#{table}', 'false', false)"
+        logger&.info(sql_statement)
+        connection.execute(sql_statement) unless dry_run
+      end
+
+      def truncate_tables_in_batches(tables_sorted)
         truncated_tables = []
 
-        unless dry_run
-          tables_sorted.flatten.compact.each do |table|
-            sql_statement = "SELECT set_config('lock_writes.#{table}', 'false', false)"
-            logger&.info sql_statement
-            connection.execute(sql_statement)
+        tables_sorted.flatten.each do |table|
+          table_name_without_schema = remove_schema_name(table)
+
+          disable_locks_on_table(table_name_without_schema)
+
+          # Temporarily unlocking writes on the attached partitions of the table.
+          # Because in some cases they might have been locked for writes as well, when they used to be
+          # normal tables before being converted into attached partitions.
+          Gitlab::Database::SharedModel.using_connection(connection) do
+            table_partitions = Gitlab::Database::PostgresPartition.for_parent_table(table_name_without_schema)
+            table_partitions.each do |table_partition|
+              disable_locks_on_table(remove_schema_name(table_partition.identifier))
+            end
           end
         end
 
@@ -74,15 +107,31 @@ module Gitlab
         # tables before. That's because PostgreSQL doesn't allow to truncate any table (A)
         # without truncating any other table (B) that has a Foreign Key pointing to the table (A).
         # even if table (B) is empty, because it has been already truncated in a previous stage.
-        tables_sorted.in_groups_of(min_batch_size).each do |tables_groups|
-          new_tables_to_truncate = tables_groups.flatten.compact
+        tables_sorted.in_groups_of(min_batch_size, false).each do |tables_groups|
+          new_tables_to_truncate = tables_groups.flatten
           logger&.info "= New tables to truncate: #{new_tables_to_truncate.join(', ')}"
           truncated_tables.push(*new_tables_to_truncate).tap(&:sort!)
-          sql_statement = "TRUNCATE TABLE #{truncated_tables.join(', ')} RESTRICT"
+          sql_statements = [
+            "SET LOCAL statement_timeout = 0",
+            "SET LOCAL lock_timeout = 0",
+            "TRUNCATE TABLE #{truncated_tables.join(', ')} RESTRICT"
+          ]
 
-          logger&.info sql_statement
-          connection.execute(sql_statement) unless dry_run
+          sql_statements.each { |sql_statement| logger&.info(sql_statement) }
+
+          next if dry_run
+
+          connection.transaction do
+            sql_statements.each { |sql_statement| connection.execute(sql_statement) }
+          end
         end
+      end
+
+      def single_database_setup?
+        return true unless Gitlab::Database.has_config?(:ci)
+
+        ci_base_model = Gitlab::Database.database_base_models[:ci]
+        !!Gitlab::Database.db_config_share_with(ci_base_model.connection_db_config)
       end
     end
   end

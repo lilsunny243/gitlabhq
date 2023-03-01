@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User changes public project visibility', :js do
+RSpec.describe 'User changes public project visibility', :js, feature_category: :projects do
   include ProjectForksHelper
 
   shared_examples 'changing visibility to private' do
@@ -84,22 +84,6 @@ RSpec.describe 'User changes public project visibility', :js do
     let(:project) { create(:project, :empty_repo, :public) }
 
     before do
-      sign_in(project.first_owner)
-
-      visit edit_project_path(project)
-    end
-
-    it_behaves_like 'does not require confirmation'
-  end
-
-  context 'with unlink_fork_network_upon_visibility_decrease = false' do
-    let(:project) { create(:project, :empty_repo, :public) }
-
-    before do
-      stub_feature_flags(unlink_fork_network_upon_visibility_decrease: false)
-
-      fork_project(project, project.first_owner)
-
       sign_in(project.first_owner)
 
       visit edit_project_path(project)

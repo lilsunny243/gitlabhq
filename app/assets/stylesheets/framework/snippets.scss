@@ -17,12 +17,15 @@
   border-radius: 3px;
 
   .file-content {
-    max-height: 500px;
     overflow-y: auto;
   }
 
   + .snippet-file-content {
     @include gl-mt-5;
+  }
+
+  &:last-of-type {
+    margin-bottom: 0;
   }
 }
 

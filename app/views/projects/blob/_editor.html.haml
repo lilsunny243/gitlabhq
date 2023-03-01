@@ -16,7 +16,7 @@
     - if current_action?(:new) || current_action?(:create)
       %span.float-left.gl-mr-3
         \/
-      = text_field_tag 'file_name', params[:file_name], placeholder: "File name",
+      = text_field_tag 'file_name', params[:file_name], placeholder: "File name", data: { qa_selector: 'file_name_field' },
         required: true, class: 'form-control gl-form-input new-file-name js-file-path-name-input', value: params[:file_name] || (should_suggest_gitlab_ci_yml? ? '.gitlab-ci.yml' : '')
       = render 'template_selectors'
       - if should_suggest_gitlab_ci_yml?
@@ -26,23 +26,20 @@
           dismiss_key: @project.id,
           human_access: human_access } }
 
-    .file-buttons.gl-display-flex.gl-align-items-center.gl-justify-content-end
-      - if is_markdown
-        = render 'shared/blob/markdown_buttons', show_fullscreen_button: false
-      = button_tag class: 'soft-wrap-toggle btn gl-button btn-default', type: 'button', tabindex: '-1' do
-        .no-wrap
-          = sprite_icon('soft-unwrap', css_class: 'gl-button-icon')
-          %span.gl-button-text
-            No wrap
-        .soft-wrap
-          = sprite_icon('soft-wrap', css_class: 'gl-button-icon')
-          %span.gl-button-text
-            Soft wrap
+    - unless Feature.enabled?(:source_editor_toolbar, current_user)
+      .file-buttons.gl-display-flex.gl-align-items-center.gl-justify-content-end
+        - if is_markdown
+          = render 'shared/blob/markdown_buttons', show_fullscreen_button: false, supports_file_upload: false
+        %span.soft-wrap-toggle
+          = render Pajamas::ButtonComponent.new(icon: 'soft-unwrap', button_options: { class: 'no-wrap' }) do
+            = _("No wrap")
+          = render Pajamas::ButtonComponent.new(icon: 'soft-wrap', button_options: { class: 'soft-wrap' }) do
+            = _("Soft wrap")
 
   .file-editor.code
     - if Feature.enabled?(:source_editor_toolbar, current_user)
       #editor-toolbar
-    .js-edit-mode-pane.qa-editor#editor{ data: { 'editor-loading': true, qa_selector: 'source_editor_preview_container' } }<
+    .js-edit-mode-pane#editor{ data: { 'editor-loading': true, qa_selector: 'source_editor_preview_container' } }<
       %pre.editor-loading-content= params[:content] || local_assigns[:blob_data]
     - if local_assigns[:path]
       .js-edit-mode-pane#preview.hide

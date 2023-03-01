@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: Control the job concurrency in GitLab CI/CD
 ---
 
@@ -89,7 +89,7 @@ The following modes are supported:
   that are sorted by pipeline ID in descending order.
 
   This mode is efficient when you want to ensure that the jobs are executed from the newest pipeline and
-  cancel all of the old deploy jobs with the [skip outdated deployment jobs](../environments/deployment_safety.md#skip-outdated-deployment-jobs) feature.
+  prevent all of the old deploy jobs with the [prevent outdated deployment jobs](../environments/deployment_safety.md#prevent-outdated-deployment-jobs) feature.
   This is the most efficient option in terms of the pipeline efficiency, but you must ensure that each deployment job is idempotent.
 
 ### Change the process mode
@@ -187,6 +187,7 @@ provision:
 deployment:
   stage: deploy
   script: echo "Deploying..."
+  environment: production
 ```
 
 You must define [`strategy: depend`](../yaml/index.md#triggerstrategy)
@@ -208,7 +209,7 @@ Read more how you can use GitLab for [safe deployments](../environments/deployme
 Because [`oldest_first` process mode](#process-modes) enforces the jobs to be executed in a pipeline order,
 there is a case that it doesn't work well with the other CI features.
 
-For example, when you run [a child pipeline](../pipelines/parent_child_pipelines.md)
+For example, when you run [a child pipeline](../pipelines/downstream_pipelines.md#parent-child-pipelines)
 that requires the same resource group with the parent pipeline,
 a dead lock could happen. Here is an example of a _bad_ setup:
 
@@ -224,6 +225,7 @@ deploy:
   stage: deploy
   script: echo
   resource_group: production
+  environment: production
 ```
 
 In a parent pipeline, it runs the `test` job that subsequently runs a child pipeline,
@@ -233,7 +235,7 @@ If the process mode is `oldest_first`, it executes the jobs from the oldest pipe
 
 However, a child pipeline also requires a resource from the `production` resource group.
 Because the child pipeline is newer than the parent pipeline, the child pipeline
-waits until the `deploy` job is finished, something that will never happen.
+waits until the `deploy` job is finished, something that never happens.
 
 In this case, you should specify the `resource_group` keyword in the parent pipeline configuration instead:
 
@@ -250,4 +252,5 @@ deploy:
   stage: deploy
   script: echo
   resource_group: production
+  environment: production
 ```

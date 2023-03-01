@@ -1,12 +1,13 @@
 import { GlDropdown, GlDropdownItem, GlLoadingIcon, GlTooltip, GlSprintf } from '@gitlab/ui';
 import { nextTick } from 'vue';
-import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { mountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import createFlash from '~/flash';
-import { INCIDENT_SEVERITY, ISSUABLE_TYPES } from '~/sidebar/components/severity/constants';
-import updateIssuableSeverity from '~/sidebar/components/severity/graphql/mutations/update_issuable_severity.mutation.graphql';
+import { createAlert } from '~/flash';
+import { TYPE_INCIDENT } from '~/issues/constants';
+import { INCIDENT_SEVERITY } from '~/sidebar/constants';
+import updateIssuableSeverity from '~/sidebar/queries/update_issuable_severity.mutation.graphql';
 import SeverityToken from '~/sidebar/components/severity/severity.vue';
-import SidebarSeverity from '~/sidebar/components/severity/sidebar_severity.vue';
+import SidebarSeverityWidget from '~/sidebar/components/severity/sidebar_severity_widget.vue';
 
 jest.mock('~/flash');
 
@@ -22,12 +23,12 @@ describe('SidebarSeverity', () => {
     const propsData = {
       projectPath,
       iid,
-      issuableType: ISSUABLE_TYPES.INCIDENT,
+      issuableType: TYPE_INCIDENT,
       initialSeverity: severity,
       ...props,
     };
     mutate = jest.fn();
-    wrapper = shallowMountExtended(SidebarSeverity, {
+    wrapper = mountExtended(SidebarSeverityWidget, {
       propsData,
       provide: {
         canUpdate,
@@ -48,18 +49,16 @@ describe('SidebarSeverity', () => {
   });
 
   afterEach(() => {
-    if (wrapper) {
-      wrapper.destroy();
-    }
+    wrapper.destroy();
   });
 
   const findSeverityToken = () => wrapper.findAllComponents(SeverityToken);
-  const findEditBtn = () => wrapper.findByTestId('editButton');
+  const findEditBtn = () => wrapper.findByTestId('edit-button');
   const findDropdown = () => wrapper.findComponent(GlDropdown);
   const findCriticalSeverityDropdownItem = () => wrapper.findComponent(GlDropdownItem);
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findTooltip = () => wrapper.findComponent(GlTooltip);
-  const findCollapsedSeverity = () => wrapper.find({ ref: 'severity' });
+  const findCollapsedSeverity = () => wrapper.findComponent({ ref: 'severity' });
 
   describe('Severity widget', () => {
     it('renders severity dropdown and token', () => {
@@ -97,14 +96,14 @@ describe('SidebarSeverity', () => {
       });
     });
 
-    it('shows error alert when severity update fails ', async () => {
+    it('shows error alert when severity update fails', async () => {
       const errorMsg = 'Something went wrong';
       jest.spyOn(wrapper.vm.$apollo, 'mutate').mockRejectedValueOnce(errorMsg);
       findCriticalSeverityDropdownItem().vm.$emit('click');
 
       await waitForPromises();
 
-      expect(createFlash).toHaveBeenCalled();
+      expect(createAlert).toHaveBeenCalled();
     });
 
     it('shows loading icon while updating', async () => {
@@ -127,30 +126,15 @@ describe('SidebarSeverity', () => {
   });
 
   describe('Switch between collapsed/expanded view of the sidebar', () => {
-    const HIDDDEN_CLASS = 'gl-display-none';
-    const SHOWN_CLASS = 'show';
-
     describe('collapsed', () => {
       it('should have collapsed icon class', () => {
         expect(findCollapsedSeverity().classes('sidebar-collapsed-icon')).toBe(true);
       });
 
       it('should display only icon with a tooltip', () => {
-        expect(findSeverityToken().at(0).attributes('icononly')).toBe('true');
-        expect(findSeverityToken().at(0).attributes('iconsize')).toBe('14');
-        expect(findTooltip().text().replace(/\s+/g, ' ')).toContain(
-          `Severity: ${INCIDENT_SEVERITY[severity].label}`,
-        );
-      });
-
-      it('should expand the dropdown on collapsed icon click', async () => {
-        wrapper.vm.isDropdownShowing = false;
-        await nextTick();
-        expect(findDropdown().classes(HIDDDEN_CLASS)).toBe(true);
-
-        findCollapsedSeverity().trigger('click');
-        await nextTick();
-        expect(findDropdown().classes(SHOWN_CLASS)).toBe(true);
+        expect(findSeverityToken().exists()).toBe(true);
+        expect(findTooltip().text()).toContain(INCIDENT_SEVERITY[severity].label);
+        expect(findEditBtn().exists()).toBe(false);
       });
     });
 
@@ -158,17 +142,16 @@ describe('SidebarSeverity', () => {
       it('toggles dropdown with edit button', async () => {
         canUpdate = true;
         createComponent();
-        wrapper.vm.isDropdownShowing = false;
         await nextTick();
-        expect(findDropdown().classes(HIDDDEN_CLASS)).toBe(true);
+        expect(findDropdown().isVisible()).toBe(false);
 
         findEditBtn().vm.$emit('click');
         await nextTick();
-        expect(findDropdown().classes(SHOWN_CLASS)).toBe(true);
+        expect(findDropdown().isVisible()).toBe(true);
 
         findEditBtn().vm.$emit('click');
         await nextTick();
-        expect(findDropdown().classes(HIDDDEN_CLASS)).toBe(true);
+        expect(findDropdown().isVisible()).toBe(false);
       });
     });
   });

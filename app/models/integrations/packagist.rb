@@ -3,18 +3,17 @@
 module Integrations
   class Packagist < Integration
     include HasWebHook
-    extend Gitlab::Utils::Override
 
     field :username,
-      title: -> { s_('Username') },
-      help: -> { s_('Enter your Packagist username.') },
+      title: -> { _('Username') },
+      help: -> { _('Enter your Packagist username.') },
       placeholder: '',
       required: true
 
     field :token,
       type: 'password',
-      title: -> { s_('Token') },
-      help: -> { s_('Enter your Packagist token.') },
+      title: -> { _('Token') },
+      help: -> { _('Enter your Packagist token.') },
       non_empty_password_title: -> { s_('ProjectService|Enter new token') },
       non_empty_password_help: -> { s_('ProjectService|Leave blank to use your current token.') },
       placeholder: '',
@@ -55,18 +54,22 @@ module Integrations
     def test(data)
       begin
         result = execute(data)
-        return { success: false, result: result[:message] } if result[:http_status] != 202
+        return { success: false, result: result.message } if result.payload[:http_status] != 202
       rescue StandardError => e
-        return { success: false, result: e }
+        return { success: false, result: e.message }
       end
 
-      { success: true, result: result[:message] }
+      { success: true, result: result.message }
     end
 
     override :hook_url
     def hook_url
       base_url = server.presence || 'https://packagist.org'
-      "#{base_url}/api/update-package?username=#{username}&apiToken=#{token}"
+      "#{base_url}/api/update-package?username={username}&apiToken={token}"
+    end
+
+    def url_variables
+      { 'username' => username, 'token' => token }
     end
   end
 end

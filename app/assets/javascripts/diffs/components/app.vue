@@ -11,7 +11,7 @@ import {
   MR_COMMITS_NEXT_COMMIT,
   MR_COMMITS_PREVIOUS_COMMIT,
 } from '~/behaviors/shortcuts/keybindings';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { isSingleViewStyle } from '~/helpers/diffs_helper';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { parseBoolean } from '~/lib/utils/common_utils';
@@ -21,6 +21,7 @@ import PanelResizer from '~/vue_shared/components/panel_resizer.vue';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 
 import notesEventHub from '~/notes/event_hub';
+import { DynamicScroller, DynamicScrollerItem } from 'vendor/vue-virtual-scroller';
 import {
   TREE_LIST_WIDTH_STORAGE_KEY,
   INITIAL_TREE_WIDTH,
@@ -53,15 +54,14 @@ import HiddenFilesWarning from './hidden_files_warning.vue';
 import NoChanges from './no_changes.vue';
 import TreeList from './tree_list.vue';
 import VirtualScrollerScrollSync from './virtual_scroller_scroll_sync';
+import PreRenderer from './pre_renderer.vue';
 
 export default {
   name: 'DiffsApp',
   components: {
-    DynamicScroller: () =>
-      import('vendor/vue-virtual-scroller').then(({ DynamicScroller }) => DynamicScroller),
-    DynamicScrollerItem: () =>
-      import('vendor/vue-virtual-scroller').then(({ DynamicScrollerItem }) => DynamicScrollerItem),
-    PreRenderer: () => import('./pre_renderer.vue').then((PreRenderer) => PreRenderer),
+    DynamicScroller,
+    DynamicScrollerItem,
+    PreRenderer,
     VirtualScrollerScrollSync,
     CompareVersions,
     DiffFile,
@@ -226,6 +226,7 @@ export default {
       'isVirtualScrollingEnabled',
       'isBatchLoading',
       'isBatchLoadingError',
+      'flatBlobsList',
     ]),
     ...mapGetters(['isNotesFetched', 'getNoteableData']),
     diffs() {
@@ -241,7 +242,7 @@ export default {
       return this.currentUser.can_fork === true && this.currentUser.can_create_merge_request;
     },
     renderDiffFiles() {
-      return this.diffFiles.length > 0;
+      return this.flatBlobsList.length > 0;
     },
     renderFileTree() {
       return this.renderDiffFiles && this.showTreeList;
@@ -253,7 +254,7 @@ export default {
       return this.startVersion === null && this.latestDiff;
     },
     showFileByFileNavigation() {
-      return this.diffFiles.length > 1 && this.viewDiffsFileByFile;
+      return this.flatBlobsList.length > 1 && this.viewDiffsFileByFile;
     },
     currentFileNumber() {
       return this.currentDiffIndex + 1;
@@ -264,9 +265,9 @@ export default {
       return currentDiffIndex >= 1 ? currentDiffIndex : null;
     },
     nextFileNumber() {
-      const { currentFileNumber, diffFiles } = this;
+      const { currentFileNumber, flatBlobsList } = this;
 
-      return currentFileNumber < diffFiles.length ? currentFileNumber + 1 : null;
+      return currentFileNumber < flatBlobsList.length ? currentFileNumber + 1 : null;
     },
     visibleWarning() {
       let visible = false;
@@ -331,6 +332,8 @@ export default {
       mrReviews: this.rehydratedMrReviews,
     });
 
+    this.interfaceWithDOM();
+
     if (this.endpointCodequality) {
       this.setCodequalityEndpoint(this.endpointCodequality);
     }
@@ -383,14 +386,11 @@ export default {
     this.subscribeToEvents();
 
     this.unwatchDiscussions = this.$watch(
-      () => `${this.diffFiles.length}:${this.$store.state.notes.discussions.length}`,
+      () => `${this.flatBlobsList.length}:${this.$store.state.notes.discussions.length}`,
       () => {
         this.setDiscussions();
 
-        if (
-          this.$store.state.notes.doneFetchingBatchDiscussions &&
-          window.gon?.features?.paginatedMrDiscussions
-        ) {
+        if (this.$store.state.notes.doneFetchingBatchDiscussions) {
           this.unwatchDiscussions();
         }
       },
@@ -400,10 +400,6 @@ export default {
       () => `${this.retrievingBatches}:${this.$store.state.notes.discussions.length}`,
       () => {
         if (!this.retrievingBatches && this.$store.state.notes.discussions.length) {
-          if (!window.gon?.features?.paginatedMrDiscussions) {
-            this.unwatchDiscussions();
-          }
-
           this.unwatchRetrievingBatches();
         }
       },
@@ -445,6 +441,16 @@ export default {
       notesEventHub.$off('refetchDiffData', this.refetchDiffData);
       notesEventHub.$off('fetchDiffData', this.fetchData);
     },
+    interfaceWithDOM() {
+      this.diffsTab = document.querySelector('.js-diffs-tab');
+    },
+    updateChangesTabCount() {
+      const badge = this.diffsTab.querySelector('.gl-badge');
+
+      if (this.diffsTab && badge) {
+        badge.textContent = this.diffFilesLength;
+      }
+    },
     navigateToDiffFileNumber(number) {
       this.navigateToDiffFileIndex(number - 1);
     },
@@ -459,12 +465,22 @@ export default {
     },
     fetchData(toggleTree = true) {
       this.fetchDiffFilesMeta()
-        .then(({ real_size }) => {
-          this.diffFilesLength = parseInt(real_size, 10);
-          if (toggleTree) this.setTreeDisplay();
+        .then((data) => {
+          let realSize = 0;
+
+          if (data) {
+            realSize = data.real_size;
+          }
+
+          this.diffFilesLength = parseInt(realSize, 10) || 0;
+          if (toggleTree) {
+            this.setTreeDisplay();
+          }
+
+          this.updateChangesTabCount();
         })
         .catch(() => {
-          createFlash({
+          createAlert({
             message: __('Something went wrong on our end. Please try again!'),
           });
         });
@@ -479,7 +495,7 @@ export default {
           this.setDiscussions();
         })
         .catch(() => {
-          createFlash({
+          createAlert({
             message: __('Something went wrong on our end. Please try again!'),
           });
         });
@@ -557,8 +573,8 @@ export default {
     },
     jumpToFile(step) {
       const targetIndex = this.currentDiffIndex + step;
-      if (targetIndex >= 0 && targetIndex < this.diffFiles.length) {
-        this.scrollToFile({ path: this.diffFiles[targetIndex].file_path });
+      if (targetIndex >= 0 && targetIndex < this.flatBlobsList.length) {
+        this.scrollToFile({ path: this.flatBlobsList[targetIndex].path });
       }
     },
     setTreeDisplay() {
@@ -567,7 +583,7 @@ export default {
 
       if (storedTreeShow !== null) {
         showTreeList = parseBoolean(storedTreeShow);
-      } else if (!bp.isDesktop() || (!this.isBatchLoading && this.diffFiles.length <= 1)) {
+      } else if (!bp.isDesktop() || (!this.isBatchLoading && this.flatBlobsList.length <= 1)) {
         showTreeList = false;
       }
 
@@ -738,7 +754,7 @@ export default {
               />
               <gl-sprintf :message="__('File %{current} of %{total}')">
                 <template #current>{{ currentFileNumber }}</template>
-                <template #total>{{ diffFiles.length }}</template>
+                <template #total>{{ flatBlobsList.length }}</template>
               </gl-sprintf>
             </div>
             <gl-loading-icon v-else-if="retrievingBatches" size="lg" />

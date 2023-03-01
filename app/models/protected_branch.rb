@@ -3,16 +3,24 @@
 class ProtectedBranch < ApplicationRecord
   include ProtectedRef
   include Gitlab::SQL::Pattern
+  include FromUnion
 
-  scope :requiring_code_owner_approval,
-        -> { where(code_owner_approval_required: true) }
+  belongs_to :group, foreign_key: :namespace_id, touch: true, inverse_of: :protected_branches
 
-  scope :allowing_force_push,
-        -> { where(allow_force_push: true) }
+  validate :validate_either_project_or_top_group
 
-  scope :get_ids_by_name, -> (name) { where(name: name).pluck(:id) }
+  scope :requiring_code_owner_approval, -> { where(code_owner_approval_required: true) }
+  scope :allowing_force_push, -> { where(allow_force_push: true) }
+  scope :sorted_by_name, -> { order(name: :asc) }
+  scope :sorted_by_namespace_and_name, -> { order(:namespace_id, :name) }
+
+  scope :for_group, ->(group) { where(group: group) }
 
   protected_ref_access_levels :merge, :push
+
+  def self.get_ids_by_name(name)
+    where(name: name).pluck(:id)
+  end
 
   def self.protected_ref_accessible_to?(ref, user, project:, action:, protected_refs: nil)
     # Maintainers, owners and admins are allowed to create the default branch
@@ -29,40 +37,25 @@ class ProtectedBranch < ApplicationRecord
     return true if project.empty_repo? && project.default_branch_protected?
     return false if ref_name.blank?
 
-    dry_run = Feature.disabled?(:rely_on_protected_branches_cache, project)
-
-    new_cache_result = new_cache(project, ref_name, dry_run: dry_run)
-
-    return new_cache_result unless new_cache_result.nil?
-
-    deprecated_cache(project, ref_name)
-  end
-
-  def self.new_cache(project, ref_name, dry_run: true)
-    if Feature.enabled?(:hash_based_cache_for_protected_branches, project)
-      ProtectedBranches::CacheService.new(project).fetch(ref_name, dry_run: dry_run) do # rubocop: disable CodeReuse/ServiceClass
-        self.matching(ref_name, protected_refs: protected_refs(project)).present?
-      end
-    end
-  end
-
-  # Deprecated: https://gitlab.com/gitlab-org/gitlab/-/issues/368279
-  # ----------------------------------------------------------------
-  CACHE_EXPIRE_IN = 1.hour
-
-  def self.deprecated_cache(project, ref_name)
-    Rails.cache.fetch(protected_ref_cache_key(project, ref_name), expires_in: CACHE_EXPIRE_IN) do
+    ProtectedBranches::CacheService.new(project).fetch(ref_name) do # rubocop: disable CodeReuse/ServiceClass
       self.matching(ref_name, protected_refs: protected_refs(project)).present?
     end
   end
 
-  def self.protected_ref_cache_key(project, ref_name)
-    "protected_ref-#{project.cache_key}-#{Digest::SHA1.hexdigest(ref_name)}"
-  end
-  # End of deprecation --------------------------------------------
-
   def self.allow_force_push?(project, ref_name)
-    project.protected_branches.allowing_force_push.matching(ref_name).any?
+    if Feature.enabled?(:group_protected_branches)
+      protected_branches = project.all_protected_branches.matching(ref_name)
+
+      project_protected_branches, group_protected_branches = protected_branches.partition(&:project_id)
+
+      # Group owner can be able to enforce the settings
+      return group_protected_branches.any?(&:allow_force_push) if group_protected_branches.present?
+      return project_protected_branches.any?(&:allow_force_push) if project_protected_branches.present?
+
+      false
+    else
+      project.protected_branches.allowing_force_push.matching(ref_name).any?
+    end
   end
 
   def self.any_protected?(project, ref_names)
@@ -74,7 +67,11 @@ class ProtectedBranch < ApplicationRecord
   end
 
   def self.protected_refs(project)
-    project.protected_branches
+    if Feature.enabled?(:group_protected_branches)
+      project.all_protected_branches
+    else
+      project.protected_branches
+    end
   end
 
   # overridden in EE
@@ -94,6 +91,34 @@ class ProtectedBranch < ApplicationRecord
 
   def self.downcase_humanized_name
     name.underscore.humanize.downcase
+  end
+
+  def default_branch?
+    name == project.default_branch
+  end
+
+  def group_level?
+    entity.is_a?(Group)
+  end
+
+  def project_level?
+    entity.is_a?(Project)
+  end
+
+  def entity
+    group || project
+  end
+
+  private
+
+  def validate_either_project_or_top_group
+    if !project && !group
+      errors.add(:base, _('must be associated with a Group or a Project'))
+    elsif project && group
+      errors.add(:base, _('cannot be associated with both a Group and a Project'))
+    elsif group && group.subgroup?
+      errors.add(:base, _('cannot be associated with a subgroup'))
+    end
   end
 end
 

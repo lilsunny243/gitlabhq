@@ -14,14 +14,17 @@ module Gitlab
   class Shell
     Error = Class.new(StandardError)
 
+    PERMITTED_ACTIONS = %w[
+      mv_repository remove_repository add_namespace rm_namespace mv_namespace
+      repository_exists?
+    ].freeze
+
     class << self
       # Retrieve GitLab Shell secret token
       #
       # @return [String] secret token
       def secret_token
-        @secret_token ||= begin
-          File.read(Gitlab.config.gitlab_shell.secret_file).chomp
-        end
+        @secret_token ||= File.read(Gitlab.config.gitlab_shell.secret_file).chomp
       end
 
       # Ensure gitlab shell has a secret token stored in the secret_file

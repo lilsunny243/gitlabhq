@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::JobArtifacts::DestroyAllExpiredService, :clean_gitlab_redis_shared_state do
+RSpec.describe Ci::JobArtifacts::DestroyAllExpiredService, :clean_gitlab_redis_shared_state,
+feature_category: :build_artifacts do
   include ExclusiveLeaseHelpers
 
   let(:service) { described_class.new }
@@ -87,12 +88,9 @@ RSpec.describe Ci::JobArtifacts::DestroyAllExpiredService, :clean_gitlab_redis_s
             expect { subject }.to change { Ci::DeletedObject.count }.by(1)
           end
 
-          it 'resets project statistics' do
-            expect(ProjectStatistics).to receive(:increment_statistic).once
-              .with(artifact.project, :build_artifacts_size, -artifact.file.size)
-              .and_call_original
-
-            subject
+          it 'resets project statistics', :sidekiq_inline do
+            expect { subject }
+              .to change { artifact.project.statistics.reload.build_artifacts_size }.by(-artifact.file.size)
           end
 
           it 'does not remove the files' do

@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Pipeline trigger tokens API **(FREE)**
@@ -18,7 +18,7 @@ GET /projects/:id/triggers
 
 | Attribute | Type    | required | Description         |
 |-----------|---------|----------|---------------------|
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/triggers"
@@ -51,7 +51,7 @@ GET /projects/:id/triggers/:trigger_id
 
 | Attribute    | Type    | required | Description              |
 |--------------|---------|----------|--------------------------|
-| `id`         | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user      |
+| `id`         | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
 | `trigger_id` | integer | yes      | The trigger ID           |
 
 ```shell
@@ -80,7 +80,7 @@ POST /projects/:id/triggers
 
 | Attribute     | Type    | required | Description              |
 |---------------|---------|----------|--------------------------|
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user      |
+| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
 | `description` | string  | yes      | The trigger name         |
 
 ```shell
@@ -110,7 +110,7 @@ PUT /projects/:id/triggers/:trigger_id
 
 | Attribute     | Type    | required | Description              |
 |---------------|---------|----------|--------------------------|
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user      |
+| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
 | `trigger_id`  | integer | yes      | The trigger ID           |
 | `description` | string  | no       | The trigger name         |
 
@@ -141,7 +141,7 @@ DELETE /projects/:id/triggers/:trigger_id
 
 | Attribute      | Type    | required | Description              |
 |----------------|---------|----------|--------------------------|
-| `id`           | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user      |
+| `id`           | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
 | `trigger_id`   | integer | yes      | The trigger ID           |
 
 ```shell
@@ -153,7 +153,7 @@ curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>" "https://git
 Trigger a pipeline by using a pipeline [trigger token](../ci/triggers/index.md#create-a-trigger-token)
 or a [CI/CD job token](../ci/jobs/ci_job_token.md) for authentication.
 
-With a CI/CD job token, the [triggered pipeline is a multi-project pipeline](../ci/jobs/ci_job_token.md#trigger-a-multi-project-pipeline-by-using-a-cicd-job-token).
+With a CI/CD job token, the [triggered pipeline is a multi-project pipeline](../ci/pipelines/downstream_pipelines.md#trigger-a-multi-project-pipeline-by-using-the-api).
 The job that authenticates the request becomes associated with the upstream pipeline,
 which is visible on the [pipeline graph](../ci/pipelines/downstream_pipelines.md#view-multi-project-pipelines-in-pipeline-graphs).
 
@@ -167,15 +167,15 @@ Supported attributes:
 
 | Attribute   | Type           | Required               | Description |
 |:------------|:---------------|:-----------------------|:---------------------|
-| `id`        | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`        | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `ref`       | string         | **{check-circle}** Yes | The branch or tag to run the pipeline on. |
 | `token`     | string         | **{check-circle}** Yes | The trigger token or CI/CD job token. |
-| `variables` | array          | **{dotted-circle}** No | An array containing the variables available in the pipeline, matching the structure `[{ 'key': 'UPLOAD_TO_S3', 'variable_type': 'file', 'value': 'true' }, {'key': 'TEST', 'value': 'test variable'}]`. If `variable_type` is excluded, it defaults to `env_var`. |
+| `variables` | hash           | **{dotted-circle}** No | A map of key-valued strings containing the pipeline variables. For example: `{ VAR1: "value1", VAR2: "value2" }`. |
 
 Example request:
 
 ```shell
-curl --request POST "https://gitlab.example.com/api/v4/projects/123/trigger/pipeline?token=2cb1840fb9dfc9fb0b7b1609cd29cb&ref=main"
+curl --request POST --form "variables[VAR1]=value1" --form "variables[VAR2]=value2" "https://gitlab.example.com/api/v4/projects/123/trigger/pipeline?token=2cb1840fb9dfc9fb0b7b1609cd29cb&ref=main"
 ```
 
 Example response:
@@ -184,7 +184,7 @@ Example response:
 {
   "id": 257,
   "iid": 118,
-  "project_id": 21,
+  "project_id": 123,
   "sha": "91e2711a93e5d9e8dddfeb6d003b636b25bf6fc9",
   "ref": "main",
   "status": "created",

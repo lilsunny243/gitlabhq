@@ -10,7 +10,8 @@ module Projects
     def execute
       build_topics
       remove_unallowed_params
-      mirror_operations_access_level_changes
+      add_pages_unique_domain
+
       validate!
 
       ensure_wiki_exists if enabling_wiki?
@@ -49,6 +50,24 @@ module Projects
 
     private
 
+    def add_pages_unique_domain
+      if Feature.disabled?(:pages_unique_domain)
+        params[:project_setting_attributes]&.delete(:pages_unique_domain_enabled)
+
+        return
+      end
+
+      return unless params.dig(:project_setting_attributes, :pages_unique_domain_enabled)
+
+      # If the project used a unique domain once, it'll always use the same
+      return if project.project_setting.pages_unique_domain_in_database.present?
+
+      params[:project_setting_attributes][:pages_unique_domain] = Gitlab::Pages::RandomDomain.generate(
+        project_path: project.path,
+        namespace_path: project.parent.full_path
+      )
+    end
+
     def validate!
       unless valid_visibility_level_change?(project, project.visibility_attribute_value(params))
         raise ValidationError, s_('UpdateProject|New visibility level not allowed!')
@@ -65,14 +84,34 @@ module Projects
       return unless changing_default_branch?
 
       previous_default_branch = project.default_branch
+      new_default_branch = params[:default_branch]
 
-      if project.change_head(params[:default_branch])
+      if project.change_head(new_default_branch)
         params[:previous_default_branch] = previous_default_branch
+
+        if !project.root_ref?(new_default_branch) && has_custom_head_branch?
+          raise ValidationError,
+            format(
+              s_("UpdateProject|Could not set the default branch. Do you have a branch named 'HEAD' in your repository? (%{linkStart}How do I fix this?%{linkEnd})"),
+              linkStart: ambiguous_head_documentation_link, linkEnd: '</a>'
+            ).html_safe
+        end
 
         after_default_branch_change(previous_default_branch)
       else
         raise ValidationError, s_("UpdateProject|Could not set the default branch")
       end
+    end
+
+    def ambiguous_head_documentation_link
+      url = Rails.application.routes.url_helpers.help_page_path('user/project/repository/branches/index.md', anchor: 'error-ambiguous-head-branch-exists')
+
+      format('<a href="%{url}" target="_blank" rel="noopener noreferrer">', url: url)
+    end
+
+    # See issue: https://gitlab.com/gitlab-org/gitlab/-/issues/381731
+    def has_custom_head_branch?
+      project.repository.branch_names.any? { |name| name.casecmp('head') == 0 }
     end
 
     def after_default_branch_change(previous_default_branch)
@@ -81,21 +120,6 @@ module Projects
 
     def remove_unallowed_params
       params.delete(:emails_disabled) unless can?(current_user, :set_emails_disabled, project)
-    end
-
-    # Temporary code to sync permissions changes as operations access setting
-    # is being split into monitor_access_level, deployments_access_level, infrastructure_access_level.
-    # To be removed as part of https://gitlab.com/gitlab-org/gitlab/-/issues/364240
-    def mirror_operations_access_level_changes
-      return if Feature.enabled?(:split_operations_visibility_permissions, project)
-
-      operations_access_level = params.dig(:project_feature_attributes, :operations_access_level)
-
-      return if operations_access_level.nil?
-
-      [:monitor_access_level, :infrastructure_access_level, :feature_flags_access_level, :environments_access_level].each do |key|
-        params[:project_feature_attributes][key] = operations_access_level
-      end
     end
 
     def after_update
@@ -122,7 +146,7 @@ module Projects
 
       update_pending_builds if runners_settings_toggled?
 
-      publish_event
+      publish_events
     end
 
     def after_rename_service(project)
@@ -212,13 +236,49 @@ module Projects
       end
     end
 
-    def publish_event
+    def publish_events
+      publish_project_archived_event
+      publish_project_attributed_changed_event
+      publish_project_features_changed_event
+    end
+
+    def publish_project_archived_event
       return unless project.archived_previously_changed?
 
       event = Projects::ProjectArchivedEvent.new(data: {
         project_id: @project.id,
         namespace_id: @project.namespace_id,
         root_namespace_id: @project.root_namespace.id
+      })
+
+      Gitlab::EventStore.publish(event)
+    end
+
+    def publish_project_attributed_changed_event
+      changes = @project.previous_changes
+
+      return if changes.blank?
+
+      event = Projects::ProjectAttributesChangedEvent.new(data: {
+        project_id: @project.id,
+        namespace_id: @project.namespace_id,
+        root_namespace_id: @project.root_namespace.id,
+        attributes: changes.keys
+      })
+
+      Gitlab::EventStore.publish(event)
+    end
+
+    def publish_project_features_changed_event
+      changes = @project.project_feature.previous_changes
+
+      return if changes.blank?
+
+      event = Projects::ProjectFeaturesChangedEvent.new(data: {
+        project_id: @project.id,
+        namespace_id: @project.namespace_id,
+        root_namespace_id: @project.root_namespace.id,
+        features: changes.keys
       })
 
       Gitlab::EventStore.publish(event)

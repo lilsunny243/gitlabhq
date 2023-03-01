@@ -4,8 +4,6 @@ require 'rubocop_spec_helper'
 require_relative '../../../../rubocop/cop/migration/add_limit_to_text_columns'
 
 RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
-  subject(:cop) { described_class.new }
-
   context 'when in migration' do
     let(:msg) { 'Text columns should always have a limit set (255 is suggested)[...]' }
 
@@ -39,8 +37,8 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
               add_column :test_text_limits, :email, :text
               ^^^^^^^^^^ #{msg}
 
-              add_column_with_default :test_text_limits, :role, :text, default: 'default'
-              ^^^^^^^^^^^^^^^^^^^^^^^ #{msg}
+              add_column :test_text_limits, :role, :text, default: 'default'
+              ^^^^^^^^^^ #{msg}
 
               change_column_type_concurrently :test_text_limits, :test_id, :text
               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #{msg}
@@ -69,7 +67,7 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
               end
 
               add_column :test_text_limits, :email, :text
-              add_column_with_default :test_text_limits, :role, :text, default: 'default'
+              add_column :test_text_limits, :role, :text, default: 'default'
               change_column_type_concurrently :test_text_limits, :test_id, :text
 
               add_text_limit :test_text_limits, :name, 255
@@ -117,7 +115,7 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
               end
 
               add_column :test_text_limits, :email, :text, array: true
-              add_column_with_default :test_text_limits, :role, :text, default: [], array: true
+              add_column :test_text_limits, :role, :text, default: [], array: true
               change_column_type_concurrently :test_text_limits, :test_id, :text, array: true
             end
           end
@@ -143,8 +141,8 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
               add_column :test_text_limits, :email, :text
               ^^^^^^^^^^ #{msg}
 
-              add_column_with_default :test_text_limits, :role, :text, default: 'default'
-              ^^^^^^^^^^^^^^^^^^^^^^^ #{msg}
+              add_column :test_text_limits, :role, :text, default: 'default'
+              ^^^^^^^^^^ #{msg}
 
               change_column_type_concurrently :test_text_limits, :test_id, :text
               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #{msg}
@@ -172,7 +170,7 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
               end
 
               add_column :encrypted_test_text_limits, :encrypted_email, :text
-              add_column_with_default :encrypted_test_text_limits, :encrypted_role, :text, default: 'default'
+              add_column :encrypted_test_text_limits, :encrypted_role, :text, default: 'default'
               change_column_type_concurrently :encrypted_test_text_limits, :encrypted_test_id, :text
             end
           end
@@ -196,7 +194,7 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
 
               add_column :no_offense_on_down, :email, :text
 
-              add_column_with_default :no_offense_on_down, :role, :text, default: 'default'
+              add_column :no_offense_on_down, :role, :text, default: 'default'
             end
           end
         RUBY
@@ -217,7 +215,7 @@ RSpec.describe RuboCop::Cop::Migration::AddLimitToTextColumns do
             end
 
             add_column :test_text_limits, :email, :text
-            add_column_with_default :test_text_limits, :role, :text, default: 'default'
+            add_column :test_text_limits, :role, :text, default: 'default'
             change_column_type_concurrently :test_text_limits, :test_id, :text
           end
         end

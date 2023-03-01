@@ -1,7 +1,7 @@
 <script>
 import { GlResizeObserverDirective, GlEmptyState } from '@gitlab/ui';
 import { GlBreakpointInstance } from '@gitlab/ui/dist/utils';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { joinPaths } from '~/lib/utils/url_utility';
 import Tracking from '~/tracking';
@@ -20,7 +20,6 @@ import {
   ALERT_SUCCESS_TAGS,
   ALERT_DANGER_TAGS,
   ALERT_DANGER_IMAGE,
-  ALERT_DANGER_IMPORTING,
   FETCH_IMAGES_LIST_ERROR_MESSAGE,
   UNFINISHED_STATUS,
   MISSING_OR_DELETED_IMAGE_BREADCRUMB,
@@ -31,8 +30,7 @@ import {
 import deleteContainerRepositoryTagsMutation from '../graphql/mutations/delete_container_repository_tags.mutation.graphql';
 import getContainerRepositoryDetailsQuery from '../graphql/queries/get_container_repository_details.query.graphql';
 import getContainerRepositoryTagsQuery from '../graphql/queries/get_container_repository_tags.query.graphql';
-
-const REPOSITORY_IMPORTING_ERROR_MESSAGE = 'repository importing';
+import getContainerRepositoriesDetails from '../graphql/queries/get_container_repositories_details.query.graphql';
 
 export default {
   name: 'RegistryDetailsPage',
@@ -66,7 +64,7 @@ export default {
         this.updateBreadcrumb();
       },
       error() {
-        createFlash({ message: FETCH_IMAGES_LIST_ERROR_MESSAGE });
+        createAlert({ message: FETCH_IMAGES_LIST_ERROR_MESSAGE });
       },
     },
   },
@@ -145,21 +143,23 @@ export default {
               query: getContainerRepositoryTagsQuery,
               variables: { ...this.queryVariables, first: GRAPHQL_PAGE_SIZE },
             },
+            {
+              query: getContainerRepositoriesDetails,
+              variables: {
+                fullPath: this.config.isGroupPage ? this.config.groupPath : this.config.projectPath,
+                isGroupPage: this.config.isGroupPage,
+              },
+            },
           ],
         });
 
         if (data?.destroyContainerRepositoryTags?.errors[0]) {
-          throw new Error(data.destroyContainerRepositoryTags.errors[0]);
+          throw new Error();
         }
         this.deleteAlertType =
           itemsToBeDeleted.length === 0 ? ALERT_SUCCESS_TAG : ALERT_SUCCESS_TAGS;
       } catch (e) {
-        if (e.message === REPOSITORY_IMPORTING_ERROR_MESSAGE) {
-          this.deleteAlertType = ALERT_DANGER_IMPORTING;
-        } else {
-          this.deleteAlertType =
-            itemsToBeDeleted.length === 0 ? ALERT_DANGER_TAG : ALERT_DANGER_TAGS;
-        }
+        this.deleteAlertType = itemsToBeDeleted.length === 0 ? ALERT_DANGER_TAG : ALERT_DANGER_TAGS;
       }
 
       this.mutationLoading = false;
@@ -195,7 +195,6 @@ export default {
       <delete-alert
         v-model="deleteAlertType"
         :garbage-collection-help-page-path="config.garbageCollectionHelpPagePath"
-        :container-registry-importing-help-page-path="config.containerRegistryImportingHelpPagePath"
         :is-admin="config.isAdmin"
         class="gl-my-2"
       />

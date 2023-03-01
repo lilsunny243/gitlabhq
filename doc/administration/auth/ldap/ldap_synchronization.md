@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # LDAP synchronization **(PREMIUM SELF)**
@@ -33,9 +33,6 @@ For more information, see [Bitmask Searches in LDAP](https://ctovswild.com/2009/
 
 <!-- vale gitlab.Spelling = YES -->
 
-The user is set to an `ldap_blocked` state in GitLab if the previous conditions
-fail. This means the user cannot sign in or push or pull code.
-
 The process also updates the following user information:
 
 - Name. Because of a [sync issue](https://gitlab.com/gitlab-org/gitlab/-/issues/342598), `name` is not synchronized if
@@ -43,6 +40,26 @@ The process also updates the following user information:
 - Email address.
 - SSH public keys if `sync_ssh_keys` is set.
 - Kerberos identity if Kerberos is enabled.
+
+### Blocked users
+
+A user is blocked if either the:
+
+- [Access check fails](#user-sync) and that user is set to an `ldap_blocked` state in GitLab.
+- LDAP server is not available when that user signs in.
+
+If a user is blocked, that user cannot sign in or push or pull code.
+
+A blocked user is unblocked when they sign in with LDAP if all of the following are true:
+
+- All the access check conditions are true.
+- The LDAP server is available when the user signs in.
+
+**All users** are blocked if the LDAP server is unavailable when an LDAP user synchronization is run.
+
+NOTE:
+If all users are blocked due to the LDAP server not being available when an LDAP user synchronization is run,
+a subsequent LDAP user synchronization does not automatically unblock those users.
 
 ### Adjust LDAP user sync schedule
 
@@ -55,7 +72,9 @@ use a [crontab generator](http://www.crontabgenerator.com).
 The example below shows how to set LDAP user
 sync to run once every 12 hours at the top of the hour.
 
-**Omnibus installations**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
@@ -63,19 +82,77 @@ sync to run once every 12 hours at the top of the hour.
    gitlab_rails['ldap_sync_worker_cron'] = "0 */12 * * *"
    ```
 
-1. [Reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and reconfigure GitLab:
 
-**Source installations**
-
-1. Edit `config/gitlab.yaml`:
-
-   ```yaml
-   cron_jobs:
-     ldap_sync_worker_cron:
-       "0 */12 * * *"
+   ```shell
+   sudo gitlab-ctl reconfigure
    ```
 
-1. [Restart GitLab](../../restart_gitlab.md#installations-from-source) for the changes to take effect.
+:::TabTitle Helm chart (Kubernetes)
+
+1. Export the Helm values:
+
+   ```shell
+   helm get values gitlab > gitlab_values.yaml
+   ```
+
+1. Edit `gitlab_values.yaml`:
+
+   ```yaml
+   global:
+     appConfig:
+       cron_jobs:
+         ldap_sync_worker:
+           cron: "0 */12 * * *"
+   ```
+
+1. Save the file and apply the new values:
+
+   ```shell
+   helm upgrade -f gitlab_values.yaml gitlab gitlab/gitlab
+   ```
+
+:::TabTitle Docker
+
+1. Edit `docker-compose.yml`:
+
+   ```yaml
+   version: "3.6"
+   services:
+     gitlab:
+       environment:
+         GITLAB_OMNIBUS_CONFIG: |
+           gitlab_rails['ldap_sync_worker_cron'] = "0 */12 * * *"
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   docker compose up -d
+   ```
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
+     ee_cron_jobs:
+       ldap_sync_worker:
+         cron: "0 */12 * * *"
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   # For systems running systemd
+   sudo systemctl restart gitlab.target
+
+   # For systems running SysV init
+   sudo service gitlab restart
+   ```
+
+::EndTabs
 
 ## Group sync
 
@@ -91,41 +168,103 @@ GitLab group membership to be automatically updated based on LDAP group members.
 The `group_base` configuration should be a base LDAP 'container', such as an
 'organization' or 'organizational unit', that contains LDAP groups that should
 be available to GitLab. For example, `group_base` could be
-`ou=groups,dc=example,dc=com`. In the configuration file it looks like the
+`ou=groups,dc=example,dc=com`. In the configuration file, it looks like the
 following.
 
-**Omnibus configuration**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
    ```ruby
    gitlab_rails['ldap_servers'] = {
-   'main' => {
-     # snip...
-     'group_base' => 'ou=groups,dc=example,dc=com',
-     }
+     'main' => {
+       'group_base' => 'ou=groups,dc=example,dc=com',
+       }
    }
    ```
 
-1. [Apply your changes to GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure).
+1. Save the file and reconfigure GitLab:
 
-**Source configuration**
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
+
+:::TabTitle Helm chart (Kubernetes)
+
+1. Export the Helm values:
+
+   ```shell
+   helm get values gitlab > gitlab_values.yaml
+   ```
+
+1. Edit `gitlab_values.yaml`:
+
+   ```yaml
+   global:
+     appConfig:
+       ldap:
+         servers:
+           main:
+             group_base: ou=groups,dc=example,dc=com
+   ```
+
+1. Save the file and apply the new values:
+
+   ```shell
+   helm upgrade -f gitlab_values.yaml gitlab gitlab/gitlab
+   ```
+
+:::TabTitle Docker
+
+1. Edit `docker-compose.yml`:
+
+   ```yaml
+   version: "3.6"
+   services:
+     gitlab:
+       environment:
+         GITLAB_OMNIBUS_CONFIG: |
+           gitlab_rails['ldap_servers'] = {
+             'main' => {
+               'group_base' => 'ou=groups,dc=example,dc=com',
+               }
+           }
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   docker compose up -d
+   ```
+
+:::TabTitle Self-compiled (source)
 
 1. Edit `/home/git/gitlab/config/gitlab.yml`:
 
    ```yaml
-   production:
+   production: &base
      ldap:
        servers:
          main:
-           # snip...
            group_base: ou=groups,dc=example,dc=com
    ```
 
-1. [Restart GitLab](../../restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and restart GitLab:
+
+   ```shell
+   # For systems running systemd
+   sudo systemctl restart gitlab.target
+
+   # For systems running SysV init
+   sudo service gitlab restart
+   ```
+
+::EndTabs
 
 To take advantage of group sync, group Owners or users with the [Maintainer role](../../../user/permissions.md) must
-[create one or more LDAP group links](#add-group-links).
+[create one or more LDAP group links](../../../user/group/access_and_permissions.md#manage-group-memberships-via-ldap).
 
 ### Add group links
 
@@ -146,55 +285,121 @@ as opposed to the full DN.
 Additionally, if an LDAP user has an `admin` role, but is not a member of the `admin_group`
 group, GitLab revokes their `admin` role when syncing.
 
-**Omnibus configuration**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
    ```ruby
    gitlab_rails['ldap_servers'] = {
-   'main' => {
-     # snip...
-     'group_base' => 'ou=groups,dc=example,dc=com',
-     'admin_group' => 'my_admin_group',
-     }
+     'main' => {
+       'group_base' => 'ou=groups,dc=example,dc=com',
+       'admin_group' => 'my_admin_group',
+       }
    }
    ```
 
-1. [Apply your changes to GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure).
+1. Save the file and reconfigure GitLab:
 
-**Source configuration**
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
+
+:::TabTitle Helm chart (Kubernetes)
+
+1. Export the Helm values:
+
+   ```shell
+   helm get values gitlab > gitlab_values.yaml
+   ```
+
+1. Edit `gitlab_values.yaml`:
+
+   ```yaml
+   global:
+     appConfig:
+       ldap:
+         servers:
+           main:
+             group_base: ou=groups,dc=example,dc=com
+             admin_group: my_admin_group
+   ```
+
+1. Save the file and apply the new values:
+
+   ```shell
+   helm upgrade -f gitlab_values.yaml gitlab gitlab/gitlab
+   ```
+
+:::TabTitle Docker
+
+1. Edit `docker-compose.yml`:
+
+   ```yaml
+   version: "3.6"
+   services:
+     gitlab:
+       environment:
+         GITLAB_OMNIBUS_CONFIG: |
+           gitlab_rails['ldap_servers'] = {
+             'main' => {
+               'group_base' => 'ou=groups,dc=example,dc=com',
+               'admin_group' => 'my_admin_group',
+               }
+           }
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   docker compose up -d
+   ```
+
+:::TabTitle Self-compiled (source)
 
 1. Edit `/home/git/gitlab/config/gitlab.yml`:
 
    ```yaml
-   production:
+   production: &base
      ldap:
        servers:
          main:
-           # snip...
            group_base: ou=groups,dc=example,dc=com
            admin_group: my_admin_group
    ```
 
-1. [Restart GitLab](../../restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and restart GitLab:
+
+   ```shell
+   # For systems running systemd
+   sudo systemctl restart gitlab.target
+
+   # For systems running SysV init
+   sudo service gitlab restart
+   ```
+
+::EndTabs
 
 ### Global group memberships lock
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/1793) in GitLab 12.0.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/4354) in GitLab 12.0.
 
-"Lock memberships to LDAP synchronization" setting allows instance administrators
-to lock down user abilities to invite new members to a group.
+GitLab administrators can prevent group members from inviting new members to subgroups that have their membership synchronized with LDAP.
 
-When enabled, the following applies:
+Global group membership lock only applies to subgroups of the top-level group where LDAP synchronization is configured. No user can modify the
+membership of a top-level group configured for LDAP synchronization.
+
+When global group memberships lock is enabled:
 
 - Only an administrator can manage memberships of any group including access levels.
 - Users are not allowed to share a project with other groups or invite members to
   a project created in a group.
 
-To enable it, you must:
+To enable global group memberships lock:
 
 1. [Configure LDAP](index.md#configure-ldap).
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Visibility and access controls** section.
 1. Ensure the **Lock memberships to LDAP synchronization** checkbox is selected.
@@ -216,64 +421,186 @@ You can manually configure LDAP group sync times by setting the
 following configuration values. The example below shows how to set group
 sync to run once every two hours at the top of the hour.
 
-**Omnibus installations**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
    ```ruby
-   gitlab_rails['ldap_group_sync_worker_cron'] = "0 */2 * * * *"
+   gitlab_rails['ldap_group_sync_worker_cron'] = "0 */2 * * *"
    ```
 
-1. [Reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
+1. Save the file and reconfigure GitLab:
 
-**Source installations**
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
 
-1. Edit `config/gitlab.yaml`:
+:::TabTitle Helm chart (Kubernetes)
+
+1. Export the Helm values:
+
+   ```shell
+   helm get values gitlab > gitlab_values.yaml
+   ```
+
+1. Edit `gitlab_values.yaml`:
 
    ```yaml
-   cron_jobs:
-     ldap_group_sync_worker_cron:
-         "*/30 * * * *"
+   global:
+     appConfig:
+       cron_jobs:
+         ldap_group_sync_worker:
+           cron: "*/30 * * * *"
    ```
 
-1. [Restart GitLab](../../restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and apply the new values:
+
+   ```shell
+   helm upgrade -f gitlab_values.yaml gitlab gitlab/gitlab
+   ```
+
+:::TabTitle Docker
+
+1. Edit `docker-compose.yml`:
+
+   ```yaml
+   version: "3.6"
+   services:
+     gitlab:
+       environment:
+         GITLAB_OMNIBUS_CONFIG: |
+           gitlab_rails['ldap_group_sync_worker_cron'] = "0 */2 * * *"
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   docker compose up -d
+   ```
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
+     ee_cron_jobs:
+       ldap_group_sync_worker:
+         cron: "*/30 * * * *"
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   # For systems running systemd
+   sudo systemctl restart gitlab.target
+
+   # For systems running SysV init
+   sudo service gitlab restart
+   ```
+
+::EndTabs
 
 ### External groups
 
 Using the `external_groups` setting allows you to mark all users belonging
-to these groups as [external users](../../../user/permissions.md#external-users).
+to these groups as [external users](../../../user/admin_area/external_users.md).
 Group membership is checked periodically through the `LdapGroupSync` background
 task.
 
-**Omnibus configuration**
+::Tabs
+
+:::TabTitle Linux package (Omnibus)
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
    ```ruby
    gitlab_rails['ldap_servers'] = {
-   'main' => {
-     # snip...
-     'external_groups' => ['interns', 'contractors'],
-     }
+     'main' => {
+       'external_groups' => ['interns', 'contractors'],
+       }
    }
    ```
 
-1. [Apply your changes to GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure).
+1. Save the file and reconfigure GitLab:
 
-**Source configuration**
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
 
-1. Edit `config/gitlab.yaml`:
+:::TabTitle Helm chart (Kubernetes)
+
+1. Export the Helm values:
+
+   ```shell
+   helm get values gitlab > gitlab_values.yaml
+   ```
+
+1. Edit `gitlab_values.yaml`:
 
    ```yaml
-   production:
+   global:
+     appConfig:
+       ldap:
+         servers:
+           main:
+             external_groups: ['interns', 'contractors']
+   ```
+
+1. Save the file and apply the new values:
+
+   ```shell
+   helm upgrade -f gitlab_values.yaml gitlab gitlab/gitlab
+   ```
+
+:::TabTitle Docker
+
+1. Edit `docker-compose.yml`:
+
+   ```yaml
+   version: "3.6"
+   services:
+     gitlab:
+       environment:
+         GITLAB_OMNIBUS_CONFIG: |
+           gitlab_rails['ldap_servers'] = {
+             'main' => {
+               'external_groups' => ['interns', 'contractors'],
+             }
+           }
+   ```
+
+1. Save the file and restart GitLab:
+
+   ```shell
+   docker compose up -d
+   ```
+
+:::TabTitle Self-compiled (source)
+
+1. Edit `/home/git/gitlab/config/gitlab.yml`:
+
+   ```yaml
+   production: &base
      ldap:
        servers:
          main:
-           # snip...
            external_groups: ['interns', 'contractors']
    ```
 
-1. [Restart GitLab](../../restart_gitlab.md#installations-from-source) for the changes to take effect.
+1. Save the file and restart GitLab:
+
+   ```shell
+   # For systems running systemd
+   sudo systemctl restart gitlab.target
+
+   # For systems running SysV init
+   sudo service gitlab restart
+   ```
+
+::EndTabs
 
 ### Group sync technical details
 

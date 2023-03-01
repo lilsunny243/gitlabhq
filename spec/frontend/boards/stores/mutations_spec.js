@@ -1,8 +1,8 @@
 import { cloneDeep } from 'lodash';
-import { issuableTypes } from '~/boards/constants';
 import * as types from '~/boards/stores/mutation_types';
 import mutations from '~/boards/stores/mutations';
 import defaultState from '~/boards/stores/state';
+import { TYPE_ISSUE } from '~/issues/constants';
 import {
   mockBoard,
   mockLists,
@@ -70,7 +70,7 @@ describe('Board Store Mutations', () => {
       const fullPath = 'gitlab-org';
       const boardType = 'group';
       const disabled = false;
-      const issuableType = issuableTypes.issue;
+      const issuableType = TYPE_ISSUE;
 
       mutations[types.SET_INITIAL_BOARD_DATA](state, {
         allowSubEpics,
@@ -511,6 +511,31 @@ describe('Board Store Mutations', () => {
             moveAfterId: mockIssue.id,
           },
           listState: [mockIssue2.id, mockIssue.id],
+        },
+      ],
+      [
+        'to the top of the list',
+        {
+          payload: {
+            itemId: mockIssue2.id,
+            listId: mockList.id,
+            positionInList: 0,
+            atIndex: 1,
+          },
+          listState: [mockIssue2.id, mockIssue.id],
+        },
+      ],
+      [
+        'to the bottom of the list when the list is fully loaded',
+        {
+          payload: {
+            itemId: mockIssue2.id,
+            listId: mockList.id,
+            positionInList: -1,
+            atIndex: 0,
+            allItemsLoadedInList: true,
+          },
+          listState: [mockIssue.id, mockIssue2.id],
         },
       ],
     ])(`inserts an item into a list %s`, (_, { payload, listState }) => {

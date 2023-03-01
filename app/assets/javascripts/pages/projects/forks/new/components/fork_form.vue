@@ -12,22 +12,35 @@ import {
 } from '@gitlab/ui';
 import { kebabCase } from 'lodash';
 import { buildApiUrl } from '~/api/api_utils';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import csrf from '~/lib/utils/csrf';
 import { redirectTo } from '~/lib/utils/url_utility';
-import { s__ } from '~/locale';
+import { s__, __ } from '~/locale';
 import validation from '~/vue_shared/directives/validation';
+import {
+  VISIBILITY_LEVEL_PRIVATE_STRING,
+  VISIBILITY_LEVEL_INTERNAL_STRING,
+  VISIBILITY_LEVEL_PUBLIC_STRING,
+  VISIBILITY_LEVELS_STRING_TO_INTEGER,
+  VISIBILITY_LEVELS_INTEGER_TO_STRING,
+} from '~/visibility_level/constants';
+import { START_RULE, CONTAINS_RULE } from '~/projects/project_name_rules';
 import ProjectNamespace from './project_namespace.vue';
 
-const PRIVATE_VISIBILITY = 'private';
-const INTERNAL_VISIBILITY = 'internal';
-const PUBLIC_VISIBILITY = 'public';
-
-const VISIBILITY_LEVEL = {
-  [PRIVATE_VISIBILITY]: 0,
-  [INTERNAL_VISIBILITY]: 10,
-  [PUBLIC_VISIBILITY]: 20,
+const feedbackMap = {
+  valueMissing: {
+    isInvalid: (el) => el.validity?.valueMissing,
+    message: __('Please fill out this field.'),
+  },
+  nameStartPattern: {
+    isInvalid: (el) => el.validity?.patternMismatch && !START_RULE.reg.test(el.value),
+    message: START_RULE.msg,
+  },
+  nameContainsPattern: {
+    isInvalid: (el) => el.validity?.patternMismatch && !CONTAINS_RULE.reg.test(el.value),
+    message: CONTAINS_RULE.msg,
+  },
 };
 
 const initFormField = ({ value, required = true, skipValidation = false }) => ({
@@ -51,13 +64,16 @@ export default {
     ProjectNamespace,
   },
   directives: {
-    validation: validation(),
+    validation: validation(feedbackMap),
   },
   inject: {
     newGroupPath: {
       default: '',
     },
     visibilityHelpPath: {
+      default: '',
+    },
+    cancelPath: {
       default: '',
     },
     projectFullPath: {
@@ -100,7 +116,7 @@ export default {
           required: false,
           skipValidation: true,
         }),
-        visibility: initFormField({ value: this.getInitialVisibilityValue() }),
+        visibility: initFormField({ value: null }),
       },
     };
     return {
@@ -109,12 +125,22 @@ export default {
     };
   },
   computed: {
+    projectNameDescription() {
+      if (this.form.fields.name.state === false) {
+        return null;
+      }
+
+      return s__(
+        'ProjectsNew|Must start with a lowercase or uppercase letter, digit, emoji, or underscore. Can also contain dots, pluses, dashes, or spaces.',
+      );
+    },
     projectVisibilityLevel() {
-      return VISIBILITY_LEVEL[this.projectVisibility];
+      return VISIBILITY_LEVELS_STRING_TO_INTEGER[this.projectVisibility];
     },
     namespaceVisibilityLevel() {
-      const visibility = this.form.fields.namespace.value?.visibility || PUBLIC_VISIBILITY;
-      return VISIBILITY_LEVEL[visibility];
+      const visibility =
+        this.form.fields.namespace.value?.visibility || VISIBILITY_LEVEL_PUBLIC_STRING;
+      return VISIBILITY_LEVELS_STRING_TO_INTEGER[visibility];
     },
     visibilityLevelCap() {
       return Math.min(this.projectVisibilityLevel, this.namespaceVisibilityLevel);
@@ -123,7 +149,7 @@ export default {
       return new Set(this.restrictedVisibilityLevels);
     },
     allowedVisibilityLevels() {
-      const allowedLevels = Object.entries(VISIBILITY_LEVEL).reduce(
+      const allowedLevels = Object.entries(VISIBILITY_LEVELS_STRING_TO_INTEGER).reduce(
         (levels, [levelName, levelValue]) => {
           if (
             !this.restrictedVisibilityLevelsSet.has(levelValue) &&
@@ -137,7 +163,7 @@ export default {
       );
 
       if (!allowedLevels.length) {
-        return [PRIVATE_VISIBILITY];
+        return [VISIBILITY_LEVEL_PRIVATE_STRING];
       }
 
       return allowedLevels;
@@ -146,26 +172,26 @@ export default {
       return [
         {
           text: s__('ForkProject|Private'),
-          value: PRIVATE_VISIBILITY,
+          value: VISIBILITY_LEVEL_PRIVATE_STRING,
           icon: 'lock',
           help: s__(
             'ForkProject|Project access must be granted explicitly to each user. If this project is part of a group, access will be granted to members of the group.',
           ),
-          disabled: this.isVisibilityLevelDisabled(PRIVATE_VISIBILITY),
+          disabled: this.isVisibilityLevelDisabled(VISIBILITY_LEVEL_PRIVATE_STRING),
         },
         {
           text: s__('ForkProject|Internal'),
-          value: INTERNAL_VISIBILITY,
+          value: VISIBILITY_LEVEL_INTERNAL_STRING,
           icon: 'shield',
           help: s__('ForkProject|The project can be accessed by any logged in user.'),
-          disabled: this.isVisibilityLevelDisabled(INTERNAL_VISIBILITY),
+          disabled: this.isVisibilityLevelDisabled(VISIBILITY_LEVEL_INTERNAL_STRING),
         },
         {
           text: s__('ForkProject|Public'),
-          value: PUBLIC_VISIBILITY,
+          value: VISIBILITY_LEVEL_PUBLIC_STRING,
           icon: 'earth',
           help: s__('ForkProject|The project can be accessed without any authentication.'),
-          disabled: this.isVisibilityLevelDisabled(PUBLIC_VISIBILITY),
+          disabled: this.isVisibilityLevelDisabled(VISIBILITY_LEVEL_PUBLIC_STRING),
         },
       ];
     },
@@ -176,18 +202,33 @@ export default {
       this.form.fields.slug.value = kebabCase(newVal);
     },
   },
+  created() {
+    this.form.fields.visibility.value = this.getMaximumAllowedVisibilityLevel(
+      VISIBILITY_LEVEL_PUBLIC_STRING,
+    );
+  },
   methods: {
     isVisibilityLevelDisabled(visibility) {
       return !this.allowedVisibilityLevels.includes(visibility);
     },
-    getInitialVisibilityValue() {
-      return this.restrictedVisibilityLevels.length !== 0 ? null : this.projectVisibility;
-    },
     setNamespace(namespace) {
-      this.form.fields.visibility.value =
-        this.restrictedVisibilityLevels.length !== 0 ? null : PRIVATE_VISIBILITY;
       this.form.fields.namespace.value = namespace;
       this.form.fields.namespace.state = true;
+      this.form.fields.visibility.value = this.getMaximumAllowedVisibilityLevel(
+        this.form.fields.visibility.value,
+      );
+    },
+    getMaximumAllowedVisibilityLevel(visibility) {
+      const allowedVisibilities = this.allowedVisibilityLevels.map(
+        (s) => VISIBILITY_LEVELS_STRING_TO_INTEGER[s],
+      );
+      const current = VISIBILITY_LEVELS_STRING_TO_INTEGER[visibility];
+      const lower = allowedVisibilities.filter((l) => l <= current);
+      if (lower.length) {
+        return VISIBILITY_LEVELS_INTEGER_TO_STRING[Math.max(...lower)];
+      }
+      const higher = allowedVisibilities.filter((l) => l >= current);
+      return VISIBILITY_LEVELS_INTEGER_TO_STRING[Math.min(...higher)];
     },
     async onSubmit() {
       this.form.showValidation = true;
@@ -223,7 +264,7 @@ export default {
         redirectTo(data.web_url);
         return;
       } catch (error) {
-        createFlash({
+        createAlert({
           message: s__(
             'ForkProject|An error occurred while forking the project. Please try again.',
           ),
@@ -232,6 +273,7 @@ export default {
     },
   },
   csrf,
+  projectNamePattern: `(${START_RULE.reg.source})|(${CONTAINS_RULE.reg.source})`,
 };
 </script>
 
@@ -241,8 +283,10 @@ export default {
 
     <gl-form-group
       :label="__('Project name')"
+      :description="projectNameDescription"
       label-for="fork-name"
       :invalid-feedback="form.fields.name.feedback"
+      data-testid="fork-name-form-group"
     >
       <gl-form-input
         id="fork-name"
@@ -252,6 +296,7 @@ export default {
         data-testid="fork-name-input"
         :state="form.fields.name.state"
         required
+        :pattern="$options.projectNamePattern"
       />
     </gl-form-group>
 
@@ -359,7 +404,7 @@ export default {
         class="gl-mr-3"
         data-testid="cancel-button"
         :disabled="isSaving"
-        :href="projectFullPath"
+        :href="cancelPath"
       >
         {{ s__('ForkProject|Cancel') }}
       </gl-button>

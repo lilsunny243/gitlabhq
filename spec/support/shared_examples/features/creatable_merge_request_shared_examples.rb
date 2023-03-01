@@ -2,6 +2,7 @@
 
 RSpec.shared_examples 'a creatable merge request' do
   include WaitForRequests
+  include ListboxHelpers
 
   it 'creates new merge request', :js do
     find('.js-assignee-search').click
@@ -21,15 +22,10 @@ RSpec.shared_examples 'a creatable merge request' do
       expect(page).to have_content user.name
     end
 
-    click_button 'Milestone'
-    page.within '.issue-milestone' do
-      click_link milestone.title
-    end
-
+    click_button 'Select milestone'
+    click_button milestone.title
     expect(find('input[name="merge_request[milestone_id]"]', visible: false).value).to match(milestone.id.to_s)
-    page.within '.js-milestone-select' do
-      expect(page).to have_content milestone.title
-    end
+    expect(page).to have_button milestone.title
 
     click_button 'Labels'
     page.within '.dropdown-menu-labels' do
@@ -69,14 +65,16 @@ RSpec.shared_examples 'a creatable merge request' do
     visit project_new_merge_request_path(source_project)
 
     first('.js-target-project').click
-    find('.dropdown-target-project .dropdown-content a', text: target_project.full_path).click
+    select_listbox_item(target_project.full_path)
 
     wait_for_requests
 
     first('.js-target-branch').click
 
-    within('.js-target-branch-dropdown .dropdown-content') do
-      expect(page).to have_content('a-brand-new-branch-to-test')
-    end
+    find('.gl-listbox-search-input').set('a-brand-new-branch-to-test')
+
+    wait_for_requests
+
+    expect_listbox_item('a-brand-new-branch-to-test')
   end
 end

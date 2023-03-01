@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab utilities
@@ -181,27 +181,49 @@ Refer to [`strong_memoize.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/maste
     include Gitlab::Utils::StrongMemoize
 
     def result
-      strong_memoize(:result) do
-        search
-      end
+      search
+    end
+    strong_memoize_attr :result
+
+    def enabled?
+      Feature.enabled?(:some_feature)
+    end
+    strong_memoize_attr :enabled?
+  end
+  ```
+
+  Using `strong_memoize_attr` on methods with parameters is not supported.
+  It does not work when combined with [`override`](#override) and might memoize wrong results.
+
+  Use `strong_memoize_with` instead.
+
+  ```ruby
+  # bad
+  def expensive_method(arg)
+    # ...
+  end
+  strong_memoize_attr :expensive_method
+
+  # good
+  def expensive_method(arg)
+    strong_memoize_with(:expensive_method, arg)
+      # ...
     end
   end
   ```
 
-  Alternatively, use the `strong_memoize_attr` helper to memoize the method for you:
+  There's also `strong_memoize_with` to help memoize methods that take arguments.
+  This should be used for methods that have a low number of possible values
+  as arguments or with consistent repeating arguments in a loop.
 
   ```ruby
   class Find
     include Gitlab::Utils::StrongMemoize
 
-    def result
-      search
-    end
-    strong_memoize_attr :result
-
-    strong_memoize_attr :enabled?, :enabled
-    def enabled?
-      Feature.enabled?(:some_feature)
+    def result(basic: true)
+      strong_memoize_with(:result, basic) do
+        search(basic)
+      end
     end
   end
   ```

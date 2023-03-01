@@ -6,10 +6,9 @@ module API
 
     feature_category :source_code_management
 
-    helpers do
-      params :ee_approval_params do
-      end
+    helpers ::API::Helpers::MergeRequestsHelpers
 
+    helpers do
       def present_approval(merge_request)
         present merge_request, with: ::API::Entities::MergeRequestApprovals, current_user: current_user
       end
@@ -24,7 +23,12 @@ module API
         #   merge_request_iid (required)  - IID of MR
         # Examples:
         #   GET /projects/:id/merge_requests/:merge_request_iid/approvals
-        desc 'List approvals for merge request'
+        desc 'List approvals for merge request' do
+          success ::API::Entities::MergeRequestApprovals
+          failure [
+            { code: 404, message: 'Not found' }
+          ]
+        end
         get 'approvals', urgency: :low do
           merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
@@ -39,7 +43,13 @@ module API
         # Examples:
         #   POST /projects/:id/merge_requests/:merge_request_iid/approve
         #
-        desc 'Approve a merge request'
+        desc 'Approve a merge request' do
+          success code: 201, model: ::API::Entities::MergeRequestApprovals
+          failure [
+            { code: 404, message: 'Not found' },
+            { code: 401, message: 'Unauthorized' }
+          ]
+        end
         params do
           optional :sha, type: String, desc: 'When present, must have the HEAD SHA of the source branch'
 
@@ -60,7 +70,13 @@ module API
           present_approval(merge_request)
         end
 
-        desc 'Remove an approval from a merge request'
+        desc 'Remove an approval from a merge request' do
+          success code: 201, model: ::API::Entities::MergeRequestApprovals
+          failure [
+            { code: 404, message: 'Not found' },
+            { code: 401, message: 'Unauthorized' }
+          ]
+        end
         post 'unapprove', urgency: :low do
           merge_request = find_merge_request_with_access(params[:merge_request_iid], :approve_merge_request)
 
@@ -71,6 +87,24 @@ module API
           not_found! unless success
 
           present_approval(merge_request)
+        end
+
+        desc 'Remove all merge request approvals' do
+          detail 'Clear all approvals of merge request. This feature was added in GitLab 15.4'
+          failure [
+            { code: 401, message: 'Unauthorized' },
+            { code: 404, message: 'Not found' }
+          ]
+          tags %w[merge_requests]
+        end
+        put 'reset_approvals', urgency: :low do
+          merge_request = find_project_merge_request(params[:merge_request_iid])
+
+          unauthorized! unless current_user.can?(:reset_merge_request_approvals, merge_request)
+
+          merge_request.approvals.delete_all
+
+          status :accepted
         end
       end
     end

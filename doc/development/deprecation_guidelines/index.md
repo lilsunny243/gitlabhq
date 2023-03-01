@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Deprecating GitLab features
@@ -33,7 +33,6 @@ https://about.gitlab.com/handbook/product/gitlab-the-product/#definitions
 - No longer tested internally.
 - Will be removed in a future major release.
 - Begins after an end-of-support date has passed.
-- Ends after all relevant code has been removed.
 
 [Announcing an End of Support period](https://about.gitlab.com/handbook/marketing/blog/release-posts/#announcing-an-end-of-support-period)
 should only be used in special circumstances and is not recommended for general use.
@@ -42,11 +41,10 @@ Most features should be deprecated and then removed.
 **Removal**:
 
 - Feature usage impossible.
+- Feature no longer supported (if End of Support period hasn't already been announced).
 - Happens in a major release in line with our
   [semantic versioning policy](../../policy/maintenance.md).
 - Begins after removal date has passed.
-
-![Deprecation, End of Support, Removal process](img/deprecation_removal_process.png)
 
 **Breaking change**:
 
@@ -58,9 +56,13 @@ A "breaking change" is any change that requires users to make a corresponding ch
 
 A breaking change can be considered major if it affects many users, or represents a significant change in behavior.
 
+![Deprecation, End of Support, Removal process](img/deprecation_removal_process.png)
+
 ## When can a feature be deprecated?
 
 Deprecations should be announced on the [Deprecated feature removal schedule](../../update/deprecations.md).
+
+Deprecations should be announced [no later than the third milestone preceding intended removal](https://about.gitlab.com/handbook/product/gitlab-the-product/#process-for-deprecating-and-removing-a-feature).
 
 Do not include the deprecation announcement in the merge request that introduces a code change for the deprecation.
 Use a separate MR to create a deprecation entry. For steps to create a deprecation entry, see
@@ -77,13 +79,13 @@ However, at GitLab, we [give agency](https://about.gitlab.com/handbook/values/#g
 Generally, feature or configuration can be removed/changed only on major release.
 It also should be [deprecated in advance](https://about.gitlab.com/handbook/marketing/blog/release-posts/#deprecations).
 
-For API removals, see the [GraphQL](../../api/graphql/index.md#deprecation-and-removal-process) and [GitLab API](../../api/index.md#compatibility-guidelines) guidelines.
+For API removals, see the [GraphQL](../../api/graphql/index.md#deprecation-and-removal-process) and [GitLab API](../../api/rest/index.md#compatibility-guidelines) guidelines.
 
 For configuration removals, see the [Omnibus deprecation policy](../../administration/package_information/deprecation_policy.md).
 
 For versioning and upgrade details, see our [Release and Maintenance policy](../../policy/maintenance.md).
 
-## Update the deprecations and removals documentation
+## Update the deprecations and removals documentation pages
 
 The [deprecations](../../update/deprecations.md) and [removals](../../update/removals.md)
 documentation is generated from the YAML files located in
@@ -131,3 +133,7 @@ Related Handbook pages:
 
 - <https://about.gitlab.com/handbook/marketing/blog/release-posts/#deprecations-removals-and-breaking-changes>
 - <https://about.gitlab.com/handbook/marketing/blog/release-posts/#update-the-deprecations-and-removals-docs>
+
+## Update the related documentation
+
+When features are deprecated and removed, [update the related documentation](../documentation/versions.md#deprecations-and-removals).

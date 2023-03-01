@@ -46,15 +46,6 @@ module Gitlab
               expanded_content_hash
             end
 
-            def validate!
-              context.logger.instrument(:config_file_validation) do
-                validate_execution_time!
-                validate_location!
-                validate_content! if errors.none?
-                validate_hash! if errors.none?
-              end
-            end
-
             def metadata
               {
                 context_project: context.project&.full_path,
@@ -70,26 +61,28 @@ module Gitlab
               [params, context.project&.full_path, context.sha].hash
             end
 
-            protected
-
-            def expanded_content_hash
-              return unless content_hash
-
-              strong_memoize(:expanded_content_yaml) do
-                expand_includes(content_hash)
+            def load_and_validate_expanded_hash!
+              context.logger.instrument(:config_file_fetch_content_hash) do
+                content_hash # calling the method loads then memoizes the result
               end
+
+              context.logger.instrument(:config_file_expand_content_includes) do
+                expanded_content_hash # calling the method expands then memoizes the result
+              end
+
+              validate_hash!
             end
 
-            def content_hash
-              strong_memoize(:content_yaml) do
-                ::Gitlab::Ci::Config::Yaml.load!(content)
-              end
-            rescue Gitlab::Config::Loader::FormatError
-              nil
+            # This method is overridden to load context into the memoized result
+            # or to lazily load context via BatchLoader
+            def preload_context
+              # no-op
             end
 
-            def validate_execution_time!
-              context.check_execution_time!
+            def preload_content
+              # calling the `content` method either loads content into the memoized result
+              # or lazily loads it via BatchLoader
+              content
             end
 
             def validate_location!
@@ -100,10 +93,32 @@ module Gitlab
               end
             end
 
+            def validate_context!
+              raise NotImplementedError, 'subclass must implement validate_context'
+            end
+
             def validate_content!
               if content.blank?
                 errors.push("Included file `#{masked_location}` is empty or does not exist!")
               end
+            end
+
+            protected
+
+            def expanded_content_hash
+              return unless content_hash
+
+              strong_memoize(:expanded_content_hash) do
+                expand_includes(content_hash)
+              end
+            end
+
+            def content_hash
+              strong_memoize(:content_hash) do
+                ::Gitlab::Ci::Config::Yaml.load!(content)
+              end
+            rescue Gitlab::Config::Loader::FormatError
+              nil
             end
 
             def validate_hash!

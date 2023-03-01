@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Plan
 group: Optimize
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Aggregated Value Stream Analytics
@@ -31,7 +31,7 @@ for long-term growth.
 Our main database is not prepared for analytical workloads. Executing long-running queries can
 affect the reliability of the application. For large groups, the current
 implementation (old backend) is slow and, in some cases, doesn't even load due to the configured
-statement timeout (15s).
+statement timeout (15 s).
 
 The database queries in the old backend use the core domain models directly through
 `IssuableFinders` classes: ([MergeRequestsFinder](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/finders/merge_requests_finder.rb) and [IssuesFinder](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/finders/issues_finder.rb)).
@@ -43,7 +43,7 @@ Benefits of the aggregated VSA backend:
 - Simpler database queries (fewer JOINs).
 - Faster aggregations, only a single table is accessed.
 - Possibility to introduce further aggregations for improving the first page load time.
-- Better performance for large groups (with many sub-groups, projects, issues and, merge requests).
+- Better performance for large groups (with many subgroups, projects, issues and, merge requests).
 - Ready for database decomposition. The VSA related database tables could live in a separate
 database with a minimal development effort.
 - Ready for keyset pagination which can be useful for exporting the data.
@@ -54,15 +54,15 @@ database with a minimal development effort.
 
 ### Example configuration
 
-![vsa object hierarchy example](img/object_hierarchy_example_V14_10.png)
+![VSA object hierarchy example](img/object_hierarchy_example_V14_10.png)
 
-In this example, there are two independent value streams set up for two teams that are using
+In this example, two independent value streams are set up for two teams that are using
 different development workflows within the `Test Group` (top-level namespace).
 
 The first value stream uses standard timestamp-based events for defining the stages. The second
 value stream uses label events.
 
-Each value stream and stage item from the example will be persisted in the database. Notice that
+Each value stream and stage item from the example is persisted in the database. Notice that
 the `Deployment` stage is identical for both value streams; that means that the underlying
 `stage_event_hash_id` is the same for both stages. The `stage_event_hash_id` reduces
 the amount of data the backend collects and plays a vital role in database partitioning.
@@ -102,7 +102,7 @@ High-level overview for each top-level namespace with Premium or Ultimate licens
 1. `INSERT` or `UPDATE` the data into the VSA database tables.
 
 The data loading is implemented within the [`Analytics::CycleAnalytics::DataLoaderService`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/app/services/analytics/cycle_analytics/data_loader_service.rb)
-class. There are groups containing a lot of data, so to avoid overloading the primary database,
+class. Some groups contain a lot of data, so to avoid overloading the primary database,
 the service performs operations in batches and enforces strict application limits:
 
 - Load records in batches.
@@ -111,8 +111,8 @@ the service performs operations in batches and enforces strict application limit
 later.
 - Continue processing data from a specific point.
 
-As of GitLab 14.7, the data loading is done manually. Once the feature is ready, the service will
-be invoked periodically by the system via a cron job (this part is not implemented yet).
+As of GitLab 14.7, the data loading is done manually. Once the feature is ready, the service is
+invoked periodically by the system via a cron job (this part is not implemented yet).
 
 #### Record iteration
 
@@ -165,7 +165,7 @@ Creation time always happens first, so this stage always reports negative durati
 
 The data collection scans and processes all issues and merge requests records in the group
 hierarchy, starting from the top-level group. This means that if a group only has one value stream
-in a sub-group, we nevertheless collect data of all issues and merge requests in the hierarchy of
+in a subgroup, we nevertheless collect data of all issues and merge requests in the hierarchy of
 this group. This aims to simplify the data collection mechanism. Moreover, data research shows
 that most group hierarchies have their stages configured on the top level.
 
@@ -193,7 +193,7 @@ aggregated data separated, we use two additional database tables:
 - `analytics_cycle_analytics_merge_request_stage_events`
 
 Both tables are hash partitioned by the `stage_event_hash_id`. Each table uses 32 partitions. It's
-an arbitrary number and it could be changed. Important is to keep the partitions under 100GB in
+an arbitrary number and it could be changed. Important is to keep the partitions under 100 GB in
 size (which gives the feature a lot of headroom).
 
 |Column|Description|
@@ -273,12 +273,12 @@ attributes.
 - `stages` - Load the stages for the currently selected value stream.
 - `median` - For each stage, request the median duration.
 - `count` - For each stage, request the number of items in the stage (this is a
-[limit count](../merge_request_performance_guidelines.md#badge-counters), maximum 1000 rows).
+[limit count](../merge_request_concepts/performance.md#badge-counters), maximum 1000 rows).
 - `average_duration_chart` - Data for the duration chart.
 - `summary`, `time_summary` - Top-level aggregations, most of the metrics are using different APIs/
 finders and not invoking the aggregated backend.
 
-When clicking on a specific stage, the `records` endpoint is invoked, which returns the related
+When selecting a specific stage, the `records` endpoint is invoked, which returns the related
 records (paginated) for the chosen stage in a specific order.
 
 ### Database decomposition

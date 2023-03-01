@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::EnvironmentsController do
+RSpec.describe Projects::EnvironmentsController, feature_category: :continuous_delivery do
   include MetricsDashboardHelpers
   include KubernetesHelpers
 
@@ -32,6 +32,11 @@ RSpec.describe Projects::EnvironmentsController do
 
         get :index, params: environment_params
       end
+
+      it_behaves_like 'tracking unique visits', :index do
+        let(:request_params) { environment_params }
+        let(:target_id) { 'users_visiting_environments_pages' }
+      end
     end
 
     context 'when requesting JSON response for folders' do
@@ -39,17 +44,9 @@ RSpec.describe Projects::EnvironmentsController do
         allow_any_instance_of(Environment).to receive(:has_terminals?).and_return(true)
         allow_any_instance_of(Environment).to receive(:rollout_status).and_return(kube_deployment_rollout_status)
 
-        create(:environment, project: project,
-                             name: 'staging/review-1',
-                             state: :available)
-
-        create(:environment, project: project,
-                             name: 'staging/review-2',
-                             state: :available)
-
-        create(:environment, project: project,
-                             name: 'staging/review-3',
-                             state: :stopped)
+        create(:environment, project: project, name: 'staging/review-1', state: :available)
+        create(:environment, project: project, name: 'staging/review-2', state: :available)
+        create(:environment, project: project, name: 'staging/review-3', state: :stopped)
       end
 
       let(:environments) { json_response['environments'] }
@@ -66,6 +63,66 @@ RSpec.describe Projects::EnvironmentsController do
           expect(environments.third).to include('name' => 'staging/review-2', 'name_without_type' => 'review-2')
           expect(json_response['available_count']).to eq 3
           expect(json_response['stopped_count']).to eq 1
+        end
+
+        it 'handles search option properly' do
+          get :index, params: environment_params(format: :json, search: 'staging/r')
+
+          expect(environments.map { |env| env['name'] }).to contain_exactly('staging/review-1', 'staging/review-2')
+          expect(json_response['available_count']).to eq 2
+          expect(json_response['stopped_count']).to eq 1
+        end
+
+        it 'ignores search option if is shorter than a minimum' do
+          get :index, params: environment_params(format: :json, search: 'st')
+
+          expect(environments.map { |env| env['name'] }).to contain_exactly('production', 'staging/review-1', 'staging/review-2')
+          expect(json_response['available_count']).to eq 3
+          expect(json_response['stopped_count']).to eq 1
+        end
+
+        it 'supports search within environment folder name' do
+          create(:environment, project: project, name: 'review-app', state: :available)
+
+          get :index, params: environment_params(format: :json, search: 'review')
+
+          expect(environments.map { |env| env['name'] }).to contain_exactly('review-app', 'staging/review-1', 'staging/review-2')
+          expect(json_response['available_count']).to eq 3
+          expect(json_response['stopped_count']).to eq 1
+        end
+
+        context 'can access stop stale environments feature' do
+          it 'maintainers can access the feature' do
+            get :index, params: environment_params(format: :json)
+
+            expect(json_response['can_stop_stale_environments']).to be_truthy
+          end
+
+          context 'when user is a reporter' do
+            let(:user) { reporter }
+
+            it 'reporters cannot access the feature' do
+              get :index, params: environment_params(format: :json)
+
+              expect(json_response['can_stop_stale_environments']).to be_falsey
+            end
+          end
+        end
+
+        context 'when enable_environments_search_within_folder FF is disabled' do
+          before do
+            stub_feature_flags(enable_environments_search_within_folder: false)
+          end
+
+          it 'ignores name inside folder' do
+            create(:environment, project: project, name: 'review-app', state: :available)
+
+            get :index, params: environment_params(format: :json, search: 'review')
+
+            expect(environments.map { |env| env['name'] }).to contain_exactly('review-app')
+            expect(json_response['available_count']).to eq 1
+            expect(json_response['stopped_count']).to eq 0
+          end
         end
 
         it 'sets the polling interval header' do
@@ -149,36 +206,45 @@ RSpec.describe Projects::EnvironmentsController do
   end
 
   describe 'GET folder' do
-    before do
-      create(:environment, project: project,
-                           name: 'staging-1.0/review',
-                           state: :available)
-      create(:environment, project: project,
-                           name: 'staging-1.0/zzz',
-                           state: :available)
-    end
-
     context 'when using default format' do
       it 'responds with HTML' do
         get :folder, params: {
-                       namespace_id: project.namespace,
-                       project_id: project,
-                       id: 'staging-1.0'
-                     }
+          namespace_id: project.namespace,
+          project_id: project,
+          id: 'staging-1.0'
+        }
 
-        expect(response).to be_ok
+        expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template 'folder'
+      end
+
+      it_behaves_like 'tracking unique visits', :folder do
+        let(:request_params) do
+          {
+            namespace_id: project.namespace,
+            project_id: project,
+            id: 'staging-1.0'
+          }
+        end
+
+        let(:target_id) { 'users_visiting_environments_pages' }
       end
     end
 
     context 'when using JSON format' do
+      before do
+        create(:environment, project: project, name: 'staging-1.0/review', state: :available)
+        create(:environment, project: project, name: 'staging-1.0/zzz', state: :available)
+      end
+
+      let(:environments) { json_response['environments'] }
+
       it 'sorts the subfolders lexicographically' do
         get :folder, params: {
-                       namespace_id: project.namespace,
-                       project_id: project,
-                       id: 'staging-1.0'
-                     },
-                     format: :json
+          namespace_id: project.namespace,
+          project_id: project,
+          id: 'staging-1.0'
+        }, format: :json
 
         expect(response).to be_ok
         expect(response).not_to render_template 'folder'
@@ -186,6 +252,19 @@ RSpec.describe Projects::EnvironmentsController do
           .to include('name' => 'staging-1.0/review', 'name_without_type' => 'review')
         expect(json_response['environments'][1])
           .to include('name' => 'staging-1.0/zzz', 'name_without_type' => 'zzz')
+      end
+
+      it 'handles search option properly' do
+        get(:folder, params: {
+          namespace_id: project.namespace,
+          project_id: project,
+          id: 'staging-1.0',
+          search: 'staging-1.0/z'
+        }, format: :json)
+
+        expect(environments.map { |env| env['name'] }).to eq(['staging-1.0/zzz'])
+        expect(json_response['available_count']).to eq 1
+        expect(json_response['stopped_count']).to eq 0
       end
     end
   end
@@ -196,6 +275,11 @@ RSpec.describe Projects::EnvironmentsController do
         get :show, params: environment_params
 
         expect(response).to be_ok
+      end
+
+      it_behaves_like 'tracking unique visits', :show do
+        let(:request_params) { environment_params }
+        let(:target_id) { 'users_visiting_environments_pages' }
       end
     end
 
@@ -210,11 +294,29 @@ RSpec.describe Projects::EnvironmentsController do
     end
   end
 
+  describe 'GET new' do
+    it 'responds with a status code 200' do
+      get :new, params: environment_params
+
+      expect(response).to be_ok
+    end
+
+    it_behaves_like 'tracking unique visits', :new do
+      let(:request_params) { environment_params }
+      let(:target_id) { 'users_visiting_environments_pages' }
+    end
+  end
+
   describe 'GET edit' do
     it 'responds with a status code 200' do
       get :edit, params: environment_params
 
       expect(response).to be_ok
+    end
+
+    it_behaves_like 'tracking unique visits', :edit do
+      let(:request_params) { environment_params }
+      let(:target_id) { 'users_visiting_environments_pages' }
     end
   end
 
@@ -229,6 +331,11 @@ RSpec.describe Projects::EnvironmentsController do
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response['path']).to eq("/#{project.full_path}/-/environments/#{environment.id}")
+      end
+
+      it_behaves_like 'tracking unique visits', :update do
+        let(:request_params) { params }
+        let(:target_id) { 'users_visiting_environments_pages' }
       end
     end
 
@@ -294,6 +401,11 @@ RSpec.describe Projects::EnvironmentsController do
           { 'redirect_url' =>
               project_environment_url(project, environment) })
       end
+
+      it_behaves_like 'tracking unique visits', :stop do
+        let(:request_params) { environment_params(format: :json) }
+        let(:target_id) { 'users_visiting_environments_pages' }
+      end
     end
 
     context 'when no stop action' do
@@ -320,6 +432,11 @@ RSpec.describe Projects::EnvironmentsController do
       let(:environment) { create(:environment, :will_auto_stop, name: 'staging', project: project) }
 
       it_behaves_like 'successful response for #cancel_auto_stop'
+
+      it_behaves_like 'tracking unique visits', :cancel_auto_stop do
+        let(:request_params) { environment_params }
+        let(:target_id) { 'users_visiting_environments_pages' }
+      end
 
       context 'when user is reporter' do
         let(:user) { reporter }
@@ -356,6 +473,11 @@ RSpec.describe Projects::EnvironmentsController do
           .to receive(:terminals)
 
         get :terminal, params: environment_params
+      end
+
+      it_behaves_like 'tracking unique visits', :terminal do
+        let(:request_params) { environment_params }
+        let(:target_id) { 'users_visiting_environments_pages' }
       end
     end
 
@@ -612,7 +734,7 @@ RSpec.describe Projects::EnvironmentsController do
 
         expect(json_response).to have_key('all_dashboards')
         expect(json_response['all_dashboards']).to be_an_instance_of(Array)
-        expect(json_response['all_dashboards']).to all( include('path', 'default', 'display_name') )
+        expect(json_response['all_dashboards']).to all(include('path', 'default', 'display_name'))
       end
     end
 
@@ -859,6 +981,11 @@ RSpec.describe Projects::EnvironmentsController do
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response['path']).to eq("/#{project.full_path}/-/environments/#{json_response['environment']['id']}")
       end
+
+      it_behaves_like 'tracking unique visits', :create do
+        let(:request_params) { params }
+        let(:target_id) { 'users_visiting_environments_pages' }
+      end
     end
 
     context "when environment params are invalid" do
@@ -872,10 +999,96 @@ RSpec.describe Projects::EnvironmentsController do
     end
   end
 
+  describe '#append_info_to_payload' do
+    let(:search_param) { 'my search param' }
+
+    context 'when search_environment_logging feature is disabled' do
+      before do
+        stub_feature_flags(environments_search_logging: false)
+      end
+
+      it 'does not log search params in meta.environment.search' do
+        expect(controller).to receive(:append_info_to_payload).and_wrap_original do |method, payload|
+          method.call(payload)
+
+          expect(payload[:metadata]).not_to have_key('meta.environment.search')
+          expect(payload[:action]).to eq("search")
+          expect(payload[:controller]).to eq("Projects::EnvironmentsController")
+        end
+
+        get :search, params: environment_params(format: :json, search: search_param)
+      end
+
+      it 'logs params correctly when search params are missing' do
+        expect(controller).to receive(:append_info_to_payload).and_wrap_original do |method, payload|
+          method.call(payload)
+
+          expect(payload[:metadata]).not_to have_key('meta.environment.search')
+          expect(payload[:action]).to eq("search")
+          expect(payload[:controller]).to eq("Projects::EnvironmentsController")
+        end
+
+        get :search, params: environment_params(format: :json)
+      end
+
+      it 'logs params correctly when search params is empty string' do
+        expect(controller).to receive(:append_info_to_payload).and_wrap_original do |method, payload|
+          method.call(payload)
+
+          expect(payload[:metadata]).not_to have_key('meta.environment.search')
+          expect(payload[:action]).to eq("search")
+          expect(payload[:controller]).to eq("Projects::EnvironmentsController")
+        end
+
+        get :search, params: environment_params(format: :json, search: "")
+      end
+    end
+
+    context 'when search_environment_logging feature is enabled' do
+      before do
+        stub_feature_flags(environments_search_logging: true)
+      end
+
+      it 'logs search params in meta.environment.search' do
+        expect(controller).to receive(:append_info_to_payload).and_wrap_original do |method, payload|
+          method.call(payload)
+
+          expect(payload[:metadata]['meta.environment.search']).to eq(search_param)
+          expect(payload[:action]).to eq("search")
+          expect(payload[:controller]).to eq("Projects::EnvironmentsController")
+        end
+
+        get :search, params: environment_params(format: :json, search: search_param)
+      end
+
+      it 'logs params correctly when search params are missing' do
+        expect(controller).to receive(:append_info_to_payload).and_wrap_original do |method, payload|
+          method.call(payload)
+
+          expect(payload[:metadata]).not_to have_key('meta.environment.search')
+          expect(payload[:action]).to eq("search")
+          expect(payload[:controller]).to eq("Projects::EnvironmentsController")
+        end
+
+        get :search, params: environment_params(format: :json)
+      end
+
+      it 'logs params correctly when search params is empty string' do
+        expect(controller).to receive(:append_info_to_payload).and_wrap_original do |method, payload|
+          method.call(payload)
+
+          expect(payload[:metadata]).not_to have_key('meta.environment.search')
+          expect(payload[:action]).to eq("search")
+          expect(payload[:controller]).to eq("Projects::EnvironmentsController")
+        end
+
+        get :search, params: environment_params(format: :json, search: "")
+      end
+    end
+  end
+
   def environment_params(opts = {})
-    opts.reverse_merge(namespace_id: project.namespace,
-                       project_id: project,
-                       id: environment.id)
+    opts.reverse_merge(namespace_id: project.namespace, project_id: project, id: environment.id)
   end
 
   def additional_metrics(opts = {})

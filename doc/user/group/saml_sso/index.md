@@ -1,15 +1,14 @@
 ---
-type: reference, howto
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # SAML SSO for GitLab.com groups **(PREMIUM SAAS)**
 
 > Introduced in GitLab 11.0.
 
-This page describes SAML for groups. For instance-wide SAML on self-managed GitLab instances, see [SAML OmniAuth Provider](../../../integration/saml.md).
+This page describes SAML for groups. For instance-wide SAML on self-managed GitLab instances, see [SAML SSO for self-managed GitLab instances](../../../integration/saml.md).
 [View the differences between SaaS and Self-Managed Authentication and Authorization Options](../../../administration/auth/index.md#saas-vs-self-managed-comparison).
 
 SAML on GitLab.com allows users to sign in through their SAML identity provider. If the user is not already a member, the sign-in process automatically adds the user to the appropriate group.
@@ -24,7 +23,7 @@ If required, you can find [a glossary of common terms](../../../integration/saml
 ## Configure your identity provider
 
 1. Find the information in GitLab required for configuration:
-   1. On the top bar, select **Menu > Groups** and find your group.
+   1. On the top bar, select **Main menu > Groups** and find your group.
    1. On the left sidebar, select **Settings > SAML SSO**.
    1. Note the **Assertion consumer service URL**, **Identifier**, and **GitLab single sign-on URL**.
 1. Configure your SAML identity provider app using the noted details.
@@ -32,8 +31,8 @@ If required, you can find [a glossary of common terms](../../../integration/saml
    See [specific identity provider documentation](#providers) for more details.
 1. Configure the SAML response to include a [NameID](#nameid) that uniquely identifies each user.
 1. Configure the required [user attributes](#user-attributes), ensuring you include the user's email address.
-1. While the default is enabled for most SAML providers, please ensure the app is set to have service provider
-   initiated calls in order to link existing GitLab accounts.
+1. While the default is enabled for most SAML providers, ensure the app is set to have service provider
+   initiated calls to link existing GitLab accounts.
 1. Once the identity provider is set up, move on to [configuring GitLab](#configure-gitlab).
 
 ![Issuer and callback for configuring SAML identity provider with GitLab.com](img/group_saml_configuration_information.png)
@@ -54,7 +53,6 @@ GitLab.com uses the SAML NameID to identify users. The NameID element:
   also case-insensitive, which can result in users being unable to sign in.
 
 The relevant field name and recommended value for supported providers are in the [provider specific notes](#providers).
-appropriate corresponding field.
 
 WARNING:
 Once users have signed into GitLab using the SSO SAML setup, changing the `NameID` breaks the configuration and potentially locks users out of the GitLab group.
@@ -73,13 +71,13 @@ must be specified as an attribute named `email` or `mail`.
 You can configure the following attributes with GitLab.com Group SAML:
 
 - `username` or `nickname`. We recommend you configure only one of these.
-- The [attributes available](../../../integration/saml.md#assertions) to self-managed GitLab instances.
+- The [attributes available](../../../integration/saml.md#configure-assertions) to self-managed GitLab instances.
 
 ### Metadata configuration
 
 GitLab provides metadata XML that can be used to configure your identity provider.
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > SAML SSO**.
 1. Copy the provided **GitLab metadata URL**.
 1. Follow your identity provider's documentation and paste the metadata URL when it's requested.
@@ -88,7 +86,7 @@ GitLab provides metadata XML that can be used to configure your identity provide
 
 After you set up your identity provider to work with GitLab, you must configure GitLab to use it for authentication:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > SAML SSO**.
 1. Find the SSO URL from your identity provider and enter it the **Identity provider single sign-on URL** field.
 1. Find and enter the fingerprint for the SAML token signing certificate in the **Certificate** field.
@@ -99,7 +97,20 @@ After you set up your identity provider to work with GitLab, you must configure 
 ![Group SAML Settings for GitLab.com](img/group_saml_settings_v13_12.png)
 
 NOTE:
-The certificate [fingerprint algorithm](../../../integration/saml.md#notes-on-configuring-your-identity-provider) must be in SHA1. When configuring the identity provider (such as [Google Workspace](#google-workspace-setup-notes)), use a secure signature algorithm.
+The certificate [fingerprint algorithm](../../../integration/saml.md#configure-saml-on-your-idp) must be in SHA1. When configuring the identity provider (such as [Google Workspace](#set-up-google-workspace)), use a secure signature algorithm.
+
+### Additional configuration information
+
+Many SAML terms can vary between providers. It is possible that the information you are looking for is listed under another name.
+
+For more information, start with your identity provider's documentation. Look for their options and examples to see how they configure SAML. This can provide hints on what you need to configure GitLab to work with these providers.
+
+It can also help to look at our [more detailed docs for self-managed GitLab](../../../integration/saml.md).
+SAML configuration for GitLab.com is mostly the same as for self-managed instances.
+However, self-managed GitLab instances use a configuration file that supports more options as described in the external [OmniAuth SAML documentation](https://github.com/omniauth/omniauth-saml/).
+Internally that uses the [`ruby-saml` library](https://github.com/onelogin/ruby-saml), so we sometimes check there to verify low level details of less commonly used options.
+
+It can also help to compare the XML response from your provider with our [example XML used for internal testing](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/fixtures/saml/response.xml).
 
 ### SSO enforcement
 
@@ -109,56 +120,106 @@ The certificate [fingerprint algorithm](../../../integration/saml.md#notes-on-co
 > - [Improved](https://gitlab.com/gitlab-org/gitlab/-/issues/211962) in GitLab 13.8 with allowing group owners to not go through SSO.
 > - [Improved](https://gitlab.com/gitlab-org/gitlab/-/issues/9152) in GitLab 13.11 with enforcing open SSO session to use Git if this setting is switched on.
 > - [Improved](https://gitlab.com/gitlab-org/gitlab/-/issues/339888) in GitLab 14.7 to not enforce SSO checks for Git activity originating from CI/CD jobs.
+> - [Improved](https://gitlab.com/gitlab-org/gitlab/-/issues/215155) in GitLab 15.5 [with a flag](../../../administration/feature_flags.md) named `transparent_sso_enforcement` to include transparent enforcement even when SSO enforcement is not enabled. Disabled on GitLab.com.
+> - [Improved](https://gitlab.com/gitlab-org/gitlab/-/issues/375788) in GitLab 15.8 by enabling transparent SSO by default on GitLab.com.
 
-With this option enabled, users must access GitLab using your group GitLab single sign-on URL to access group resources.
-Users can't be added as new members manually.
-Users with the Owner role can use the standard sign in process to make necessary changes to top-level group settings.
+FLAG:
+On self-managed GitLab, transparent SSO enforcement is unavailable. An
+[issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/382917) to add
+transparent SSO enforcement to self-managed GitLab.
+On GitLab.com, transparent SSO enforcement is available by default. To turn off
+transparent SSO, ask a support or production team to enable the
+`transparent_sso_enforcement_override` feature flag for a specific customer
+group.
 
-SSO enforcement does not affect sign in or access to any resources outside of the group. Users can view which groups and projects they are a member of without SSO sign in.
+#### Transparent SSO enforcement
 
-However, users are not prompted to sign in through SSO on each visit. GitLab checks whether a user
-has authenticated through SSO. If it's been more than 1 day since the last sign-in, GitLab
-prompts the user to sign in again through SSO.
+By default, transparent SSO enforcement is enabled in GitLab.com. This means SSO is enforced:
+
+- When users access groups and projects in the organization's
+  group hierarchy. Users can view other groups and projects without SSO sign in.
+- For each user with an existing SAML identity.
+
+When transparent SSO enforcement is enabled, users:
+
+- Are not prompted to sign in through SSO on each visit. GitLab checks
+  whether a user has authenticated through SSO. If the user last signed in more
+  than 24 hours ago, GitLab prompts the user to sign in again through SSO.
+- Without SAML identities are not required to use SSO unless **Enforce
+  SSO-only authentication for web activity for this group** is enabled.
+
+A user has a SAML identity if one or both of the following are true:
+
+- They have signed in to GitLab by using their GitLab group's single sign-on URL.
+- They were provisioned by SCIM.
+
+With transparent SSO enabled, SSO is enforced as follows:
+
+| Project/Group visibility | Enforce SSO setting | Member with identity | Member without identity | Non-member or not signed in |
+|--------------------------|---------------------|--------------------| ------ |------------------------------|
+| Private                  | Off                 | Enforced           | Not enforced | No access                    |
+| Private                  | On            | Enforced           | Enforced | No access                    |
+| Public                   | Off                 | Enforced           | Not enforced | Not enforced                 |
+| Public                   | On            | Enforced           | Enforced | Not enforced                 |
 
 An [issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/297389) to add a similar SSO requirement for API activity.
 
-SSO has the following effects when enabled:
+#### SSO-only for web activity enforcement
 
-- For groups, users can't share a project in the group outside the top-level group,
-  even if the project is forked.
-- For Git activity over SSH and HTTPS, users must have at least one active session signed-in through SSO before they can push to or
-  pull from a GitLab repository.
+When the **Enforce SSO-only authentication for web activity for this group** option is enabled:
+
+- All users must access GitLab by using their GitLab group's single sign-on URL
+  to access group resources, regardless of whether they have an existing SAML
+  identity.
+- SSO is enforced when users access groups and projects in the organization's
+  group hierarchy. Users can view other groups and projects without SSO sign in.
+- Users cannot be added as new members manually.
+- Users with the Owner role can use the standard sign in process to make
+  necessary changes to top-level group settings.
+
+SSO enforcement for web activity has the following effects when enabled:
+
+- For groups, users cannot share a project in the group outside the top-level
+  group, even if the project is forked.
 - Git activity originating from CI/CD jobs do not have the SSO check enforced.
-- Credentials that are not tied to regular users (for example, project and group access tokens, and deploy keys) do not have the SSO check enforced.
-- Users must be signed-in through SSO before they can pull images using the [Dependency Proxy](../../packages/dependency_proxy/index.md).
-- When the **Enforce SSO-only authentication for Git and Dependency Proxy activity for this group** option is enabled, any API endpoint that involves Git activity is under SSO
-  enforcement. For example, creating or deleting a branch, commit, or tag.
+- Credentials that are not tied to regular users (for example, project and group
+  access tokens, and deploy keys) do not have the SSO check enforced.
+- Users must be signed-in through SSO before they can pull images using the
+  [Dependency Proxy](../../packages/dependency_proxy/index.md).
+- When the **Enforce SSO-only authentication for Git and Dependency Proxy
+  activity for this group** option is enabled, any API endpoint that involves
+  Git activity is under SSO enforcement. For example, creating or deleting a
+  branch, commit, or tag. For Git activity over SSH and HTTPS, users must
+  have at least one active session signed-in through SSO before they can push to or
+  pull from a GitLab repository.
 
-When SSO is enforced, users are not immediately revoked. If the user:
+When SSO for web activity is enforced, non-SSO group members do not lose access
+immediately. If the user:
 
-- Is signed out, they cannot access the group after being removed from the identity provider.
-- Has an active session, they can continue accessing the group for up to 24 hours until the identity
-  provider session times out.
+- Has an active session, they can continue accessing the group for up to 24
+  hours until the identity provider session times out.
+- Is signed out, they cannot access the group after being removed from the
+  identity provider.
 
 ## Providers
 
 The SAML standard means that you can use a wide range of identity providers with GitLab. Your identity provider might have relevant documentation. It can be generic SAML documentation or specifically targeted for GitLab.
 
-When [configuring your identity provider](#configure-your-identity-provider), please consider the notes below for specific providers to help avoid common issues and as a guide for terminology used.
+When [configuring your identity provider](#configure-your-identity-provider), consider the notes below for specific providers to help avoid common issues and as a guide for terminology used.
 
-For providers not listed below, you can refer to the [instance SAML notes on configuring an identity provider](../../../integration/saml.md#notes-on-configuring-your-identity-provider)
+For providers not listed below, you can refer to the [instance SAML notes on configuring an identity provider](../../../integration/saml.md#configure-saml-on-your-idp)
 for additional guidance on information your identity provider may require.
 
 GitLab provides the following information for guidance only.
-If you have any questions on configuring the SAML app, please contact your provider's support.
+If you have any questions on configuring the SAML app, contact your provider's support.
 
-### Azure setup notes
+### Set up Azure
 
-Follow the Azure documentation on [configuring single sign-on to applications](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/view-applications-portal) with the notes below for consideration.
+Follow the Azure documentation on [configuring single sign-on to applications](https://learn.microsoft.com/en-us/azure/active-directory/manage-apps/add-application-portal-setup-sso), and use the following notes when needed.
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
-For a demo of the Azure SAML setup including SCIM, see [SCIM Provisioning on Azure Using SAML SSO for Groups Demo](https://youtu.be/24-ZxmTeEBU). The video is outdated in regard to
-objectID mapping and the [SCIM documentation should be followed](scim_setup.md#azure-configuration-steps).
+For a demo of the Azure SAML setup including SCIM, see [SCIM Provisioning on Azure Using SAML SSO for Groups Demo](https://youtu.be/24-ZxmTeEBU).
+The video is outdated in regard to objectID mapping and you should follow the [SCIM documentation](scim_setup.md#configure-azure-active-directory).
 
 | GitLab Setting                       | Azure Field                                |
 | ------------------------------------ | ------------------------------------------ |
@@ -168,87 +229,92 @@ objectID mapping and the [SCIM documentation should be followed](scim_setup.md#a
 | Identity provider single sign-on URL | Login URL                                  |
 | Certificate fingerprint              | Thumbprint                                 |
 
-The recommended attributes and claims settings are:
+You should set the following attributes:
 
-- **Unique User Identifier (Name identifier)** set to `user.objectID`.
-- **nameid-format** set to persistent.
-- Additional claims set to [supported attributes](#user-attributes).
+- **Unique User Identifier (Name identifier)** to `user.objectID`.
+- **nameid-format** to persistent.
+- Additional claims to [supported attributes](#user-attributes).
 
 If using [Group Sync](#group-sync), customize the name of the group claim to match the required attribute.
 
 See our [example configuration page](example_saml_config.md#azure-active-directory).
 
-### Google Workspace setup notes
+### Set up Google Workspace
 
-Follow the Google Workspace documentation on
-[setting up SSO with Google as your identity provider](https://support.google.com/a/answer/6087519?hl=en)
-with the notes below for consideration.
+1. [Set up SSO with Google as your identity provider](https://support.google.com/a/answer/6087519?hl=en).
+   The following GitLab settings correspond to the Google Workspace fields.
 
-| GitLab setting                       | Google Workspace field |
-|:-------------------------------------|:-----------------------|
-| Identifier                           | Entity ID              |
-| Assertion consumer service URL       | ACS URL                |
-| GitLab single sign-on URL            | Start URL              |
-| Identity provider single sign-on URL | SSO URL                |
+   | GitLab setting                       | Google Workspace field |
+   |:-------------------------------------|:-----------------------|
+   | Identifier                           | **Entity ID**          |
+   | Assertion consumer service URL       | **ACS URL**            |
+   | GitLab single sign-on URL            | **Start URL**          |
+   | Identity provider single sign-on URL | **SSO URL**            |
 
-NOTE:
-Google Workspace displays a SHA256 fingerprint. To retrieve the SHA1 fingerprint required by GitLab for [configuring SAML](#configure-gitlab), download the certificate and calculate
-the SHA1 certificate fingerprint using this sample command: `openssl x509 -noout -fingerprint -sha1 -inform pem -in "GoogleIDPCertificate-domain.com.pem"`.
+1. Google Workspace displays a SHA256 fingerprint. To retrieve the SHA1 fingerprint
+   required by GitLab to [configure SAML](#configure-gitlab):
+   1. Download the certificate.
+   1. Run this command:
 
-The recommended attributes and claims settings are:
+      ```shell
+      openssl x509 -noout -fingerprint -sha1 -inform pem -in "GoogleIDPCertificate-domain.com.pem"
+      ```
 
-- **Primary email** set to `email`.
-- **First name** set to `first_name`.
-- **Last name** set to `last_name`.
+1. Set these values:
+   - For **Primary email**: `email`
+   - For **First name**: `first_name`
+   - For **Last name**: `last_name`
+   - For **Name ID format**: `EMAIL`
+   - For **NameID**: `Basic Information > Primary email`
 
-For NameID, the following settings are recommended:
+On the GitLab SAML SSO page, when you select **Verify SAML Configuration**, disregard
+the warning that recommends setting the **NameID** format to `persistent`.
 
-- **Name ID format** is set to `EMAIL`.
-- **NameID** set to `Basic Information > Primary email`.
+For details, see the [example configuration page](example_saml_config.md#google-workspace).
 
-When selecting **Verify SAML Configuration** on the GitLab SAML SSO page, disregard the warning recommending setting the NameID format to "persistent".
-
-See our [example configuration page](example_saml_config.md#google-workspace).
-
-### Okta setup notes
-
-Please follow the Okta documentation on [setting up a SAML application in Okta](https://developer.okta.com/docs/guides/build-sso-integration/saml2/main/) with the notes below for consideration.
+### Set up Okta
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
 For a demo of the Okta SAML setup including SCIM, see [Demo: Okta Group SAML & SCIM setup](https://youtu.be/0ES9HsZq0AQ).
 
-| GitLab Setting                       | Okta Field                                                 |
-| ------------------------------------ | ---------------------------------------------------------- |
-| Identifier                           | Audience URI                                               |
-| Assertion consumer service URL       | Single sign-on URL                                         |
-| GitLab single sign-on URL            | Login page URL (under **Application Login Page** settings) |
-| Identity provider single sign-on URL | Identity Provider Single Sign-On URL                       |
+1. [Set up a SAML application in Okta](https://developer.okta.com/docs/guides/build-sso-integration/saml2/main/).
+   The following GitLab settings correspond to the Okta fields.
 
-Under Okta's **Single sign-on URL** field, check the option **Use this for Recipient URL and Destination URL**.
+   | GitLab setting                       | Okta field                                                 |
+   | ------------------------------------ | ---------------------------------------------------------- |
+   | Identifier                           | **Audience URI**                                               |
+   | Assertion consumer service URL       | **Single sign-on URL**                                         |
+   | GitLab single sign-on URL            | **Login page URL** (under **Application Login Page** settings) |
+   | Identity provider single sign-on URL | **Identity Provider Single Sign-On URL**                       |
 
-For NameID, the following settings are recommended; for SCIM, the following settings are required:
+1. Under the Okta **Single sign-on URL** field, select the **Use this for Recipient URL and Destination URL** checkbox.
 
-- **Application username** (NameID) set to **Custom** `user.getInternalProperty("id")`.
-- **Name ID Format** set to **Persistent**.
+1. Set these values:
+   - For **Application username (NameID)**: **Custom** `user.getInternalProperty("id")`
+   - For **Name ID Format**: `Persistent`
 
-### OneLogin setup notes
+The Okta GitLab application available in the App Catalog only supports [SCIM](scim_setup.md). Support
+for SAML is proposed in [issue 216173](https://gitlab.com/gitlab-org/gitlab/-/issues/216173).
 
-OneLogin supports their own [GitLab (SaaS)](https://onelogin.service-now.com/support?id=kb_article&sys_id=92e4160adbf16cd0ca1c400e0b961923&kb_category=50984e84db738300d5505eea4b961913)
-application.
+### Set up OneLogin
 
-If you decide to use the OneLogin generic [SAML Test Connector (Advanced)](https://onelogin.service-now.com/support?id=kb_article&sys_id=b2c19353dbde7b8024c780c74b9619fb&kb_category=93e869b0db185340d5505eea4b961934),
-we recommend the ["Use the OneLogin SAML Test Connector" documentation](https://onelogin.service-now.com/support?id=kb_article&sys_id=93f95543db109700d5505eea4b96198f) with the following settings:
+OneLogin supports its own [GitLab (SaaS) application](https://onelogin.service-now.com/support?id=kb_article&sys_id=92e4160adbf16cd0ca1c400e0b961923&kb_category=50984e84db738300d5505eea4b961913).
 
-| GitLab Setting                                   | OneLogin Field               |
-| ------------------------------------------------ | ---------------------------- |
-| Identifier                                       | Audience                     |
-| Assertion consumer service URL                   | Recipient                    |
-| Assertion consumer service URL                   | ACS (Consumer) URL           |
-| Assertion consumer service URL (escaped version) | ACS (Consumer) URL Validator |
-| GitLab single sign-on URL                        | Login URL                    |
-| Identity provider single sign-on URL             | SAML 2.0 Endpoint            |
+1. If you use the OneLogin generic
+   [SAML Test Connector (Advanced)](https://onelogin.service-now.com/support?id=kb_article&sys_id=b2c19353dbde7b8024c780c74b9619fb&kb_category=93e869b0db185340d5505eea4b961934),
+   you should [use the OneLogin SAML Test Connector](https://onelogin.service-now.com/support?id=kb_article&sys_id=93f95543db109700d5505eea4b96198f). The following GitLab settings correspond
+   to the OneLogin fields:
 
-Recommended `NameID` value: `OneLogin ID`.
+   | GitLab setting                                   | OneLogin field                   |
+   | ------------------------------------------------ | -------------------------------- |
+   | Identifier                                       | **Audience**                     |
+   | Assertion consumer service URL                   | **Recipient**                    |
+   | Assertion consumer service URL                   | **ACS (Consumer) URL**           |
+   | Assertion consumer service URL (escaped version) | **ACS (Consumer) URL Validator** |
+   | GitLab single sign-on URL                        | **Login URL**                    |
+   | Identity provider single sign-on URL             | **SAML 2.0 Endpoint**            |
+
+1. For **NameID**, use `OneLogin ID`.
 
 ### Change the SAML app
 
@@ -281,9 +347,11 @@ To migrate users to a new email domain, users must:
 
 ## User access and management
 
-> SAML user provisioning [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/268142) in GitLab 13.7.
+> - SAML user provisioning [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/268142) in GitLab 13.7.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/325712) in GitLab 14.0, GitLab users created by [SAML SSO](index.md#user-access-and-management) or SCIM provisioning are displayed with an ][**Enterprise**](../../enterprise_user/index.md) badge in the **Members** view.
 
-Once Group SSO is configured and enabled, users can access the GitLab.com group through the identity provider's dashboard. If [SCIM](scim_setup.md) is configured, please see the [user access and linking setup section on the SCIM page](scim_setup.md#user-access-and-linking-setup).
+After group SSO is configured and enabled, users can access the GitLab.com group through the identity provider's dashboard.
+If [SCIM](scim_setup.md) is configured, see [user access](scim_setup.md#user-access) on the SCIM page.
 
 When a user tries to sign in with Group SSO, GitLab attempts to find or create a user based on the following:
 
@@ -295,10 +363,14 @@ When a user tries to sign in with Group SSO, GitLab attempts to find or create a
 
 ### Linking SAML to your existing GitLab.com account
 
+> **Remember me** checkbox [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/121569) in GitLab 15.7.
+
 To link SAML to your existing GitLab.com account:
 
 1. Sign in to your GitLab.com account. [Reset your password](https://gitlab.com/users/password/new) if necessary.
 1. Locate and visit the **GitLab single sign-on URL** for the group you're signing in to. A group owner can find this on the group's **Settings > SAML SSO** page. If the sign-in URL is configured, users can connect to the GitLab app from the identity provider.
+1. Optional. Select the **Remember me** checkbox to stay signed in to GitLab for 2 weeks. You may still be asked to re-authenticate with your SAML provider
+   more frequently.
 1. Select **Authorize**.
 1. Enter your credentials on the identity provider if prompted.
 1. You are then redirected back to GitLab.com and should now have access to the group. In the future, you can use SAML to sign in to GitLab.com.
@@ -310,6 +382,17 @@ On subsequent visits, you should be able to go [sign in to GitLab.com with SAML]
 1. Sign in to your identity provider.
 1. From the list of apps, select the "GitLab.com" app. (The name is set by the administrator of the identity provider.)
 1. You are then signed in to GitLab.com and redirected to the group.
+
+### Change NameID for one or more users
+
+> Update of SAML identities using the SAML API [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/227841) in GitLab 15.5.
+
+Group owners can update the SAML identities for their group members using the [SAML API](../../../api/saml.md).
+
+Alternatively, ask the users to reconnect their SAML account.
+
+1. Ask relevant users to [unlink their account from the group](#unlinking-accounts).
+1. Ask relevant users to [link their account to the new SAML app](#linking-saml-to-your-existing-gitlabcom-account).
 
 ### Configure user settings from SAML response
 
@@ -357,6 +440,19 @@ convert the information to XML. An example SAML response is shown here.
    </saml2:AttributeStatement>
 ```
 
+### Bypass user email confirmation with verified domains
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/238461) in GitLab 15.4.
+
+By default, users provisioned with SAML or SCIM are sent a verification email to verify their identity. Instead, you can
+[configure GitLab with a custom domain](../../project/pages/custom_domains_ssl_tls_certification/index.md) and GitLab
+automatically confirms user accounts. Users still receive an
+[enterprise user](../../enterprise_user/index.md) welcome email. Confirmation is
+bypassed for users:
+
+- That are provisioned with SAML or SCIM.
+- That have an email address that belongs to the verified domain.
+
 ### Role
 
 Starting from [GitLab 13.3](https://gitlab.com/gitlab-org/gitlab/-/issues/214523), group owners can set a
@@ -378,7 +474,7 @@ To rescind a user's access to the group when only SAML SSO is configured, either
   1. The GitLab.com group.
 - Use Group Sync at the top-level of your group to [automatically remove the user](group_sync.md#automatic-member-removal).
 
-To rescind a user's access to the group when also using SCIM, refer to [Blocking access](scim_setup.md#blocking-access).
+To rescind a user's access to the group when also using SCIM, refer to [Remove access](scim_setup.md#remove-access).
 
 ### Unlinking accounts
 
@@ -397,7 +493,7 @@ group owner, and then you can unlink the account.
 
 For example, to unlink the `MyOrg` account:
 
-1. On the top bar, in the top right corner, select your avatar.
+1. On the top bar, in the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Account**.
 1. In the **Service sign-in** section, select **Disconnect** next to the connected account.
@@ -412,160 +508,4 @@ The [Generated passwords for users created through integrated authentication](..
 
 ## Troubleshooting
 
-This section contains possible solutions for problems you might encounter.
-
-### SAML debugging tools
-
-SAML responses are base64 encoded, so we recommend the following browser plugins to decode them on the fly:
-
-- [SAML-tracer](https://addons.mozilla.org/en-US/firefox/addon/saml-tracer/) for Firefox.
-- [SAML Message Decoder](https://chrome.google.com/webstore/detail/saml-message-decoder/mpabchoaimgbdbbjjieoaeiibojelbhm?hl=en) for Chrome.
-
-Specific attention should be paid to:
-
-- The [NameID](#nameid), which we use to identify which user is signing in. If the user has previously signed in, this [must match the value we have stored](#verifying-nameid).
-- The presence of a `X509Certificate`, which we require to verify the response signature.
-- The `SubjectConfirmation` and `Conditions`, which can cause errors if misconfigured.
-
-#### Generate a SAML Response
-
-SAML Responses can be used to preview the attribute names and values sent in the assertions list while attempting to sign in using an IdP.
-
-To generate a SAML Response:
-
-1. Install either:
-   - [SAML Chrome Panel](https://chrome.google.com/webstore/detail/saml-chrome-panel/paijfdbeoenhembfhkhllainmocckace) for Chrome.
-   - [SAML-tracer](https://addons.mozilla.org/en-US/firefox/addon/saml-tracer/) for Firefox.
-1. Open a new browser tab.
-1. Open the SAML tracer console:
-   - Chrome: Right-click on the page, select **Inspect**, then select the **SAML** tab in the opened developer console.
-   - Firefox: Select the SAML-tracer icon located on the browser toolbar.
-1. Go to the GitLab single sign-on URL for the group in the same browser tab with the SAML tracer open.
-1. Select **Authorize** or attempt to log in. A SAML response is displayed in the tracer console that resembles this
-   [example SAML response](#example-saml-response).
-1. Within the SAML tracer, select the **Export** icon to save the response in JSON format.
-
-### Verifying configuration
-
-For convenience, we've included some [example resources](../../../user/group/saml_sso/example_saml_config.md) used by our Support Team. While they may help you verify the SAML app configuration, they are not guaranteed to reflect the current state of third-party products.
-
-### Verifying NameID
-
-In troubleshooting the Group SAML setup, any authenticated user can use the API to verify the NameID GitLab already has linked to the user by visiting [`https://gitlab.com/api/v4/user`](https://gitlab.com/api/v4/user) and checking the `extern_uid` under identities.
-
-Similarly, group members of a role with the appropriate permissions can make use of the [members API](../../../api/members.md) to view group SAML identity information for members of the group.
-
-This can then be compared to the [NameID](#nameid) being sent by the identity provider by decoding the message with a [SAML debugging tool](#saml-debugging-tools). We require that these match in order to identify users.
-
-### Users receive a 404
-
-Because SAML SSO for groups is a paid feature, your subscription expiring can result in a `404` error when you're signing in using SAML SSO on GitLab.com.
-If all users are receiving a `404` when attempting to log in using SAML, confirm
-[there is an active subscription](../../../subscriptions/gitlab_com/index.md#view-your-gitlab-saas-subscription) being used in this SAML SSO namespace.
-
-If you receive a `404` during setup when using "verify configuration", make sure you have used the correct
-[SHA-1 generated fingerprint](../../../integration/saml.md#notes-on-configuring-your-identity-provider).
-
-If a user is trying to sign in for the first time and the GitLab single sign-on URL has not [been configured](#configure-your-identity-provider), they may see a 404.
-As outlined in the [user access section](#linking-saml-to-your-existing-gitlabcom-account), a group Owner needs to provide the URL to users.
-
-### Message: "SAML authentication failed: Extern UID has already been taken"
-
-This error suggests you are signed in as a GitLab user but have already linked your SAML identity to a different GitLab user. Sign out and then try to sign in again using the SSO SAML link, which should log you into GitLab with the linked user account.
-
-If you do not wish to use that GitLab user with the SAML login, you can [unlink the GitLab account from the group's SAML](#unlinking-accounts).
-
-### Message: "SAML authentication failed: User has already been taken"
-
-The user that you're signed in with already has SAML linked to a different identity, or the NameID value has changed.
-Here are possible causes and solutions:
-
-| Cause                                                                                          | Solution                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| You've tried to link multiple SAML identities to the same user, for a given identity provider. | Change the identity that you sign in with. To do so, [unlink the previous SAML identity](#unlinking-accounts) from this GitLab account before attempting to sign in again. |
-| The NameID changes every time the user requests SSO identification | Check the NameID is not set with `Transient` format, or the NameID is not changing on subsequent requests.|
-
-### Message: "SAML authentication failed: Email has already been taken"
-
-| Cause                                                                                                                                    | Solution                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| When a user account with the email address already exists in GitLab, but the user does not have the SAML identity tied to their account. | The user needs to [link their account](#user-access-and-management). |
-
-User accounts are created in one of the following ways:
-
-- User registration
-- Sign in through OAuth
-- Sign in through SAML
-- SCIM provisioning
-
-### Message: "SAML authentication failed: Extern UID has already been taken, User has already been taken"
-
-Getting both of these errors at the same time suggests the NameID capitalization provided by the identity provider didn't exactly match the previous value for that user.
-
-This can be prevented by configuring the [NameID](#nameid) to return a consistent value. Fixing this for an individual user involves [unlinking SAML in the GitLab account](#unlinking-accounts), although this causes group membership and to-do items to be lost.
-
-### Message: "Request to link SAML account must be authorized"
-
-Ensure that the user who is trying to link their GitLab account has been added as a user within the identity provider's SAML app.
-
-Alternatively, the SAML response may be missing the `InResponseTo` attribute in the
-`samlp:Response` tag, which is [expected by the SAML gem](https://github.com/onelogin/ruby-saml/blob/9f710c5028b069bfab4b9e2b66891e0549765af5/lib/onelogin/ruby-saml/response.rb#L307-L316).
-The identity provider administrator should ensure that the login is
-initiated by the service provider and not the identity provider.
-
-### Message: "Sign in to GitLab to connect your organization's account"
-
-A user can see this message when they are trying to [manually link SAML to their existing GitLab.com account](#linking-saml-to-your-existing-gitlabcom-account).
-
-To resolve this problem, the user should check they are using the correct GitLab password to log in. They first need to
-[reset their password](https://gitlab.com/users/password/new) if both:
-
-- The account was provisioned by SCIM.
-- This is the first time the user has logged in the username and password.
-
-### Stuck in a login "loop"
-
-Ensure that the **GitLab single sign-on URL** has been configured as "Login URL" (or similarly named field) in the identity provider's SAML app.
-
-Alternatively, when users need to [link SAML to their existing GitLab.com account](#linking-saml-to-your-existing-gitlabcom-account), provide the **GitLab single sign-on URL** and instruct users not to use the SAML app on first sign in.
-
-### The NameID has changed
-
-| Cause                                                                                                                                                                                    | Solution                                                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As mentioned in the [NameID](#nameid) section, if the NameID changes for any user, the user can be locked out. This is a common problem when an email address is used as the identifier. | Follow the steps outlined in the ["SAML authentication failed: User has already been taken"](#message-saml-authentication-failed-user-has-already-been-taken) section. |
-
-### I need additional information to configure my identity provider
-
-Many SAML terms can vary between providers. It is possible that the information you are looking for is listed under another name.
-
-For more information, start with your identity provider's documentation. Look for their options and examples to see how they configure SAML. This can provide hints on what you need to configure GitLab to work with these providers.
-
-It can also help to look at our [more detailed docs for self-managed GitLab](../../../integration/saml.md).
-SAML configuration for GitLab.com is mostly the same as for self-managed instances.
-However, self-managed GitLab instances use a configuration file that supports more options as described in the external [OmniAuth SAML documentation](https://github.com/omniauth/omniauth-saml/).
-Internally that uses the [`ruby-saml` library](https://github.com/onelogin/ruby-saml), so we sometimes check there to verify low level details of less commonly used options.
-
-It can also help to compare the XML response from your provider with our [example XML used for internal testing](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/fixtures/saml/response.xml).
-
-### Searching Rails log
-
-With access to the rails log or `production_json.log` (available only to GitLab team members for GitLab.com),
-you should be able to find the base64 encoded SAML response by searching with the following filters:
-
-- `json.meta.caller_id`: `Groups::OmniauthCallbacksController#group_saml`
-- `json.meta.user` or `json.username`: `username`
-- `json.method`: `POST`
-- `json.path`: `/groups/GROUP-PATH/-/saml/callback`
-
-In a relevant log entry, the `json.params` should provide a valid response with:
-
-- `"key": "SAMLResponse"` and the `"value": (full SAML response)`,
-- `"key": "RelayState"` with `"value": "/group-path"`, and
-- `"key": "group_id"` with `"value": "group-path"`.
-
-In some cases, if the SAML response is lengthy, you may receive a `"key": "truncated"` with `"value":"..."`.
-In these cases, please ask a group owner for a copy of the SAML response from when they select
-the "Verify SAML Configuration" button on the group SSO Settings page.
-
-Use a base64 decoder to see a human-readable version of the SAML response.
+See our [troubleshooting SAML guide](troubleshooting.md).

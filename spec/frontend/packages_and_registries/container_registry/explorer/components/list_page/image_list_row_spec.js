@@ -1,6 +1,6 @@
 import { GlIcon, GlSprintf, GlSkeletonLoader, GlButton } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
-import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
+import { createMockDirective } from 'helpers/vue_mock_directive';
 import { mockTracking } from 'helpers/tracking_helper';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import DeleteButton from '~/packages_and_registries/container_registry/explorer/components/delete_button.vue';
@@ -33,7 +33,7 @@ describe('Image List Row', () => {
   const findListItemComponent = () => wrapper.findComponent(ListItem);
   const findShowFullPathButton = () => wrapper.findComponent(GlButton);
 
-  const mountComponent = (props, features = {}) => {
+  const mountComponent = (props) => {
     wrapper = shallowMount(Component, {
       stubs: {
         RouterLink,
@@ -47,12 +47,9 @@ describe('Image List Row', () => {
       },
       provide: {
         config: {},
-        glFeatures: {
-          ...features,
-        },
       },
       directives: {
-        GlTooltip: createMockDirective(),
+        GlTooltip: createMockDirective('gl-tooltip'),
       },
     });
   };
@@ -62,49 +59,44 @@ describe('Image List Row', () => {
     wrapper = null;
   });
 
-  describe('list item component', () => {
-    describe('tooltip', () => {
-      it(`the title is ${ROW_SCHEDULED_FOR_DELETION}`, () => {
-        mountComponent();
-
-        const tooltip = getBinding(wrapper.element, 'gl-tooltip');
-        expect(tooltip).toBeDefined();
-        expect(tooltip.value.title).toBe(ROW_SCHEDULED_FOR_DELETION);
-      });
-
-      it('is disabled when item is being deleted', () => {
-        mountComponent({ item: { ...item, status: IMAGE_DELETE_SCHEDULED_STATUS } });
-
-        const tooltip = getBinding(wrapper.element, 'gl-tooltip');
-        expect(tooltip.value.disabled).toBe(false);
-      });
-    });
-
-    it('is disabled when the item is in deleting status', () => {
-      mountComponent({ item: { ...item, status: IMAGE_DELETE_SCHEDULED_STATUS } });
-
-      expect(findListItemComponent().props('disabled')).toBe(true);
-    });
-  });
-
   describe('image title and path', () => {
-    it('contains a link to the details page', () => {
+    it('renders shortened name of image and contains a link to the details page', () => {
       mountComponent();
 
       const link = findDetailsLink();
-      expect(link.text()).toBe(item.path);
-      expect(findDetailsLink().props('to')).toMatchObject({
+      expect(link.text()).toBe('gitlab-test/rails-12009');
+
+      expect(link.props('to')).toMatchObject({
         name: 'details',
         params: {
           id: getIdFromGraphQLId(item.id),
         },
       });
+
+      expect(findShowFullPathButton().exists()).toBe(true);
     });
 
     it('when the image has no name lists the path', () => {
       mountComponent({ item: { ...item, name: '' } });
 
+      expect(findDetailsLink().text()).toBe('gitlab-test');
+    });
+
+    it('clicking on shortened name of image hides the button & shows full path', async () => {
+      mountComponent();
+
+      const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+      const mockFocusFn = jest.fn();
+      wrapper.vm.$refs.imageName.$el.focus = mockFocusFn;
+
+      await findShowFullPathButton().trigger('click');
+
+      expect(findShowFullPathButton().exists()).toBe(false);
       expect(findDetailsLink().text()).toBe(item.path);
+      expect(mockFocusFn).toHaveBeenCalled();
+      expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_show_full_path', {
+        label: 'registry_image_list',
+      });
     });
 
     it('contains a clipboard button', () => {
@@ -141,41 +133,24 @@ describe('Image List Row', () => {
         mountComponent({ item: { ...item, status: IMAGE_DELETE_SCHEDULED_STATUS } });
       });
 
-      it('the router link is disabled', () => {
-        // we check the event prop as is the only workaround to disable a router link
-        expect(findDetailsLink().props('event')).toBe('');
+      it('the router link does not exist', () => {
+        expect(findDetailsLink().exists()).toBe(false);
       });
+
+      it('image name exists', () => {
+        expect(findListItemComponent().text()).toContain('gitlab-test/rails-12009');
+      });
+
+      it(`contains secondary text ${ROW_SCHEDULED_FOR_DELETION}`, () => {
+        expect(findListItemComponent().text()).toContain(ROW_SCHEDULED_FOR_DELETION);
+      });
+
+      it('the tags count does not exist', () => {
+        expect(findTagsCount().exists()).toBe(false);
+      });
+
       it('the clipboard button is disabled', () => {
         expect(findClipboardButton().attributes('disabled')).toBe('true');
-      });
-    });
-
-    describe('when containerRegistryShowShortenedPath feature enabled', () => {
-      let trackingSpy;
-
-      beforeEach(() => {
-        mountComponent({}, { containerRegistryShowShortenedPath: true });
-        trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
-      });
-
-      it('renders shortened name of image', () => {
-        expect(findShowFullPathButton().exists()).toBe(true);
-        expect(findDetailsLink().text()).toBe('gitlab-test/rails-12009');
-      });
-
-      it('clicking on shortened name of image hides the button & shows full path', async () => {
-        const btn = findShowFullPathButton();
-        const mockFocusFn = jest.fn();
-        wrapper.vm.$refs.imageName.$el.focus = mockFocusFn;
-
-        await btn.trigger('click');
-
-        expect(findShowFullPathButton().exists()).toBe(false);
-        expect(findDetailsLink().text()).toBe(item.path);
-        expect(mockFocusFn).toHaveBeenCalled();
-        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_show_full_path', {
-          label: 'registry_image_list',
-        });
       });
     });
   });
@@ -233,7 +208,7 @@ describe('Image List Row', () => {
 
     it('contains a tag icon', () => {
       mountComponent();
-      const icon = findTagsCount().find(GlIcon);
+      const icon = findTagsCount().findComponent(GlIcon);
       expect(icon.exists()).toBe(true);
       expect(icon.props('name')).toBe('tag');
     });

@@ -21,7 +21,7 @@ module Gitlab
         end
 
         def find
-          return if epic? && group.nil?
+          return if group_relation_without_group?
           return find_diff_commit_user if diff_commit_user?
           return find_diff_commit if diff_commit?
 
@@ -60,10 +60,11 @@ module Gitlab
 
         def prepare_attributes
           attributes.dup.tap do |atts|
-            atts.delete('group') unless epic?
+            atts.delete('group') unless epic? || iteration?
 
             if label?
               atts['type'] = 'ProjectLabel' # Always create project labels
+              atts.delete('group_id')
             elsif milestone?
               if atts['group_id'] # Transform new group milestones into project ones
                 atts['iid'] = nil
@@ -141,6 +142,10 @@ module Gitlab
           klass == MergeRequestDiffCommit
         end
 
+        def iteration?
+          klass == Iteration
+        end
+
         # If an existing group milestone used the IID
         # claim the IID back and set the group milestone to use one available
         # This is necessary to fix situations like the following:
@@ -157,7 +162,13 @@ module Gitlab
           milestone.ensure_project_iid!
           milestone.save!
         end
+
+        def group_relation_without_group?
+          (epic? || iteration?) && group.nil?
+        end
       end
     end
   end
 end
+
+Gitlab::ImportExport::Project::ObjectBuilder.prepend_mod

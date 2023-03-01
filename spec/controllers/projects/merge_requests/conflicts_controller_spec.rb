@@ -22,13 +22,11 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
         allow(Gitlab::UsageDataCounters::MergeRequestActivityUniqueCounter)
           .to receive(:track_loading_conflict_ui_action)
 
-        get :show,
-            params: {
-              namespace_id: merge_request_with_conflicts.project.namespace.to_param,
-              project_id: merge_request_with_conflicts.project,
-              id: merge_request_with_conflicts.iid
-            },
-            format: 'html'
+        get :show, params: {
+          namespace_id: merge_request_with_conflicts.project.namespace.to_param,
+          project_id: merge_request_with_conflicts.project,
+          id: merge_request_with_conflicts.iid
+        }, format: 'html'
       end
 
       it 'does tracks the resolve call' do
@@ -45,13 +43,11 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
         allow(Gitlab::Git::Conflict::Parser).to receive(:parse)
           .and_raise(Gitlab::Git::Conflict::Parser::UnmergeableFile)
 
-        get :show,
-            params: {
-              namespace_id: merge_request_with_conflicts.project.namespace.to_param,
-              project_id: merge_request_with_conflicts.project,
-              id: merge_request_with_conflicts.iid
-            },
-            format: 'json'
+        get :show, params: {
+          namespace_id: merge_request_with_conflicts.project.namespace.to_param,
+          project_id: merge_request_with_conflicts.project,
+          id: merge_request_with_conflicts.iid
+        }, format: 'json'
       end
 
       it 'returns a 200 status code' do
@@ -70,13 +66,11 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
 
     context 'with valid conflicts' do
       before do
-        get :show,
-            params: {
-              namespace_id: merge_request_with_conflicts.project.namespace.to_param,
-              project_id: merge_request_with_conflicts.project,
-              id: merge_request_with_conflicts.iid
-            },
-            format: 'json'
+        get :show, params: {
+          namespace_id: merge_request_with_conflicts.project.namespace.to_param,
+          project_id: merge_request_with_conflicts.project,
+          id: merge_request_with_conflicts.iid
+        }, format: 'json'
       end
 
       it 'matches the schema' do
@@ -105,15 +99,13 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
               if section['conflict']
                 expect(line['type']).to be_in(%w(old new))
                 expect(line.values_at('old_line', 'new_line')).to contain_exactly(nil, a_kind_of(Integer))
+              elsif line['type'].nil?
+                expect(line['old_line']).not_to eq(nil)
+                expect(line['new_line']).not_to eq(nil)
               else
-                if line['type'].nil?
-                  expect(line['old_line']).not_to eq(nil)
-                  expect(line['new_line']).not_to eq(nil)
-                else
-                  expect(line['type']).to eq('match')
-                  expect(line['old_line']).to eq(nil)
-                  expect(line['new_line']).to eq(nil)
-                end
+                expect(line['type']).to eq('match')
+                expect(line['old_line']).to eq(nil)
+                expect(line['new_line']).to eq(nil)
               end
             end
           end
@@ -132,15 +124,13 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
 
   describe 'GET conflict_for_path' do
     def conflict_for_path(path)
-      get :conflict_for_path,
-          params: {
-            namespace_id: merge_request_with_conflicts.project.namespace.to_param,
-            project_id: merge_request_with_conflicts.project,
-            id: merge_request_with_conflicts.iid,
-            old_path: path,
-            new_path: path
-          },
-          format: 'json'
+      get :conflict_for_path, params: {
+        namespace_id: merge_request_with_conflicts.project.namespace.to_param,
+        project_id: merge_request_with_conflicts.project,
+        id: merge_request_with_conflicts.iid,
+        old_path: path,
+        new_path: path
+      }, format: 'json'
     end
 
     context 'when the conflicts cannot be resolved in the UI' do
@@ -180,11 +170,13 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
 
         aggregate_failures do
           expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response).to include('old_path' => path,
-                                           'new_path' => path,
-                                           'blob_icon' => 'doc-text',
-                                           'blob_path' => a_string_ending_with(path),
-                                           'content' => content)
+          expect(json_response).to include(
+            'old_path' => path,
+            'new_path' => path,
+            'blob_icon' => 'doc-text',
+            'blob_path' => a_string_ending_with(path),
+            'content' => content
+          )
         end
       end
     end
@@ -199,15 +191,13 @@ RSpec.describe Projects::MergeRequests::ConflictsController do
     end
 
     def resolve_conflicts(files)
-      post :resolve_conflicts,
-           params: {
-             namespace_id: merge_request_with_conflicts.project.namespace.to_param,
-             project_id: merge_request_with_conflicts.project,
-             id: merge_request_with_conflicts.iid,
-             files: files,
-             commit_message: 'Commit message'
-           },
-           format: 'json'
+      post :resolve_conflicts, params: {
+        namespace_id: merge_request_with_conflicts.project.namespace.to_param,
+        project_id: merge_request_with_conflicts.project,
+        id: merge_request_with_conflicts.iid,
+        files: files,
+        commit_message: 'Commit message'
+      }, format: 'json'
     end
 
     context 'with valid params' do

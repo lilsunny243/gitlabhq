@@ -67,6 +67,14 @@ module Gitlab
       end
       # rubocop: enable CodeReuse/ActiveRecord
 
+      def allocate_issues_internal_id!(project, client)
+        last_bitbucket_issue = client.last_issue(repo)
+
+        return unless last_bitbucket_issue
+
+        Issue.track_project_iid!(project, last_bitbucket_issue.iid)
+      end
+
       def repo
         @repo ||= client.repo(project.import_source)
       end
@@ -86,9 +94,13 @@ module Gitlab
 
         create_labels
 
-        issue_type_id = WorkItems::Type.default_issue_type.id
+        issue_type_id = ::WorkItems::Type.default_issue_type.id
 
-        client.issues(repo).each do |issue|
+        client.issues(repo).each_with_index do |issue, index|
+          # If a user creates an issue while the import is in progress, this can lead to an import failure.
+          # The workaround is to allocate IIDs before starting the importer.
+          allocate_issues_internal_id!(project, client) if index == 0
+
           import_issue(issue, issue_type_id)
         end
       end

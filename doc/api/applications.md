@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Applications API **(FREE)**
@@ -103,7 +103,7 @@ Parameters:
 
 | Attribute | Type    | Required | Description                                         |
 |:----------|:--------|:---------|:----------------------------------------------------|
-| `id`      | integer | yes      | The ID of the application (not the application_id). |
+| `id`      | integer | yes      | The ID of the application (not the `application_id`). |
 
 Example request:
 

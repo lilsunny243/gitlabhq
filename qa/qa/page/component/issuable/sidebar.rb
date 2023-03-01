@@ -18,25 +18,30 @@ module QA
               element :more_assignees_link
             end
 
-            base.view 'app/assets/javascripts/vue_shared/components/sidebar/labels_select_widget/labels_select_root.vue' do
+            base.view 'app/assets/javascripts/sidebar/components/reviewers/reviewer_title.vue' do
+              element :reviewers_edit_button
+            end
+
+            base.view 'app/assets/javascripts/sidebar/components/labels/labels_select_widget/labels_select_root.vue' do
               element :labels_block
             end
 
-            base.view 'app/assets/javascripts/vue_shared/components/sidebar/labels_select_vue/dropdown_contents_labels_view.vue' do
+            base.view 'app/assets/javascripts/sidebar/components/labels/labels_select_vue/dropdown_contents_labels_view.vue' do
               element :dropdown_input_field
             end
 
-            base.view 'app/assets/javascripts/vue_shared/components/sidebar/labels_select_widget/dropdown_contents.vue' do
+            base.view 'app/assets/javascripts/sidebar/components/labels/labels_select_widget/dropdown_contents.vue' do
               element :labels_dropdown_content
             end
 
-            base.view 'app/assets/javascripts/vue_shared/components/sidebar/labels_select_widget/dropdown_value.vue' do
+            base.view 'app/assets/javascripts/sidebar/components/labels/labels_select_widget/dropdown_value.vue' do
               element :selected_label_content
             end
 
             base.view 'app/views/shared/issuable/_sidebar.html.haml' do
               element :assignee_block_container
               element :milestone_block
+              element :reviewers_block_container
             end
 
             base.view 'app/assets/javascripts/sidebar/components/sidebar_dropdown_widget.vue' do
@@ -45,6 +50,10 @@ module QA
 
             base.view 'app/assets/javascripts/sidebar/components/sidebar_editable_item.vue' do
               element :edit_link
+            end
+
+            base.view 'app/helpers/dropdowns_helper.rb' do
+              element :dropdown_list_content
             end
           end
 
@@ -74,6 +83,24 @@ module QA
           def has_no_assignee?(username)
             wait_assignees_block_finish_loading do
               has_no_text?(username)
+            end
+          end
+
+          def has_reviewer?(username)
+            wait_reviewers_block_finish_loading do
+              has_text?(username)
+            end
+          end
+
+          def has_no_reviewer?(username)
+            wait_reviewers_block_finish_loading do
+              has_no_text?(username)
+            end
+          end
+
+          def has_no_reviewers?
+            wait_reviewers_block_finish_loading do
+              has_text?('None')
             end
           end
 
@@ -124,10 +151,66 @@ module QA
             click_element(:more_assignees_link)
           end
 
+          def toggle_reviewers_edit
+            click_element(:reviewers_edit_button)
+          end
+
+          def suggested_reviewer_usernames
+            within_element(:reviewers_block_container) do
+              wait_for_requests
+
+              click_element(:reviewers_edit_button)
+              wait_for_requests
+
+              list = find_element(:dropdown_list_content)
+              suggested_reviewers = list.find_all('li[data-user-suggested="true"')
+              raise ElementNotFound, 'No suggested reviewers found' if suggested_reviewers.nil?
+
+              suggested_reviewers.map do |reviewer|
+                info = reviewer.text.split('@')
+                {
+                  name: info[0].chomp,
+                  username: info[1].chomp
+                }
+              end.compact
+            end
+          end
+
+          def unassign_reviewers
+            within_element(:reviewers_block_container) do
+              wait_for_requests
+
+              click_element(:reviewers_edit_button)
+              wait_for_requests
+            end
+
+            select_reviewer('Unassigned')
+          end
+
+          def select_reviewer(username)
+            within_element(:reviewers_block_container) do
+              within_element(:dropdown_list_content) do
+                click_on username
+              end
+
+              click_element(:reviewers_edit_button)
+              wait_for_requests
+            end
+          end
+
           private
 
           def wait_assignees_block_finish_loading
             within_element(:assignee_block_container) do
+              wait_until(reload: false, max_duration: 10, sleep_interval: 1) do
+                finished_loading_block?
+                yield
+              end
+            end
+          end
+
+          def wait_reviewers_block_finish_loading
+            within_element(:reviewers_block_container) do
               wait_until(reload: false, max_duration: 10, sleep_interval: 1) do
                 finished_loading_block?
                 yield

@@ -9,25 +9,27 @@ module Resolvers
 
       alias_method :runner, :object
 
-      def resolve_with_lookahead(**args)
+      def resolve_with_lookahead(**_args)
         resolve_owner
+      end
+
+      private
+
+      def node_selection(selection = lookahead)
+        # There are no nodes or edges selections in RunnerOwnerProjectResolver, but rather a project directly
+        selection
+      end
+
+      def unconditional_includes
+        [:project_feature]
       end
 
       def preloads
         {
-          full_path: [:route]
+          full_path: [:route, { namespace: [:route] }],
+          web_url: [:route, { namespace: [:route] }]
         }
       end
-
-      def filtered_preloads
-        selection = lookahead
-
-        preloads.each.flat_map do |name, requirements|
-          selection&.selects?(name) ? requirements : []
-        end
-      end
-
-      private
 
       def resolve_owner
         return unless runner.project_type?
@@ -48,14 +50,13 @@ module Resolvers
               .transform_values { |runner_projects| runner_projects.first.project_id }
           project_ids = owner_project_id_by_runner_id.values.uniq
 
-          all_preloads = unconditional_includes + filtered_preloads
-          owner_relation = Project.all
-          owner_relation = owner_relation.preload(*all_preloads) if all_preloads.any?
-          projects = owner_relation.where(id: project_ids).index_by(&:id)
+          projects = apply_lookahead(Project.id_in(project_ids))
+          Preloaders::ProjectPolicyPreloader.new(projects, current_user).execute
+          projects_by_id = projects.index_by(&:id)
 
           runner_ids.each do |runner_id|
             owner_project_id = owner_project_id_by_runner_id[runner_id]
-            loader.call(runner_id, projects[owner_project_id])
+            loader.call(runner_id, projects_by_id[owner_project_id])
           end
           # rubocop: enable CodeReuse/ActiveRecord
         end

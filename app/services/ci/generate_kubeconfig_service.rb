@@ -2,9 +2,11 @@
 
 module Ci
   class GenerateKubeconfigService
-    def initialize(pipeline, token:)
+    def initialize(pipeline, token:, environment:)
       @pipeline = pipeline
       @token = token
+      @environment = environment
+
       @template = Gitlab::Kubernetes::Kubeconfig::Template.new
     end
 
@@ -14,7 +16,8 @@ module Ci
         url: Gitlab::Kas.tunnel_url
       )
 
-      agents.each do |agent|
+      agent_authorizations.each do |authorization|
+        agent = authorization.agent
         user = user_name(agent)
 
         template.add_user(
@@ -24,6 +27,7 @@ module Ci
 
         template.add_context(
           name: context_name(agent),
+          namespace: context_namespace(authorization),
           cluster: cluster_name,
           user: user
         )
@@ -34,10 +38,13 @@ module Ci
 
     private
 
-    attr_reader :pipeline, :token, :template
+    attr_reader :pipeline, :token, :environment, :template
 
-    def agents
-      pipeline.authorized_cluster_agents
+    def agent_authorizations
+      ::Clusters::Agents::FilterAuthorizationsService.new(
+        pipeline.cluster_agent_authorizations,
+        environment: environment
+      ).execute
     end
 
     def cluster_name
@@ -50,6 +57,10 @@ module Ci
 
     def context_name(agent)
       [agent.project.full_path, agent.name].join(delimiter)
+    end
+
+    def context_namespace(authorization)
+      authorization.config['default_namespace']
     end
 
     def agent_token(agent)

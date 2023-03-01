@@ -22,7 +22,7 @@ module Gitlab
 
         unless credentials
           raise Projects::ImportService::Error,
-                "Unable to find project import data credentials for project ID: #{@project.id}"
+            "Unable to find project import data credentials for project ID: #{@project.id}"
         end
 
         opts = {}
@@ -55,9 +55,7 @@ module Gitlab
         import_comments(:issues)
 
         # Gitea doesn't have an API endpoint for pull requests comments
-        unless project.gitea_import?
-          import_comments(:pull_requests)
-        end
+        import_comments(:pull_requests) unless project.gitea_import?
 
         import_wiki
 
@@ -67,9 +65,7 @@ module Gitlab
         # See:
         # 1) https://gitlab.com/gitlab-org/gitlab/-/issues/343448#note_985979730
         # 2) https://gitlab.com/gitlab-org/gitlab/-/merge_requests/89694/diffs#dfc4a8141aa296465ea3c50b095a30292fb6ebc4_180_182
-        unless project.gitea_import?
-          import_releases
-        end
+        import_releases unless project.gitea_import?
 
         handle_errors
 
@@ -96,7 +92,7 @@ module Gitlab
       def import_labels
         fetch_resources(:labels, repo, per_page: 100) do |labels|
           labels.each do |raw|
-            gh_label = LabelFormatter.new(project, raw)
+            gh_label = LabelFormatter.new(project, raw.to_h)
             gh_label.create!
           rescue StandardError => e
             errors << { type: :label, url: Gitlab::UrlSanitizer.sanitize(gh_label.url), errors: e.message }
@@ -109,7 +105,7 @@ module Gitlab
       def import_milestones
         fetch_resources(:milestones, repo, state: :all, per_page: 100) do |milestones|
           milestones.each do |raw|
-            gh_milestone = MilestoneFormatter.new(project, raw)
+            gh_milestone = MilestoneFormatter.new(project, raw.to_h)
             gh_milestone.create!
           rescue StandardError => e
             errors << { type: :milestone, url: Gitlab::UrlSanitizer.sanitize(gh_milestone.url), errors: e.message }
@@ -121,6 +117,7 @@ module Gitlab
       def import_issues
         fetch_resources(:issues, repo, state: :all, sort: :created, direction: :asc, per_page: 100) do |issues|
           issues.each do |raw|
+            raw = raw.to_h
             gh_issue = IssueFormatter.new(project, raw, client)
 
             begin
@@ -141,8 +138,9 @@ module Gitlab
       # rubocop: enable CodeReuse/ActiveRecord
 
       def import_pull_requests
-        fetch_resources(:pull_requests, repo, state: :all, sort: :created, direction: :asc, per_page: 100) do |pull_requests|
-          pull_requests.each do |raw|
+        fetch_resources(:pull_requests, repo, state: :all, sort: :created, direction: :asc, per_page: 100) do |prs|
+          prs.each do |raw|
+            raw = raw.to_h
             gh_pull_request = PullRequestFormatter.new(project, raw, client)
 
             next unless gh_pull_request.valid?
@@ -154,11 +152,13 @@ module Gitlab
               merge_request = gh_pull_request.create!
 
               # Gitea doesn't return PR in the Issue API endpoint, so labels must be assigned at this stage
-              if project.gitea_import?
-                apply_labels(merge_request, raw)
-              end
+              apply_labels(merge_request, raw) if project.gitea_import?
             rescue StandardError => e
-              errors << { type: :pull_request, url: Gitlab::UrlSanitizer.sanitize(gh_pull_request.url), errors: e.message }
+              errors << {
+                type: :pull_request,
+                url: Gitlab::UrlSanitizer.sanitize(gh_pull_request.url),
+                errors: e.message
+              }
             ensure
               clean_up_restored_branches(gh_pull_request)
             end
@@ -190,11 +190,11 @@ module Gitlab
       end
 
       def apply_labels(issuable, raw)
-        return unless raw.labels.count > 0
+        raw = raw.to_h
 
-        label_ids = raw.labels
-          .map { |attrs| @labels[attrs.name] }
-          .compact
+        return unless raw[:labels].count > 0
+
+        label_ids = raw[:labels].filter_map { |attrs| @labels[attrs[:name]] }
 
         issuable.update_attribute(:label_ids, label_ids)
       end
@@ -204,10 +204,14 @@ module Gitlab
         resource_type = "#{issuable_type}_comments".to_sym
 
         # Two notes here:
-        # 1. We don't have a distinctive attribute for comments (unlike issues iid), so we fetch the last inserted note,
-        # compare it against every comment in the current imported page until we find match, and that's where start importing
-        # 2. GH returns comments for _both_ issues and PRs through issues_comments API, while pull_requests_comments returns
-        # only comments on diffs, so select last note not based on noteable_type but on line_code
+        # 1. We don't have a distinctive attribute for comments (unlike issues
+        # iid), so we fetch the last inserted note, compare it against every
+        # comment in the current imported page until we find match, and that's
+        # where start importing
+        # 2. GH returns comments for _both_ issues and PRs through
+        # issues_comments API, while pull_requests_comments returns only
+        # comments on diffs, so select last note not based on noteable_type but
+        # on line_code
         line_code_is = issuable_type == :pull_requests ? 'NOT NULL' : 'NULL'
         last_note    = project.notes.where("line_code IS #{line_code_is}").last
 
@@ -226,10 +230,12 @@ module Gitlab
       def create_comments(comments)
         ActiveRecord::Base.no_touching do
           comments.each do |raw|
+            raw = raw.to_h
+
             comment = CommentFormatter.new(project, raw, client)
 
             # GH does not return info about comment's parent, so we guess it by checking its URL!
-            *_, parent, iid = URI(raw.html_url).path.split('/')
+            *_, parent, iid = URI(raw[:html_url]).path.split('/')
 
             issuable = if parent == 'issues'
                          Issue.find_by(project_id: project.id, iid: iid)
@@ -241,7 +247,7 @@ module Gitlab
 
             issuable.notes.create!(comment.attributes)
           rescue StandardError => e
-            errors << { type: :comment, url: Gitlab::UrlSanitizer.sanitize(raw.url), errors: e.message }
+            errors << { type: :comment, url: Gitlab::UrlSanitizer.sanitize(raw[:url]), errors: e.message }
           end
         end
       end
@@ -251,14 +257,15 @@ module Gitlab
         last_note_attrs = nil
 
         cut_off_index = comments.find_index do |raw|
-          comment           = CommentFormatter.new(project, raw)
+          comment           = CommentFormatter.new(project, raw.to_h)
           comment_attrs     = comment.attributes
           last_note_attrs ||= last_note.slice(*comment_attrs.keys)
 
           comment_attrs.with_indifferent_access == last_note_attrs
         end
 
-        # No matching resource in the collection, which means we got halted right on the end of the last page, so all good
+        # No matching resource in the collection, which means we got halted
+        # right on the end of the last page, so all good
         return unless cut_off_index
 
         # Otherwise, remove the resources we've already inserted
@@ -274,15 +281,13 @@ module Gitlab
         # GitHub error message when the wiki repo has not been created,
         # this means that repo has wiki enabled, but have no pages. So,
         # we can skip the import.
-        if e.message !~ /repository not exported/
-          errors << { type: :wiki, errors: e.message }
-        end
+        errors << { type: :wiki, errors: e.message } if e.message.exclude?('repository not exported')
       end
 
       def import_releases
         fetch_resources(:releases, repo, per_page: 100) do |releases|
           releases.each do |raw|
-            gh_release = ReleaseFormatter.new(project, raw)
+            gh_release = ReleaseFormatter.new(project, raw.to_h)
             gh_release.create! if gh_release.valid?
           rescue StandardError => e
             errors << { type: :release, url: Gitlab::UrlSanitizer.sanitize(gh_release.url), errors: e.message }

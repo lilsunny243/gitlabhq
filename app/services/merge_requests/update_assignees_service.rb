@@ -18,7 +18,10 @@ module MergeRequests
       return merge_request if old_ids.to_set == new_ids.to_set # no-change
 
       attrs = update_attrs.merge(assignee_ids: new_ids)
-      merge_request.update!(**attrs)
+
+      merge_request.update(**attrs)
+
+      return merge_request unless merge_request.valid?
 
       # Defer the more expensive operations (handle_assignee_changes) to the background
       MergeRequests::HandleAssigneesChangeService

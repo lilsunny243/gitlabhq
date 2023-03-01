@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # OpenShift support
@@ -29,11 +29,11 @@ The GitLab Operator does not include the GitLab Runner. To install and manage a 
 
 ## Unsupported GitLab features
 
-### Secure and Protect
+### Secure
 
-- License Compliance
-- Code Quality scanning
-- Cluster Image Scanning
+- [License Compliance](../../user/compliance/license_compliance/index.md)
+- [Code Quality scanning](../../ci/testing/code_quality.md)
+- [Operational Container Scanning](../../user/clusters/agent/vulnerabilities.md) (Note: Pipeline [Container Scanning](../../user/application_security/container_scanning/index.md) is supported)
 
 ### Docker-in-Docker
 

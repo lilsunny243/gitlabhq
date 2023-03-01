@@ -35,11 +35,13 @@ FactoryBot.define do
       end
       metrics_dashboard_access_level { ProjectFeature::PRIVATE }
       operations_access_level { ProjectFeature::ENABLED }
+      monitor_access_level { ProjectFeature::ENABLED }
       container_registry_access_level { ProjectFeature::ENABLED }
       security_and_compliance_access_level { ProjectFeature::PRIVATE }
       environments_access_level { ProjectFeature::ENABLED }
       feature_flags_access_level { ProjectFeature::ENABLED }
       releases_access_level { ProjectFeature::ENABLED }
+      infrastructure_access_level { ProjectFeature::ENABLED }
 
       # we can't assign the delegated `#ci_cd_settings` attributes directly, as the
       # `#ci_cd_settings` relation needs to be created first
@@ -53,7 +55,8 @@ FactoryBot.define do
       import_last_error { nil }
       forward_deployment_enabled { nil }
       restrict_user_defined_variables { nil }
-      ci_job_token_scope_enabled { nil }
+      ci_outbound_job_token_scope_enabled { nil }
+      ci_inbound_job_token_scope_enabled { nil }
       runner_token_expiration_interval { nil }
       runner_token_expiration_interval_human_readable { nil }
     end
@@ -111,7 +114,8 @@ FactoryBot.define do
       project.merge_trains_enabled = evaluator.merge_trains_enabled unless evaluator.merge_trains_enabled.nil?
       project.keep_latest_artifact = evaluator.keep_latest_artifact unless evaluator.keep_latest_artifact.nil?
       project.restrict_user_defined_variables = evaluator.restrict_user_defined_variables unless evaluator.restrict_user_defined_variables.nil?
-      project.ci_job_token_scope_enabled = evaluator.ci_job_token_scope_enabled unless evaluator.ci_job_token_scope_enabled.nil?
+      project.ci_outbound_job_token_scope_enabled = evaluator.ci_outbound_job_token_scope_enabled unless evaluator.ci_outbound_job_token_scope_enabled.nil?
+      project.ci_inbound_job_token_scope_enabled = evaluator.ci_inbound_job_token_scope_enabled unless evaluator.ci_inbound_job_token_scope_enabled.nil?
       project.runner_token_expiration_interval = evaluator.runner_token_expiration_interval unless evaluator.runner_token_expiration_interval.nil?
       project.runner_token_expiration_interval_human_readable = evaluator.runner_token_expiration_interval_human_readable unless evaluator.runner_token_expiration_interval_human_readable.nil?
 
@@ -248,9 +252,36 @@ FactoryBot.define do
       transient do
         create_templates { nil }
         create_branch { nil }
+        create_tag { nil }
+        lfs { false }
       end
 
       after :create do |project, evaluator|
+        # Specify `lfs: true` to create the LfsObject for the LFS file in the test repo:
+        # https://gitlab.com/gitlab-org/gitlab-test/-/blob/master/files/lfs/lfs_object.iso
+        if evaluator.lfs
+          RSpec::Mocks.with_temporary_scope do
+            # If lfs object store is disabled we need to mock
+            unless Gitlab.config.lfs.object_store.enabled
+              config = Gitlab.config.lfs.object_store.merge('enabled' => true)
+              allow(LfsObjectUploader).to receive(:object_store_options).and_return(config)
+              Fog.mock!
+              Fog::Storage.new(LfsObjectUploader.object_store_credentials).tap do |connection|
+                connection.directories.create(key: config.remote_directory) # rubocop:disable Rails/SaveBang
+
+                # Cleanup remaining files
+                connection.directories.each do |directory|
+                  directory.files.map(&:destroy)
+                end
+              rescue Excon::Error::Conflict
+              end
+            end
+
+            lfs_object = create(:lfs_object, :with_lfs_object_dot_iso_file)
+            create(:lfs_objects_project, project: project, lfs_object: lfs_object)
+          end
+        end
+
         if evaluator.create_templates
           templates_path = "#{evaluator.create_templates}_templates"
 
@@ -281,7 +312,13 @@ FactoryBot.define do
             "README on branch #{evaluator.create_branch}",
             message: 'Add README.md',
             branch_name: evaluator.create_branch)
+        end
 
+        if evaluator.create_tag
+          project.repository.add_tag(
+            project.creator,
+            evaluator.create_tag,
+            project.repository.commit.sha)
         end
 
         project.track_project_repository
@@ -317,6 +354,18 @@ FactoryBot.define do
       end
     end
 
+    trait :stubbed_commit_count do
+      after(:build) do |project|
+        stub_method(project.repository, :commit_count) { 2 }
+      end
+    end
+
+    trait :stubbed_branch_count do
+      after(:build) do |project|
+        stub_method(project.repository, :branch_count) { 2 }
+      end
+    end
+
     trait :wiki_repo do
       after(:create) do |project|
         stub_feature_flags(main_branch_over_master: false)
@@ -327,12 +376,6 @@ FactoryBot.define do
 
     trait :read_only do
       repository_read_only { true }
-    end
-
-    trait :broken_repo do
-      after(:create) do |project|
-        TestEnv.rm_storage_dir(project.repository_storage, "#{project.disk_path}.git/refs")
-      end
     end
 
     trait :test_repo do
@@ -426,19 +469,32 @@ FactoryBot.define do
     error_tracking_setting { association :project_error_tracking_setting }
   end
 
+  trait :with_redmine_integration do
+    has_external_issue_tracker { true }
+
+    redmine_integration
+  end
+
+  trait :with_jira_integration do
+    has_external_issue_tracker { true }
+
+    after :create do |project|
+      create(:jira_integration, project: project)
+    end
+  end
+
+  trait :with_prometheus_integration do
+    after :create do |project|
+      create(:prometheus_integration, project: project)
+    end
+  end
+
   # Project with empty repository
   #
   # This is a case when you just created a project
   # but not pushed any code there yet
   factory :project_empty_repo, parent: :project do
     empty_repo
-  end
-
-  # Project with broken repository
-  #
-  # Project with an invalid repository state
-  factory :project_broken_repo, parent: :project do
-    broken_repo
   end
 
   factory :forked_project_with_submodules, parent: :project do
@@ -452,47 +508,15 @@ FactoryBot.define do
     end
   end
 
-  factory :redmine_project, parent: :project do
-    has_external_issue_tracker { true }
-
-    redmine_integration
-  end
-
-  factory :youtrack_project, parent: :project do
-    has_external_issue_tracker { true }
-
-    youtrack_integration
-  end
-
-  factory :jira_project, parent: :project do
-    has_external_issue_tracker { true }
-
-    jira_integration
-  end
-
-  factory :prometheus_project, parent: :project do
-    after :create do |project|
-      project.create_prometheus_integration(
-        active: true,
-        properties: {
-          api_url: 'https://prometheus.example.com/',
-          manual_configuration: true
-        }
-      )
-    end
-  end
-
-  factory :ewm_project, parent: :project do
-    has_external_issue_tracker { true }
-
-    ewm_integration
-  end
-
   factory :project_with_design, parent: :project do
     after(:create) do |project|
       issue = create(:issue, project: project)
       create(:design, project: project, issue: issue)
     end
+  end
+
+  trait :in_group do
+    namespace factory: [:group]
   end
 
   trait :in_subgroup do

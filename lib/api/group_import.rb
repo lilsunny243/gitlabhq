@@ -32,6 +32,7 @@ module API
     resource :groups, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       desc 'Workhorse authorize the group import upload' do
         detail 'This feature was introduced in GitLab 12.8'
+        tags ['group_import']
       end
       post 'import/authorize' do
         require_gitlab_workhorse!
@@ -49,12 +50,20 @@ module API
 
       desc 'Create a new group import' do
         detail 'This feature was introduced in GitLab 12.8'
-        success Entities::Group
+        success code: 202
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 400, message: 'Bad request' },
+          { code: 503, message: 'Service unavailable' }
+        ]
+        consumes ['multipart/form-data']
+        tags ['group_import']
       end
       params do
         requires :path, type: String, desc: 'Group path'
         requires :name, type: String, desc: 'Group name'
-        requires :file, type: ::API::Validations::Types::WorkhorseFile, desc: 'The group export file to be imported'
+        requires :file, type: ::API::Validations::Types::WorkhorseFile, desc: 'The group export file to be imported', documentation: { type: 'file' }
         optional :parent_id, type: Integer, desc: "The ID of the parent group that the group will be imported into. Defaults to the current user's namespace."
       end
       post 'import' do

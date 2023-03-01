@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Secure
 group: Composition Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Dependency Scanning **(ULTIMATE)**
@@ -48,7 +48,7 @@ possible, we encourage you to use all of our security scanning tools:
   then performs a build to fetch upstream dependency information. In the case of
   containers, Dependency Scanning uses the compatible manifest and reports only these
   declared software dependencies (and those installed as a sub-dependency).
-  Dependency Scanning can not detect software dependencies that are pre-bundled
+  Dependency Scanning cannot detect software dependencies that are pre-bundled
   into the container's base image. To identify pre-bundled dependencies, enable
   [Container Scanning](../container_scanning/index.md) language scanning using the
   [`CS_DISABLE_LANGUAGE_VULNERABILITY_SCAN` variable](../container_scanning/index.md#report-language-specific-findings).
@@ -59,7 +59,7 @@ possible, we encourage you to use all of our security scanning tools:
   Turning this variable on can result in some duplicate findings, as we do not yet
   de-duplicate results between Container Scanning and Dependency Scanning. For more details,
   efforts to de-duplicate these findings can be tracked in
-  [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/348655).
+  [this epic](https://gitlab.com/groups/gitlab-org/-/epics/8026).
 
 The following table summarizes which types of dependencies each scanning tool can detect:
 
@@ -94,7 +94,7 @@ is **not** `19.03.0`. See [troubleshooting information](#error-response-from-dae
 
 WARNING:
 Dependency Scanning does not support run-time installation of compilers and interpreters.
-If you need it, please explain why by filling out [the survey](https://docs.google.com/forms/d/e/1FAIpQLScKo7xEYA65rOjPTGIufAyfjPGnCALSJZoTxBlvskfFMEOZMw/viewform).
+If you need it, explain why by filling out [the survey](https://docs.google.com/forms/d/e/1FAIpQLScKo7xEYA65rOjPTGIufAyfjPGnCALSJZoTxBlvskfFMEOZMw/viewform).
 
 ## Supported languages and package managers
 
@@ -109,7 +109,7 @@ maximum of two directory levels from the repository's root. For example, the
 `gemnasium-dependency_scanning` job is enabled if a repository contains either `Gemfile`,
 `api/Gemfile`, or `api/client/Gemfile`, but not if the only supported dependency file is `api/v1/client/Gemfile`.
 
-For Java and Python, when a supported depedency file is detected, Dependency Scanning attempts to build the project and execute some Java or Python commands to get the list of dependencies. For all other projects, the lock file is parsed to obtain the list of dependencies without needing to build the project first.
+For Java and Python, when a supported dependency file is detected, Dependency Scanning attempts to build the project and execute some Java or Python commands to get the list of dependencies. For all other projects, the lock file is parsed to obtain the list of dependencies without needing to build the project first.
 
 When a supported dependency file is detected, all dependencies, including transitive dependencies are analyzed. There is no limit to the depth of nested or transitive dependencies that are analyzed.
 
@@ -155,23 +155,14 @@ table.supported-languages ul {
   </thead>
   <tbody>
     <tr>
-      <td>Ruby</td>
-      <td>All versions</td>
-      <td><a href="https://bundler.io/">Bundler</a></td>
-      <td>
-        <ul>
-            <li><code>Gemfile.lock</code></li>
-            <li><code>gems.locked</code></li>
-        </ul>
-      </td>
-      <td>Y</td>
+      <td>.NET</td>
+      <td rowspan="2">All versions</td>
+      <td rowspan="2"><a href="https://www.nuget.org/">NuGet</a></td>
+      <td rowspan="2"><a href="https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#enabling-lock-file"><code>packages.lock.json</code></a></td>
+      <td rowspan="2">Y</td>
     </tr>
     <tr>
-      <td>PHP</td>
-      <td>All versions</td>
-      <td><a href="https://getcomposer.org/">Composer</a></td>
-      <td><code>composer.lock</code></td>
-      <td>Y</td>
+      <td>C#</td>
     </tr>
     <tr>
       <td>C</td>
@@ -187,19 +178,24 @@ table.supported-languages ul {
       <td>Go</td>
       <td>All versions</td>
       <td><a href="https://go.dev/">Go</a></td>
-      <td><code>go.sum</code></td>
+      <td>
+        <ul>
+          <li><code>go.mod</code></li>
+          <li><code>go.sum</code></li>
+        </ul>
+      </td>
       <td>Y</td>
     </tr>
     <tr>
       <td rowspan="2">Java</td>
       <td rowspan="2">
-        8,
-        11,
+        8 LTS,
+        11 LTS,
         13<sup><b><a href="#notes-regarding-supported-languages-and-package-managers-1">1</a></b></sup>,
         14<sup><b><a href="#notes-regarding-supported-languages-and-package-managers-1">1</a></b></sup>,
         15<sup><b><a href="#notes-regarding-supported-languages-and-package-managers-1">1</a></b></sup>,
         16<sup><b><a href="#notes-regarding-supported-languages-and-package-managers-1">1</a></b></sup>,
-        or 17
+        or 17 LTS
       </td>
       <td><a href="https://gradle.org/">Gradle</a><sup><b><a href="#notes-regarding-supported-languages-and-package-managers-2">2</a></b></sup></td>
       <td>
@@ -216,12 +212,12 @@ table.supported-languages ul {
       <td>N</td>
     </tr>
     <tr>
-      <td rowspan="2">JavaScript</td>
+      <td rowspan="2">JavaScript and TypeScript</td>
       <td>All versions</td>
       <td><a href="https://www.npmjs.com/">npm</a></td>
       <td>
         <ul>
-            <li><code>package-lock.json</code><sup><b><a href="#notes-regarding-supported-languages-and-package-managers-3">3</a></b></sup></li>
+            <li><code>package-lock.json</code></li>
             <li><code>npm-shrinkwrap.json</code></li>
         </ul>
       </td>
@@ -234,14 +230,11 @@ table.supported-languages ul {
       <td>Y</td>
     </tr>
     <tr>
-      <td>.NET</td>
-      <td rowspan="2">All versions</td>
-      <td rowspan="2"><a href="https://www.nuget.org/">NuGet</a></td>
-      <td rowspan="2"><a href="https://docs.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#enabling-lock-file"><code>packages.lock.json</code></a></td>
-      <td rowspan="2">Y</td>
-    </tr>
-    <tr>
-      <td>C#</td>
+      <td>PHP</td>
+      <td>All versions</td>
+      <td><a href="https://getcomposer.org/">Composer</a></td>
+      <td><code>composer.lock</code></td>
+      <td>Y</td>
     </tr>
     <tr>
       <td rowspan="4">Python</td>
@@ -277,6 +270,18 @@ table.supported-languages ul {
       <td>N</td>
     </tr>
     <tr>
+      <td>Ruby</td>
+      <td>All versions</td>
+      <td><a href="https://bundler.io/">Bundler</a></td>
+      <td>
+        <ul>
+            <li><code>Gemfile.lock</code></li>
+            <li><code>gems.locked</code></li>
+        </ul>
+      </td>
+      <td>Y</td>
+    </tr>
+    <tr>
       <td>Scala</td>
       <td>All versions</td>
       <td><a href="https://www.scala-sbt.org/">sbt</a><sup><b><a href="#notes-regarding-supported-languages-and-package-managers-6">6</a></b></sup></td>
@@ -290,28 +295,22 @@ table.supported-languages ul {
   <li>
     <a id="notes-regarding-supported-languages-and-package-managers-1"></a>
     <p>
-      This version of Java is not supported by the FIPS-enabled image of <code>gemnasium-maven</code>.
+      Support for these versions of Java is deprecated and is planned to be removed in the GitLab 16.0 release. Additionally, these versions of Java are not supported by the FIPS-enabled image of <code>gemnasium-maven</code>. Official support is limited to LTS versions only. Although it may be possible to use Dependency Scanning with other versions by building a custom dependency scanning image, this approach is not officially supported by GitLab.
     </p>
   </li>
   <li>
     <a id="notes-regarding-supported-languages-and-package-managers-2"></a>
     <p>
       Although Gradle with Java 8 is supported, there are other issues such that Android project builds are not supported at this time.
-      Please see the backlog issue <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/336866">Android support for Dependency
+      See the backlog issue <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/336866">Android support for Dependency
       Scanning (gemnasium-maven)</a> for more details. Also, Gradle is not supported when <a href="https://docs.gitlab.com/ee/development/fips_compliance.html#enable-fips-mode">FIPS mode</a> is enabled.
-    </p>
-  </li>
-  <li>
-    <a id="notes-regarding-supported-languages-and-package-managers-3"></a>
-    <p>
-      npm is only supported when <code>lockfileVersion = 1</code> or <code>lockfileVersion = 2</code>. Work to add support for <code>lockfileVersion = 3</code> is being tracked in issue <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/365176">GitLab#365176</a>.
     </p>
   </li>
   <li>
     <a id="notes-regarding-supported-languages-and-package-managers-4"></a>
     <p>
       The presence of a <code>Pipfile.lock</code> file alone will <i>not</i> trigger the analyzer; the presence of a <code>Pipfile</code> is
-      still required in order for the analyzer to be executed. However, if a <code>Pipfile.lock</code> file is found, it will be used by
+      still required in order for the analyzer to be executed. However, if a <code>Pipfile.lock</code> file is found, it is used by
       <code>Gemnasium</code> to scan the exact package versions listed in this file.
     </p>
     <p>
@@ -348,16 +347,34 @@ GitLab analyzers obtain dependency information using one of the following two me
 
 The following package managers use lockfiles that GitLab analyzers are capable of parsing directly:
 
-| Package Manager | Supported File Format Versions | Tested Versions                                                                                                                                                                                                                    |
-| ------          | ------                         | ------                                                                                                                                                                                                                             |
-| Bundler         | Not applicable                 | [1.17.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/ruby-bundler/default/Gemfile.lock#L118), [2.1.4](https://gitlab.com/gitlab-org/security-products/tests/ruby-bundler/-/blob/bundler2-FREEZE/Gemfile.lock#L118) |
-| Composer        | Not applicable                 | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/php-composer/default/composer.lock)                                                                                                                              |
-| Conan           | 0.4                            | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/c-conan/default/conan.lock)                                                                                                                                      |
-| Go              | Not applicable                 | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/go-modules/default/go.sum)                                                                                                                                       |
-| NuGet           | v1                             | [4.9](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/csharp-nuget-dotnetcore/default/src/web.api/packages.lock.json#L2)                                                                                               |
-| npm             | v1, v2                         | [6.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/js-npm/default/package-lock.json#L4), [7.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/js-npm/lockfileVersion2/package-lock.json#L4)         |
-| yarn            | v1                             | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/js-yarn/default/yarn.lock#L2)                                                                                                                                       |
-| Poetry          | v1                             | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-python/-/blob/v3/qa/fixtures/python-poetry/default/poetry.lock)                                                                                                          |
+| Package Manager | Supported File Format Versions | Tested Versions                                                                                                                                                                                                                                                                             |
+| ------          | ------                         | ------                                                                                                                                                                                                                                                                                      |
+| Bundler         | Not applicable                 | [1.17.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/ruby-bundler/default/Gemfile.lock#L118), [2.1.4](https://gitlab.com/gitlab-org/security-products/tests/ruby-bundler/-/blob/bundler2-FREEZE/Gemfile.lock#L118)                        |
+| Composer        | Not applicable                 | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/php-composer/default/composer.lock)                                                                                                                                                         |
+| Conan           | 0.4                            | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/c-conan/default/conan.lock#L38)                                                                                                                                                             |
+| Go              | Not applicable                 | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/go-modules/gosum/default/go.sum) <sup><strong><a href="#notes-regarding-parsing-lockfiles-1">1</a></strong></sup>                                                                       |
+| NuGet           | v1                             | [4.9](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/csharp-nuget-dotnetcore/default/src/web.api/packages.lock.json#L2)                                                                                                                      |
+| npm             | v1, v2, v3<sup><b><a href="#notes-regarding-parsing-lockfiles-2">2</a></b></sup>                     | [6.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/js-npm/default/package-lock.json#L4), [7.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/js-npm/lockfileVersion2/package-lock.json#L4), [9.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/scanner/parser/npm/fixtures/lockfile-v3/simple/package-lock.json#L4) |
+| yarn            | v1                             | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/js-yarn/default/yarn.lock#L2)                                                                                                                                                           |
+| Poetry          | v1                             | [1.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/master/qa/fixtures/python-poetry/default/poetry.lock)                                                                                                                                                      |
+
+<!-- markdownlint-disable MD044 -->
+<ol>
+  <li>
+    <a id="notes-regarding-parsing-lockfiles-1"></a>
+    <p>
+      Dependency Scanning only parses <code>go.sum</code> if it's unable to generate the build list
+      used by the Go project.
+    </p>
+  </li>
+  <li>
+    <a id="notes-regarding-parsing-lockfiles-2"></a>
+    <p>
+      Support for <code>lockfileVersion = 3</code> was <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/365176">introduced</a> in GitLab 15.7.
+    </p>
+  </li>
+</ol>
+<!-- markdownlint-enable MD044 -->
 
 #### Obtaining dependency information by running a package manager to generate a parsable file
 
@@ -366,19 +383,26 @@ To support the following package managers, the GitLab analyzers proceed in two s
 1. Execute the package manager or a specific task, to export the dependency information.
 1. Parse the exported dependency information.
 
-| Package Manager | Pre-installed Versions                                                                                                                                                                                                                                                                                                                                                                                     | Tested Versions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------          | ------                                                                                                                                                                                                                                                                                                                                                                                                     | ------                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| sbt             | [1.6.1](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.24.6/config/.tool-versions#L4)                                                                                                                                                                                                                                                                                 | [1.0.4](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L443-447), [1.1.6](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L449-453), [1.2.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L455-459), [1.3.12](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L461-465), [1.4.6](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L467-471), [1.5.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L473-477), [1.6.1](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L479-483)                                                                                                                                                                                                                                                                                                                                                                                                |
-| Maven           | [3.6.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L95-97)                                                                                                                                                                                                                                                                                 | [3.6.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L95-97)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Gradle          | [6.7.1](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.23.0/config/.tool-versions#L5)<sup><b><a href="#exported-dependency-information-notes-1">1</a></b></sup>, [7.3.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.26.0/config/.tool-versions#L5)<sup><b><a href="#exported-dependency-information-notes-1">1</a></b></sup> | [5.6.4](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L319-323), [6.7](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L286-288)<sup><b><a href="#exported-dependency-information-notes-2">2</a></b></sup>, [6.9](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L331-335), [7.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-maven/-/blob/v2.28.1/spec/image_spec.rb#L300-302)<sup><b><a href="#exported-dependency-information-notes-2">2</a></b></sup> |
-| setuptools      | [50.3.2](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v2.29.9/Dockerfile#L27)                                                                                                                                                                                                                                                                                                | [57.5.0](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-python/-/blob/v2.22.0/spec/image_spec.rb#L224-247)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| pip             | [20.2.4](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v2.29.9/Dockerfile#L26)                                                                                                                                                                                                                                                                                                | [20.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-python/-/blob/v2.22.0/spec/image_spec.rb#L77-91)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Pipenv          | [2018.11.26](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-python/-/blob/v2.18.4/requirements.txt#L13)                                                                                                                                                                                                                                                                               | [2018.11.26](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-python/-/blob/v2.22.0/spec/image_spec.rb#L168-191)<sup><b><a href="#exported-dependency-information-notes-3">3</a></b></sup>, [2018.11.26](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium-python/-/blob/v2.22.0/spec/image_spec.rb#L143-166)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Package Manager | Pre-installed Versions                                                                                                                                                                                                                                                                                                                                                                                                                                   | Tested Versions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------          | ------                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ------                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| sbt             | [1.6.1](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-maven/debian/config/.tool-versions#L4)                                                                                                                                                                                                                                                                                                        | [1.0.4](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L445-449), [1.1.6](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L451-455), [1.2.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L457-461), [1.3.12](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L463-467), [1.4.6](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L469-473), [1.5.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L475-479), [1.6.1](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L481-485) |
+| Maven           | [3.6.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-maven/debian/config/.tool-versions#L3)                                                                                                                                                                                                                                                                                                        | [3.6.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L95-97)<sup><b><a href="#exported-dependency-information-notes-1">1</a></b></sup>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Gradle          | [6.7.1](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-maven/debian/config/.tool-versions#L5)<sup><b><a href="#exported-dependency-information-notes-2">2</a></b></sup>, [7.3.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-maven/debian/config/.tool-versions#L5)<sup><b><a href="#exported-dependency-information-notes-2">2</a></b></sup> | [5.6.4](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L314-319), [6.7](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L321-326), [6.9](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L328-333), [7.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-maven_image_spec.rb#L335-339)                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| setuptools      | [58.1.0](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-python/debian/Dockerfile#L17)                                                                                                                                                                                                                                                                                                                | [>= 65.6.3](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/spec/gemnasium-python_image_spec.rb#L249-271)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| pip             | [22.0.4](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-python/debian/Dockerfile#L17)                                                                                                                                                                                                                                                                                                                | [20.x](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-python_image_spec.rb#L88-102)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Pipenv          | [2022.1.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-python/requirements.txt#L13)                                                                                                                                                                                                                                                                                                               | [2022.1.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-python_image_spec.rb#L186-210)<sup><b><a href="#exported-dependency-information-notes-3">3</a></b></sup>, [2022.1.8](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.0.2/spec/gemnasium-python_image_spec.rb#L161-183)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Go              | [1.18](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium/alpine/Dockerfile#L88-91)                                                                                                                                                                                                                                                                                                                      | [1.18](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium/alpine/Dockerfile#L88-91)<sup><strong><a href="#exported-dependency-information-notes-4">4</a></strong></sup>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 <!-- markdownlint-disable MD044 -->
 <ol>
   <li>
     <a id="exported-dependency-information-notes-1"></a>
+    <p>
+      This test uses the default version of <code>maven</code> specified by the <a href="https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium/-/blob/v3.10.6/build/gemnasium-maven/debian/config/.tool-versions#L3">.tool-versions</a> file.
+    </p>
+  </li>
+  <li>
+    <a id="exported-dependency-information-notes-2"></a>
     <p>
       Different versions of Java require different versions of Gradle. The versions of Gradle listed in the above table are pre-installed
       in the analyzer image. The version of Gradle used by the analyzer depends on whether your project uses a <code>gradlew</code>
@@ -405,15 +429,16 @@ To support the following package managers, the GitLab analyzers proceed in two s
     </ul>
   </li>
   <li>
-    <a id="exported-dependency-information-notes-2"></a>
+    <a id="exported-dependency-information-notes-3"></a>
     <p>
-      These tests confirm that if a <code>gradlew</code> file does not exist, the version of <code>Gradle</code> pre-installed in the analyzer image is used.
+      This test confirms that if a <code>Pipfile.lock</code> file is found, it is used by <a href="https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium">Gemnasium</a> to scan the exact package versions listed in this file.
     </p>
   </li>
   <li>
-    <a id="exported-dependency-information-notes-3"></a>
+    <a id="exported-dependency-information-notes-4"></a>
     <p>
-      This test confirms that if a <code>Pipfile.lock</code> file is found, it will be used by <a href="https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium">Gemnasium</a> to scan the exact package versions listed in this file.
+      Because of the implementation of <code>go build</code>, the Go build process requires network access, a pre-loaded mod cache via <code>go mod download</code>, or vendored dependencies. For more information,
+      refer to the Go documentation on <a href="https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies">compiling packages and dependencies</a>.
     </p>
   </li>
 </ol>
@@ -432,7 +457,7 @@ When a supported dependency file is detected, all dependencies, including transi
 ### How multiple files are processed
 
 NOTE:
-If you've run into problems while scanning multiple files, please contribute a comment to
+If you've run into problems while scanning multiple files, contribute a comment to
 [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/337056).
 
 #### Python
@@ -474,7 +499,13 @@ The following analyzers are executed, each of which have different behavior when
 From GitLab 14.8 the `gemnasium` analyzer scans supported JavaScript projects for vendored libraries
 (that is, those checked into the project but not managed by the package manager).
 
-#### PHP, Go, C, C++, .NET, C&#35;, Ruby, JavaScript
+#### Go
+
+Multiple files are supported. When a `go.mod` file is detected, the analyzer attempts to generate a [build list](https://go.dev/ref/mod#glos-build-list) using
+[Minimal Version Selection](https://go.dev/ref/mod#glos-minimal-version-selection). If a non-fatal error is encountered, the analyzer falls back to parsing the
+available `go.sum` file. The process is repeated for every detected `go.mod` and `go.sum` file.
+
+#### PHP, C, C++, .NET, C&#35;, Ruby, JavaScript
 
 The analyzer for these languages supports multiple lockfiles.
 
@@ -494,7 +525,7 @@ The [Security Scanner Integration](../../../development/integrations/secure.md) 
 
 To enable dependency scanning for GitLab 11.9 and later, you must
 [include](../../../ci/yaml/index.md#includetemplate) the
-[`Dependency-Scanning.gitlab-ci.yml` template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Security/Dependency-Scanning.gitlab-ci.yml)
+[`Dependency-Scanning.gitlab-ci.yml` template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/Dependency-Scanning.gitlab-ci.yml)
 that is provided as a part of your GitLab installation.
 For GitLab versions earlier than 11.9, you can copy and use the job as defined
 that template.
@@ -503,7 +534,7 @@ Add the following to your `.gitlab-ci.yml` file:
 
 ```yaml
 include:
-  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
 ```
 
 The included template creates dependency scanning jobs in your CI/CD
@@ -521,8 +552,8 @@ always take the latest dependency scanning artifact available.
 
 To enable Dependency Scanning in a project, you can create a merge request:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Security & Compliance > Configuration**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Security and Compliance > Configuration**.
 1. In the **Dependency Scanning** row, select **Configure with a merge request**.
 1. Review and merge the merge request to enable Dependency Scanning.
 
@@ -593,7 +624,6 @@ The following variables allow configuration of global dependency scanning settin
 | ----------------------------|------------ |
 | `ADDITIONAL_CA_CERT_BUNDLE` | Bundle of CA certs to trust. The bundle of certificates provided here is also used by other tools during the scanning process, such as `git`, `yarn`, or `npm`. See [Using a custom SSL CA certificate authority](#using-a-custom-ssl-ca-certificate-authority) for more details. |
 | `DS_EXCLUDED_ANALYZERS`      | Specify the analyzers (by name) to exclude from Dependency Scanning. For more information, see [Dependency Scanning Analyzers](analyzers.md). |
-| `DS_DEFAULT_ANALYZERS`      | This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/287691) in GitLab 14.0 and [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/333299) in 15.0. Use `DS_EXCLUDED_ANALYZERS` instead. |
 | `DS_EXCLUDED_PATHS`         | Exclude files and directories from the scan based on the paths. A comma-separated list of patterns. Patterns can be globs (see [`doublestar.Match`](https://pkg.go.dev/github.com/bmatcuk/doublestar/v4@v4.0.2#Match) for supported patterns), or file or folder paths (for example, `doc,spec`). Parent directories also match patterns. Default: `"spec, test, tests, tmp"`. |
 | `DS_IMAGE_SUFFIX`           | Suffix added to the image name. ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/354796) in GitLab 14.10.) Automatically set to `"-fips"` when FIPS mode is enabled. ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/357922) in GitLab 15.0.) |
 | `SECURE_ANALYZERS_PREFIX`   | Override the name of the Docker registry providing the official default images (proxy). Read more about [customizing analyzers](analyzers.md). |
@@ -610,24 +640,29 @@ The following variables are used for configuring specific analyzers (used for a 
 | `GEMNASIUM_DB_REMOTE_URL`            | `gemnasium`        | `https://gitlab.com/gitlab-org/security-products/gemnasium-db.git` | Repository URL for fetching the Gemnasium database. |
 | `GEMNASIUM_DB_REF_NAME`              | `gemnasium`        | `master`                     | Branch name for remote repository database. `GEMNASIUM_DB_REMOTE_URL` is required. |
 | `DS_REMEDIATE`                       | `gemnasium`        | `"true"`, `"false"` in FIPS mode | Enable automatic remediation of vulnerable dependencies. Not supported in FIPS mode. |
+| `DS_REMEDIATE_TIMEOUT`               | `gemnasium`        | `5m`                       | Timeout for auto-remediation. |
 | `GEMNASIUM_LIBRARY_SCAN_ENABLED`     | `gemnasium`        | `"true"`                     | Enable detecting vulnerabilities in vendored JavaScript libraries. For now, `gemnasium` leverages [`Retire.js`](https://github.com/RetireJS/retire.js) to do this job. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/350512) in GitLab 14.8. |
 | `DS_JAVA_VERSION`                    | `gemnasium-maven`  | `17`                         | Version of Java. Available versions: `8`, `11`, `13`, `14`, `15`, `16`, `17`. Available versions in FIPS-enabled image: `8`, `11`, `17`. |
 | `MAVEN_CLI_OPTS`                     | `gemnasium-maven`  | `"-DskipTests --batch-mode"` | List of command line arguments that are passed to `maven` by the analyzer. See an example for [using private repositories](../index.md#using-private-maven-repositories). |
 | `GRADLE_CLI_OPTS`                    | `gemnasium-maven`  |                              | List of command line arguments that are passed to `gradle` by the analyzer. |
 | `SBT_CLI_OPTS`                       | `gemnasium-maven`  |                              | List of command-line arguments that the analyzer passes to `sbt`. |
 | `PIP_INDEX_URL`                      | `gemnasium-python` | `https://pypi.org/simple`    | Base URL of Python Package Index. |
-| `PIP_EXTRA_INDEX_URL`                | `gemnasium-python` |                              | Array of [extra URLs](https://pip.pypa.io/en/stable/reference/pip_install/#cmdoption-extra-index-url) of package indexes to use in addition to `PIP_INDEX_URL`. Comma-separated. **Warning:** Please read [the following security consideration](#python-projects) when using this environment variable. |
+| `PIP_EXTRA_INDEX_URL`                | `gemnasium-python` |                              | Array of [extra URLs](https://pip.pypa.io/en/stable/reference/pip_install/#cmdoption-extra-index-url) of package indexes to use in addition to `PIP_INDEX_URL`. Comma-separated. **Warning:** Read [the following security consideration](#python-projects) when using this environment variable. |
 | `PIP_REQUIREMENTS_FILE`              | `gemnasium-python` |                              | Pip requirements file to be scanned. |
 | `DS_PIP_VERSION`                     | `gemnasium-python` |                              | Force the install of a specific pip version (example: `"19.3"`), otherwise the pip installed in the Docker image is used. ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/12811) in GitLab 12.7) |
 | `DS_PIP_DEPENDENCY_PATH`             | `gemnasium-python` |                              | Path to load Python pip dependencies from. ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/12412) in GitLab 12.2) |
 | `DS_INCLUDE_DEV_DEPENDENCIES`        | `gemnasium`        | `"true"`                     | When set to `"false"`, development dependencies and their vulnerabilities are not reported. Only NPM and Poetry projects are supported. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/227861) in GitLab 15.1. |
+| `GOOS`                               | `gemnasium`        | `"linux"`                    | The operating system for which to compile Go code. |
+| `GOARCH`                             | `gemnasium`        | `"amd64"`                    | The architecture of the processor for which to compile Go code. |
+| `GOFLAGS`                            | `gemnasium`        |                              | The flags passed to the `go build` tool. |
+| `GOPRIVATE`                          | `gemnasium`        |                              | A list of glob patterns and prefixes to be fetched from source. Read the Go private modules [documentation](https://go.dev/ref/mod#private-modules) for more information. |
 
 #### Other variables
 
-The previous tables are not an exhaustive list of all variables that can be used. They contain all specific GitLab and analyzer variables we support and test. There are many variables, such as environment variables, that you can pass in and they will work. This is a large list, many of which we may be unaware of, and as such is not documented.
+The previous tables are not an exhaustive list of all variables that can be used. They contain all specific GitLab and analyzer variables we support and test. There are many variables, such as environment variables, that you can pass in and they do work. This is a large list, many of which we may be unaware of, and as such is not documented.
 
 For example, to pass the non-GitLab environment variable `HTTPS_PROXY` to all Dependency Scanning jobs,
-set it as a [custom CI/CD variable in your `.gitlab-ci.yml`](../../../ci/variables/index.md#create-a-custom-cicd-variable-in-the-gitlab-ciyml-file)
+set it as a [CI/CD variable in your `.gitlab-ci.yml`](../../../ci/variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file)
 file like this:
 
 ```yaml
@@ -643,14 +678,14 @@ dependency_scanning:
     HTTPS_PROXY: $HTTPS_PROXY
 ```
 
-As we have not tested all variables you may find some will work and others will not.
+As we have not tested all variables you may find some do work and others do not.
 If one does not work and you need it we suggest
 [submitting a feature request](https://gitlab.com/gitlab-org/gitlab/-/issues/new?issuable_template=Feature%20proposal%20-%20detailed&issue[title]=Docs%20feedback%20-%20feature%20proposal:%20Write%20your%20title)
 or [contributing to the code](../../../development/index.md) to enable it to be used.
 
 ### Using a custom SSL CA certificate authority
 
-You can use the `ADDITIONAL_CA_CERT_BUNDLE` CI/CD variable to configure a custom SSL CA certificate authority. The `ADDITIONAL_CA_CERT_BUNDLE` value should contain the [text representation of the X.509 PEM public-key certificate](https://tools.ietf.org/html/rfc7468#section-5.1). For example, to configure this value in the `.gitlab-ci.yml` file, use the following:
+You can use the `ADDITIONAL_CA_CERT_BUNDLE` CI/CD variable to configure a custom SSL CA certificate authority. The `ADDITIONAL_CA_CERT_BUNDLE` value should contain the [text representation of the X.509 PEM public-key certificate](https://www.rfc-editor.org/rfc/rfc7468#section-5.1). For example, to configure this value in the `.gitlab-ci.yml` file, use the following:
 
 ```yaml
 variables:
@@ -662,7 +697,7 @@ variables:
       -----END CERTIFICATE-----
 ```
 
-The `ADDITIONAL_CA_CERT_BUNDLE` value can also be configured as a [custom variable in the UI](../../../ci/variables/index.md#custom-cicd-variables), either as a `file`, which requires the path to the certificate, or as a variable, which requires the text representation of the certificate.
+The `ADDITIONAL_CA_CERT_BUNDLE` value can also be configured as a [custom variable in the UI](../../../ci/variables/index.md#for-a-project), either as a `file`, which requires the path to the certificate, or as a variable, which requires the text representation of the certificate.
 
 ### Using private Maven repositories
 
@@ -832,13 +867,8 @@ Here's an example dependency scanning report:
 
 ### CycloneDX Software Bill of Materials
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/350509) in GitLab 14.8 in [Beta](../../../policy/alpha-beta-support.md#beta-features).
-
-NOTE:
-CycloneDX SBOMs are a [Beta](../../../policy/alpha-beta-support.md#beta-features) feature,
-and the reports are subject to change during the beta period. Do not build integrations
-that rely on the format of these SBOMs staying consistent, as the format might change
-before the feature is made generally available.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/350509) in GitLab 14.8 in [Beta](../../../policy/alpha-beta-support.md#beta-features).
+> - Generally available in GitLab 15.7.
 
 In addition to the [JSON report file](#reports-json-format), the [Gemnasium](https://gitlab.com/gitlab-org/security-products/analyzers/gemnasium)
 Dependency Scanning tool outputs a [CycloneDX](https://cyclonedx.org/) Software Bill of Materials (SBOM) for
@@ -895,12 +925,11 @@ include:
 
 merge cyclonedx sboms:
   stage: merge-cyclonedx-sboms
-  image: alpine:latest
+  image:
+    name: cyclonedx/cyclonedx-cli:0.24.0
+    entrypoint: [""]
   script:
-    - wget https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.22.0/cyclonedx-linux-musl-x64 -O /usr/local/bin/cyclonedx-cli
-    - chmod 755 /usr/local/bin/cyclonedx-cli
-    - apk --update add --no-cache icu-dev libstdc++
-    - find * -name "gl-sbom-*.cdx.json" -exec cyclonedx-cli merge --input-files {} --output-file gl-sbom-all.cdx.json +
+    - find . -name "gl-sbom-*.cdx.json" -exec /cyclonedx merge --output-file gl-sbom-all.cdx.json --input-files "{}" +
   artifacts:
     paths:
       - gl-sbom-all.cdx.json
@@ -913,7 +942,7 @@ this information is removed from the resulting merged file.
 
 ## Versioning and release process
 
-Please check the [Release Process documentation](https://gitlab.com/gitlab-org/security-products/release/blob/master/docs/release_process.md).
+Check the [Release Process documentation](https://gitlab.com/gitlab-org/security-products/release/blob/master/docs/release_process.md).
 
 ## Contributing to the vulnerability database
 
@@ -937,7 +966,7 @@ Here are the requirements for using dependency scanning in an offline environmen
 
   This advisory database is constantly being updated, so you must periodically sync your local copy with GitLab.
 
-Note that GitLab Runner has a [default `pull policy` of `always`](https://docs.gitlab.com/runner/executors/docker.html#using-the-always-pull-policy),
+GitLab Runner has a [default `pull policy` of `always`](https://docs.gitlab.com/runner/executors/docker.html#using-the-always-pull-policy),
 meaning the runner tries to pull Docker images from the GitLab container registry even if a local
 copy is available. The GitLab Runner [`pull_policy` can be set to `if-not-present`](https://docs.gitlab.com/runner/executors/docker.html#using-the-if-not-present-pull-policy)
 in an offline environment if you prefer using only locally available Docker images. However, we
@@ -957,12 +986,12 @@ registry.gitlab.com/security-products/gemnasium-python:3
 ```
 
 The process for importing Docker images into a local offline Docker registry depends on
-**your network security policy**. Please consult your IT staff to find an accepted and approved
+**your network security policy**. Consult your IT staff to find an accepted and approved
 process by which external resources can be imported or temporarily accessed.
 These scanners are [periodically updated](../index.md#vulnerability-scanner-maintenance)
 with new definitions, and you may be able to make occasional updates on your own.
 
-For details on saving and transporting Docker images as a file, see Docker's documentation on
+For details on saving and transporting Docker images as a file, see the Docker documentation on
 [`docker save`](https://docs.docker.com/engine/reference/commandline/save/), [`docker load`](https://docs.docker.com/engine/reference/commandline/load/),
 [`docker export`](https://docs.docker.com/engine/reference/commandline/export/), and [`docker import`](https://docs.docker.com/engine/reference/commandline/import/).
 
@@ -1039,7 +1068,7 @@ ensure that it can reach your private repository. Here is an example configurati
 1. Fetch the certificate from your repository URL and add it to the project:
 
    ```shell
-   echo -n | openssl s_client -connect pypi.example.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > internal.crt
+   printf "\n" | openssl s_client -connect pypi.example.com:443 -servername pypi.example.com | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > internal.crt
    ```
 
 1. Point `setup.py` at the newly downloaded certificate:
@@ -1108,6 +1137,13 @@ requires that the package does not already exist in the public index (and thus t
 version number).
 
 ## Troubleshooting
+
+### Increase log verbosity
+
+When a [job log](../../../ci/jobs/index.md#expand-and-collapse-job-log-sections)
+doesn't contain enough information about a dependency-scanning failure,
+[set `SECURE_LOG_LEVEL` to `debug`](#configuring-dependency-scanning)
+and check the resulting, more verbose log.
 
 ### Working around missing support for certain languages or package managers
 
@@ -1216,7 +1252,7 @@ file in the `CI_BUILDS_DIR` directory triggers the dependency scanning job.
 
 We recommend committing the lock files, which prevents this warning.
 
-### I no longer get the latest Docker image after setting `DS_MAJOR_VERSION` or `DS_ANALYZER_IMAGE`
+### You no longer get the latest Docker image after setting `DS_MAJOR_VERSION` or `DS_ANALYZER_IMAGE`
 
 If you have manually set `DS_MAJOR_VERSION` or `DS_ANALYZER_IMAGE` for specific reasons,
 and now must update your configuration to again get the latest patched versions of our
@@ -1226,7 +1262,7 @@ analyzers, edit your `.gitlab-ci.yml` file and either:
   [our current Dependency Scanning template](https://gitlab.com/gitlab-org/gitlab/blob/master/lib/gitlab/ci/templates/Security/Dependency-Scanning.gitlab-ci.yml#L18).
 - If you hardcoded the `DS_ANALYZER_IMAGE` variable directly, change it to match the latest
   line as found in our [current Dependency Scanning template](https://gitlab.com/gitlab-org/gitlab/blob/master/lib/gitlab/ci/templates/Security/Dependency-Scanning.gitlab-ci.yml).
-  The line number will vary depending on which scanning job you edited.
+  The line number varies depending on which scanning job you edited.
 
   For example, currently the `gemnasium-maven-dependency_scanning` job pulls the latest
   `gemnasium-maven` Docker image because `DS_ANALYZER_IMAGE` is set to
@@ -1238,7 +1274,7 @@ Support for [2to3](https://docs.python.org/3/library/2to3.html)
 was [removed](https://setuptools.pypa.io/en/latest/history.html#v58-0-0)
 in `setuptools` version `v58.0.0`. Dependency Scanning (running `python 3.9`) uses `setuptools`
 version `58.1.0+`, which doesn't support `2to3`. Therefore, a `setuptools` dependency relying on
-`lib2to3` will fail with this message:
+`lib2to3` fails with this message:
 
 ```plaintext
 error in <dependency name> setup command: use_2to3 is invalid
@@ -1268,4 +1304,50 @@ install the `libpq-dev` package in a `before_script`:
 gemnasium-python-dependency_scanning:
   before_script:
     - apt-get update && apt-get install -y libpq-dev
+```
+
+### `NoSuchOptionException` when using `poetry config http-basic` with `CI_JOB_TOKEN`
+
+This error can occur when the automatically generated `CI_JOB_TOKEN` starts with a hyphen (`-`).
+To avoid this error, follow [Poetry's configuration advice](https://python-poetry.org/docs/repositories/#configuring-credentials).
+
+### Error: Project has `<number>` unresolved dependencies
+
+The error message `Project has <number> unresolved dependencies` indicates a dependency resolution problem caused by your `gradle.build` or `gradle.build.kts` file. In the current release, `gemnasium-maven` cannot continue processing when an unresolved dependency is encountered. However, There is an [open issue](https://gitlab.com/gitlab-org/gitlab/-/issues/337083) to allow `gemnasium-maven` to recover from unresolved dependency errors and produce a dependency graph. Until this issue has been resolved, consult the [Gradle dependency resolution docs](https://docs.gradle.org/current/userguide/dependency_resolution.html) for details on how to fix your `gradle.build` file.
+
+### Setting build constraints when scanning Go projects
+
+Dependency scanning runs within a `linux/amd64` container. As a result, the build list generated
+for a Go project contains dependencies that are compatible with this environment. If your deployment environment is not
+`linux/amd64`, the final list of dependencies might contain additional incompatible
+modules. The dependency list might also omit modules that are only compatible with your deployment environment. To prevent
+this issue, you can configure the build process to target the operating system and architecture of the deployment
+environment by setting the `GOOS` and `GOARCH` [environment variables](https://go.dev/ref/mod#minimal-version-selection)
+of your `.gitlab-ci.yml` file.
+
+For example:
+
+```yaml
+variables:
+  GOOS: "darwin"
+  GOARCH: "arm64"
+```
+
+You can also supply build tag constraints by using the `GOFLAGS` variable:
+
+```yaml
+variables:
+  GOFLAGS: "-tags=test_feature"
+```
+
+### Dependency Scanning of Go projects returns false positives
+
+The `go.sum` file contains an entry of every module that was considered while generating the project's [build list](https://go.dev/ref/mod#glos-build-list).
+Multiple versions of a module are included in the `go.sum` file, but the [MVS](https://go.dev/ref/mod#minimal-version-selection)
+algorithm used by `go build` only selects one. As a result, when dependency scanning uses `go.sum`, it might report false positives.
+
+To prevent false positives, gemnasium only uses `go.sum` if it is unable to generate the build list for the Go project. If `go.sum` is selected, a warning occurs:
+
+```shell
+[WARN] [Gemnasium] [2022-09-14T20:59:38Z] ▶ Selecting "go.sum" parser for "/test-projects/gitlab-shell/go.sum". False positives may occur. See https://gitlab.com/gitlab-org/gitlab/-/issues/321081.
 ```

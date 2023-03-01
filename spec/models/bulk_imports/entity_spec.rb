@@ -2,12 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe BulkImports::Entity, type: :model do
+RSpec.describe BulkImports::Entity, type: :model, feature_category: :importers do
   describe 'associations' do
     it { is_expected.to belong_to(:bulk_import).required }
     it { is_expected.to belong_to(:parent) }
-    it { is_expected.to belong_to(:group) }
+    it { is_expected.to belong_to(:group).optional.with_foreign_key(:namespace_id).inverse_of(:bulk_import_entities) }
     it { is_expected.to belong_to(:project) }
+
+    it do
+      is_expected.to have_many(:trackers).class_name('BulkImports::Tracker')
+        .with_foreign_key(:bulk_import_entity_id).inverse_of(:entity)
+    end
   end
 
   describe 'validations' do
@@ -16,6 +21,38 @@ RSpec.describe BulkImports::Entity, type: :model do
     it { is_expected.to validate_presence_of(:destination_name) }
 
     it { is_expected.to define_enum_for(:source_type).with_values(%i[group_entity project_entity]) }
+
+    context 'when formatting with regexes' do
+      subject { described_class.new(group: Group.new) }
+
+      it { is_expected.to allow_values('namespace', 'parent/namespace', 'parent/group/subgroup', '').for(:destination_namespace) }
+      it { is_expected.not_to allow_values('parent/namespace/', '/namespace', 'parent group/subgroup', '@namespace').for(:destination_namespace) }
+
+      it { is_expected.to allow_values('source', 'source/path', 'source/full/path').for(:source_full_path) }
+      it { is_expected.not_to allow_values('/source', 'http://source/path', 'sou    rce/full/path', '').for(:source_full_path) }
+
+      it { is_expected.to allow_values('destination', 'destination-slug', 'new-destination-slug').for(:destination_slug) }
+
+      # it { is_expected.not_to allow_values('destination/slug', '/destination-slug', 'destination slug').for(:destination_slug) } <-- this test should
+      # succeed but it's failing possibly due to rspec caching. To ensure this case is covered see the more cumbersome test below:
+      context 'when destination_slug is invalid' do
+        let(:invalid_slugs) { ['destination/slug', '/destination-slug', 'destination slug'] }
+        let(:error_message) do
+          'cannot start with a non-alphanumeric character except for periods or underscores, ' \
+            'can contain only alphanumeric characters, periods, and underscores, ' \
+            'cannot end with a period or forward slash, and has no ' \
+            'leading or trailing forward slashes'
+        end
+
+        it 'raises an error' do
+          invalid_slugs.each do |slug|
+            entity = build(:bulk_import_entity, :group_entity, group: build(:group), project: nil, destination_slug: slug)
+            expect(entity).not_to be_valid
+            expect(entity.errors.errors[0].message).to include(error_message)
+          end
+        end
+      end
+    end
 
     context 'when associated with a group and project' do
       it 'is invalid' do
@@ -45,7 +82,24 @@ RSpec.describe BulkImports::Entity, type: :model do
         expect(entity).to be_valid
       end
 
+      it 'is invalid when destination_namespace is nil' do
+        entity = build(:bulk_import_entity, :group_entity, group: build(:group), project: nil, destination_namespace: nil)
+        expect(entity).not_to be_valid
+      end
+
+      it 'is invalid when destination_slug is empty' do
+        entity = build(:bulk_import_entity, :group_entity, group: build(:group), project: nil, destination_slug: '')
+        expect(entity).not_to be_valid
+      end
+
+      it 'is invalid when destination_slug is nil' do
+        entity = build(:bulk_import_entity, :group_entity, group: build(:group), project: nil, destination_slug: nil)
+        expect(entity).not_to be_valid
+      end
+
       it 'is invalid as a project_entity' do
+        stub_feature_flags(bulk_import_projects: true)
+
         entity = build(:bulk_import_entity, :project_entity, group: build(:group), project: nil)
 
         expect(entity).not_to be_valid
@@ -55,6 +109,8 @@ RSpec.describe BulkImports::Entity, type: :model do
 
     context 'when associated with a project and no group' do
       it 'is valid' do
+        stub_feature_flags(bulk_import_projects: true)
+
         entity = build(:bulk_import_entity, :project_entity, group: nil, project: build(:project))
 
         expect(entity).to be_valid
@@ -84,6 +140,8 @@ RSpec.describe BulkImports::Entity, type: :model do
 
     context 'when the parent is a project import' do
       it 'is invalid' do
+        stub_feature_flags(bulk_import_projects: true)
+
         entity = build(:bulk_import_entity, parent: build(:bulk_import_entity, :project_entity))
 
         expect(entity).not_to be_valid
@@ -122,6 +180,39 @@ RSpec.describe BulkImports::Entity, type: :model do
         expect(entity).not_to be_valid
         expect(entity.errors[:base])
           .to include('Import failed: Destination cannot be a subgroup of the source group. Change the destination and try again.')
+      end
+    end
+
+    context 'when bulk_import_projects feature flag is disabled and source_type is a project_entity' do
+      it 'is invalid' do
+        stub_feature_flags(bulk_import_projects: false)
+
+        entity = build(:bulk_import_entity, :project_entity)
+
+        expect(entity).not_to be_valid
+        expect(entity.errors[:base]).to include('invalid entity source type')
+      end
+    end
+
+    context 'when bulk_import_projects feature flag is enabled and source_type is a project_entity' do
+      it 'is valid' do
+        stub_feature_flags(bulk_import_projects: true)
+
+        entity = build(:bulk_import_entity, :project_entity)
+
+        expect(entity).to be_valid
+      end
+    end
+
+    context 'when bulk_import_projects feature flag is enabled on root ancestor level and source_type is a project_entity' do
+      it 'is valid' do
+        top_level_namespace = create(:group)
+
+        stub_feature_flags(bulk_import_projects: top_level_namespace)
+
+        entity = build(:bulk_import_entity, :project_entity, destination_namespace: top_level_namespace.full_path)
+
+        expect(entity).to be_valid
       end
     end
   end
@@ -209,7 +300,7 @@ RSpec.describe BulkImports::Entity, type: :model do
       it 'returns group export relations url' do
         entity = build(:bulk_import_entity, :group_entity)
 
-        expect(entity.export_relations_url_path).to eq("/groups/#{entity.encoded_source_full_path}/export_relations")
+        expect(entity.export_relations_url_path).to eq("/groups/#{entity.source_xid}/export_relations")
       end
     end
 
@@ -217,7 +308,7 @@ RSpec.describe BulkImports::Entity, type: :model do
       it 'returns project export relations url' do
         entity = build(:bulk_import_entity, :project_entity)
 
-        expect(entity.export_relations_url_path).to eq("/projects/#{entity.encoded_source_full_path}/export_relations")
+        expect(entity.export_relations_url_path).to eq("/projects/#{entity.source_xid}/export_relations")
       end
     end
   end
@@ -227,7 +318,7 @@ RSpec.describe BulkImports::Entity, type: :model do
       entity = build(:bulk_import_entity)
 
       expect(entity.relation_download_url_path('test'))
-        .to eq("/groups/#{entity.encoded_source_full_path}/export_relations/download?relation=test")
+        .to eq("/groups/#{entity.source_xid}/export_relations/download?relation=test")
     end
   end
 
@@ -263,15 +354,15 @@ RSpec.describe BulkImports::Entity, type: :model do
 
   describe '#base_resource_url_path' do
     it 'returns base entity url path' do
-      entity = build(:bulk_import_entity)
+      entity = build(:bulk_import_entity, source_xid: nil)
 
-      expect(entity.base_resource_url_path).to eq("/groups/#{entity.encoded_source_full_path}")
+      expect(entity.base_resource_path).to eq("/groups/#{entity.encoded_source_full_path}")
     end
   end
 
   describe '#wiki_url_path' do
     it 'returns entity wiki url path' do
-      entity = build(:bulk_import_entity)
+      entity = build(:bulk_import_entity, source_xid: nil)
 
       expect(entity.wikis_url_path).to eq("/groups/#{entity.encoded_source_full_path}/wikis")
     end
@@ -284,6 +375,72 @@ RSpec.describe BulkImports::Entity, type: :model do
 
       expect(group_entity.update_service).to eq(::Groups::UpdateService)
       expect(project_entity.update_service).to eq(::Projects::UpdateService)
+    end
+  end
+
+  describe '#full_path' do
+    it 'returns group full path for project entity' do
+      group_entity = build(:bulk_import_entity, :group_entity, group: build(:group))
+
+      expect(group_entity.full_path).to eq(group_entity.group.full_path)
+    end
+
+    it 'returns project full path for project entity' do
+      project_entity = build(:bulk_import_entity, :project_entity, project: build(:project))
+
+      expect(project_entity.full_path).to eq(project_entity.project.full_path)
+    end
+
+    it 'returns nil when not associated with group or project' do
+      entity = build(:bulk_import_entity, group: nil, project: nil)
+
+      expect(entity.full_path).to eq(nil)
+    end
+  end
+
+  describe '#default_visibility_level' do
+    context 'when entity is a group' do
+      it 'returns default group visibility' do
+        stub_application_setting(default_group_visibility: Gitlab::VisibilityLevel::PUBLIC)
+        entity = build(:bulk_import_entity, :group_entity, group: build(:group))
+
+        expect(entity.default_visibility_level).to eq(Gitlab::VisibilityLevel::PUBLIC)
+      end
+    end
+
+    context 'when entity is a project' do
+      it 'returns default project visibility' do
+        stub_application_setting(default_project_visibility: Gitlab::VisibilityLevel::INTERNAL)
+        entity = build(:bulk_import_entity, :project_entity, group: build(:group))
+
+        expect(entity.default_visibility_level).to eq(Gitlab::VisibilityLevel::INTERNAL)
+      end
+    end
+  end
+
+  describe '#update_has_failures' do
+    let(:entity) { create(:bulk_import_entity) }
+
+    context 'when entity has failures' do
+      it 'sets has_failures flag to true' do
+        expect(entity.has_failures).to eq(false)
+
+        create(:bulk_import_failure, entity: entity)
+
+        entity.fail_op!
+
+        expect(entity.has_failures).to eq(true)
+      end
+    end
+
+    context 'when entity does not have failures' do
+      it 'sets has_failures flag to false' do
+        expect(entity.has_failures).to eq(false)
+
+        entity.fail_op!
+
+        expect(entity.has_failures).to eq(false)
+      end
     end
   end
 end

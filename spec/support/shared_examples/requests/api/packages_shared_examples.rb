@@ -142,15 +142,26 @@ RSpec.shared_examples 'job token for package uploads' do |authorize_endpoint: fa
   end
 end
 
-RSpec.shared_examples 'a package tracking event' do |category, action|
+RSpec.shared_examples 'a package tracking event' do |category, action, service_ping_context = true|
   before do
     stub_feature_flags(collect_package_events: true)
+  end
+
+  let(:context) do
+    [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll,
+                                              event: snowplow_gitlab_standard_context[:property]).to_h]
   end
 
   it "creates a gitlab tracking event #{action}", :snowplow, :aggregate_failures do
     expect { subject }.to change { Packages::Event.count }.by(1)
 
-    expect_snowplow_event(category: category, action: action, **snowplow_gitlab_standard_context)
+    if service_ping_context
+      expect_snowplow_event(category: category, action: action,
+                            label: "redis_hll_counters.user_packages.user_packages_total_unique_counts_monthly",
+                            context: context, **snowplow_gitlab_standard_context)
+    else
+      expect_snowplow_event(category: category, action: action, **snowplow_gitlab_standard_context)
+    end
   end
 end
 
@@ -163,5 +174,12 @@ RSpec.shared_examples 'not a package tracking event' do
     expect { subject }.not_to change { Packages::Event.count }
 
     expect_no_snowplow_event
+  end
+end
+
+RSpec.shared_examples 'bumping the package last downloaded at field' do
+  it 'bumps last_downloaded_at' do
+    expect { subject }
+      .to change { package.reload.last_downloaded_at }.from(nil).to(instance_of(ActiveSupport::TimeWithZone))
   end
 end

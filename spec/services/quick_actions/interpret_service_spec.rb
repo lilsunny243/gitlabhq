@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe QuickActions::InterpretService do
+RSpec.describe QuickActions::InterpretService, feature_category: :team_planning do
   include AfterNextHelpers
 
   let_it_be(:group) { create(:group, :crm_enabled) }
@@ -567,7 +567,13 @@ RSpec.describe QuickActions::InterpretService do
       it 'returns the duplicate message' do
         _, _, message = service.execute(content, issuable)
 
-        expect(message).to eq("Marked this issue as a duplicate of #{issue_duplicate.to_reference(project)}.")
+        expect(message).to eq("Closed this issue. Marked as related to, and a duplicate of, #{issue_duplicate.to_reference(project)}.")
+      end
+
+      it 'includes duplicate reference' do
+        _, explanations = service.explain(content, issuable)
+
+        expect(explanations).to eq(["Closes this issue. Marks as related to, and a duplicate of, #{issue_duplicate.to_reference(project)}."])
       end
     end
 
@@ -740,10 +746,10 @@ RSpec.describe QuickActions::InterpretService do
       it 'assigns to users with escaped underscores' do
         user = create(:user)
         base = user.username
-        user.update!(username: "#{base}_")
+        user.update!(username: "#{base}_new")
         issuable.project.add_developer(user)
 
-        cmd = "/assign @#{base}\\_"
+        cmd = "/assign @#{base}\\_new"
 
         _, updates, _ = service.execute(cmd, issuable)
 
@@ -1393,14 +1399,41 @@ RSpec.describe QuickActions::InterpretService do
       let(:issuable) { issue }
     end
 
+    # /draft is a toggle (ff disabled)
+    it_behaves_like 'draft command' do
+      let(:content) { '/draft' }
+      let(:issuable) { merge_request }
+
+      before do
+        stub_feature_flags(draft_quick_action_non_toggle: false)
+      end
+    end
+
+    # /draft is a toggle (ff disabled)
+    it_behaves_like 'ready command' do
+      let(:content) { '/draft' }
+      let(:issuable) { merge_request }
+
+      before do
+        stub_feature_flags(draft_quick_action_non_toggle: false)
+        issuable.update!(title: issuable.draft_title)
+      end
+    end
+
+    # /draft is one way (ff enabled)
     it_behaves_like 'draft command' do
       let(:content) { '/draft' }
       let(:issuable) { merge_request }
     end
 
-    it_behaves_like 'ready command' do
+    # /draft is one way (ff enabled)
+    it_behaves_like 'draft/ready command no action' do
       let(:content) { '/draft' }
       let(:issuable) { merge_request }
+
+      before do
+        issuable.update!(title: issuable.draft_title)
+      end
     end
 
     it_behaves_like 'draft/ready command no action' do
@@ -1423,6 +1456,11 @@ RSpec.describe QuickActions::InterpretService do
       let(:issuable) { issue }
     end
 
+    it_behaves_like 'estimate command' do
+      let(:content) { '/estimate_time 1h' }
+      let(:issuable) { issue }
+    end
+
     it_behaves_like 'failed command' do
       let(:content) { '/estimate' }
       let(:issuable) { issue }
@@ -1440,6 +1478,11 @@ RSpec.describe QuickActions::InterpretService do
 
     it_behaves_like 'spend command' do
       let(:content) { '/spent 1h' }
+      let(:issuable) { issue }
+    end
+
+    it_behaves_like 'spend command' do
+      let(:content) { '/spend_time 1h' }
       let(:issuable) { issue }
     end
 
@@ -1507,6 +1550,11 @@ RSpec.describe QuickActions::InterpretService do
 
     it_behaves_like 'remove_estimate command' do
       let(:content) { '/remove_estimate' }
+      let(:issuable) { issue }
+    end
+
+    it_behaves_like 'remove_estimate command' do
+      let(:content) { '/remove_time_estimate' }
       let(:issuable) { issue }
     end
 
@@ -2449,6 +2497,16 @@ RSpec.describe QuickActions::InterpretService do
         expect(message).to eq('One or more contacts were successfully removed.')
       end
     end
+
+    context 'when using an alias' do
+      it 'returns the correct execution message' do
+        content = "/labels ~#{bug.title}"
+
+        _, _, message = service.execute(content, issue)
+
+        expect(message).to eq("Added ~\"Bug\" label.")
+      end
+    end
   end
 
   describe '#explain' do
@@ -2646,13 +2704,41 @@ RSpec.describe QuickActions::InterpretService do
       end
     end
 
-    describe 'draft command' do
+    describe 'draft command toggle (deprecated)' do
+      let(:content) { '/draft' }
+
+      before do
+        stub_feature_flags(draft_quick_action_non_toggle: false)
+      end
+
+      it 'includes the new status' do
+        _, explanations = service.explain(content, merge_request)
+
+        expect(explanations).to match_array(['Marks this merge request as a draft.'])
+      end
+
+      it 'sets the ready status on a draft' do
+        merge_request.update!(title: merge_request.draft_title)
+        _, explanations = service.explain(content, merge_request)
+
+        expect(explanations).to match_array(["Marks this merge request as ready."])
+      end
+    end
+
+    describe 'draft command set' do
       let(:content) { '/draft' }
 
       it 'includes the new status' do
         _, explanations = service.explain(content, merge_request)
 
         expect(explanations).to match_array(['Marks this merge request as a draft.'])
+      end
+
+      it 'includes the no change message when status unchanged' do
+        merge_request.update!(title: merge_request.draft_title)
+        _, explanations = service.explain(content, merge_request)
+
+        expect(explanations).to match_array(["No change to this merge request's draft status."])
       end
     end
 

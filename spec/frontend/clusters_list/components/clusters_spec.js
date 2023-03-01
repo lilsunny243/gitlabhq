@@ -7,6 +7,7 @@ import Clusters from '~/clusters_list/components/clusters.vue';
 import ClustersEmptyState from '~/clusters_list/components/clusters_empty_state.vue';
 import ClusterStore from '~/clusters_list/store';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { apiData } from '../mock_data';
 
 describe('Clusters', () => {
@@ -61,16 +62,19 @@ describe('Clusters', () => {
   let captureException;
 
   beforeEach(() => {
+    jest.spyOn(Sentry, 'withScope').mockImplementation((fn) => {
+      const mockScope = { setTag: () => {} };
+      fn(mockScope);
+    });
     captureException = jest.spyOn(Sentry, 'captureException');
 
     mock = new MockAdapter(axios);
-    mockPollingApi(200, apiData, paginationHeader());
+    mockPollingApi(HTTP_STATUS_OK, apiData, paginationHeader());
 
     return createWrapper({});
   });
 
   afterEach(() => {
-    wrapper.destroy();
     mock.restore();
     captureException.mockRestore();
   });
@@ -142,7 +146,7 @@ describe('Clusters', () => {
       ({ lineNumber, result }) => {
         const statuses = findStatuses();
         const status = statuses.at(lineNumber);
-        expect(status.find(GlLoadingIcon).exists()).toBe(result);
+        expect(status.findComponent(GlLoadingIcon).exists()).toBe(result);
       },
     );
   });
@@ -251,7 +255,7 @@ describe('Clusters', () => {
     const totalSecondPage = 500;
 
     beforeEach(() => {
-      mockPollingApi(200, apiData, paginationHeader(totalFirstPage, perPage, 1));
+      mockPollingApi(HTTP_STATUS_OK, apiData, paginationHeader(totalFirstPage, perPage, 1));
       return createWrapper({});
     });
 
@@ -265,10 +269,8 @@ describe('Clusters', () => {
 
     describe('when updating currentPage', () => {
       beforeEach(() => {
-        mockPollingApi(200, apiData, paginationHeader(totalSecondPage, perPage, 2));
-        // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-        // eslint-disable-next-line no-restricted-syntax
-        wrapper.setData({ currentPage: 2 });
+        mockPollingApi(HTTP_STATUS_OK, apiData, paginationHeader(totalSecondPage, perPage, 2));
+        findPaginatedButtons().vm.$emit('input', 2);
         return axios.waitForAll();
       });
 

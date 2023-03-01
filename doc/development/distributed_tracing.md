@@ -1,10 +1,10 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Distributed Tracing - development guidelines **(FREE)**
+# Distributed Tracing - development guidelines
 
 GitLab is instrumented for distributed tracing. Distributed Tracing in GitLab is currently considered **experimental**, as it has not yet been tested at scale on GitLab.com.
 
@@ -91,7 +91,7 @@ Once the performance bar is enabled, select **Trace** in the performance bar to 
 the Jaeger UI.
 
 The Jaeger search UI returns a query for the `Correlation-ID` of the current request. Normally,
-this search should return a single trace result. Clicking this result shows the detail of the
+this search should return a single trace result. Selecting this result shows the detail of the
 trace in a hierarchical time-line.
 
 ![Jaeger Search UI](img/distributed_tracing_jaeger_ui.png)

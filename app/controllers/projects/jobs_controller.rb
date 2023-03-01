@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
 class Projects::JobsController < Projects::ApplicationController
+  include Ci::AuthBuildTrace
   include SendFileUpload
   include ContinueParams
   include ProjectStatsRefreshConflictsGuard
 
   urgency :low, [:index, :show, :trace, :retry, :play, :cancel, :unschedule, :erase, :raw]
 
-  before_action :find_job_as_build, except: [:index, :play, :show]
-  before_action :find_job_as_processable, only: [:play, :show]
+  before_action :find_job_as_build, except: [:index, :play, :show, :retry]
+  before_action :find_job_as_processable, only: [:play, :show, :retry]
   before_action :authorize_read_build_trace!, only: [:trace, :raw]
   before_action :authorize_read_build!
   before_action :authorize_update_build!,
@@ -76,7 +77,11 @@ class Projects::JobsController < Projects::ApplicationController
     response = Ci::RetryJobService.new(project, current_user).execute(@build)
 
     if response.success?
-      redirect_to build_path(response[:job])
+      if @build.is_a?(::Ci::Build)
+        redirect_to build_path(response[:job])
+      else
+        head :ok
+      end
     else
       respond_422
     end
@@ -120,20 +125,19 @@ class Projects::JobsController < Projects::ApplicationController
   end
 
   def erase
-    if @build.erase(erased_by: current_user)
-      redirect_to project_job_path(project, @build),
-                notice: _("Job has been successfully erased!")
+    service_response = Ci::BuildEraseService.new(@build, current_user).execute
+
+    if service_response.success?
+      redirect_to project_job_path(project, @build), notice: _("Job has been successfully erased!")
     else
-      respond_422
+      head service_response.http_status
     end
   end
 
   def raw
     if @build.trace.archived?
       workhorse_set_content_type!
-      send_upload(@build.job_artifacts_trace.file,
-                  send_params: raw_send_params,
-                  redirect_params: raw_redirect_params)
+      send_upload(@build.job_artifacts_trace.file, send_params: raw_send_params, redirect_params: raw_redirect_params)
     else
       @build.trace.read do |stream|
         if stream.file?
@@ -227,10 +231,12 @@ class Projects::JobsController < Projects::ApplicationController
   end
 
   def build_service_specification
-    @build.service_specification(service: params['service'],
-                                 port: params['port'],
-                                 path: params['path'],
-                                 subprotocols: proxy_subprotocol)
+    @build.service_specification(
+      service: params['service'],
+      port: params['port'],
+      path: params['path'],
+      subprotocols: proxy_subprotocol
+    )
   end
 
   def proxy_subprotocol

@@ -1,4 +1,3 @@
-import ClassSpecHelper from 'helpers/class_spec_helper';
 import BindInOut from '~/behaviors/bind_in_out';
 
 describe('BindInOut', () => {
@@ -33,7 +32,7 @@ describe('BindInOut', () => {
         testContext.bindInOut = new BindInOut({ tagName: 'INPUT' });
       });
 
-      it('should set .eventType to keyup ', () => {
+      it('should set .eventType to keyup', () => {
         expect(testContext.bindInOut.eventType).toEqual('keyup');
       });
     });
@@ -43,7 +42,7 @@ describe('BindInOut', () => {
         testContext.bindInOut = new BindInOut({ tagName: 'TEXTAREA' });
       });
 
-      it('should set .eventType to keyup ', () => {
+      it('should set .eventType to keyup', () => {
         expect(testContext.bindInOut.eventType).toEqual('keyup');
       });
     });
@@ -53,7 +52,7 @@ describe('BindInOut', () => {
         testContext.bindInOut = new BindInOut({ tagName: 'SELECT' });
       });
 
-      it('should set .eventType to change ', () => {
+      it('should set .eventType to change', () => {
         expect(testContext.bindInOut.eventType).toEqual('change');
       });
     });
@@ -142,7 +141,9 @@ describe('BindInOut', () => {
       testContext.initAll = BindInOut.initAll();
     });
 
-    ClassSpecHelper.itShouldBeAStaticMethod(BindInOut, 'initAll');
+    it('should be a static method', () => {
+      expect(BindInOut.initAll).toEqual(expect.any(Function));
+    });
 
     it('should call .querySelectorAll', () => {
       expect(document.querySelectorAll).toHaveBeenCalledWith('*[data-bind-in]');
@@ -169,7 +170,9 @@ describe('BindInOut', () => {
       testContext.init = BindInOut.init({}, {});
     });
 
-    ClassSpecHelper.itShouldBeAStaticMethod(BindInOut, 'init');
+    it('should be a static method', () => {
+      expect(BindInOut.init).toEqual(expect.any(Function));
+    });
 
     it('should call .addEvents', () => {
       expect(BindInOut.prototype.addEvents).toHaveBeenCalled();

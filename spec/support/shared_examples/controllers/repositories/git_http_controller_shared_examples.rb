@@ -61,9 +61,14 @@ RSpec.shared_examples Repositories::GitHttpController do
       end
 
       it 'updates the user activity' do
-        expect_next_instance_of(Users::ActivityService) do |activity_service|
-          expect(activity_service).to receive(:execute)
-        end
+        activity_project = container.is_a?(PersonalSnippet) ? nil : project
+
+        activity_service = instance_double(Users::ActivityService)
+
+        args = { author: user, project: activity_project, namespace: activity_project&.namespace }
+        expect(Users::ActivityService).to receive(:new).with(args).and_return(activity_service)
+
+        expect(activity_service).to receive(:execute)
 
         get :info_refs, params: params
       end
@@ -82,14 +87,20 @@ RSpec.shared_examples Repositories::GitHttpController do
   end
 
   describe 'POST #git_upload_pack' do
-    before do
-      allow(controller).to receive(:verify_workhorse_api!).and_return(true)
-    end
-
     it 'returns 200' do
+      allow(controller).to receive(:verify_workhorse_api!).and_return(true)
+
       post :git_upload_pack, params: params
 
       expect(response).to have_gitlab_http_status(:ok)
+    end
+
+    context 'when JWT token is not provided' do
+      it 'returns 403' do
+        post :git_upload_pack, params: params
+
+        expect(response).to have_gitlab_http_status(:forbidden)
+      end
     end
   end
 end

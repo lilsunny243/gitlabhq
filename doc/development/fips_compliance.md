@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # FIPS compliance
@@ -22,7 +22,7 @@ mean FIPS 140-2.
 
 ## Current status
 
-GitLab is actively working towards FIPS compliance. Progress on this initiative can be tracked with this [FIPS compliance Epic](https://gitlab.com/groups/gitlab-org/-/epics/6452).
+GitLab has completed FIPS 140-2 Compliance for the build specified in this documentation. You can find our FIPS 140-2 Attestation in our [customer assurance package](https://about.gitlab.com/security/cap/), specifically the community package.
 
 ## FIPS compliance at GitLab
 
@@ -67,7 +67,7 @@ listed here that also do not work properly in FIPS mode:
 - [Static Application Security Testing (SAST)](../user/application_security/sast/index.md)
   supports a reduced set of [analyzers](../user/application_security/sast/index.md#fips-enabled-images)
   when operating in FIPS-compliant mode.
-- Advanced Search is currently not included in FIPS mode. It must not be enabled in order to be FIPS-compliant.  
+- Advanced Search is currently not included in FIPS mode. It must not be enabled to be FIPS-compliant.
 - [Gravatar or Libravatar-based profile images](../administration/libravatar.md) are not FIPS-compliant.
 
 Additionally, these package repositories are disabled in FIPS mode:
@@ -203,7 +203,7 @@ This [GitHub pull request](https://github.com/awslabs/amazon-eks-ami/pull/898) m
 it possible to create an Amazon Linux 2 EKS AMI with FIPS enabled for Kubernetes v1.21.
 To build an image:
 
-1. [Install Packer](https://learn.hashicorp.com/tutorials/packer/get-started-install-cli).
+1. [Install Packer](https://developer.hashicorp.com/packer/tutorials/docker-get-started/get-started-install-cli).
 1. Run the following:
 
    ```shell
@@ -417,7 +417,7 @@ In this environment, OpenSSL refuses to perform cryptographic operations
 forbidden by the FIPS standards. This enables you to reproduce FIPS-related bugs,
 and validate fixes.
 
-You should be able to open a web browser inside the virtual machine and log in
+You should be able to open a web browser inside the virtual machine and sign in
 to the GitLab instance.
 
 You can disable FIPS mode again by running this command, then restarting the
@@ -441,12 +441,26 @@ def default_min_key_size(name)
 end
 ```
 
-## Nightly Omnibus FIPS builds
+## Omnibus FIPS packages
 
-The Distribution team has created [nightly FIPS Omnibus builds](https://packages.gitlab.com/gitlab/nightly-fips-builds). These
-GitLab builds are compiled to use the system OpenSSL instead of the Omnibus-embedded version of OpenSSL.
+GitLab has a dedicated repository
+([`gitlab/gitlab-fips`](https://packages.gitlab.com/gitlab/gitlab-fips))
+for builds of the Omnibus GitLab which are built with FIPS compliance.
+These GitLab builds are compiled to use the system OpenSSL, instead of
+the Omnibus-embedded version of OpenSSL. These packages are built for:
+
+- RHEL 8 (and compatible)
+- AmazonLinux 2
+- Ubuntu
+
+These are [consumed by the GitLab Environment Toolkit](#install-gitlab-with-fips-compliance) (GET).
 
 See [the section on how FIPS builds are created](#how-fips-builds-are-created).
+
+### Nightly Omnibus FIPS builds
+
+The Distribution team has created [nightly FIPS Omnibus builds](https://packages.gitlab.com/gitlab/nightly-fips-builds),
+which can be used for *testing* purposes. These should never be used for production environments.
 
 ## Runner
 

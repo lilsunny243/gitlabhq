@@ -2,22 +2,27 @@
 disqus_identifier: 'https://docs.gitlab.com/ee/user/project/pages/getting_started_part_three.html'
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Custom domains and SSL/TLS certificates **(FREE)**
 
-Setting up GitLab Pages with custom domains, and adding SSL/TLS certificates to them, are optional features of GitLab Pages.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/238461) in GitLab 15.4, you can use verified domains to [bypass user email confirmation for SAML- or SCIM-provisioned users](../../../group/saml_sso/index.md#bypass-user-email-confirmation-with-verified-domains).
 
-To use one or more custom domain names with your Pages site, you can:
+You can use custom domains:
 
-- Add a [custom **root domain** or a **subdomain**](#set-up-pages-with-a-custom-domain).
+- With GitLab Pages.
+- To [bypass user email confirmation for SAML- or SCIM-provisioned users](../../../group/saml_sso/index.md#bypass-user-email-confirmation-with-verified-domains).
+  When using custom domains this way, you use the GitLab Pages feature but can skip the [requirements](#requirements).
+
+To use one or more custom domain names:
+
+- Add a [custom **root domain** or a **subdomain**](#set-up-a-custom-domain).
 - Add [SSL/TLS certification](#adding-an-ssltls-certificate-to-pages).
 
-## Set up Pages with a custom domain
+## Set up a custom domain
 
-To set up Pages with a custom domain name, read the requirements
-and steps below.
+To set up Pages with a custom domain name, read the requirements and steps below.
 
 ### Requirements
 
@@ -45,17 +50,19 @@ and steps below.
 Follow the steps below to add your custom domain to Pages. See also
 this document for an [overview on DNS records](dns_concepts.md).
 
-#### 1. Add a custom domain to Pages
+#### 1. Add a custom domain
 
-Navigate to your project's **Setting > Pages** and select **+ New domain**
-to add your custom domain to GitLab Pages. You can choose whether to:
+To add your custom domain to GitLab Pages:
 
-- Add an [SSL/TLS certificate](#adding-an-ssltls-certificate-to-pages).
-- Leave it blank (it can be added later).
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Pages**.
 
-Select **Create New Domain**.
-
-![Add new domain](img/add_certificate_to_pages.png)
+   If this path is not visible, select **Deployments > Pages**.
+   [This location is part of an experiment](../index.md#menu-position-test).
+1. In the upper-right corner, select **New Domain**.
+1. In **Domain**, enter the domain name.
+1. Optional. In **Certificate**, turn off the **Automatic certificate management using Let's Encrypt** toggle to add an [SSL/TLS certificate](#adding-an-ssltls-certificate-to-pages). You can also add the certificate and key later.
+1. Select **Create New Domain**.
 
 #### 2. Get the verification code
 
@@ -64,7 +71,7 @@ and paste them in your domain's control panel as a `TXT` record on the next step
 
 ![Get the verification code](img/get_domain_verification_code_v12_0.png)
 
-#### 3. Set up DNS records for Pages
+#### 3. Set up DNS records
 
 Read this document for an [overview of DNS records for Pages](dns_concepts.md).
 If you're familiar with the subject, follow the instructions below
@@ -91,14 +98,14 @@ Root domains (`example.com`) require:
 | `_gitlab-pages-verification-code.example.com` | `TXT`      | `gitlab-pages-verification-code=00112233445566778899aabbccddeeff` |
 
 For projects on GitLab.com, this IP is `35.185.44.232`.
-For projects living in other GitLab instances (CE or EE), please contact
+For projects living in other GitLab instances (CE or EE), contact
 your sysadmin asking for this information (which IP address is Pages
 server running on your instance).
 
 ![DNS `A` record pointing to GitLab.com Pages server](img/dns_add_new_a_record_example_updated_2018.png)
 
 WARNING:
-Note that if you use your root domain for your GitLab Pages website
+If you use your root domain for your GitLab Pages website
 **only**, and if your domain registrar supports this feature, you can
 add a DNS apex `CNAME` record instead of an `A` record. The main
 advantage of doing so is that when GitLab Pages IP on GitLab.com
@@ -118,7 +125,7 @@ Subdomains (`subdomain.example.com`) require:
 | `subdomain.example.com`                                 | `ALIAS`/`CNAME` | `namespace.gitlab.io` |
 | `_gitlab-pages-verification-code.subdomain.example.com` | `TXT`           | `gitlab-pages-verification-code=00112233445566778899aabbccddeeff` |
 
-Note that, whether it's a user or a project website, the DNS record
+Whether it's a user or a project website, the DNS record
 should point to your Pages domain (`namespace.gitlab.io`),
 without any `/project-name`.
 
@@ -144,7 +151,7 @@ They require:
 | `_gitlab-pages-verification-code.www.example.com` | `TXT`      | `gitlab-pages-verification-code=00112233445566778899aabbccddeeff` |
 
 If you're using Cloudflare, check
-[Redirecting `www.domain.com` to `domain.com` with Cloudflare](#redirecting-wwwdomaincom-to-domaincom-with-cloudflare).
+[Redirecting `www.domain.com` to `domain.com` with Cloudflare](#redirect-wwwdomaincom-to-domaincom-with-cloudflare).
 
 > **Notes**:
 >
@@ -161,9 +168,13 @@ If you're using Cloudflare, check
 
 Once you have added all the DNS records:
 
-1. Go back at your project's **Settings > Pages**.
-1. Locate your domain name and select **Details**.
-1. Select the **Retry verification** button to activate your new domain.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Pages**.
+
+   If this path is not visible, select **Deployments > Pages**.
+   [This location is part of an experiment](../index.md#menu-position-test).
+1. Next to the domain name, select **Edit**.
+1. In **Verification status**, select **Retry verification** (**{retry}**).
 
 ![Verify your domain](img/retry_domain_verification_v12_0.png)
 
@@ -179,14 +190,14 @@ from the GitLab project.
 > - Domain verification is **required for GitLab.com users**;
   for GitLab self-managed instances, your GitLab administrator has the option
   to [disabled custom domain verification](../../../../administration/pages/index.md#custom-domain-verification).
-> - [DNS propagation may take some time (up to 24h)](https://www.inmotionhosting.com/support/domain-names/dns-nameserver-changes/complete-guide-to-dns-records/),
+> - [DNS propagation may take some time (up to 24 hours)](https://www.inmotionhosting.com/support/domain-names/dns-nameserver-changes/complete-guide-to-dns-records/),
   although it's usually a matter of minutes to complete. Until it does, verification
   fails, and attempts to visit your domain result in a 404.
 > - Once your domain has been verified, leave the verification record
   in place. Your domain is periodically reverified, and may be
   disabled if the record is removed.
 
-##### Troubleshooting Pages domain verification
+##### Troubleshoot domain verification
 
 To manually verify that you have properly configured the domain verification
 `TXT` DNS entry, you can run the following command in your terminal:
@@ -218,7 +229,7 @@ For a subdomain:
 | `www.example.com`                                 | `TXT`      | `gitlab-pages-verification-code=00112233445566778899aabbccddeeff` |
 | `_gitlab-pages-verification-code.www.example.com` | `TXT`      | `gitlab-pages-verification-code=00112233445566778899aabbccddeeff` |
 
-### Adding more domain aliases
+### Add more domain aliases
 
 You can add more than one alias (custom domains and subdomains) to the same project.
 An alias can be understood as having many doors leading to the same room.
@@ -226,7 +237,7 @@ An alias can be understood as having many doors leading to the same room.
 All the aliases you've set to your site are listed on **Setting > Pages**.
 From that page, you can view, add, and remove them.
 
-### Redirecting `www.domain.com` to `domain.com` with Cloudflare
+### Redirect `www.domain.com` to `domain.com` with Cloudflare
 
 If you use Cloudflare, you can redirect `www` to `domain.com`
 without adding both `www.domain.com` and `domain.com` to GitLab.
@@ -245,7 +256,7 @@ can use the following setup:
      on the top nav.
    - Select **Create Page Rule**.
    - Enter the domain `www.domain.com` and select **+ Add a Setting**.
-   - From the dropdown menu, choose **Forwarding URL**, then select the
+   - From the dropdown list, choose **Forwarding URL**, then select the
      status code **301 - Permanent Redirect**.
    - Enter the destination URL `https://domain.com`.
 
@@ -282,12 +293,31 @@ meet these requirements.
 
 #### Steps
 
-- To add the certificate at the time you add a new domain, go to your
-  project's **Settings > Pages > New Domain**, add the domain name and the certificate.
-- To add the certificate to a domain previously added, go to your
-  project's **Settings > Pages**, locate your domain name, select **Details** and **Edit** to add the certificate.
+- To add the certificate at the time you add a new domain:
 
-![Pages project - adding certificates](img/add_certificate_to_pages.png)
+  1. On the top bar, select **Main menu > Projects** and find your project.
+  1. On the left sidebar, select **Settings > Pages**.
+
+     If this path is not visible, select **Deployments > Pages**.
+     [This location is part of an experiment](../index.md#menu-position-test).
+  1. In the upper-right corner, select **New Domain**.
+  1. In **Domain**, enter the domain name.
+  1. In **Certificate**, turn off the **Automatic certificate management using Let's Encrypt** toggle to add an [SSL/TLS certificate](#adding-an-ssltls-certificate-to-pages).
+  1. Select **Create New Domain**.
+
+- To add the certificate to a domain previously added:
+
+  1. On the top bar, select **Main menu > Projects** and find your project.
+  1. On the left sidebar, select **Settings > Pages**.
+
+     If this path is not visible, select **Deployments > Pages**.
+     [This location is part of an experiment](../index.md#menu-position-test).
+  1. Next to the domain name, select **Edit**.
+  1. In **Certificate**, turn off the **Automatic certificate management using Let's Encrypt** toggle to add an [SSL/TLS certificate](#adding-an-ssltls-certificate-to-pages).
+  1. Select **Save changes**.
+
+NOTE:
+The Pages menu entry may also be located at **Deployments > Pages**, [more information](../index.md#menu-position-test)
 
 1. Add the PEM certificate to its corresponding field.
 1. If your certificate is missing its intermediate, copy
@@ -311,8 +341,13 @@ domain (as long as you've set a valid certificate for it).
 
 To enable this setting:
 
-1. Navigate to your project's **Settings > Pages**.
-1. Tick the checkbox **Force HTTPS (requires valid certificates)**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Pages**.
+
+   If this path is not visible, select **Deployments > Pages**.
+   [This location is part of an experiment](../index.md#menu-position-test).
+1. Select the **Force HTTPS (requires valid certificates)** checkbox.
+1. Select **Save changes**.
 
 If you use Cloudflare CDN in front of GitLab Pages, make sure to set the SSL connection setting to
 `full` instead of `flexible`. For more details, see the [Cloudflare CDN directions](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes#h_4e0d1a7c-eb71-4204-9e22-9d3ef9ef7fef).

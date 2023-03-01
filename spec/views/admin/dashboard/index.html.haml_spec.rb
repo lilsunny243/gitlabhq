@@ -7,9 +7,7 @@ RSpec.describe 'admin/dashboard/index.html.haml' do
   include StubVersion
 
   before do
-    counts = Admin::DashboardController::COUNTED_ITEMS.each_with_object({}) do |item, hash|
-      hash[item] = 100
-    end
+    counts = Admin::DashboardController::COUNTED_ITEMS.index_with { 100 }
 
     assign(:counts, counts)
     assign(:projects, create_list(:project, 1))
@@ -53,6 +51,16 @@ RSpec.describe 'admin/dashboard/index.html.haml' do
     expect(rendered).not_to have_content "Users over License"
   end
 
+  it 'shows database versions for all database models' do
+    render
+
+    expect(rendered).to have_content /PostgreSQL \(main\).+?#{::Gitlab::Database::Reflection.new(ApplicationRecord).version}/
+
+    if Gitlab::Database.has_config?(:ci)
+      expect(rendered).to have_content /PostgreSQL \(ci\).+?#{::Gitlab::Database::Reflection.new(Ci::ApplicationRecord).version}/
+    end
+  end
+
   describe 'when show_version_check? is true' do
     before do
       allow(view).to receive(:show_version_check?).and_return(true)
@@ -60,7 +68,7 @@ RSpec.describe 'admin/dashboard/index.html.haml' do
     end
 
     it 'renders the version check badge' do
-      expect(rendered).to have_selector('.js-gitlab-version-check')
+      expect(rendered).to have_selector('.js-gitlab-version-check-badge')
     end
   end
 

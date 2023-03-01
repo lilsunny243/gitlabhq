@@ -6,7 +6,7 @@ module IssuablesHelper
   include ::Sidebars::Concerns::HasPill
 
   def sidebar_gutter_toggle_icon
-    content_tag(:span, class: 'js-sidebar-toggle-container', data: { is_expanded: !sidebar_gutter_collapsed? }) do
+    content_tag(:span, class: 'js-sidebar-toggle-container gl-button-text', data: { is_expanded: !sidebar_gutter_collapsed? }) do
       sprite_icon('chevron-double-lg-left', css_class: "js-sidebar-expand #{'hidden' unless sidebar_gutter_collapsed?}") +
       sprite_icon('chevron-double-lg-right', css_class: "js-sidebar-collapse #{'hidden' if sidebar_gutter_collapsed?}")
     end
@@ -135,35 +135,24 @@ module IssuablesHelper
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
-  def milestone_dropdown_label(milestone_title, default_label = _('Milestone'))
-    title =
-      case milestone_title
-      when Milestone::Upcoming.name then Milestone::Upcoming.title
-      when Milestone::Started.name then Milestone::Started.title
-      else milestone_title.presence
-      end
-
-    h(title || default_label)
-  end
-
   def issuable_meta_author_status(author)
     return "" unless author&.status&.customized? && status = user_status(author)
 
-    "#{status}".html_safe
+    status.to_s.html_safe
   end
 
   def issuable_meta(issuable, project)
     output = []
 
     if issuable.respond_to?(:work_item_type) && WorkItems::Type::WI_TYPES_WITH_CREATED_HEADER.include?(issuable.work_item_type.base_type)
-      output << content_tag(:span, sprite_icon("#{issuable.work_item_type.icon_name}", css_class: 'gl-icon gl-vertical-align-middle gl-text-gray-500'), class: 'gl-mr-2', aria: { hidden: 'true' })
-      output << s_('IssuableStatus|%{wi_type} created %{created_at} by ').html_safe % { wi_type: issuable.issue_type.capitalize, created_at: time_ago_with_tooltip(issuable.created_at) }
+      output << content_tag(:span, sprite_icon(issuable.work_item_type.icon_name.to_s, css_class: 'gl-icon gl-vertical-align-middle gl-text-gray-500'), class: 'gl-mr-2', aria: { hidden: 'true' })
+      output << content_tag(:span, s_('IssuableStatus|%{wi_type} created %{created_at} by ').html_safe % { wi_type: IntegrationsHelper.integration_issue_type(issuable.issue_type), created_at: time_ago_with_tooltip(issuable.created_at) }, class: 'gl-mr-2')
     else
-      output << s_('IssuableStatus|Created %{created_at} by').html_safe % { created_at: time_ago_with_tooltip(issuable.created_at) }
+      output << content_tag(:span, s_('IssuableStatus|Created %{created_at} by').html_safe % { created_at: time_ago_with_tooltip(issuable.created_at) }, class: 'gl-mr-2')
     end
 
     if issuable.is_a?(Issue) && issuable.service_desk_reply_to
-      output << "#{html_escape(issuable.service_desk_reply_to)} via "
+      output << "#{html_escape(issuable.present(current_user: current_user).service_desk_reply_to)} via "
     end
 
     output << content_tag(:strong) do
@@ -218,11 +207,24 @@ module IssuablesHelper
   def assigned_issuables_count(issuable_type)
     case issuable_type
     when :issues
-      current_user.assigned_open_issues_count
+      ::Users::AssignedIssuesCountService.new(
+        current_user: current_user,
+        max_limit: User::MAX_LIMIT_FOR_ASSIGNEED_ISSUES_COUNT
+      ).count
     when :merge_requests
       current_user.assigned_open_merge_requests_count
     else
       raise ArgumentError, "invalid issuable `#{issuable_type}`"
+    end
+  end
+
+  def assigned_open_issues_count_text
+    count = assigned_issuables_count(:issues)
+
+    if count > User::MAX_LIMIT_FOR_ASSIGNEED_ISSUES_COUNT - 1
+      "#{count - 1}+"
+    else
+      count.to_s
     end
   end
 
@@ -269,7 +271,19 @@ module IssuablesHelper
       sentryIssueIdentifier: SentryIssue.find_by(issue: issuable)&.sentry_issue_identifier, # rubocop:disable CodeReuse/ActiveRecord
       iid: issuable.iid.to_s,
       isHidden: issue_hidden?(issuable),
-      canCreateIncident: create_issue_type_allowed?(issuable.project, :incident)
+      canCreateIncident: create_issue_type_allowed?(issuable.project, :incident),
+      **incident_only_initial_data(issuable)
+    }
+  end
+
+  def incident_only_initial_data(issue)
+    return {} unless issue.incident?
+
+    {
+      hasLinkedAlerts: issue.alert_management_alerts.any?,
+      canUpdateTimelineEvent: can?(current_user, :admin_incident_management_timeline_event, issue),
+      currentPath: url_for(safe_params),
+      currentTab: safe_params[:incident_tab]
     }
   end
 
@@ -296,7 +310,7 @@ module IssuablesHelper
   end
 
   def issuables_count_for_state(issuable_type, state)
-    Gitlab::IssuablesCountForState.new(finder, store_in_redis_cache: true)[state]
+    Gitlab::IssuablesCountForState.new(finder, fast_fail: true, store_in_redis_cache: true)[state]
   end
 
   def close_issuable_path(issuable)
@@ -358,12 +372,18 @@ module IssuablesHelper
       else
         [_("Closed"), "merge-request-close"]
       end
+    elsif issuable.open?
+      [_("Open"), "issues"]
     else
-      if issuable.open?
-        [_("Open"), "issues"]
-      else
-        [_("Closed"), "issue-closed"]
-      end
+      [_("Closed"), "issue-closed"]
+    end
+  end
+
+  def hidden_issuable_icon(issuable)
+    title = format(_('This %{issuable} is hidden because its author has been banned'),
+                   issuable: issuable.is_a?(Issue) ? _('issue') : _('merge request'))
+    content_tag(:span, class: 'has-tooltip', title: title) do
+      sprite_icon('spam', css_class: 'gl-vertical-align-text-bottom')
     end
   end
 
@@ -424,6 +444,7 @@ module IssuablesHelper
       id: issuable[:id],
       severity: issuable[:severity],
       timeTrackingLimitToHours: Gitlab::CurrentSettings.time_tracking_limit_to_hours,
+      canCreateTimelogs: issuable.dig(:current_user, :can_create_timelogs),
       createNoteEmail: issuable[:create_note_email],
       issuableType: issuable[:type]
     }

@@ -4,7 +4,7 @@ module Snippets
   class CreateService < Snippets::BaseService
     # NOTE: For Issues::CreateService, we require the spam_params and do not default it to nil, because
     # spam_checking is likely to be necessary.
-    def initialize(project:, current_user: nil, params: {}, spam_params:)
+    def initialize(project:, spam_params:, current_user: nil, params: {})
       super(project: project, current_user: current_user, params: params)
       @spam_params = spam_params
     end
@@ -34,7 +34,7 @@ module Snippets
 
         move_temporary_files
 
-        ServiceResponse.success(payload: { snippet: @snippet } )
+        ServiceResponse.success(payload: { snippet: @snippet })
       else
         snippet_error_response(@snippet, 400)
       end

@@ -50,14 +50,6 @@ module BroadcastMessagesHelper
     end
   end
 
-  def broadcast_type_options
-    BroadcastMessage.broadcast_types.keys.map { |w| [w.humanize, w] }
-  end
-
-  def broadcast_theme_options
-    BroadcastMessage.themes.keys
-  end
-
   def target_access_level_options
     BroadcastMessage::ALLOWED_TARGET_ACCESS_LEVELS.map do |access_level|
       [Gitlab::Access.human_access(access_level), access_level]
@@ -70,6 +62,23 @@ module BroadcastMessagesHelper
     end.join(', ')
   end
 
+  def admin_broadcast_messages_data(broadcast_messages)
+    broadcast_messages.map do |message|
+      {
+        id: message.id,
+        status: broadcast_message_status(message),
+        preview: broadcast_message(message, preview: true),
+        starts_at: message.starts_at.iso8601,
+        ends_at: message.ends_at.iso8601,
+        target_roles: target_access_levels_display(message.target_access_levels),
+        target_path: message.target_path,
+        type: message.broadcast_type.capitalize,
+        edit_path: edit_admin_broadcast_message_path(message),
+        delete_path: "#{admin_broadcast_message_path(message)}.js"
+      }
+    end.to_json
+  end
+
   private
 
   def current_user_access_level_for_project_or_group
@@ -77,11 +86,12 @@ module BroadcastMessagesHelper
     return unless current_user.present?
 
     strong_memoize(:current_user_access_level_for_project_or_group) do
-      if controller.is_a? Projects::ApplicationController
+      case controller
+      when Projects::ApplicationController
         next unless @project
 
         @project.team.max_member_access(current_user.id)
-      elsif controller.is_a? Groups::ApplicationController
+      when Groups::ApplicationController
         next unless @group
 
         @group.max_member_access_for_user(current_user)

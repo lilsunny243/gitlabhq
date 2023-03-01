@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -22,7 +22,7 @@ you do not expect public users to sign up for an account.
 
 To disable sign ups:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, and expand **Sign-up restrictions**.
 1. Clear the **Sign-up enabled** checkbox, then select **Save changes**.
 
@@ -38,7 +38,7 @@ enabled by default for new GitLab instances. It is only applicable if sign ups a
 
 To require administrator approval for new sign ups:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, and expand **Sign-up restrictions**.
 1. Select the **Require admin approval for new sign-ups** checkbox, then select **Save changes**.
 
@@ -48,7 +48,7 @@ automatically approved in a background job.
 NOTE:
 This setting doesn't apply to LDAP or OmniAuth users. To enforce approvals for new users
 signing up using OmniAuth or LDAP, set `block_auto_created_users` to `true` in the
-[OmniAuth configuration](../../../integration/omniauth.md#configure-initial-settings) or
+[OmniAuth configuration](../../../integration/omniauth.md#configure-common-settings) or
 [LDAP configuration](../../../administration/auth/ldap/index.md#basic-configuration-settings).
 
 ## Require email confirmation
@@ -58,9 +58,9 @@ their email address before they are allowed to sign in.
 
 To enforce confirmation of the email address used for new sign ups:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, and expand **Sign-up restrictions**.
-1. Select the **Send confirmation email on sign-up** checkbox, then select **Save changes**.
+1. Under **Email confirmation settings**, select **Hard**.
 
 ## User cap
 
@@ -76,7 +76,7 @@ user cap, the users in pending approval state are automatically approved in a ba
 
 ### Set the user cap number
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Sign-up restrictions**.
 1. Enter a number in **User cap**.
@@ -86,7 +86,7 @@ New user sign ups are subject to the user cap restriction.
 
 ## Remove the user cap
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Sign-up restrictions**.
 1. Remove the number from **User cap**.
@@ -115,7 +115,7 @@ create or update pipelines until their email address is confirmed.
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/20661) in GitLab 12.6
 
-You can [change](../../../security/password_length_limits.md#modify-minimum-password-length-using-gitlab-ui)
+You can [change](../../../security/password_length_limits.md#modify-minimum-password-length)
 the minimum number of characters a user must have in their password using the GitLab UI.
 
 ### Password complexity requirements **(PREMIUM SELF)**
@@ -130,7 +130,7 @@ You can add additional complexity requirements. Changes to password complexity r
 
 Existing passwords are unaffected. To change password complexity requirements:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Sign-up restrictions**.
 1. Under **Minimum password length (number of characters)**, select additional password complexity requirements. You can require numbers, uppercase letters, lowercase letters,
@@ -142,7 +142,7 @@ Existing passwords are unaffected. To change password complexity requirements:
 You can specify an inclusive or exclusive list of email domains which can be used for user sign up.
 
 These restrictions are only applied during sign up from an external user. An administrator can add a
-user through the administrator panel with a disallowed domain. Also, note that the users can change their
+user through the administrator panel with a disallowed domain. The users can also change their
 email addresses to disallowed domains after sign up.
 
 ### Allowlist email domains
@@ -159,7 +159,7 @@ reduce the risk of malicious users creating spam accounts with disposable email 
 
 To create an email domain allowlist or denylist:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, and expand **Sign-up restrictions**.
 1. For the allowlist, you must enter the list manually. For the denylist, you can enter the list
    manually or upload a `.txt` file that contains list entries.
@@ -190,6 +190,12 @@ To disable it:
 Feature.disable(:soft_email_confirmation)
 ```
 
+## Set up LDAP user filter
+
+You can limit GitLab access to a subset of the LDAP users on your LDAP server.
+
+See the [documentation on setting up an LDAP user filter](../../../administration/auth/ldap/index.md#set-up-ldap-user-filter) for more information.
+
 <!-- ## Troubleshooting
 
 Include any troubleshooting steps that you can foresee. If you know beforehand what issues
@@ -198,6 +204,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

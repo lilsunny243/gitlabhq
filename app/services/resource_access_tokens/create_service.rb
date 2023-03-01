@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'securerandom'
+
 module ResourceAccessTokens
   class CreateService < BaseService
     def initialize(current_user, resource, params = {})
@@ -48,9 +50,9 @@ module ResourceAccessTokens
     end
 
     def create_user
-      # Even project maintainers can create project access tokens, which in turn
+      # Even project maintainers/owners can create project access tokens, which in turn
       # creates a bot user, and so it becomes necessary to  have `skip_authorization: true`
-      # since someone like a project maintainer does not inherently have the ability
+      # since someone like a project maintainer/owner does not inherently have the ability
       # to create a new user in the system.
 
       ::Users::AuthorizedCreateService.new(current_user, default_user_params).execute
@@ -71,21 +73,15 @@ module ResourceAccessTokens
     end
 
     def generate_username
-      base_username = "#{resource_type}_#{resource.id}_bot"
-
-      uniquify.string(base_username) { |s| User.find_by_username(s) }
+      username
     end
 
     def generate_email
-      email_pattern = "#{resource_type}#{resource.id}_bot%s@noreply.#{Gitlab.config.gitlab.host}"
-
-      uniquify.string(-> (n) { Kernel.sprintf(email_pattern, n) }) do |s|
-        User.find_by_email(s)
-      end
+      "#{username}@noreply.#{Gitlab.config.gitlab.host}"
     end
 
-    def uniquify
-      Uniquify.new
+    def username
+      @username ||= "#{resource_type}_#{resource.id}_bot_#{SecureRandom.hex(8)}"
     end
 
     def create_personal_access_token(user)

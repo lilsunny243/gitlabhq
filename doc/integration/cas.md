@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # CAS OmniAuth provider (deprecated) **(FREE SELF)**
@@ -32,7 +32,9 @@ configure CAS for back-channel logout.
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. See [Configure initial settings](omniauth.md#configure-initial-settings) for initial settings.
+1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+   to add `cas3` as a single sign-on provider. This enables Just-In-Time
+   account provisioning for users who do not have an existing GitLab account.
 
 1. Add the provider configuration:
 

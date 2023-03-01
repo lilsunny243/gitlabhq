@@ -117,7 +117,7 @@ limit 30;
 NOTE:
 In PostgreSQL context, a **physical table** is either a regular table or a partition of a partitioned table.
 
-In order to maintain and improve operational stability and lessen development burden, we target a **table size less than 100 GB for a physical table on GitLab.com** (including its indexes). This has numerous benefits:
+To maintain and improve operational stability and lessen development burden, we target a **table size less than 100 GB for a physical table on GitLab.com** (including its indexes). This has numerous benefits:
 
 1. Improved query performance and more stable query plans
 1. Significantly reduce vacuum run times and increase frequency of vacuum runs to maintain a healthy state - reducing overhead on the database primary
@@ -138,7 +138,7 @@ There is no standard solution to reduce table sizes - there are many!
 1. **Retention**: Delete unnecessary data, for example expire old and unneeded records.
 1. **Remove STI**: We still use [single-table inheritance](../../../development/database/single_table_inheritance.md) in a few places, which is considered an anti-pattern. Redesigning this, we can split data into multiple tables.
 1. **Index optimization**: Drop unnecessary indexes and consolidate overlapping indexes if possible.
-1. **Optimise data types**: Review data type decisions and optimise data types where possible (example: use integer instead of text for an enum column)
+1. **Optimize data types**: Review data type decisions and optimize data types where possible (example: use integer instead of text for an enum column)
 1. **Partitioning**: Apply a partitioning scheme if there is a common access dimension.
 1. **Normalization**: Review relational modeling and apply normalization techniques to remove duplicate data
 1. **Vertical table splits**: Review column usage and split table vertically.

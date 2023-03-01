@@ -2,20 +2,27 @@
 
 require 'spec_helper'
 
-RSpec.describe Import::BulkImportsController do
+RSpec.describe Import::BulkImportsController, feature_category: :importers do
   let_it_be(:user) { create(:user) }
 
   before do
+    stub_application_setting(bulk_import_enabled: true)
+
     sign_in(user)
+
+    allow(::Gitlab::ApplicationRateLimiter).to receive(:throttled?).and_return(false)
   end
 
   context 'when user is signed in' do
     context 'when bulk_import feature flag is enabled' do
-      before do
-        stub_feature_flags(bulk_import: true)
-      end
-
       describe 'POST configure' do
+        before do
+          allow_next_instance_of(BulkImports::Clients::HTTP) do |instance|
+            allow(instance).to receive(:validate_instance_version!).and_return(true)
+            allow(instance).to receive(:validate_import_scopes!).and_return(true)
+          end
+        end
+
         context 'when no params are passed in' do
           it 'clears out existing session' do
             post :configure
@@ -28,8 +35,57 @@ RSpec.describe Import::BulkImportsController do
           end
         end
 
+        context 'when URL is invalid' do
+          it 'redirects to initial import page' do
+            token = 'token'
+            url = 'http://192.168.0.1'
+
+            post :configure, params: { bulk_import_gitlab_access_token: token, bulk_import_gitlab_url: url }
+
+            expect(response).to redirect_to new_group_path(anchor: 'import-group-pane')
+            expect(flash[:alert]).to include('Specified URL cannot be used')
+          end
+        end
+
+        context 'when token scope is invalid' do
+          before do
+            allow_next_instance_of(BulkImports::Clients::HTTP) do |instance|
+              allow(instance).to receive(:validate_instance_version!).and_return(true)
+              allow(instance).to receive(:validate_import_scopes!).and_raise(BulkImports::Error.new('Error!'))
+            end
+          end
+
+          it 'redirects to initial import page' do
+            token = 'token'
+            url = 'https://gitlab.example'
+
+            post :configure, params: { bulk_import_gitlab_access_token: token, bulk_import_gitlab_url: url }
+
+            expect(response).to redirect_to new_group_path(anchor: 'import-group-pane')
+            expect(flash[:alert]).to include('Error!')
+          end
+        end
+
+        context 'when instance version is incompatible' do
+          before do
+            allow_next_instance_of(BulkImports::Clients::HTTP) do |instance|
+              allow(instance).to receive(:validate_instance_version!).and_raise(BulkImports::Error.new('Error!'))
+            end
+          end
+
+          it 'redirects to initial import page' do
+            token = 'token'
+            url = 'https://gitlab.example'
+
+            post :configure, params: { bulk_import_gitlab_access_token: token, bulk_import_gitlab_url: url }
+
+            expect(response).to redirect_to new_group_path(anchor: 'import-group-pane')
+            expect(flash[:alert]).to include('Error!')
+          end
+        end
+
         it 'sets the session variables' do
-          token = 'token'
+          token = 'invalid token'
           url = 'https://gitlab.example'
 
           post :configure, params: { bulk_import_gitlab_access_token: token, bulk_import_gitlab_url: url }
@@ -65,12 +121,12 @@ RSpec.describe Import::BulkImportsController do
           params = { page: 1, per_page: 20, filter: '' }.merge(params_override)
 
           get :status,
-              params: params,
-              format: format,
-              session: {
-                bulk_import_gitlab_url: 'https://gitlab.example.com',
-                bulk_import_gitlab_access_token: 'demo-pat'
-              }
+            params: params,
+            format: format,
+            session: {
+              bulk_import_gitlab_url: 'https://gitlab.example.com',
+              bulk_import_gitlab_access_token: 'demo-pat'
+            }
         end
 
         include_context 'bulk imports requests context', 'https://gitlab.example.com'
@@ -98,6 +154,17 @@ RSpec.describe Import::BulkImportsController do
                 'x-total-pages' => '2'
               }
             )
+          end
+
+          let(:source_version) do
+            Gitlab::VersionInfo.new(::BulkImport::MIN_MAJOR_VERSION, ::BulkImport::MIN_MINOR_VERSION_FOR_PROJECT)
+          end
+
+          before do
+            allow_next_instance_of(BulkImports::Clients::HTTP) do |instance|
+              allow(instance).to receive(:instance_version).and_return(source_version)
+              allow(instance).to receive(:instance_enterprise).and_return(false)
+            end
           end
 
           it 'returns serialized group data' do
@@ -201,8 +268,14 @@ RSpec.describe Import::BulkImportsController do
         end
 
         context 'when connection error occurs' do
+          let(:source_version) do
+            Gitlab::VersionInfo.new(::BulkImport::MIN_MAJOR_VERSION, ::BulkImport::MIN_MINOR_VERSION_FOR_PROJECT)
+          end
+
           before do
             allow_next_instance_of(BulkImports::Clients::HTTP) do |instance|
+              allow(instance).to receive(:instance_version).and_return(source_version)
+              allow(instance).to receive(:instance_enterprise).and_return(false)
               allow(instance).to receive(:get).and_raise(BulkImports::Error)
             end
           end
@@ -247,10 +320,10 @@ RSpec.describe Import::BulkImportsController do
              "source_full_path" => "full_path",
              "destination_slug" => "destination_name",
              "destination_namespace" => "root" },
-           { "source_type" => "group_entity2",
-             "source_full_path" => "full_path2",
-             "destination_slug" => "destination_name2",
-             "destination_namespace" => "root" }]
+           { "source_type" => "group_entity",
+             "source_full_path" => "full_path",
+             "destination_slug" => "destination_name",
+             "destination_namespace" => "invalid-namespace" }]
         end
 
         before do
@@ -308,12 +381,39 @@ RSpec.describe Import::BulkImportsController do
             expect(json_response).to match_array([{ "success" => true, "id" => bulk_import.id, "message" => nil }])
           end
         end
+
+        context 'when source type is project' do
+          let(:bulk_import_params) do
+            [{ "source_type" => "project_entity",
+               "source_full_path" => "full_path",
+               "destination_slug" => "destination_name",
+               "destination_namespace" => "root" }]
+          end
+
+          it 'returns 422' do
+            post :create, params: { bulk_import: bulk_import_params }
+
+            expect(response).to have_gitlab_http_status(:unprocessable_entity)
+          end
+        end
+
+        context 'when request exceeds rate limits' do
+          it 'prevents user from starting a new migration' do
+            allow(::Gitlab::ApplicationRateLimiter).to receive(:throttled?).and_return(true)
+
+            post :create, params: { bulk_import: {} }
+
+            request
+
+            expect(response).to have_gitlab_http_status(:too_many_requests)
+          end
+        end
       end
     end
 
-    context 'when bulk_import feature flag is disabled' do
+    context 'when feature is disabled' do
       before do
-        stub_feature_flags(bulk_import: false)
+        stub_application_setting(bulk_import_enabled: false)
       end
 
       context 'POST configure' do

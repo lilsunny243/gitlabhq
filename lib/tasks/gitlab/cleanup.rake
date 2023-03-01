@@ -1,7 +1,8 @@
 # frozen_string_literal: true
-require 'set'
 
 namespace :gitlab do
+  require 'set'
+
   namespace :cleanup do
     desc "GitLab | Cleanup | Block users that have been removed in LDAP"
     task block_removed_ldap_users: :gitlab_environment do
@@ -15,13 +16,11 @@ namespace :gitlab do
 
         if Gitlab::Auth::Ldap::Access.allowed?(user)
           puts " [OK]".color(:green)
+        elsif block_flag
+          user.block! unless user.blocked?
+          puts " [BLOCKED]".color(:red)
         else
-          if block_flag
-            user.block! unless user.blocked?
-            puts " [BLOCKED]".color(:red)
-          else
-            puts " [NOT IN LDAP]".color(:yellow)
-          end
+          puts " [NOT IN LDAP]".color(:yellow)
         end
       end
 

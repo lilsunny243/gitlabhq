@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Protected branches **(FREE)**
@@ -9,6 +9,14 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 In GitLab, [permissions](../permissions.md) are fundamentally defined around the
 idea of having read or write permission to the repository and branches. To impose
 further restrictions on certain branches, they can be protected.
+
+A protected branch controls:
+
+- Which users can merge into the branch.
+- Which users can push to the branch.
+- If users can force push to the branch.
+- If changes to files listed in the CODEOWNERS file can be pushed directly to the branch.
+- Which users can unprotect the branch.
 
 The [default branch](repository/branches/default.md) for your repository is protected by default.
 
@@ -28,6 +36,40 @@ When a branch is protected, the default behavior enforces these restrictions on 
 1. No one can delete a protected branch using Git commands, however, users with at least Maintainer
    role can [delete a protected branch from the UI or API](#delete-a-protected-branch).
 
+### When a branch matches multiple rules
+
+When a branch matches multiple rules, the **most permissive rule** determines the
+level of protection for the branch. For example, consider these rules, which include
+[wildcards](#configure-multiple-protected-branches-by-using-a-wildcard):
+
+| Branch name pattern | Allowed to merge       | Allowed to push |
+|---------------------|------------------------|-----------------|
+| `v1.x`              | Maintainer             | Maintainer      |
+| `v1.*`              | Maintainer + Developer | Maintainer      |
+| `v*`                | No one                 | No one          |
+
+A branch named `v1.x` matches all three branch name patterns: `v1.x`, `v1.*`, and `v*`.
+As the most permissive option determines the behavior, the resulting permissions for branch `v1.x` are:
+
+- **Allowed to merge:** Of the three settings, `Maintainer + Developer` is most permissive,
+  and controls branch behavior as a result. Even though the branch also matched `v1.x` and `v*`
+  (which each have stricter permissions), users with the Developer role can merge into the branch.
+- **Allowed to push:** Of the three settings, `Maintainer` is the most permissive, and controls
+  branch behavior as a result. Even though branches matching `v*` are set to `No one`, branches
+  that _also_ match `v1.x` or `v1.*` receive the more permissive `Maintainer` permission.
+
+To be certain that a rule controls the behavior of a branch,
+_all_ other patterns that match must apply less or equally permissive rules.
+
+If you want to ensure that `No one` is allowed to push to branch `v1.x`, every pattern
+that matches `v1.x` must set `Allowed to push` to `No one`, like this:
+
+| Branch name pattern | Allowed to merge       | Allowed to push |
+|---------------------|------------------------|-----------------|
+| `v1.x`              | Maintainer             | No one          |
+| `v1.*`              | Maintainer + Developer | No one          |
+| `v*`                | No one                 | No one          |
+
 ### Set the default branch protection level
 
 Administrators can set a default branch protection level in the
@@ -38,10 +80,12 @@ Administrators can set a default branch protection level in the
 Prerequisite:
 
 - You must have at least the Maintainer role.
+- When granting a group **Allowed to merge** or **Allowed to push** permissions
+  on a protected branch, the group must be added to the project.
 
 To protect a branch:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, select the branch you want to protect.
@@ -63,7 +107,7 @@ Prerequisite:
 
 To protect multiple branches at the same time:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, type the branch name and a wildcard.
@@ -96,7 +140,7 @@ from the command line or from a Git client application.
 
 To create a new branch through the user interface:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Repository > Branches**.
 1. Select **New branch**.
 1. Fill in the branch name and select an existing branch, tag, or commit to
@@ -109,7 +153,7 @@ You can force everyone to submit a merge request, rather than allowing them to
 check in directly to a protected branch. This setting is compatible with workflows
 like the [GitLab workflow](../../topics/gitlab_flow.md).
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, select the branch you want to protect.
@@ -125,7 +169,7 @@ like the [GitLab workflow](../../topics/gitlab_flow.md).
 
 You can allow everyone with write access to push to the protected branch.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, select the branch you want to protect.
@@ -153,7 +197,7 @@ Prerequisites:
 
 To allow a deploy key to push to a protected branch:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, select the branch you want to protect.
@@ -172,7 +216,7 @@ protected branches.
 
 To protect a new branch and enable force push:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, select the branch you want to protect.
@@ -184,7 +228,7 @@ To protect a new branch and enable force push:
 
 To enable force pushes on branches that are already protected:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. In the list of protected branches, next to the branch, turn on the **Allowed to force push** toggle.
@@ -193,14 +237,13 @@ Members who can push to this branch can now also force push.
 
 ## Require Code Owner approval on a protected branch **(PREMIUM)**
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13251) in GitLab 12.4.
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/35097) in GitLab 13.5, users and groups who can push to protected branches do not have to use a merge request to merge their feature branches. This means they can skip merge request approval rules.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/35097) in GitLab 13.5, users and groups who can push to protected branches do not have to use a merge request to merge their feature branches. This means they can skip merge request approval rules.
 
 For a protected branch, you can require at least one approval by a [Code Owner](code_owners.md).
 
 To protect a new branch and enable Code Owner's approval:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. From the **Branch** dropdown list, select the branch you want to protect.
@@ -210,7 +253,7 @@ To protect a new branch and enable Code Owner's approval:
 
 To enable Code Owner's approval on branches that are already protected:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Protected branches**.
 1. In the list of protected branches, next to the branch, turn on the **Code owner approval** toggle.
@@ -242,7 +285,7 @@ for details about the pipelines security model.
 Users with at least the Maintainer role can manually delete protected
 branches by using the GitLab web interface:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Repository > Branches**.
 1. Next to the branch you want to delete, select **Delete** (**{remove}**).
 1. On the confirmation dialog, type the branch name.
@@ -260,6 +303,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

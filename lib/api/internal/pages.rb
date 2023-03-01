@@ -5,6 +5,7 @@ module API
   module Internal
     class Pages < ::API::Base
       feature_category :pages
+      urgency :low
 
       before do
         authenticate_gitlab_pages_request!
@@ -59,7 +60,8 @@ module API
               # Gitlab::Pages::CacheControl
               present_cached virtual_domain,
                 cache_context: nil,
-                with: Entities::Internal::Pages::VirtualDomain
+                with: Entities::Internal::Pages::VirtualDomain,
+                expires_in: ::Gitlab::Pages::CacheControl::EXPIRE
             else
               present virtual_domain, with: Entities::Internal::Pages::VirtualDomain
             end

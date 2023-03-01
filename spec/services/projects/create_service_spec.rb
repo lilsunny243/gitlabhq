@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::CreateService, '#execute' do
+RSpec.describe Projects::CreateService, '#execute', feature_category: :projects do
   include ExternalAuthorizationServiceHelpers
 
   let(:user) { create :user }
@@ -125,11 +125,45 @@ RSpec.describe Projects::CreateService, '#execute' do
       expect(project.namespace).to eq(user.namespace)
       expect(project.project_namespace).to be_in_sync_with_project(project)
     end
+
+    context 'project_authorizations record creation' do
+      context 'when the project_authrizations records are not created via the callback' do
+        it 'still creates project_authrizations record for the user' do
+          # stub out the callback that creates project_authorizations records on the `ProjectMember` model.
+          expect_next_instance_of(ProjectMember) do |member|
+            expect(member).to receive(:refresh_member_authorized_projects).and_return(nil)
+          end
+
+          project = create_project(user, opts)
+
+          expected_record = project.project_authorizations.where(
+            user: user,
+            access_level: ProjectMember::OWNER
+          )
+
+          expect(expected_record).to exist
+        end
+      end
+    end
+
+    context 'when the passed in namespace is for a bot user' do
+      let(:bot_user) { create(:user, :project_bot) }
+      let(:opts) do
+        { name: project_name, namespace_id: bot_user.namespace.id }
+      end
+
+      it 'raises an error' do
+        project = create_project(bot_user, opts)
+
+        expect(project.errors.errors.length).to eq 1
+        expect(project.errors.messages[:namespace].first).to eq(("is not valid"))
+      end
+    end
   end
 
   describe 'after create actions' do
     it 'invalidate personal_projects_count caches' do
-      expect(user).to receive(:invalidate_personal_projects_count)
+      expect(Rails.cache).to receive(:delete).with(['users', user.id, 'personal_projects_count'])
 
       create_project(user, opts)
     end
@@ -888,27 +922,6 @@ RSpec.describe Projects::CreateService, '#execute' do
     end
   end
 
-  it_behaves_like 'measurable service' do
-    before do
-      opts.merge!(
-        current_user: user,
-        path: 'foo'
-      )
-    end
-
-    let(:base_log_data) do
-      {
-        class: Projects::CreateService.name,
-        current_user: user.name,
-        project_full_path: "#{user.namespace.full_path}/#{opts[:path]}"
-      }
-    end
-
-    after do
-      create_project(user, opts)
-    end
-  end
-
   context 'with specialized project_authorization workers' do
     let_it_be(:other_user) { create(:user) }
     let_it_be(:group) { create(:group) }
@@ -934,6 +947,8 @@ RSpec.describe Projects::CreateService, '#execute' do
     end
 
     it 'schedules authorization update for users with access to group', :sidekiq_inline do
+      stub_feature_flags(do_not_run_safety_net_auth_refresh_jobs: false)
+
       expect(AuthorizedProjectsWorker).not_to(
         receive(:bulk_perform_async)
       )
@@ -982,6 +997,7 @@ RSpec.describe Projects::CreateService, '#execute' do
         where(:shared_runners_setting, :desired_config_for_new_project, :expected_result_for_project) do
           Namespace::SR_ENABLED                    | nil | true
           Namespace::SR_DISABLED_WITH_OVERRIDE     | nil | false
+          Namespace::SR_DISABLED_AND_OVERRIDABLE   | nil | false
           Namespace::SR_DISABLED_AND_UNOVERRIDABLE | nil | false
         end
 
@@ -1004,6 +1020,8 @@ RSpec.describe Projects::CreateService, '#execute' do
           Namespace::SR_ENABLED                    | false | false
           Namespace::SR_DISABLED_WITH_OVERRIDE     | false | false
           Namespace::SR_DISABLED_WITH_OVERRIDE     | true  | true
+          Namespace::SR_DISABLED_AND_OVERRIDABLE   | false | false
+          Namespace::SR_DISABLED_AND_OVERRIDABLE   | true  | true
           Namespace::SR_DISABLED_AND_UNOVERRIDABLE | false | false
         end
 

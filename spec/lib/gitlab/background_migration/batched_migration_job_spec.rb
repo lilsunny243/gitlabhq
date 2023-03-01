@@ -14,7 +14,7 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
 
       expect(generic_instance.send(:batch_table)).to eq('projects')
       expect(generic_instance.send(:batch_column)).to eq('id')
-      expect(generic_instance.instance_variable_get('@job_arguments')).to eq(%w(x y))
+      expect(generic_instance.instance_variable_get(:@job_arguments)).to eq(%w(x y))
       expect(generic_instance.send(:connection)).to eq(connection)
 
       %i(start_id end_id sub_batch_size pause_ms).each do |attr|
@@ -57,6 +57,71 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
     end
   end
 
+  describe '.operation_name' do
+    subject(:perform_job) { job_instance.perform }
+
+    let(:job_instance) do
+      job_class.new(start_id: 1, end_id: 10,
+                    batch_table: '_test_table',
+                    batch_column: 'id',
+                    sub_batch_size: 2,
+                    pause_ms: 1000,
+                    job_arguments: %w(a b),
+                    connection: connection)
+    end
+
+    let(:job_class) do
+      Class.new(described_class) do
+        operation_name :update_all
+      end
+    end
+
+    it 'defines method' do
+      expect(job_instance.operation_name).to eq(:update_all)
+    end
+
+    context 'when `operation_name` is not defined' do
+      let(:job_class) do
+        Class.new(described_class) do
+          def perform
+            each_sub_batch do |sub_batch|
+              sub_batch.update_all('to_column = from_column')
+            end
+          end
+        end
+      end
+
+      let(:test_table) { table(:_test_table) }
+      let(:test_insert_table) { table(:_test_insert_table) }
+
+      before do
+        allow(job_instance).to receive(:sleep)
+
+        connection.create_table :_test_table do |t|
+          t.timestamps_with_timezone null: false
+          t.integer :from_column, null: false
+        end
+
+        connection.create_table :_test_insert_table, id: false do |t|
+          t.integer :to_column
+          t.index :to_column, unique: true
+        end
+
+        test_table.create!(id: 1, from_column: 5)
+        test_table.create!(id: 2, from_column: 10)
+      end
+
+      after do
+        connection.drop_table(:_test_table)
+        connection.drop_table(:_test_insert_table)
+      end
+
+      it 'raises an exception' do
+        expect { perform_job }.to raise_error(RuntimeError, /Operation name is required/)
+      end
+    end
+  end
+
   describe '.scope_to' do
     subject(:job_instance) do
       job_class.new(start_id: 1, end_id: 10,
@@ -89,6 +154,28 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
 
       it 'returns provided relation as is' do
         expect(job_instance.filter_batch('relation')).to eq('relation')
+      end
+    end
+  end
+
+  describe '.feature_category' do
+    context 'when jobs does not have feature_category attribute set' do
+      let(:job_class) { Class.new(described_class) }
+
+      it 'returns :database as default' do
+        expect(job_class.feature_category).to eq(:database)
+      end
+    end
+
+    context 'when jobs have feature_category attribute set' do
+      let(:job_class) do
+        Class.new(described_class) do
+          feature_category :delivery
+        end
+      end
+
+      it 'returns the provided value' do
+        expect(job_class.feature_category).to eq(:delivery)
       end
     end
   end
@@ -133,9 +220,10 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
     context 'when the subclass uses sub-batching' do
       let(:job_class) do
         Class.new(described_class) do
+          operation_name :update
+
           def perform(*job_arguments)
             each_sub_batch(
-              operation_name: :update,
               batching_arguments: { order_hint: :updated_at },
               batching_scope: -> (relation) { relation.where.not(bar: nil) }
             ) do |sub_batch|
@@ -177,10 +265,10 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
         let(:job_class) do
           Class.new(described_class) do
             scope_to ->(r) { r.where('mod(id, 2) = 0') }
+            operation_name :update
 
             def perform(*job_arguments)
               each_sub_batch(
-                operation_name: :update,
                 batching_arguments: { order_hint: :updated_at },
                 batching_scope: -> (relation) { relation.where.not(bar: nil) }
               ) do |sub_batch|
@@ -237,8 +325,10 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
 
       let(:job_class) do
         Class.new(described_class) do
+          operation_name :insert
+
           def perform(*job_arguments)
-            distinct_each_batch(operation_name: :insert) do |sub_batch|
+            distinct_each_batch do |sub_batch|
               sub_batch.pluck(:from_column).each do |value|
                 connection.execute("INSERT INTO _test_insert_table VALUES (#{value})")
               end
@@ -291,9 +381,10 @@ RSpec.describe Gitlab::BackgroundMigration::BatchedMigrationJob do
         let(:job_class) do
           Class.new(described_class) do
             scope_to ->(r) { r.where.not(from_column: 10) }
+            operation_name :insert
 
             def perform(*job_arguments)
-              distinct_each_batch(operation_name: :insert) do |sub_batch|
+              distinct_each_batch do |sub_batch|
               end
             end
           end

@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Webhook events **(FREE)**
@@ -611,7 +611,8 @@ Payload example:
       "name": "User1",
       "username": "user1",
       "avatar_url": "http://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=40\u0026d=identicon"
-    }
+    },
+    "detailed_merge_status": "checking"
   }
 }
 ```
@@ -947,7 +948,8 @@ Payload example:
       "type": "ProjectLabel",
       "group_id": 41
     }],
-    "action": "open"
+    "action": "open",
+    "detailed_merge_status": "mergeable"
   },
   "labels": [{
     "id": 206,
@@ -1017,7 +1019,7 @@ Payload example:
 ```
 
 NOTE:
-The fields `assignee_id`, and `state` are deprecated.
+The fields `assignee_id` and `merge_status` are [deprecated](../../../api/merge_requests.md).
 
 ## Wiki page events
 
@@ -1100,6 +1102,7 @@ Payload example:
    "object_kind": "pipeline",
    "object_attributes":{
       "id": 31,
+      "iid": 3,
       "ref": "master",
       "tag": false,
       "sha": "bcbb5ec396a2c0f828686f14fac9b80b780504f2",
@@ -1131,6 +1134,7 @@ Payload example:
       "target_project_id": 1,
       "state": "opened",
       "merge_status": "can_be_merged",
+      "detailed_merge_status": "mergeable",
       "url": "http://192.168.64.1:3005/gitlab-org/gitlab-test/merge_requests/1"
    },
    "user":{
@@ -1167,7 +1171,7 @@ Payload example:
       "project":{
         "id": 41,
         "web_url": "https://gitlab.example.com/gitlab-org/upstream-project",
-        "path_with_namespace": "gitlab-org/upstream-project",
+        "path_with_namespace": "gitlab-org/upstream-project"
       },
       "pipeline_id": 30,
       "job_id": 3401
@@ -1390,6 +1394,7 @@ Payload example:
   "build_duration": null,
   "build_allow_failure": false,
   "build_failure_reason": "script_failure",
+  "retries_count": 2,        // the second retry of this job
   "pipeline_id": 2366,
   "project_id": 380,
   "project_name": "gitlab-org/gitlab-test",
@@ -1401,6 +1406,7 @@ Payload example:
   },
   "commit": {
     "id": 2366,
+    "name": "Build pipeline",
     "sha": "2293ada6b400935a1378653304eaf6221e0fdb8f",
     "message": "test\n",
     "author_name": "User",
@@ -1433,6 +1439,26 @@ Payload example:
 }
 ```
 
+### Number of retries
+
+> `retries_count` [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/382046) in GitLab 15.6 [with a flag](../../../administration/feature_flags.md) named `job_webhook_retries_count`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available,
+ask an administrator to [enable the feature flag](../../../administration/feature_flags.md) named
+`job_webhook_retries_count`.
+On GitLab.com, this feature is not available.
+
+`retries_count` is an integer that indicates if the job is a retry. `0` means that the job
+has not been retried. `1` means that it's the first retry.
+
+### Pipeline name
+
+> `commit.name` [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/107963) in GitLab 15.8.
+
+You can set custom names for pipelines with [`workflow:name`](../../../ci/yaml/index.md#workflowname).
+If the pipeline has a name, that name is the value of `commit.name`.
+
 ## Deployment events
 
 Deployment events are triggered when a deployment:
@@ -1461,6 +1487,8 @@ Payload example:
   "deployable_id": 796,
   "deployable_url": "http://10.126.0.2:3000/root/test-deployment-webhooks/-/jobs/796",
   "environment": "staging",
+  "environment_slug": "staging",
+  "environment_external_url": "https://staging.example.com",
   "project": {
     "id": 30,
     "name": "test-deployment-webhooks",
@@ -1756,7 +1784,7 @@ Payload example:
     "links": [
       {
         "id": 1,
-        "external": true,
+        "external": true, // deprecated in GitLab 15.9, will be removed in GitLab 16.0.
         "link_type": "other",
         "name": "Changelog",
         "url": "https://example.net/changelog"

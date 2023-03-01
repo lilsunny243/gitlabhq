@@ -1,6 +1,5 @@
 import { s__ } from '~/locale';
 
-export const CLOSE_TO_LIMIT_COUNT = 2;
 export const SEARCH_DELAY = 200;
 export const VALID_TOKEN_BACKGROUND = 'gl-bg-green-100';
 export const INVALID_TOKEN_BACKGROUND = 'gl-bg-red-100';
@@ -10,6 +9,7 @@ export const INVITE_MEMBERS_FOR_TASK = {
   view: 'modal_opened_from_email',
   submit: 'submit',
 };
+export const TOAST_MESSAGE_LOCALSTORAGE_KEY = 'members_invited_successfully';
 
 export const GROUP_FILTERS = {
   ALL: 'all',
@@ -20,6 +20,10 @@ export const USERS_FILTER_ALL = 'all';
 export const USERS_FILTER_SAML_PROVIDER_ID = 'saml_provider_id';
 export const TRIGGER_ELEMENT_BUTTON = 'button';
 export const TRIGGER_ELEMENT_SIDE_NAV = 'side-nav';
+export const TOP_NAV_INVITE_MEMBERS_COMPONENT = 'invite_members';
+export const TRIGGER_ELEMENT_WITH_EMOJI = 'text-emoji';
+export const TRIGGER_ELEMENT_DROPDOWN_WITH_EMOJI = 'dropdown-text-emoji';
+export const INVITE_MEMBER_MODAL_TRACKING_CATEGORY = 'invite_members_modal';
 export const TRIGGER_DEFAULT_QA_SELECTOR = 'invite_members_button';
 export const MEMBERS_MODAL_DEFAULT_TITLE = s__('InviteMembersModal|Invite members');
 export const MEMBERS_MODAL_CELEBRATE_TITLE = s__(
@@ -40,9 +44,6 @@ export const MEMBERS_TO_PROJECT_CELEBRATE_INTRO_TEXT = s__(
 );
 export const MEMBERS_SEARCH_FIELD = s__('InviteMembersModal|Username or email address');
 export const MEMBERS_PLACEHOLDER = s__('InviteMembersModal|Select members or type email addresses');
-export const MEMBERS_PLACEHOLDER_DISABLED = s__(
-  'InviteMembersModal|This feature is disabled until this group has space for more members.',
-);
 export const MEMBERS_TASKS_TO_BE_DONE_TITLE = s__(
   'InviteMembersModal|Create issues for your new team member to work on (optional)',
 );
@@ -59,6 +60,10 @@ export const GROUP_MODAL_TO_GROUP_DEFAULT_INTRO_TEXT = s__(
 );
 export const GROUP_MODAL_TO_PROJECT_DEFAULT_INTRO_TEXT = s__(
   "InviteMembersModal|You're inviting a group to the %{strongStart}%{name}%{strongEnd} project.",
+);
+
+export const GROUP_MODAL_ALERT_BODY = s__(
+  'InviteMembersModal| Inviting a group %{linkStart}adds its members to your group%{linkEnd}, including members who join after the invite. This might put your group over the free %{count} user limit.',
 );
 
 export const GROUP_SEARCH_FIELD = s__('InviteMembersModal|Select a group to invite');
@@ -81,9 +86,7 @@ export const MEMBER_ERROR_LIST_TEXT = s__(
 );
 export const COLLAPSED_ERRORS = s__('InviteMembersModal|Show more (%{count})');
 export const EXPANDED_ERRORS = s__('InviteMembersModal|Show less');
-export const EMPTY_INVITES_ERROR_TEXT = s__(
-  'InviteMembersModal|Please select members or type email addresses to invite',
-);
+export const EMPTY_INVITES_ALERT_TEXT = s__('InviteMembersModal|Please add members to invite');
 
 export const MEMBER_MODAL_LABELS = {
   modal: {
@@ -110,7 +113,6 @@ export const MEMBER_MODAL_LABELS = {
   },
   searchField: MEMBERS_SEARCH_FIELD,
   placeHolder: MEMBERS_PLACEHOLDER,
-  placeHolderDisabled: MEMBERS_PLACEHOLDER_DISABLED,
   tasksToBeDone: {
     title: MEMBERS_TASKS_TO_BE_DONE_TITLE,
     noProjects: MEMBERS_TASKS_TO_BE_DONE_NO_PROJECTS,
@@ -122,7 +124,7 @@ export const MEMBER_MODAL_LABELS = {
   memberErrorListText: MEMBER_ERROR_LIST_TEXT,
   collapsedErrors: COLLAPSED_ERRORS,
   expandedErrors: EXPANDED_ERRORS,
-  emptyInvitesErrorText: EMPTY_INVITES_ERROR_TEXT,
+  emptyInvitesAlertText: EMPTY_INVITES_ALERT_TEXT,
 };
 
 export const GROUP_MODAL_LABELS = {
@@ -139,10 +141,12 @@ export const GROUP_MODAL_LABELS = {
 };
 
 export const LEARN_GITLAB = 'learn_gitlab';
-export const ON_SHOW_TRACK_LABEL = 'locked_modal_viewed';
-export const ON_CLOSE_TRACK_LABEL = 'explore_paid_plans_clicked';
-export const ON_SUBMIT_TRACK_LABEL = 'manage_members_clicked';
+export const ON_SHOW_TRACK_LABEL = 'over_limit_modal_viewed';
+export const ON_CELEBRATION_TRACK_LABEL = 'invite_celebration_modal';
 
+export const INFO_ALERT_TITLE = s__(
+  'InviteMembersModal|Your top-level group %{namespaceName} is over the %{dashboardLimit} user limit.',
+);
 export const WARNING_ALERT_TITLE = s__(
   'InviteMembersModal|You only have space for %{count} more %{members} in %{name}',
 );
@@ -150,16 +154,24 @@ export const DANGER_ALERT_TITLE = s__(
   "InviteMembersModal|You've reached your %{count} %{members} limit for %{name}",
 );
 
+export const REACHED_LIMIT_VARIANT = 'reached';
+export const CLOSE_TO_LIMIT_VARIANT = 'close';
+export const NOTIFICATION_LIMIT_VARIANT = 'notification';
+
 export const REACHED_LIMIT_MESSAGE = s__(
-  'InviteMembersModal|You cannot add more members, but you can remove members who no longer need access.',
+  'InviteMembersModal|To invite new users to this top-level group, you must remove existing users. You can still add existing users from the top-level group, including any subgroups and projects.',
 );
 
 export const REACHED_LIMIT_UPGRADE_SUGGESTION_MESSAGE = REACHED_LIMIT_MESSAGE.concat(
   s__(
-    'InviteMembersModal| To get more members and access to additional paid features, an owner of the group can start a trial or upgrade to a paid tier.',
+    'InviteMembersModal| To get more members, the owner of this top-level group can %{trialLinkStart}start a trial%{trialLinkEnd} or %{upgradeLinkStart}upgrade%{upgradeLinkEnd} to a paid tier.',
   ),
 );
 
 export const CLOSE_TO_LIMIT_MESSAGE = s__(
   'InviteMembersModal|To get more members an owner of the group can %{trialLinkStart}start a trial%{trialLinkEnd} or %{upgradeLinkStart}upgrade%{upgradeLinkEnd} to a paid tier.',
+);
+
+export const NOTIFICATION_LIMIT_MESSAGE = s__(
+  'InviteMembersModal|GitLab will enforce this limit in the future. If you are over %{dashboardLimit} users when enforcement begins, your top-level group will be placed in a %{freeUserLimitLinkStart}read-only state%{freeUserLimitLinkEnd}. To avoid being placed in a read-only state, reduce your top-level group to %{dashboardLimit} users or less, or purchase a paid tier.',
 );

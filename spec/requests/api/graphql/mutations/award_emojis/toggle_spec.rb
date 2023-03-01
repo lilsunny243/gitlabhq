@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Toggling an AwardEmoji' do
+RSpec.describe 'Toggling an AwardEmoji', feature_category: :not_owned do
   include GraphqlHelpers
 
   let_it_be(:current_user) { create(:user) }
@@ -32,7 +32,7 @@ RSpec.describe 'Toggling an AwardEmoji' do
   end
 
   def create_award_emoji(user)
-    create(:award_emoji, name: emoji_name, awardable: awardable, user: user )
+    create(:award_emoji, name: emoji_name, awardable: awardable, user: user)
   end
 
   context 'when the user has permission' do

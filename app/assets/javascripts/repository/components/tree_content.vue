@@ -1,13 +1,14 @@
 <script>
 import paginatedTreeQuery from 'shared_queries/repository/paginated_tree.query.graphql';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { __ } from '~/locale';
 import {
   TREE_PAGE_SIZE,
   TREE_INITIAL_FETCH_COUNT,
   TREE_PAGE_LIMIT,
   COMMIT_BATCH_SIZE,
+  GITALY_UNAVAILABLE_CODE,
+  i18n,
 } from '../constants';
 import getRefMixin from '../mixins/get_ref';
 import projectPathQuery from '../queries/project_path.query.graphql';
@@ -17,6 +18,7 @@ import FilePreview from './preview/index.vue';
 import FileTable from './table/index.vue';
 
 export default {
+  i18n,
   components: {
     FileTable,
     FilePreview,
@@ -142,10 +144,19 @@ export default {
           }
         })
         .catch((error) => {
-          createFlash({
-            message: __('An error occurred while fetching folder content.'),
+          let gitalyUnavailableError;
+          if (error.graphQLErrors) {
+            gitalyUnavailableError = error.graphQLErrors.find(
+              (e) => e?.extensions?.code === GITALY_UNAVAILABLE_CODE,
+            );
+          }
+          const message = gitalyUnavailableError
+            ? this.$options.i18n.gitalyError
+            : this.$options.i18n.generalError;
+          createAlert({
+            message,
+            captureError: true,
           });
-          throw error;
         });
     },
     normalizeData(key, data) {
@@ -157,7 +168,7 @@ export default {
         .find(({ hasNextPage }) => hasNextPage);
     },
     handleRowAppear(rowNumber) {
-      if (!this.glFeatures.lazyLoadCommits || isRequested(rowNumber)) {
+      if (isRequested(rowNumber)) {
         return;
       }
 

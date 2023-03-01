@@ -2,8 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GitalyClient::RefService do
-  let(:project) { create(:project, :repository) }
+RSpec.describe Gitlab::GitalyClient::RefService, feature_category: :gitaly do
+  let_it_be(:project) { create(:project, :repository, create_tag: 'test') }
+
   let(:storage_name) { project.repository_storage }
   let(:relative_path) { project.disk_path + '.git' }
   let(:repository) { project.repository }
@@ -70,28 +71,6 @@ RSpec.describe Gitlab::GitalyClient::RefService do
     end
   end
 
-  describe '#branch_names' do
-    it 'sends a find_all_branch_names message' do
-      expect_any_instance_of(Gitaly::RefService::Stub)
-        .to receive(:find_all_branch_names)
-        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
-        .and_return([])
-
-      client.branch_names
-    end
-  end
-
-  describe '#tag_names' do
-    it 'sends a find_all_tag_names message' do
-      expect_any_instance_of(Gitaly::RefService::Stub)
-        .to receive(:find_all_tag_names)
-        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
-        .and_return([])
-
-      client.tag_names
-    end
-  end
-
   describe '#find_branch' do
     it 'sends a find_branch message' do
       expect_any_instance_of(Gitaly::RefService::Stub)
@@ -100,6 +79,16 @@ RSpec.describe Gitlab::GitalyClient::RefService do
         .and_return(double(branch: Gitaly::Branch.new(name: 'name', target_commit: build(:gitaly_commit))))
 
       client.find_branch('name')
+    end
+
+    context 'when Gitaly returns a ambiguios reference error' do
+      it 'raises an UnknownRef error' do
+        expect_any_instance_of(Gitaly::RefService::Stub)
+          .to receive(:find_branch)
+          .and_raise(GRPC::BadStatus.new(2, 'reference is ambiguous'))
+
+        expect { client.find_branch('name') }.to raise_error(Gitlab::Git::AmbiguousRef, 'branch is ambiguous: name')
+      end
     end
   end
 
@@ -156,35 +145,89 @@ RSpec.describe Gitlab::GitalyClient::RefService do
   end
 
   describe '#local_branches' do
-    it 'sends a find_local_branches message' do
-      expect_any_instance_of(Gitaly::RefService::Stub)
-        .to receive(:find_local_branches)
-        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
-        .and_return([])
+    let(:remote_name) { 'my_remote' }
 
-      client.local_branches
+    shared_examples 'common examples' do
+      it 'sends a find_local_branches message' do
+        target_commits = create_list(:gitaly_commit, 4)
+        branches = target_commits.each_with_index.map do |gitaly_commit, i|
+          Gitaly::FindLocalBranchResponse.new(
+            name: "#{remote_name}/#{i}",
+            commit: gitaly_commit,
+            commit_author: Gitaly::FindLocalBranchCommitAuthor.new(
+              name: gitaly_commit.author.name,
+              email: gitaly_commit.author.email,
+              date: gitaly_commit.author.date,
+              timezone: gitaly_commit.author.timezone
+            ),
+            commit_committer: Gitaly::FindLocalBranchCommitAuthor.new(
+              name: gitaly_commit.committer.name,
+              email: gitaly_commit.committer.email,
+              date: gitaly_commit.committer.date,
+              timezone: gitaly_commit.committer.timezone
+            )
+          )
+        end
+
+        local_branches = target_commits.each_with_index.map do |gitaly_commit, i|
+          Gitaly::Branch.new(name: "#{remote_name}/#{i}", target_commit: gitaly_commit)
+        end
+
+        response = if set_local_branches
+                     [
+                       Gitaly::FindLocalBranchesResponse.new(local_branches: local_branches[0, 2]),
+                       Gitaly::FindLocalBranchesResponse.new(local_branches: local_branches[2, 2])
+                     ]
+                   else
+                     [
+                       Gitaly::FindLocalBranchesResponse.new(branches: branches[0, 2]),
+                       Gitaly::FindLocalBranchesResponse.new(branches: branches[2, 2])
+                     ]
+                   end
+
+        expect_any_instance_of(Gitaly::RefService::Stub)
+          .to receive(:find_local_branches)
+                .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
+                .and_return(response)
+
+        subject = client.local_branches
+
+        expect(subject.length).to be(target_commits.length)
+      end
+
+      it 'parses and sends the sort parameter' do
+        expect_any_instance_of(Gitaly::RefService::Stub)
+          .to receive(:find_local_branches)
+                .with(gitaly_request_with_params(sort_by: :UPDATED_DESC), kind_of(Hash))
+                .and_return([])
+
+        client.local_branches(sort_by: 'updated_desc')
+      end
+
+      it 'translates known mismatches on sort param values' do
+        expect_any_instance_of(Gitaly::RefService::Stub)
+          .to receive(:find_local_branches)
+                .with(gitaly_request_with_params(sort_by: :NAME), kind_of(Hash))
+                .and_return([])
+
+        client.local_branches(sort_by: 'name_asc')
+      end
+
+      it 'raises an argument error if an invalid sort_by parameter is passed' do
+        expect { client.local_branches(sort_by: 'invalid_sort') }.to raise_error(ArgumentError)
+      end
     end
 
-    it 'parses and sends the sort parameter' do
-      expect_any_instance_of(Gitaly::RefService::Stub)
-        .to receive(:find_local_branches)
-        .with(gitaly_request_with_params(sort_by: :UPDATED_DESC), kind_of(Hash))
-        .and_return([])
+    context 'when local_branches variable is not set' do
+      let(:set_local_branches) { false }
 
-      client.local_branches(sort_by: 'updated_desc')
+      it_behaves_like 'common examples'
     end
 
-    it 'translates known mismatches on sort param values' do
-      expect_any_instance_of(Gitaly::RefService::Stub)
-        .to receive(:find_local_branches)
-        .with(gitaly_request_with_params(sort_by: :NAME), kind_of(Hash))
-        .and_return([])
+    context 'when local_branches variable is set' do
+      let(:set_local_branches) { true }
 
-      client.local_branches(sort_by: 'name_asc')
-    end
-
-    it 'raises an argument error if an invalid sort_by parameter is passed' do
-      expect { client.local_branches(sort_by: 'invalid_sort') }.to raise_error(ArgumentError)
+      it_behaves_like 'common examples'
     end
   end
 
@@ -210,6 +253,22 @@ RSpec.describe Gitlab::GitalyClient::RefService do
           .and_return([])
 
         client.tags(sort_by: 'name_asc')
+      end
+
+      context 'with semantic version sorting' do
+        it 'sends a correct find_all_tags message' do
+          expected_sort_by = Gitaly::FindAllTagsRequest::SortBy.new(
+            key: :VERSION_REFNAME,
+            direction: :ASCENDING
+          )
+
+          expect_any_instance_of(Gitaly::RefService::Stub)
+            .to receive(:find_all_tags)
+            .with(gitaly_request_with_params(sort_by: expected_sort_by), kind_of(Hash))
+            .and_return([])
+
+          client.tags(sort_by: 'version_asc')
+        end
       end
     end
 
@@ -331,10 +390,15 @@ RSpec.describe Gitlab::GitalyClient::RefService do
   end
 
   describe '#list_refs' do
+    let(:oid) { project.repository.commit.id }
+
     it 'sends a list_refs message' do
       expect_any_instance_of(Gitaly::RefService::Stub)
         .to receive(:list_refs)
-        .with(gitaly_request_with_params(patterns: ['refs/heads/']), kind_of(Hash))
+        .with(
+          gitaly_request_with_params(patterns: ['refs/heads/'], pointing_at_oids: [], peel_tags: false),
+          kind_of(Hash)
+        )
         .and_call_original
 
       client.list_refs
@@ -348,16 +412,23 @@ RSpec.describe Gitlab::GitalyClient::RefService do
 
       client.list_refs([Gitlab::Git::TAG_REF_PREFIX])
     end
-  end
 
-  describe '#pack_refs' do
-    it 'sends a pack_refs message' do
+    it 'accepts a pointing_at_oids argument' do
       expect_any_instance_of(Gitaly::RefService::Stub)
-        .to receive(:pack_refs)
-        .with(gitaly_request_with_path(storage_name, relative_path), kind_of(Hash))
-        .and_return(double(:pack_refs_response))
+        .to receive(:list_refs)
+        .with(gitaly_request_with_params(pointing_at_oids: [oid]), kind_of(Hash))
+        .and_call_original
 
-      client.pack_refs
+      client.list_refs(pointing_at_oids: [oid])
+    end
+
+    it 'accepts a peel_tags argument' do
+      expect_any_instance_of(Gitaly::RefService::Stub)
+        .to receive(:list_refs)
+        .with(gitaly_request_with_params(peel_tags: true), kind_of(Hash))
+        .and_call_original
+
+      client.list_refs(peel_tags: true)
     end
   end
 
@@ -367,12 +438,28 @@ RSpec.describe Gitlab::GitalyClient::RefService do
     it 'sends a find_refs_by_oid message' do
       expect_any_instance_of(Gitaly::RefService::Stub)
         .to receive(:find_refs_by_oid)
-        .with(gitaly_request_with_params(sort_field: 'refname', oid: oid, limit: 1), kind_of(Hash))
+        .with(gitaly_request_with_params(sort_field: 'refname',
+                                         oid: oid,
+                                         limit: 1), kind_of(Hash))
         .and_call_original
 
       refs = client.find_refs_by_oid(oid: oid, limit: 1)
 
       expect(refs.to_a).to eq([Gitlab::Git::BRANCH_REF_PREFIX + project.repository.root_ref])
+    end
+
+    it 'filters by ref_patterns' do
+      expect_any_instance_of(Gitaly::RefService::Stub)
+        .to receive(:find_refs_by_oid)
+        .with(gitaly_request_with_params(sort_field: 'refname',
+                                         oid: oid,
+                                         limit: 1,
+                                         ref_patterns: [Gitlab::Git::TAG_REF_PREFIX]), kind_of(Hash))
+        .and_call_original
+
+      refs = client.find_refs_by_oid(oid: oid, limit: 1, ref_patterns: [Gitlab::Git::TAG_REF_PREFIX])
+
+      expect(refs.to_a).to eq([Gitlab::Git::TAG_REF_PREFIX + 'test'])
     end
   end
 end

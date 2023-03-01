@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Project integrations **(FREE)**
@@ -18,7 +18,7 @@ Prerequisites:
 
 To view the available integrations for your project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 
 You can also view and manage integration settings across [all projects in an instance or group](../../admin_area/settings/project_integration_management.md).
@@ -58,7 +58,6 @@ You can configure the following integrations.
 | [Emails on push](emails_on_push.md)                                         | Send commits and diff of each push by email.                          | **{dotted-circle}** No |
 | [EWM](ewm.md)                                                               | Use IBM Engineering Workflow Management as the issue tracker.         | **{dotted-circle}** No |
 | [External wiki](../wiki/index.md#link-an-external-wiki)                     | Link an external wiki.                                                | **{dotted-circle}** No |
-| [Flowdock](../../../api/integrations.md#flowdock)                           | Send notifications from GitLab to Flowdock flows.                     | **{dotted-circle}** No |
 | [GitHub](github.md)                                                         | Obtain statuses for commits and pull requests.                        | **{dotted-circle}** No |
 | [Google Chat](hangouts_chat.md)                                             | Send notifications from your GitLab project to a room in Google Chat. | **{dotted-circle}** No |
 | [Harbor](harbor.md)                                                         | Use Harbor as the container registry.                                 | **{dotted-circle}** No |
@@ -76,7 +75,8 @@ You can configure the following integrations.
 | [Pumble](pumble.md)                                                         | Send event notifications to a Pumble channel.                           | **{dotted-circle}** No |
 | Pushover                                                                    | Get real-time notifications on your device.                           | **{dotted-circle}** No |
 | [Redmine](redmine.md)                                                       | Use Redmine as the issue tracker.                                     | **{dotted-circle}** No |
-| [Slack application](gitlab_slack_application.md)                            | Use Slack's official GitLab application.                              | **{dotted-circle}** No |
+| [Shimo Workspace](shimo.md)                                                 | Use Shimo instead of the GitLab Wiki.                    | **{dotted-circle}** No |
+| [GitLab for Slack app](gitlab_slack_application.md)                         | Use Slack's official GitLab application.                              | **{dotted-circle}** No |
 | [Slack notifications](slack.md)                                             | Send notifications about project events to Slack.                     | **{dotted-circle}** No |
 | [Slack slash commands](slack_slash_commands.md)                             | Enable slash commands in a workspace.                                 | **{dotted-circle}** No |
 | [Unify Circuit](unify_circuit.md)                                           | Send notifications about project events to Unify Circuit.             | **{dotted-circle}** No |
@@ -90,7 +90,7 @@ You can configure a project webhook to listen for specific events
 like pushes, issues, or merge requests. When the webhook is triggered, GitLab
 sends a POST request with data to a specified webhook URL.
 
-Learn more [about webhooks](webhooks.md).
+For more information, see [Webhooks](webhooks.md).
 
 ## Push hooks limit
 
@@ -104,7 +104,7 @@ You can change the number of supported branches or tags by changing the
 
 ## Troubleshooting integrations
 
-Some integrations use hooks to integrate with external applications. To confirm which ones use integration hooks, see the [available integrations](#available-integrations). Learn more about [troubleshooting integration hooks](webhooks.md#troubleshoot-webhooks).
+Some integrations use hooks to integrate with external applications. To confirm which ones use integration hooks, see the [available integrations](#available-integrations). For more information, see [Troubleshooting webhooks](webhooks.md#troubleshoot-webhooks).
 
 ### `Test Failed. Save Anyway` error
 

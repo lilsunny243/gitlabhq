@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe 'Query.project.pipeline' do
+RSpec.describe 'Query.project.pipeline', feature_category: :continuous_integration do
   include GraphqlHelpers
 
   let_it_be(:project) { create(:project, :repository, :public) }
@@ -25,11 +25,12 @@ RSpec.describe 'Query.project.pipeline' do
     let(:first_n) { var('Int') }
 
     let(:query) do
-      with_signature([first_n], wrap_fields(query_graphql_path([
-        [:project,  { full_path: project.full_path }],
-        [:pipeline, { iid: pipeline.iid.to_s }],
-        [:stages,   { first: first_n }]
-      ], stage_fields)))
+      with_signature([first_n], wrap_fields(query_graphql_path(
+                                              [
+                                                [:project, { full_path: project.full_path }],
+                                                [:pipeline, { iid: pipeline.iid.to_s }],
+                                                [:stages,   { first: first_n }]
+                                              ], stage_fields)))
     end
 
     let(:stage_fields) do
@@ -87,15 +88,15 @@ RSpec.describe 'Query.project.pipeline' do
         build_stage = create(:ci_stage, position: 2, name: 'build', project: project, pipeline: pipeline)
         test_stage = create(:ci_stage, position: 3, name: 'test', project: project, pipeline: pipeline)
 
-        create(:ci_build, pipeline: pipeline, name: 'docker 1 2', scheduling_type: :stage, stage: build_stage, stage_idx: build_stage.position)
-        create(:ci_build, pipeline: pipeline, name: 'docker 2 2', stage: build_stage, stage_idx: build_stage.position, scheduling_type: :dag)
-        create(:ci_build, pipeline: pipeline, name: 'rspec 1 2', scheduling_type: :stage, stage: test_stage, stage_idx: test_stage.position)
-        test_job = create(:ci_build, pipeline: pipeline, name: 'rspec 2 2', scheduling_type: :dag, stage: test_stage, stage_idx: test_stage.position)
+        create(:ci_build, pipeline: pipeline, name: 'docker 1 2', scheduling_type: :stage, ci_stage: build_stage, stage_idx: build_stage.position)
+        create(:ci_build, pipeline: pipeline, name: 'docker 2 2', ci_stage: build_stage, stage_idx: build_stage.position, scheduling_type: :dag)
+        create(:ci_build, pipeline: pipeline, name: 'rspec 1 2', scheduling_type: :stage, ci_stage: test_stage, stage_idx: test_stage.position)
+        test_job = create(:ci_build, pipeline: pipeline, name: 'rspec 2 2', scheduling_type: :dag, ci_stage: test_stage, stage_idx: test_stage.position)
 
         create(:ci_build_need, build: test_job, name: 'my test job')
       end
 
-      it 'reports the build needs and execution requirements', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/347290' do
+      it 'reports the build needs and execution requirements' do
         post_graphql(query, current_user: user)
 
         expect(jobs_graphql_data).to contain_exactly(
@@ -108,7 +109,7 @@ RSpec.describe 'Query.project.pipeline' do
             'name' => 'docker 1 2',
             'needs' => { 'nodes' => [] },
             'previousStageJobsOrNeeds' => { 'nodes' => [
-              a_hash_including( 'name' => 'my test job' )
+              a_hash_including('name' => 'my test job')
             ] }
           ),
           a_hash_including(
@@ -128,7 +129,7 @@ RSpec.describe 'Query.project.pipeline' do
             'name' => 'rspec 2 2',
             'needs' => { 'nodes' => [a_hash_including('name' => 'my test job')] },
             'previousStageJobsOrNeeds' => { 'nodes' => [
-              a_hash_including('name' => 'my test job' )
+              a_hash_including('name' => 'my test job')
             ] }
           )
         )
@@ -333,6 +334,98 @@ RSpec.describe 'Query.project.pipeline' do
       it 'returns the number of failed jobs' do
         expect(graphql_data_at(:project, :jobs, :count)).to eq(1)
       end
+    end
+  end
+
+  context 'when querying jobs for multiple projects' do
+    let(:query) do
+      %(
+        query {
+          projects {
+            nodes {
+              jobs {
+                nodes {
+                  name
+                }
+              }
+            }
+          }
+        }
+      )
+    end
+
+    before do
+      create_list(:project, 2).each do |project|
+        project.add_developer(user)
+        create(:ci_build, project: project)
+      end
+    end
+
+    it 'returns an error' do
+      post_graphql(query, current_user: user)
+
+      expect_graphql_errors_to_include [/"jobs" field can be requested only for 1 Project\(s\) at a time./]
+    end
+  end
+
+  context 'when batched querying jobs for multiple projects' do
+    let(:batched) do
+      [
+        { query: query_1 },
+        { query: query_2 }
+      ]
+    end
+
+    let(:query_1) do
+      %(
+        query Page1 {
+          projects {
+            nodes {
+              jobs {
+                nodes {
+                  name
+                }
+              }
+            }
+          }
+        }
+      )
+    end
+
+    let(:query_2) do
+      %(
+        query Page2 {
+          projects {
+            nodes {
+              jobs {
+                nodes {
+                  name
+                }
+              }
+            }
+          }
+        }
+      )
+    end
+
+    before do
+      create_list(:project, 2).each do |project|
+        project.add_developer(user)
+        create(:ci_build, project: project)
+      end
+    end
+
+    it 'limits the specific field evaluation per query' do
+      get_multiplex(batched, current_user: user)
+
+      resp = json_response
+
+      expect(resp.first.dig('data', 'projects', 'nodes').first.dig('jobs', 'nodes').first['name']).to eq('test')
+      expect(resp.first['errors'].first['message'])
+        .to match(/"jobs" field can be requested only for 1 Project\(s\) at a time./)
+      expect(resp.second.dig('data', 'projects', 'nodes').first.dig('jobs', 'nodes').first['name']).to eq('test')
+      expect(resp.second['errors'].first['message'])
+        .to match(/"jobs" field can be requested only for 1 Project\(s\) at a time./)
     end
   end
 end

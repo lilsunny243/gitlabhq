@@ -11,11 +11,6 @@ module QA
           element :review_preview_dropdown
         end
 
-        # Remove once :mr_review_submit_comment ff is enabled by default
-        view 'app/assets/javascripts/batch_comments/components/publish_button.vue' do
-          element :submit_review_button
-        end
-
         view 'app/assets/javascripts/batch_comments/components/review_bar.vue' do
           element :review_bar_content
         end
@@ -36,6 +31,7 @@ module QA
 
         view 'app/assets/javascripts/diffs/components/tree_list.vue' do
           element :file_tree_container
+          element :diff_tree_search
         end
 
         view 'app/assets/javascripts/diffs/components/diff_file_header.vue' do
@@ -108,6 +104,7 @@ module QA
 
         view 'app/assets/javascripts/vue_shared/components/markdown/header.vue' do
           element :suggestion_button
+          element :dismiss_suggestion_popover_button
         end
 
         view 'app/assets/javascripts/vue_shared/components/markdown/suggestion_diff_header.vue' do
@@ -125,7 +122,7 @@ module QA
           element :title_content, required: true
         end
 
-        view 'app/views/projects/merge_requests/show.html.haml' do
+        view 'app/views/projects/merge_requests/_page.html.haml' do
           element :notes_tab, required: true
           element :commits_tab, required: true
           element :diffs_tab, required: true
@@ -169,16 +166,8 @@ module QA
             click_element(:review_preview_dropdown)
           end
 
-          # Remove if statement once :mr_review_submit_comment ff is enabled by default
-
-          if has_element?(:submit_review_dropdown, wait: 5)
-            click_element(:submit_review_dropdown)
-            click_element(:submit_review_button)
-          else
-            within_element(:review_bar_content) do
-              click_element(:submit_review_button)
-            end
-          end
+          click_element(:submit_review_dropdown)
+          click_element(:submit_review_button)
 
           # After clicking the button, wait for the review bar to disappear
           # before moving on to the next part of the test
@@ -191,8 +180,11 @@ module QA
           wait_until(sleep_interval: 5) do
             has_css?('a[data-linenumber="1"]')
           end
+
           all_elements(:new_diff_line_link, minimum: 1).first.hover
           click_element(:diff_comment_button)
+          click_element(:dismiss_suggestion_popover_button) if has_element?(:dismiss_suggestion_popover_button, wait: 1)
+
           fill_element(:reply_field, text)
         end
 
@@ -208,7 +200,6 @@ module QA
 
         def click_diffs_tab
           click_element(:diffs_tab)
-          click_element(:dismiss_popover_button) if has_element?(:dismiss_popover_button, wait: 1)
         end
 
         def click_pipeline_link
@@ -225,12 +216,23 @@ module QA
 
         def has_file?(file_name)
           open_file_tree
+
+          return true if has_element?(:file_name_content, file_name: file_name)
+
+          # Since the file tree uses virtual scrolling, search for file in case it is outside of viewport
+          search_file_tree(file_name)
           has_element?(:file_name_content, file_name: file_name)
         end
 
         def has_no_file?(file_name)
-          open_file_tree
+          # Since the file tree uses virtual scrolling, search for file to ensure non-existence
+          search_file_tree(file_name)
           has_no_element?(:file_name_content, file_name: file_name)
+        end
+
+        def search_file_tree(file_name)
+          open_file_tree
+          fill_element(:diff_tree_search, file_name)
         end
 
         def open_file_tree
@@ -363,7 +365,7 @@ module QA
           # Revisit after merge page re-architect is done https://gitlab.com/gitlab-org/gitlab/-/issues/300042
           # To remove page refresh logic if possible
           wait_until_ready_to_merge
-          wait_until { !find_element(:merge_button).has_text?("when pipeline succeeds") }
+          wait_until { !find_element(:merge_button).text.include?('when pipeline succeeds') } # rubocop:disable Rails/NegateInclude
 
           click_element(:merge_button)
         end
@@ -387,6 +389,7 @@ module QA
         def click_open_in_web_ide
           click_element(:mr_code_dropdown)
           click_element(:open_in_web_ide_button)
+          page.driver.browser.switch_to.window(page.driver.browser.window_handles.last)
           wait_for_requests
         end
 
@@ -405,6 +408,7 @@ module QA
           fill_element(:reply_field, '')
           fill_element(:reply_field, initial_content.gsub(/(```suggestion:-0\+0\n).*(\n```)/, "\\1#{suggestion}\\2"))
           click_element(:comment_now_button)
+          wait_for_requests
         end
 
         def apply_suggestion_with_message(message)
@@ -430,7 +434,11 @@ module QA
         end
 
         def revert_change!
-          click_element(:revert_button, Page::Component::CommitModal)
+          # reload page when the revert modal occasionally doesn't appear in ee:large-setup job
+          # https://gitlab.com/gitlab-org/gitlab/-/issues/386623 (transient issue)
+          retry_on_exception(reload: true) do
+            click_element(:revert_button, Page::Component::CommitModal)
+          end
           click_element(:submit_commit_button)
         end
 

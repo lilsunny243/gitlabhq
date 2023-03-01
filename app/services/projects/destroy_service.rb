@@ -34,7 +34,7 @@ module Projects
 
       publish_project_deleted_event_for(project)
 
-      current_user.invalidate_personal_projects_count
+      project.invalidate_personal_projects_count_of_owner
 
       true
     rescue StandardError => error
@@ -134,6 +134,8 @@ module Projects
       destroy_ci_records!
       destroy_mr_diff_relations!
 
+      destroy_merge_request_diffs!
+
       # Rails attempts to load all related records into memory before
       # destroying: https://github.com/rails/rails/issues/22510
       # This ensures we delete records in batches.
@@ -158,10 +160,9 @@ module Projects
     #
     # rubocop: disable CodeReuse/ActiveRecord
     def destroy_mr_diff_relations!
-      mr_batch_size = 100
       delete_batch_size = 1000
 
-      project.merge_requests.each_batch(column: :iid, of: mr_batch_size) do |relation_ids|
+      project.merge_requests.each_batch(column: :iid, of: BATCH_SIZE) do |relation_ids|
         [MergeRequestDiffCommit, MergeRequestDiffFile].each do |model|
           loop do
             inner_query = model
@@ -175,6 +176,23 @@ module Projects
 
             break if deleted_rows == 0
           end
+        end
+      end
+    end
+    # rubocop: enable CodeReuse/ActiveRecord
+
+    # rubocop: disable CodeReuse/ActiveRecord
+    def destroy_merge_request_diffs!
+      delete_batch_size = 1000
+
+      project.merge_requests.each_batch(column: :iid, of: BATCH_SIZE) do |relation|
+        loop do
+          deleted_rows = MergeRequestDiff
+            .where(merge_request: relation)
+            .limit(delete_batch_size)
+            .delete_all
+
+          break if deleted_rows == 0
         end
       end
     end
@@ -239,12 +257,12 @@ module Projects
       return true unless Gitlab.config.registry.enabled
       return false unless remove_legacy_registry_tags
 
+      results = []
       project.container_repositories.find_each do |container_repository|
-        service = Projects::ContainerRepository::DestroyService.new(project, current_user)
-        service.execute(container_repository)
+        results << destroy_repository(project, container_repository)
       end
 
-      true
+      results.all?
     end
 
     ##
@@ -254,9 +272,14 @@ module Projects
     def remove_legacy_registry_tags
       return true unless Gitlab.config.registry.enabled
 
-      ::ContainerRepository.build_root_repository(project).tap do |repository|
-        break repository.has_tags? ? repository.delete_tags! : true
-      end
+      root_repository = ::ContainerRepository.build_root_repository(project)
+      root_repository.has_tags? ? destroy_repository(project, root_repository) : true
+    end
+
+    def destroy_repository(project, repository)
+      service = ContainerRepository::DestroyService.new(project, current_user, { skip_permission_check: true })
+      response = service.execute(repository)
+      response[:status] == :success
     end
 
     def raise_error(message)

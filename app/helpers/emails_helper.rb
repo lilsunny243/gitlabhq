@@ -139,7 +139,7 @@ module EmailsHelper
     max_domain_length = list_id_max_length - Gitlab.config.gitlab.host.length - project.id.to_s.length - 2
 
     if max_domain_length < 3
-      return project.id.to_s + "..." + Gitlab.config.gitlab.host
+      return "#{project.id}...#{Gitlab.config.gitlab.host}"
     end
 
     if project_path_as_domain.length > max_domain_length
@@ -151,7 +151,7 @@ module EmailsHelper
       project_path_as_domain = project_path_as_domain.slice(0, last_dot_index).concat("..")
     end
 
-    project.id.to_s + "." + project_path_as_domain + "." + Gitlab.config.gitlab.host
+    "#{project.id}.#{project_path_as_domain}.#{Gitlab.config.gitlab.host}"
   end
 
   def html_header_message
@@ -176,6 +176,10 @@ module EmailsHelper
     return unless show_footer?
 
     strip_tags(render_message(:footer_message, style: ''))
+  end
+
+  def service_desk_email_additional_text
+    # overridden on EE
   end
 
   def say_hi(user)
@@ -284,22 +288,49 @@ module EmailsHelper
   end
 
   def change_reviewer_notification_text(new_reviewers, previous_reviewers, html_tag = nil)
-    new = new_reviewers.any? ? users_to_sentence(new_reviewers) : s_('ChangeReviewer|Unassigned')
-    old = previous_reviewers.any? ? users_to_sentence(previous_reviewers) : nil
-
-    if html_tag.present?
-      new = content_tag(html_tag, new)
-      old = content_tag(html_tag, old) if old.present?
-    end
-
-    if old.present?
-      s_('ChangeReviewer|Reviewer changed from %{old} to %{new}').html_safe % { old: old, new: new }
+    if new_reviewers.empty?
+      s_('ChangeReviewer|All reviewers were removed.')
     else
-      s_('ChangeReviewer|Reviewer changed to %{new}').html_safe % { new: new }
+      added_reviewers = new_reviewers - previous_reviewers
+      removed_reviewers = previous_reviewers - new_reviewers
+
+      added_reviewers_text = if added_reviewers.any?
+                               n_(
+                                 '%{reviewer_names} was added as a reviewer.',
+                                 '%{reviewer_names} were added as reviewers.',
+                                 added_reviewers.size) % {
+                                   reviewer_names: format_reviewers_string(added_reviewers, html_tag)
+                                 }
+                             end
+
+      removed_reviewers_text = if removed_reviewers.any?
+                                 n_(
+                                   '%{reviewer_names} was removed from reviewers.',
+                                   '%{reviewer_names} were removed from reviewers.',
+                                   removed_reviewers.size) % {
+                                     reviewer_names: format_reviewers_string(removed_reviewers, html_tag)
+                                   }
+                               end
+
+      line_delimiter = html_tag.present? ? '<br>' : "\n"
+
+      [added_reviewers_text, removed_reviewers_text].compact.join(line_delimiter).html_safe
     end
   end
 
   private
+
+  def format_reviewers_string(reviewers, html_tag = nil)
+    return unless reviewers.any?
+
+    formatted_reviewers = users_to_sentence(reviewers)
+
+    if html_tag.present?
+      content_tag(html_tag, formatted_reviewers)
+    else
+      formatted_reviewers
+    end
+  end
 
   def users_to_sentence(users)
     sanitize_name(users.map(&:name).to_sentence)

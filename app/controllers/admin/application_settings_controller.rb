@@ -13,28 +13,24 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
 
   before_action :disable_query_limiting, only: [:usage_data]
 
-  before_action do
-    push_frontend_feature_flag(:ci_variable_settings_graphql)
-  end
-
   feature_category :not_owned, [ # rubocop:todo Gitlab/AvoidFeatureCategoryNotOwned
-                     :general, :reporting, :metrics_and_profiling, :network,
-                     :preferences, :update, :reset_health_check_token
-                   ]
+    :general, :reporting, :metrics_and_profiling, :network,
+    :preferences, :update, :reset_health_check_token
+  ]
 
   feature_category :metrics, [
-                     :create_self_monitoring_project,
-                     :status_create_self_monitoring_project,
-                     :delete_self_monitoring_project,
-                     :status_delete_self_monitoring_project
-                   ]
+    :create_self_monitoring_project,
+    :status_create_self_monitoring_project,
+    :delete_self_monitoring_project,
+    :status_delete_self_monitoring_project
+  ]
   urgency :low, [
-            :create_self_monitoring_project,
-            :status_create_self_monitoring_project,
-            :delete_self_monitoring_project,
-            :status_delete_self_monitoring_project,
-            :reset_error_tracking_access_token
-          ]
+    :create_self_monitoring_project,
+    :status_create_self_monitoring_project,
+    :delete_self_monitoring_project,
+    :status_delete_self_monitoring_project,
+    :reset_error_tracking_access_token
+  ]
 
   feature_category :source_code_management, [:repository, :clear_repository_check_states]
   feature_category :continuous_integration, [:ci_cd, :reset_registration_token]
@@ -44,9 +40,9 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
   feature_category :pages, [:lets_encrypt_terms_of_service]
   feature_category :error_tracking, [:reset_error_tracking_access_token]
 
-  VALID_SETTING_PANELS = %w(general repository
+  VALID_SETTING_PANELS = %w[general repository
                             ci_cd reporting metrics_and_profiling
-                            network preferences).freeze
+                            network preferences].freeze
 
   # The current size of a sidekiq job's jid is 24 characters. The size of the
   # jid is an internal detail of Sidekiq, and they do not guarantee that it'll
@@ -84,7 +80,7 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
       format.json do
         Gitlab::UsageDataCounters::ServiceUsageDataCounter.count(:download_payload_click)
 
-        render json: service_ping_data.to_json
+        render json: Gitlab::Json.dump(service_ping_data)
       end
     end
   end
@@ -105,8 +101,7 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
   def reset_error_tracking_access_token
     @application_setting.reset_error_tracking_access_token!
 
-    redirect_to general_admin_application_settings_path,
-                notice: _('New error tracking access token has been generated!')
+    redirect_to general_admin_application_settings_path, notice: _('New error tracking access token has been generated!')
   end
 
   def clear_repository_check_states
@@ -141,8 +136,7 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
 
     unless job_id.length <= PARAM_JOB_ID_MAX_SIZE
       return render status: :bad_request, json: {
-        message: _('Parameter "job_id" cannot exceed length of %{job_id_max_size}' %
-          { job_id_max_size: PARAM_JOB_ID_MAX_SIZE })
+        message: format(_('Parameter "job_id" cannot exceed length of %{job_id_max_size}'), job_id_max_size: PARAM_JOB_ID_MAX_SIZE)
       }
     end
 
@@ -154,9 +148,7 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
       }
     end
 
-    if @application_setting.self_monitoring_project_id.present?
-      return render status: :ok, json: self_monitoring_data
-    end
+    return render status: :ok, json: self_monitoring_data if @application_setting.self_monitoring_project_id.present?
 
     render status: :bad_request, json: {
       message: _('Self-monitoring project does not exist. Please check logs ' \
@@ -180,8 +172,7 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
 
     unless job_id.length <= PARAM_JOB_ID_MAX_SIZE
       return render status: :bad_request, json: {
-        message: _('Parameter "job_id" cannot exceed length of %{job_id_max_size}' %
-          { job_id_max_size: PARAM_JOB_ID_MAX_SIZE })
+        message: format(_('Parameter "job_id" cannot exceed length of %{job_id_max_size}'), job_id_max_size: PARAM_JOB_ID_MAX_SIZE)
       }
     end
 
@@ -240,7 +231,9 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
     params[:application_setting][:restricted_visibility_levels]&.delete("")
 
     if params[:application_setting].key?(:required_instance_ci_template)
-      params[:application_setting][:required_instance_ci_template] = nil if params[:application_setting][:required_instance_ci_template].empty?
+      if params[:application_setting][:required_instance_ci_template].empty?
+        params[:application_setting][:required_instance_ci_template] = nil
+      end
     end
 
     remove_blank_params_for!(:elasticsearch_aws_secret_access_key, :eks_secret_access_key)
@@ -294,9 +287,7 @@ class Admin::ApplicationSettingsController < Admin::ApplicationController
       .new(@application_setting, current_user, application_setting_params)
       .execute
 
-    if recheck_user_consent?
-      session[:ask_for_usage_stats_consent] = current_user.requires_usage_stats_consent?
-    end
+    session[:ask_for_usage_stats_consent] = current_user.requires_usage_stats_consent? if recheck_user_consent?
 
     redirect_path = referer_path(request) || general_admin_application_settings_path
 

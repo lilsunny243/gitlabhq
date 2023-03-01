@@ -13,10 +13,10 @@ class ApplicationController < ActionController::Base
   include EnforcesTwoFactorAuthentication
   include WithPerformanceBar
   include Gitlab::SearchContext::ControllerConcern
+  include PreferredLanguageSwitcher
   include SessionlessAuthentication
   include SessionsHelper
   include ConfirmEmailWarning
-  include Gitlab::Experimentation::ControllerConcern
   include InitializesCurrentUserMode
   include Impersonation
   include Gitlab::Logging::CloudflareHelper
@@ -24,6 +24,7 @@ class ApplicationController < ActionController::Base
   include ::Gitlab::EndpointAttributes
   include FlocOptOut
   include CheckRateLimit
+  extend ContentSecurityPolicyPatch
 
   before_action :limit_session_time, if: -> { !current_user }
   before_action :authenticate_user!, except: [:route_not_found]
@@ -32,7 +33,6 @@ class ApplicationController < ActionController::Base
   before_action :check_password_expiration, if: :html_request?
   before_action :ldap_security_check
   before_action :default_headers
-  before_action :default_cache_headers
   before_action :add_gon_variables, if: :html_request?
   before_action :configure_permitted_parameters, if: :devise_controller?
   before_action :require_email, unless: :devise_controller?
@@ -68,7 +68,7 @@ class ApplicationController < ActionController::Base
     :masked_page_url
 
   def self.endpoint_id_for_action(action_name)
-    "#{self.name}##{action_name}"
+    "#{name}##{action_name}"
   end
 
   rescue_from Encoding::CompatibilityError do |exception|
@@ -158,7 +158,7 @@ class ApplicationController < ActionController::Base
   protected
 
   def workhorse_excluded_content_types
-    @workhorse_excluded_content_types ||= %w(text/html application/json)
+    @workhorse_excluded_content_types ||= %w[text/html application/json]
   end
 
   def append_info_to_payload(payload)
@@ -179,9 +179,7 @@ class ApplicationController < ActionController::Base
 
     payload[:queue_duration_s] = request.env[::Gitlab::Middleware::RailsQueueDuration::GITLAB_RAILS_QUEUE_DURATION_KEY]
 
-    if Feature.enabled?(:log_response_length)
-      payload[:response_bytes] = response.body_parts.sum(&:bytesize)
-    end
+    payload[:response_bytes] = response.body_parts.sum(&:bytesize) if Feature.enabled?(:log_response_length)
 
     store_cloudflare_headers!(payload, request)
   end
@@ -261,10 +259,7 @@ class ApplicationController < ActionController::Base
 
     respond_to do |format|
       format.html do
-        render template,
-               layout: "errors",
-               status: status,
-               locals: { message: message }
+        render template, layout: "errors", status: status, locals: { message: message }
       end
       format.any { head status }
     end
@@ -320,10 +315,6 @@ class ApplicationController < ActionController::Base
     headers['X-Content-Type-Options'] = 'nosniff'
   end
 
-  def default_cache_headers
-    headers['Pragma'] = 'no-cache' # HTTP 1.0 compatibility
-  end
-
   def stream_csv_headers(csv_filename)
     no_cache_headers
     stream_headers
@@ -349,9 +340,7 @@ class ApplicationController < ActionController::Base
   def check_password_expiration
     return if session[:impersonator_id] || !current_user&.allow_password_authentication?
 
-    if current_user&.password_expired?
-      redirect_to new_profile_password_path
-    end
+    redirect_to new_profile_password_path if current_user&.password_expired?
   end
 
   def active_user_check
@@ -426,8 +415,8 @@ class ApplicationController < ActionController::Base
       # accepting the terms.
       redirect_path = if request.get?
                         request.fullpath
-                      else
-                        URI(request.referer).path if request.referer
+                      elsif request.referer
+                        URI(request.referer).path
                       end
 
       flash[:notice] = message
@@ -513,7 +502,11 @@ class ApplicationController < ActionController::Base
   end
 
   def set_locale(&block)
-    Gitlab::I18n.with_user_locale(current_user, &block)
+    if current_user
+      Gitlab::I18n.with_user_locale(current_user, &block)
+    else
+      Gitlab::I18n.with_locale(preferred_language, &block)
+    end
   end
 
   def set_session_storage(&block)
@@ -523,7 +516,7 @@ class ApplicationController < ActionController::Base
   end
 
   def set_page_title_header
-    # Per https://tools.ietf.org/html/rfc5987, headers need to be ISO-8859-1, not UTF-8
+    # Per https://www.rfc-editor.org/rfc/rfc5987, headers need to be ISO-8859-1, not UTF-8
     response.headers['Page-Title'] = Addressable::URI.encode_component(page_title('GitLab'))
   end
 
@@ -559,9 +552,7 @@ class ApplicationController < ActionController::Base
 
     session[:ask_for_usage_stats_consent] = current_user.requires_usage_stats_consent?
 
-    if session[:ask_for_usage_stats_consent]
-      disable_usage_stats
-    end
+    disable_usage_stats if session[:ask_for_usage_stats_consent]
   end
 
   def disable_usage_stats

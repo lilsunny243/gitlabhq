@@ -1,7 +1,7 @@
 ---
 stage: none
 group: Style Guide
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Reference topic type
@@ -19,11 +19,11 @@ Introductory sentence.
 | **Name** | Descriptive sentence about the setting. |
 ```
 
-## Reference headings
+## Reference topic titles
 
-Reference headings are usually nouns.
+Reference topic titles are usually nouns.
 
-Avoid these heading titles:
+Avoid these topic titles:
 
 - `Important notes`. Instead, incorporate this information
   closer to where it belongs. For example, this information might be a prerequisite

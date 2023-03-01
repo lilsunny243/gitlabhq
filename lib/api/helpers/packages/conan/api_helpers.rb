@@ -47,14 +47,14 @@ module API
           end
 
           def recipe_upload_urls
-            { upload_urls: file_names.select(&method(:recipe_file?)).to_h do |file_name|
-                             [file_name, build_recipe_file_upload_url(file_name)]
+            { upload_urls: file_names.select(&method(:recipe_file?)).index_with do |file_name|
+                             build_recipe_file_upload_url(file_name)
                            end }
           end
 
           def package_upload_urls
-            { upload_urls: file_names.select(&method(:package_file?)).to_h do |file_name|
-                             [file_name, build_package_file_upload_url(file_name)]
+            { upload_urls: file_names.select(&method(:package_file?)).index_with do |file_name|
+                             build_package_file_upload_url(file_name)
                            end }
           end
 
@@ -128,7 +128,7 @@ module API
             strong_memoize(:project) do
               case package_scope
               when :project
-                find_project!(params[:id])
+                user_project(action: :read_package)
               when :instance
                 full_path = ::Packages::Conan::Metadatum.full_path_from(package_username: params[:package_username])
                 find_project!(full_path)
@@ -173,7 +173,7 @@ module API
 
             track_package_event('pull_package', :conan, category: 'API::ConanPackages', user: current_user, project: project, namespace: project.namespace) if params[:file_name] == ::Packages::Conan::FileMetadatum::PACKAGE_BINARY
 
-            present_carrierwave_file!(package_file.file)
+            present_package_file!(package_file)
           end
 
           def find_or_create_package

@@ -19,20 +19,23 @@ RSpec.describe Gitlab::Gfm::UploadsRewriter do
     end
 
     let(:text) do
-      "Text and #{image_uploader.markdown_link} and #{zip_uploader.markdown_link}"
+      "Text and #{image_uploader.markdown_link} and #{zip_uploader.markdown_link}".freeze # rubocop:disable Style/RedundantFreeze
     end
 
     def referenced_files(text, project)
-      referenced_files = text.scan(FileUploader::MARKDOWN_PATTERN).map do
-        UploaderFinder.new(project, $~[:secret], $~[:file]).execute
+      scanner = FileUploader::MARKDOWN_PATTERN.scan(text)
+      referenced_files = scanner.map do |match|
+        UploaderFinder.new(project, match[0], match[1]).execute
       end
 
       referenced_files.compact.select(&:exists?)
     end
 
-    shared_examples "files are accessible" do
+    shared_examples 'files are accessible' do
       describe '#rewrite' do
-        let!(:new_text) { rewriter.rewrite(new_project) }
+        subject(:rewrite) { new_text }
+
+        let(:new_text) { rewriter.rewrite(new_project) }
 
         let(:old_files) { [image_uploader, zip_uploader] }
         let(:new_files) do
@@ -43,11 +46,15 @@ RSpec.describe Gitlab::Gfm::UploadsRewriter do
         let(:new_paths) { new_files.map(&:path) }
 
         it 'rewrites content' do
+          rewrite
+
           expect(new_text).not_to eq text
           expect(new_text.length).to eq text.length
         end
 
         it 'copies files' do
+          rewrite
+
           expect(new_files).to all(exist)
           expect(old_paths).not_to match_array new_paths
           expect(old_paths).to all(include(old_project.disk_path))
@@ -55,10 +62,14 @@ RSpec.describe Gitlab::Gfm::UploadsRewriter do
         end
 
         it 'does not remove old files' do
+          rewrite
+
           expect(old_files).to all(exist)
         end
 
         it 'generates a new secret for each file' do
+          rewrite
+
           expect(new_paths).not_to include image_uploader.secret
           expect(new_paths).not_to include zip_uploader.secret
         end
@@ -68,7 +79,21 @@ RSpec.describe Gitlab::Gfm::UploadsRewriter do
             allow(finder).to receive(:execute).and_return(nil)
           end
 
+          rewrite
+
           expect(new_files).to be_empty
+          expect(new_text).to eq(text)
+        end
+
+        it 'skips non-existant files' do
+          allow_next_instance_of(FileUploader) do |file|
+            allow(file).to receive(:exists?).and_return(false)
+          end
+
+          rewrite
+
+          expect(new_files).to be_empty
+          expect(new_text).to eq(text)
         end
       end
     end
@@ -84,11 +109,21 @@ RSpec.describe Gitlab::Gfm::UploadsRewriter do
       expect(moved_text.scan(/\A\[.*?\]/).count).to eq(1)
     end
 
-    context "file are stored locally" do
-      include_examples "files are accessible"
+    it 'does not casue a timeout on pathological text' do
+      text = '[!l' * 30000
+
+      Timeout.timeout(3) do
+        moved_text = described_class.new(text, nil, old_project, user).rewrite(new_project)
+
+        expect(moved_text).to eq(text)
+      end
     end
 
-    context "files are stored remotely" do
+    context 'file are stored locally' do
+      include_examples 'files are accessible'
+    end
+
+    context 'files are stored remotely' do
       before do
         stub_uploads_object_storage(FileUploader)
 
@@ -97,7 +132,7 @@ RSpec.describe Gitlab::Gfm::UploadsRewriter do
         end
       end
 
-      include_examples "files are accessible"
+      include_examples 'files are accessible'
     end
 
     describe '#needs_rewrite?' do

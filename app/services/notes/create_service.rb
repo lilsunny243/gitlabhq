@@ -4,7 +4,7 @@ module Notes
   class CreateService < ::Notes::BaseService
     include IncidentManagement::UsageData
 
-    def execute(skip_capture_diff_note_position: false)
+    def execute(skip_capture_diff_note_position: false, skip_merge_status_trigger: false)
       note = Notes::BuildService.new(project, current_user, params.except(:merge_request_diff_head_sha)).execute
 
       # n+1: https://gitlab.com/gitlab-org/gitlab-foss/issues/37440
@@ -34,7 +34,13 @@ module Notes
           end
         end
 
-        when_saved(note, skip_capture_diff_note_position: skip_capture_diff_note_position) if note_saved
+        if note_saved
+          when_saved(
+            note,
+            skip_capture_diff_note_position: skip_capture_diff_note_position,
+            skip_merge_status_trigger: skip_merge_status_trigger
+          )
+        end
       end
 
       note
@@ -48,6 +54,7 @@ module Notes
       content, update_params, message, command_names = quick_actions_service.execute(note, quick_action_options)
       only_commands = content.empty?
       note.note = content
+      note.command_names = command_names
 
       yield(only_commands)
 
@@ -72,15 +79,21 @@ module Notes
       end
     end
 
-    def when_saved(note, skip_capture_diff_note_position: false)
+    def when_saved(note, skip_capture_diff_note_position: false, skip_merge_status_trigger: false)
       todo_service.new_note(note, current_user)
       clear_noteable_diffs_cache(note)
       Suggestions::CreateService.new(note).execute
       increment_usage_counter(note)
       track_event(note, current_user)
 
-      if !skip_capture_diff_note_position && note.for_merge_request? && note.diff_note? && note.start_of_discussion?
-        Discussions::CaptureDiffNotePositionService.new(note.noteable, note.diff_file&.paths).execute(note.discussion)
+      if note.for_merge_request? && note.start_of_discussion?
+        if !skip_capture_diff_note_position && note.diff_note?
+          Discussions::CaptureDiffNotePositionService.new(note.noteable, note.diff_file&.paths).execute(note.discussion)
+        end
+
+        if !skip_merge_status_trigger && note.to_be_resolved?
+          GraphqlTriggers.merge_request_merge_status_updated(note.noteable)
+        end
       end
     end
 
@@ -88,12 +101,14 @@ module Notes
       return if quick_actions_service.commands_executed_count.to_i == 0
 
       if update_params.present?
-        if check_for_reviewer_validity(message, update_params)
+        invalid_message = validate_commands(note, update_params)
+
+        if invalid_message
+          note.errors.add(:validation, invalid_message)
+          message = invalid_message
+        else
           quick_actions_service.apply_updates(update_params, note)
           note.commands_changes = update_params
-        else
-          message = "Reviewers #{MergeRequest.max_number_of_assignees_or_reviewers_message}"
-          note.errors.add(:validation, message)
         end
       end
 
@@ -114,16 +129,32 @@ module Notes
       }
     end
 
-    def check_for_reviewer_validity(message, update_params)
-      return true unless Feature.enabled?(:limit_reviewer_and_assignee_size)
+    def validate_commands(note, update_params)
+      if invalid_reviewers?(update_params)
+        "Reviewers #{note.noteable.class.max_number_of_assignees_or_reviewers_message}"
+      elsif invalid_assignees?(update_params)
+        "Assignees #{note.noteable.class.max_number_of_assignees_or_reviewers_message}"
+      end
+    end
 
+    def invalid_reviewers?(update_params)
       if update_params.key?(:reviewer_ids)
         possible_reviewers = update_params[:reviewer_ids]&.uniq&.size
 
-        return false if possible_reviewers > MergeRequest::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
+        possible_reviewers > ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
+      else
+        false
       end
+    end
 
-      true
+    def invalid_assignees?(update_params)
+      if update_params.key?(:assignee_ids)
+        possible_assignees = update_params[:assignee_ids]&.uniq&.size
+
+        possible_assignees > ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
+      else
+        false
+      end
     end
 
     def track_event(note, user)
@@ -131,9 +162,20 @@ module Notes
       track_note_creation_usage_for_merge_requests(note) if note.for_merge_request?
       track_incident_action(user, note.noteable, 'incident_comment') if note.for_issue?
       track_note_creation_in_ipynb(note)
+      track_note_creation_visual_review(note)
 
-      if Feature.enabled?(:notes_create_service_tracking, project)
-        Gitlab::Tracking.event('Notes::CreateService', 'execute', **tracking_data_for(note))
+      if Feature.enabled?(:route_hll_to_snowplow_phase4, project&.namespace) && note.for_commit?
+        metric_key_path = 'counts.commit_comment'
+
+        Gitlab::Tracking.event(
+          'Notes::CreateService',
+          'create_commit_comment',
+          project: project,
+          namespace: project&.namespace,
+          user: user,
+          label: metric_key_path,
+          context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis, key_path: metric_key_path).to_context]
+        )
       end
     end
 
@@ -163,6 +205,10 @@ module Notes
       return unless should_track_ipynb_notes?(note)
 
       Gitlab::UsageDataCounters::IpynbDiffActivityCounter.note_created(note)
+    end
+
+    def track_note_creation_visual_review(note)
+      Gitlab::Tracking.event('Notes::CreateService', 'execute', **tracking_data_for(note))
     end
   end
 end

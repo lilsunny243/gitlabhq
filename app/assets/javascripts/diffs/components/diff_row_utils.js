@@ -40,51 +40,90 @@ export const lineCode = (line) => {
   return line.line_code || line.left?.line_code || line.right?.line_code;
 };
 
-export const classNameMapCell = ({ line, hll, isLoggedIn, isHover }) => {
-  if (!line) return [];
-  const { type } = line;
+export const classNameMapCell = ({
+  line,
+  highlighted,
+  commented,
+  selectionStart,
+  selectionEnd,
+  isLoggedIn,
+  isHover,
+}) => {
+  const classes = {
+    'highlight-top': highlighted || selectionStart,
+    'highlight-bottom': highlighted || selectionEnd,
+    hll: highlighted,
+    commented,
+  };
 
-  return [
-    type,
-    {
-      hll,
+  if (line) {
+    const { type } = line;
+    Object.assign(classes, {
+      [type]: true,
       [LINE_HOVER_CLASS_NAME]: isLoggedIn && isHover && !isContextLine(type) && !isMetaLine(type),
-      old_line: line.type === 'old',
-      new_line: line.type === 'new',
-    },
-  ];
+      old_line: type === 'old',
+      new_line: type === 'new',
+    });
+  }
+
+  return [classes];
 };
 
 export const addCommentTooltip = (line) => {
   let tooltip;
-  if (!line) return tooltip;
+  if (!line) {
+    return tooltip;
+  }
 
   tooltip = __('Add a comment to this line or drag for multiple lines');
-  const brokenSymlinks = line.commentsDisabled;
 
-  if (brokenSymlinks) {
-    if (brokenSymlinks.wasSymbolic || brokenSymlinks.isSymbolic) {
+  if (!line.problems) {
+    return tooltip;
+  }
+
+  const { brokenSymlink, brokenLineCode, fileOnlyMoved } = line.problems;
+
+  if (brokenSymlink) {
+    if (brokenSymlink.wasSymbolic || brokenSymlink.isSymbolic) {
       tooltip = __(
-        'Commenting on symbolic links that replace or are replaced by files is currently not supported.',
+        'Commenting on symbolic links that replace or are replaced by files is not supported',
       );
-    } else if (brokenSymlinks.wasReal || brokenSymlinks.isReal) {
+    } else if (brokenSymlink.wasReal || brokenSymlink.isReal) {
       tooltip = __(
-        'Commenting on files that replace or are replaced by symbolic links is currently not supported.',
+        'Commenting on files that replace or are replaced by symbolic links is not supported',
       );
     }
+  } else if (fileOnlyMoved) {
+    tooltip = __('Commenting on files that are only moved or renamed is not supported');
+  } else if (brokenLineCode) {
+    tooltip = __('Commenting on this line is not supported');
   }
 
   return tooltip;
 };
 
-export const parallelViewLeftLineType = (line, hll) => {
+export const parallelViewLeftLineType = ({
+  line,
+  highlighted,
+  commented,
+  selectionStart,
+  selectionEnd,
+}) => {
   if (line?.right?.type === NEW_NO_NEW_LINE_TYPE) {
     return OLD_NO_NEW_LINE_TYPE;
   }
 
   const lineTypeClass = line?.left ? line.left.type : EMPTY_CELL_TYPE;
 
-  return [lineTypeClass, { hll }];
+  return [
+    lineTypeClass,
+    {
+      hll: highlighted,
+      commented,
+      'highlight-top': highlighted || selectionStart,
+      'highlight-bottom': highlighted || selectionEnd,
+    },
+  ];
 };
 
 export const shouldShowCommentButton = (hover, context, meta, discussions) => {
@@ -108,7 +147,7 @@ export const mapParallel = (content) => (line) => {
       ...left,
       renderDiscussion: hasExpandedDiscussionOnLeft,
       hasDraft: content.hasParallelDraftLeft(content.diffFile.file_hash, line),
-      lineDraft: content.draftForLine(content.diffFile.file_hash, line, 'left'),
+      lineDrafts: content.draftsForLine(content.diffFile.file_hash, line, 'left'),
       hasCommentForm: left.hasForm,
       isConflictMarker:
         line.left.type === CONFLICT_MARKER_OUR || line.left.type === CONFLICT_MARKER_THEIR,
@@ -123,7 +162,7 @@ export const mapParallel = (content) => (line) => {
         hasExpandedDiscussionOnRight && right.type && right.type !== EXPANDED_LINE_TYPE,
       ),
       hasDraft: content.hasParallelDraftRight(content.diffFile.file_hash, line),
-      lineDraft: content.draftForLine(content.diffFile.file_hash, line, 'right'),
+      lineDrafts: content.draftsForLine(content.diffFile.file_hash, line, 'right'),
       hasCommentForm: Boolean(right.hasForm && right.type && right.type !== EXPANDED_LINE_TYPE),
       emptyCellClassMap: { conflict_their: line.left?.type === CONFLICT_OUR },
       addCommentTooltip: addCommentTooltip(line.right),
@@ -145,7 +184,7 @@ export const mapParallel = (content) => (line) => {
     lineCode: lineCode(line),
     isMetaLineLeft: isMetaLine(left?.type),
     isMetaLineRight: isMetaLine(right?.type),
-    draftRowClasses: left?.lineDraft > 0 || right?.lineDraft > 0 ? '' : 'js-temp-notes-holder',
+    draftRowClasses: left?.hasDraft || right?.hasDraft ? '' : 'js-temp-notes-holder',
     renderCommentRow,
     commentRowClasses: hasDiscussions(left) || hasDiscussions(right) ? '' : 'js-temp-notes-holder',
   };

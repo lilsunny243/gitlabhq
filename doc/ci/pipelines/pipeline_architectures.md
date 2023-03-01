@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Authoring
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -10,20 +10,31 @@ type: reference
 Pipelines are the fundamental building blocks for CI/CD in GitLab. This page documents
 some of the important concepts related to them.
 
-There are three main ways to structure your pipelines, each with their
+You can structure your pipelines with different methods, each with their
 own advantages. These methods can be mixed and matched if needed:
 
-- [Basic](#basic-pipelines): Good for straightforward projects where all the configuration is in one easy to find place.
+- [Basic](#basic-pipelines): Good for straightforward projects where all the configuration is in one easy-to-find place.
 - [Directed Acyclic Graph](#directed-acyclic-graph-pipelines): Good for large, complex projects that need efficient execution.
-- [Child/Parent Pipelines](#child--parent-pipelines): Good for monorepos and projects with lots of independently defined components.
+- [Parent-child pipelines](#parent-child-pipelines): Good for monorepos and projects with lots of independently defined components.
 
-For more details about
-any of the keywords used below, check out our [CI YAML reference](../yaml/index.md) for details.
+  <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+  For an overview, see the [Parent-Child Pipelines feature demo](https://youtu.be/n8KpBSqZNbk).
+
+- [Multi-project pipelines](downstream_pipelines.md#multi-project-pipelines): Good for larger products that require cross-project interdependencies,
+  like those with a [microservices architecture](https://about.gitlab.com/blog/2016/08/16/trends-in-version-control-land-microservices/).
+
+  For example, you might deploy your web application from three different GitLab projects.
+  With multi-project pipelines you can trigger a pipeline in each project, where each
+  has its own build, test, and deploy process. You can visualize the connected pipelines
+  in one place, including all cross-project interdependencies.
+
+  <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+  For an overview, see the [Multi-project pipelines demo](https://www.youtube.com/watch?v=g_PIwBM1J84).
 
 ## Basic Pipelines
 
 This is the simplest pipeline in GitLab. It runs everything in the build stage concurrently,
-and once all of those finish, it runs everything in the test stage the same way, and so on.
+and once all of those finish, it runs everything in the test and subsequent stages the same way.
 It's not the most efficient, and if you have lots of steps it can grow quite complex, but it's
 easier to maintain:
 
@@ -84,12 +95,14 @@ deploy_a:
   script:
     - echo "This job deploys something. It will only run when all jobs in the"
     - echo "test stage complete."
+  environment: production
 
 deploy_b:
   stage: deploy
   script:
     - echo "This job deploys something else. It will only run when all jobs in the"
     - echo "test stage complete. It will start at about the same time as deploy_a."
+  environment: production
 ```
 
 ## Directed Acyclic Graph Pipelines
@@ -151,20 +164,39 @@ deploy_a:
   script:
     - echo "Since build_a and test_a run quickly, this deploy job can run much earlier."
     - echo "It does not need to wait for build_b or test_b."
+  environment: production
 
 deploy_b:
   stage: deploy
   needs: [test_b]
   script:
     - echo "Since build_b and test_b run slowly, this deploy job will run much later."
+  environment: production
 ```
 
-## Child / Parent Pipelines
+## Parent-child pipelines
 
-In the examples above, it's clear we've got two types of things that could be built independently.
-This is an ideal case for using [Child / Parent Pipelines](parent_child_pipelines.md)) via
-the [`trigger` keyword](../yaml/index.md#trigger). It separates out the configuration
-into multiple files, keeping things very simple. You can also combine this with:
+As pipelines grow more complex, a few related problems start to emerge:
+
+- The staged structure, where all steps in a stage must complete before the first
+  job in next stage begins, causes waits that slow things down.
+- Configuration for the single global pipeline becomes
+  hard to manage.
+- Imports with [`include`](../yaml/index.md#include) increase the complexity of the configuration, and can cause
+  namespace collisions where jobs are unintentionally duplicated.
+- Pipeline UX has too many jobs and stages to work with.
+
+Additionally, sometimes the behavior of a pipeline needs to be more dynamic. The ability
+to choose to start sub-pipelines (or not) is a powerful ability, especially if the
+YAML is dynamically generated.
+
+![Parent pipeline graph expanded](img/parent_pipeline_graph_expanded_v14_3.png)
+
+In the [basic pipeline](#basic-pipelines) and [directed acyclic graph](#directed-acyclic-graph-pipelines)
+examples above, there are two packages that could be built independently.
+These cases are ideal for using [parent-child pipelines](downstream_pipelines.md#parent-child-pipelines).
+It separates out the configuration into multiple files, keeping things simpler.
+You can combine parent-child pipelines with:
 
 - The [`rules` keyword](../yaml/index.md#rules): For example, have the child pipelines triggered only
   when there are changes to that area.
@@ -237,6 +269,7 @@ deploy_a:
   needs: [test_a]
   script:
     - echo "This job deploys something."
+  environment: production
 ```
 
 Example child `b` pipeline configuration, located in `/b/.gitlab-ci.yml`, making
@@ -266,6 +299,7 @@ deploy_b:
   needs: [test_b]
   script:
     - echo "This job deploys something else."
+  environment: production
 ```
 
 It's also possible to set jobs to run before or after triggering child pipelines,

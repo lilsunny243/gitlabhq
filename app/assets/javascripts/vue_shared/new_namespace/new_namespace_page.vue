@@ -1,11 +1,14 @@
 <script>
-import { GlBreadcrumb, GlIcon, GlSafeHtmlDirective as SafeHtml } from '@gitlab/ui';
+import { GlBreadcrumb, GlIcon } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
+import NewTopLevelGroupAlert from '~/groups/components/new_top_level_group_alert.vue';
 
 import LegacyContainer from './components/legacy_container.vue';
 import WelcomePage from './components/welcome.vue';
 
 export default {
   components: {
+    NewTopLevelGroupAlert,
     GlBreadcrumb,
     GlIcon,
     WelcomePage,
@@ -26,8 +29,8 @@ export default {
       type: String,
       required: true,
     },
-    initialBreadcrumb: {
-      type: String,
+    initialBreadcrumbs: {
+      type: Array,
       required: true,
     },
     panels: {
@@ -57,6 +60,10 @@ export default {
       return this.panels.find((p) => p.name === this.activePanelName);
     },
 
+    detailProps() {
+      return this.activePanel.detailProps || {};
+    },
+
     details() {
       return this.activePanel.details || this.activePanel.description;
     },
@@ -66,18 +73,27 @@ export default {
     },
 
     breadcrumbs() {
-      if (!this.activePanel) {
-        return null;
-      }
-
-      return [
-        { text: this.initialBreadcrumb, href: '#' },
-        { text: this.activePanel.title, href: `#${this.activePanel.name}` },
-      ];
+      return this.activePanel
+        ? [
+            ...this.initialBreadcrumbs,
+            {
+              text: this.activePanel.title,
+              href: `#${this.activePanel.name}`,
+            },
+          ]
+        : this.initialBreadcrumbs;
     },
 
     shouldVerify() {
       return this.verificationRequired && !this.verificationCompleted;
+    },
+
+    showNewTopLevelGroupAlert() {
+      if (this.activePanel.detailProps === undefined) {
+        return false;
+      }
+
+      return this.activePanel.detailProps.parentGroupName === '';
     },
   },
 
@@ -114,23 +130,29 @@ export default {
 
 <template>
   <credit-card-verification v-if="shouldVerify" @verified="onVerified" />
-  <welcome-page v-else-if="!activePanelName" :panels="panels" :title="title">
-    <template #footer>
-      <slot name="welcome-footer"> </slot>
-    </template>
-  </welcome-page>
-  <div v-else class="row">
-    <div class="col-lg-3">
-      <div v-safe-html="activePanel.illustration" class="gl-text-white"></div>
-      <h4>{{ activePanel.title }}</h4>
+  <div v-else-if="!activePanelName">
+    <gl-breadcrumb :items="breadcrumbs" />
+    <welcome-page :panels="panels" :title="title">
+      <template #footer>
+        <slot name="welcome-footer"> </slot>
+      </template>
+    </welcome-page>
+  </div>
+  <div v-else>
+    <gl-breadcrumb :items="breadcrumbs" />
+    <div class="gl-display-flex gl-py-5 gl-align-items-center">
+      <div v-safe-html="activePanel.illustration" class="gl-text-white col-auto"></div>
+      <div class="col">
+        <h4>{{ activePanel.title }}</h4>
 
-      <p v-if="hasTextDetails">{{ details }}</p>
-      <component :is="details" v-else v-bind="activePanel.detailProps || {}" />
+        <p v-if="hasTextDetails">{{ details }}</p>
+        <component :is="details" v-else v-bind="detailProps" />
+      </div>
 
       <slot name="extra-description"></slot>
     </div>
-    <div class="col-lg-9">
-      <gl-breadcrumb v-if="breadcrumbs" :items="breadcrumbs" />
+    <div>
+      <new-top-level-group-alert v-if="showNewTopLevelGroupAlert" />
       <legacy-container :key="activePanel.name" :selector="activePanel.selector" />
     </div>
   </div>

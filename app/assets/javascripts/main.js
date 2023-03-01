@@ -16,12 +16,11 @@ import * as tooltips from '~/tooltips';
 import { initPrefetchLinks } from '~/lib/utils/navigation_utility';
 import { logHelloDeferred } from 'jh_else_ce/lib/logger/hello_deferred';
 import initAlertHandler from './alert_handler';
-import { addDismissFlashClickListener } from './flash';
 import initTodoToggle from './header';
 import initLayoutNav from './layout_nav';
 import { handleLocationHash, addSelectOnFocusBehaviour } from './lib/utils/common_utils';
 import { localTimeAgo } from './lib/utils/datetime/timeago_utility';
-import { getLocationHash, visitUrl } from './lib/utils/url_utility';
+import { getLocationHash, visitUrl, mergeUrlParams } from './lib/utils/url_utility';
 
 // everything else
 import initFeatureHighlight from './feature_highlight';
@@ -30,6 +29,7 @@ import initLogoAnimation from './logo';
 import initBreadcrumbs from './breadcrumb';
 import initPersistentUserCallouts from './persistent_user_callouts';
 import { initUserTracking, initDefaultTrackers } from './tracking';
+import { initSidebarTracking } from './pages/shared/nav/sidebar_tracking';
 import initServicePingConsent from './service_ping_consent';
 import GlFieldErrors from './gl_field_errors';
 import initUserPopovers from './user_popovers';
@@ -37,6 +37,7 @@ import initBroadcastNotifications from './broadcast_notification';
 import { initTopNav } from './nav';
 import { initCopyCodeButton } from './behaviors/copy_code';
 import initHeaderSearch from './header_search/init';
+import initGitlabVersionCheck from './gitlab_version_check';
 
 import 'ee_else_ce/main_ee';
 import 'jh_else_ce/main_jh';
@@ -98,22 +99,17 @@ function deferredInitialisation() {
   initBroadcastNotifications();
   initPersistentUserCallouts();
   initDefaultTrackers();
+  initSidebarTracking();
   initFeatureHighlight();
   initCopyCodeButton();
+  initGitlabVersionCheck();
 
-  const helpToggle = document.querySelector('.header-help-dropdown-toggle');
-  if (helpToggle) {
-    helpToggle.addEventListener(
-      'click',
-      () => {
-        import(/* webpackChunkName: 'versionCheck' */ './gitlab_version_check')
-          .then(({ default: initGitlabVersionCheck }) => {
-            initGitlabVersionCheck();
-          })
-          .catch(() => {});
-      },
-      { once: true },
-    );
+  // Init super sidebar
+  if (gon.use_new_navigation) {
+    // eslint-disable-next-line promise/catch-or-return
+    import('./super_sidebar/super_sidebar_bundle').then(({ initSuperSidebar }) => {
+      initSuperSidebar();
+    });
   }
 
   addSelectOnFocusBehaviour('.js-select-on-focus');
@@ -250,22 +246,11 @@ $('form.filter-form').on('submit', function filterFormSubmitCallback(event) {
   const link = document.createElement('a');
   link.href = this.action;
 
-  const action = `${this.action}${link.search === '' ? '?' : '&'}`;
+  const action = mergeUrlParams(Object.fromEntries(new FormData(this)), this.action);
 
   event.preventDefault();
-  // eslint-disable-next-line no-jquery/no-serialize
-  visitUrl(`${action}${$(this).serialize()}`);
+  visitUrl(action);
 });
-
-const flashContainer = document.querySelector('.flash-container');
-
-if (flashContainer && flashContainer.children.length) {
-  flashContainer
-    .querySelectorAll('.flash-alert, .flash-notice, .flash-success')
-    .forEach((flashEl) => {
-      addDismissFlashClickListener(flashEl);
-    });
-}
 
 // initialize field errors
 $('.gl-show-field-errors').each((i, form) => new GlFieldErrors(form));

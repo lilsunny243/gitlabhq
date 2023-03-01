@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Show > User sees setup shortcut buttons' do
+RSpec.describe 'Projects > Show > User sees setup shortcut buttons', feature_category: :projects do
   # For "New file", "Add license" functionality,
   # see spec/features/projects/files/project_owner_creates_license_file_spec.rb
   # see spec/features/projects/files/project_owner_sees_link_to_create_license_file_in_empty_project_spec.rb
@@ -281,6 +281,17 @@ RSpec.describe 'Projects > Show > User sees setup shortcut buttons' do
             visit project_path(project)
 
             expect(page).to have_selector('.js-autodevops-banner')
+
+            page.within('.project-buttons') do
+              expect(page).not_to have_link('Enable Auto DevOps')
+              expect(page).not_to have_link('Auto DevOps enabled')
+            end
+          end
+
+          it 'no Auto DevOps button if builds feature is disabled' do
+            project.project_feature.update_attribute(:builds_access_level, ProjectFeature::DISABLED)
+
+            visit project_path(project)
 
             page.within('.project-buttons') do
               expect(page).not_to have_link('Enable Auto DevOps')

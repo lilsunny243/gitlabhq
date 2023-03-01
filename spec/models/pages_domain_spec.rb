@@ -21,6 +21,15 @@ RSpec.describe PagesDomain do
     end
   end
 
+  describe '.verified' do
+    let!(:verified) { create(:pages_domain) }
+    let!(:unverified) { create(:pages_domain, :unverified) }
+
+    it 'finds verified' do
+      expect(described_class.verified).to match_array(verified)
+    end
+  end
+
   describe 'validate domain' do
     subject(:pages_domain) { build(:pages_domain, domain: domain) }
 
@@ -62,7 +71,7 @@ RSpec.describe PagesDomain do
       let(:domain) { 'my.domain.com' }
 
       let(:project) do
-        instance_double(Project, pages_https_only?: pages_https_only)
+        instance_double(Project, pages_https_only?: pages_https_only, can_create_custom_domains?: true)
       end
 
       let(:pages_domain) do
@@ -198,6 +207,10 @@ RSpec.describe PagesDomain do
   describe 'default values' do
     it 'defaults wildcard to false' do
       expect(subject.wildcard).to eq(false)
+    end
+
+    it 'defaults auto_ssl_enabled to false' do
+      expect(subject.auto_ssl_enabled).to eq(false)
     end
 
     it 'defaults scope to project' do
@@ -554,7 +567,7 @@ RSpec.describe PagesDomain do
       it 'returns the virual domain when there are pages deployed for the project' do
         expect(virtual_domain).to be_an_instance_of(Pages::VirtualDomain)
         expect(virtual_domain.lookup_paths).not_to be_empty
-        expect(virtual_domain.cache_key).to eq("pages_domain_for_project_#{project.id}")
+        expect(virtual_domain.cache_key).to match(/pages_domain_for_domain_#{pages_domain.id}_/)
       end
 
       context 'when :cache_pages_domain_api is disabled' do
@@ -567,6 +580,32 @@ RSpec.describe PagesDomain do
           expect(virtual_domain.lookup_paths).not_to be_empty
           expect(virtual_domain.cache_key).to be_nil
         end
+      end
+    end
+  end
+
+  describe '#validate_custom_domain_count_per_project' do
+    let_it_be(:project) { create(:project) }
+
+    context 'when max custom domain setting is set to 0' do
+      it 'returns without an error' do
+        pages_domain = create(:pages_domain, project: project)
+
+        expect(pages_domain).to be_valid
+      end
+    end
+
+    context 'when max custom domain setting is not set to 0' do
+      it 'returns with an error for extra domains' do
+        Gitlab::CurrentSettings.update!(max_pages_custom_domains_per_project: 1)
+
+        pages_domain = create(:pages_domain, project: project)
+        expect(pages_domain).to be_valid
+
+        pages_domain = build(:pages_domain, project: project)
+        expect(pages_domain).not_to be_valid
+        expect(pages_domain.errors.full_messages)
+          .to contain_exactly('This project reached the limit of custom domains. (Max 1)')
       end
     end
   end

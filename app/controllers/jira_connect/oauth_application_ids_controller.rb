@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
 module JiraConnect
-  class OauthApplicationIdsController < ::ApplicationController
+  class OauthApplicationIdsController < ApplicationController
     feature_category :integrations
 
-    skip_before_action :authenticate_user!
-    skip_before_action :verify_authenticity_token
+    skip_before_action :verify_atlassian_jwt!
 
     def show
       if show_application_id?
@@ -20,7 +19,7 @@ module JiraConnect
     def show_application_id?
       return if Gitlab.com?
 
-      Feature.enabled?(:jira_connect_oauth_self_managed) && jira_connect_application_key.present?
+      jira_connect_application_key.present?
     end
 
     def jira_connect_application_key

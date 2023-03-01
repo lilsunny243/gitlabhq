@@ -6,7 +6,7 @@ import createMockApollo from 'helpers/mock_apollo_helper';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import allReleasesQuery from '~/releases/graphql/queries/all_releases.query.graphql';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { historyPushState } from '~/lib/utils/common_utils';
 import { sprintf, __ } from '~/locale';
 import ReleasesIndexApp from '~/releases/components/app_index.vue';
@@ -92,10 +92,6 @@ describe('app_index.vue', () => {
     queryMock = jest.fn();
   });
 
-  afterEach(() => {
-    wrapper.destroy();
-  });
-
   // Finders
   const findLoadingIndicator = () => wrapper.findComponent(ReleaseSkeletonLoader);
   const findEmptyState = () => wrapper.findComponent(ReleasesEmptyState);
@@ -161,13 +157,13 @@ describe('app_index.vue', () => {
         it(`${toDescription(flashMessage)} show a flash message`, async () => {
           await waitForPromises();
           if (flashMessage) {
-            expect(createFlash).toHaveBeenCalledWith({
+            expect(createAlert).toHaveBeenCalledWith({
               message: ReleasesIndexApp.i18n.errorMessage,
               captureError: true,
               error: expect.any(Error),
             });
           } else {
-            expect(createFlash).not.toHaveBeenCalled();
+            expect(createAlert).not.toHaveBeenCalled();
           }
         });
 
@@ -179,12 +175,14 @@ describe('app_index.vue', () => {
           expect(findPagination().exists()).toBe(pagination);
         });
 
-        it('does render the "New release" button', () => {
-          expect(findNewReleaseButton().exists()).toBe(true);
+        it('does render the "New release" button only for non-empty state', () => {
+          const shouldRenderNewReleaseButton = !emptyState;
+          expect(findNewReleaseButton().exists()).toBe(shouldRenderNewReleaseButton);
         });
 
-        it('does render the sort controls', () => {
-          expect(findSort().exists()).toBe(true);
+        it('does render the sort controls only for non-empty state', () => {
+          const shouldRenderControls = !emptyState;
+          expect(findSort().exists()).toBe(shouldRenderControls);
         });
       },
     );

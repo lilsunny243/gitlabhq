@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'GPG signed commits' do
+RSpec.describe 'GPG signed commits', feature_category: :source_code_management do
   let(:project) { create(:project, :public, :repository) }
 
   it 'changes from unverified to verified when the user changes their email to match the gpg key', :sidekiq_might_not_need_inline do
@@ -16,7 +16,7 @@ RSpec.describe 'GPG signed commits' do
 
     visit project_commit_path(project, ref)
 
-    expect(page).to have_selector('.gpg-status-box', text: 'Unverified')
+    expect(page).to have_selector('.gl-badge', text: 'Unverified')
 
     # user changes their email which makes the gpg key verified
     perform_enqueued_jobs do
@@ -26,7 +26,7 @@ RSpec.describe 'GPG signed commits' do
 
     visit project_commit_path(project, ref)
 
-    expect(page).to have_selector('.gpg-status-box', text: 'Verified')
+    expect(page).to have_selector('.gl-badge', text: 'Verified')
   end
 
   it 'changes from unverified to verified when the user adds the missing gpg key', :sidekiq_might_not_need_inline do
@@ -35,7 +35,7 @@ RSpec.describe 'GPG signed commits' do
 
     visit project_commit_path(project, ref)
 
-    expect(page).to have_selector('.gpg-status-box', text: 'Unverified')
+    expect(page).to have_selector('.gl-badge', text: 'Unverified')
 
     # user adds the gpg key which makes the signature valid
     perform_enqueued_jobs do
@@ -44,7 +44,7 @@ RSpec.describe 'GPG signed commits' do
 
     visit project_commit_path(project, ref)
 
-    expect(page).to have_selector('.gpg-status-box', text: 'Verified')
+    expect(page).to have_selector('.gl-badge', text: 'Verified')
   end
 
   context 'shows popover badges', :js do
@@ -75,7 +75,7 @@ RSpec.describe 'GPG signed commits' do
       visit project_commit_path(project, GpgHelpers::SIGNED_COMMIT_SHA)
       wait_for_all_requests
 
-      page.find('.gpg-status-box', text: 'Unverified').click
+      page.find('.gl-badge', text: 'Unverified').click
 
       within '.popover' do
         expect(page).to have_content 'This commit was signed with an unverified signature.'
@@ -90,12 +90,10 @@ RSpec.describe 'GPG signed commits' do
       visit project_commit_path(project, GpgHelpers::SIGNED_COMMIT_SHA)
       wait_for_all_requests
 
-      page.find('.gpg-status-box', text: 'Unverified').click
+      page.find('.gl-badge', text: 'Unverified').click
 
       within '.popover' do
         expect(page).to have_content 'This commit was signed with a verified signature, but the committer email is not associated with the GPG Key.'
-        expect(page).to have_content 'Bette Cartwright'
-        expect(page).to have_content '@bette.cartwright'
         expect(page).to have_content "GPG Key ID: #{GpgHelpers::User2.primary_keyid}"
       end
     end
@@ -106,12 +104,10 @@ RSpec.describe 'GPG signed commits' do
       visit project_commit_path(project, GpgHelpers::SIGNED_COMMIT_SHA)
       wait_for_all_requests
 
-      page.find('.gpg-status-box', text: 'Unverified').click
+      page.find('.gl-badge', text: 'Unverified').click
 
       within '.popover' do
         expect(page).to have_content "This commit was signed with a different user's verified signature."
-        expect(page).to have_content 'Bette Cartwright'
-        expect(page).to have_content '@bette.cartwright'
         expect(page).to have_content "GPG Key ID: #{GpgHelpers::User2.primary_keyid}"
       end
     end
@@ -122,7 +118,7 @@ RSpec.describe 'GPG signed commits' do
       visit project_commit_path(project, GpgHelpers::MULTIPLE_SIGNATURES_SHA)
       wait_for_all_requests
 
-      page.find('.gpg-status-box', text: 'Unverified').click
+      page.find('.gl-badge', text: 'Unverified').click
 
       within '.popover' do
         expect(page).to have_content "This commit was signed with multiple signatures."
@@ -135,12 +131,10 @@ RSpec.describe 'GPG signed commits' do
       visit project_commit_path(project, GpgHelpers::SIGNED_AND_AUTHORED_SHA)
       wait_for_all_requests
 
-      page.find('.gpg-status-box', text: 'Verified').click
+      page.find('.gl-badge', text: 'Verified').click
 
       within '.popover' do
-        expect(page).to have_content 'This commit was signed with a verified signature and the committer email is verified to belong to the same user.'
-        expect(page).to have_content 'Nannie Bernhard'
-        expect(page).to have_content '@nannie.bernhard'
+        expect(page).to have_content 'This commit was signed with a verified signature and the committer email was verified to belong to the same user.'
         expect(page).to have_content "GPG Key ID: #{GpgHelpers::User1.primary_keyid}"
       end
     end
@@ -152,19 +146,17 @@ RSpec.describe 'GPG signed commits' do
       wait_for_all_requests
 
       # wait for the signature to get generated
-      expect(page).to have_selector('.gpg-status-box', text: 'Verified')
+      expect(page).to have_selector('.gl-badge', text: 'Verified')
 
       user_1.destroy!
 
       refresh
       wait_for_all_requests
 
-      page.find('.gpg-status-box', text: 'Verified').click
+      page.find('.gl-badge', text: 'Verified').click
 
       within '.popover' do
-        expect(page).to have_content 'This commit was signed with a verified signature and the committer email is verified to belong to the same user.'
-        expect(page).to have_content 'Nannie Bernhard'
-        expect(page).to have_content 'nannie.bernhard@example.com'
+        expect(page).to have_content 'This commit was signed with a verified signature and the committer email was verified to belong to the same user.'
         expect(page).to have_content "GPG Key ID: #{GpgHelpers::User1.primary_keyid}"
       end
     end
@@ -178,9 +170,9 @@ RSpec.describe 'GPG signed commits' do
       end
 
       it 'displays commit signature' do
-        expect(page).to have_selector('.gpg-status-box', text: 'Unverified')
+        expect(page).to have_selector('.gl-badge', text: 'Unverified')
 
-        page.find('.gpg-status-box', text: 'Unverified').click
+        page.find('.gl-badge', text: 'Unverified').click
 
         within '.popover' do
           expect(page).to have_content 'This commit was signed with multiple signatures.'

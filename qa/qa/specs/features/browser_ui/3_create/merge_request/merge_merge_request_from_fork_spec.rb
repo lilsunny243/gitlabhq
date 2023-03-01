@@ -2,7 +2,7 @@
 
 module QA
   RSpec.describe 'Create' do
-    describe 'Merge request creation from fork' do
+    describe 'Merge request creation from fork', product_group: :code_review do
       let(:merge_request) do
         Resource::MergeRequestFromFork.fabricate_via_browser_ui! do |merge_request|
           merge_request.fork_branch = 'feature-branch'
@@ -17,7 +17,11 @@ module QA
         merge_request.fork.remove_via_api!
       end
 
-      it 'can merge feature branch fork to mainline', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347818' do
+      it 'can merge feature branch fork to mainline', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347818', quarantine: {
+        only: :production,
+        type: :investigating,
+        issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/372258'
+      } do
         merge_request.visit!
 
         Page::MergeRequest::Show.perform do |merge_request|

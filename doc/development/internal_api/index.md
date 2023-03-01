@@ -1,13 +1,13 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, api
 ---
 
-# Internal API **(FREE)**
+# Internal API
 
-The internal API is used by different GitLab components, it can not be
+The internal API is used by different GitLab components, it cannot be
 used by other consumers. This documentation is intended for people
 working on the GitLab codebase.
 
@@ -21,7 +21,7 @@ Before adding a new internal endpoint, consider if the API would potentially be
 useful to the wider GitLab community and can be made externally accessible.
 
 One reason we might favor internal API endpoints sometimes is when using such an endpoint requires
-internal data that external actors can not have. For example, in the internal Pages API we might use
+internal data that external actors cannot have. For example, in the internal Pages API we might use
 a secret token that identifies a request as internal or sign a request with a public key that is
 not available to a wider community.
 
@@ -37,13 +37,11 @@ is stored in a file at the path configured in `config/gitlab.yml` by
 default this is in the root of the rails app named
 `.gitlab_shell_secret`
 
-To authenticate using that token, clients read the contents of that
-file, and include the token Base64 encoded in a `secret_token` parameter
-or in the `Gitlab-Shared-Secret` header.
+To authenticate using that token, clients:
 
-NOTE:
-The internal API used by GitLab Pages, and GitLab agent server (`kas`) uses JSON Web Token (JWT)
-authentication, which is different from GitLab Shell.
+1. Read the contents of that file.
+1. Use the file contents to generate a JSON Web Token (`JWT`).
+1. Pass the JWT in the `Gitlab-Shell-Api-Request` header.
 
 ## Git Authentication
 
@@ -78,7 +76,7 @@ POST /internal/allowed
 Example request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded token>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "key_id=11&project=gnuwget/wget2&action=git-upload-pack&protocol=ssh" \
      "http://localhost:3001/api/v4/internal/allowed"
 ```
@@ -128,7 +126,7 @@ information for LFS clients when the repository is accessed over SSH.
 Example request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded token>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "key_id=11&project=gnuwget/wget2" "http://localhost:3001/api/v4/internal/lfs_authenticate"
 ```
 
@@ -148,12 +146,12 @@ curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded token>" \
 ## Authorized Keys Check
 
 This endpoint is called by the GitLab Shell authorized keys
-check. Which is called by OpenSSH for
+check. Which is called by OpenSSH or GitLab SSHD for
 [fast SSH key lookup](../../administration/operations/fast_ssh_key_lookup.md).
 
 | Attribute | Type   | Required | Description |
 |:----------|:-------|:---------|:------------|
-| `key`     | string | yes      | SSH key as passed by OpenSSH to GitLab Shell |
+| `key`     | string | yes      | An authorized key used for public key authentication. |
 
 ```plaintext
 GET /internal/authorized_keys
@@ -162,7 +160,7 @@ GET /internal/authorized_keys
 Example request:
 
 ```shell
-curl --request GET --header "Gitlab-Shared-Secret: <Base64 encoded secret>" "http://localhost:3001/api/v4/internal/authorized_keys?key=<key as passed by OpenSSH>"
+curl --request GET --header "Gitlab-Shell-Api-Request: <JWT token>" "http://localhost:3001/api/v4/internal/authorized_keys?key=<key>"
 ```
 
 Example response:
@@ -197,7 +195,7 @@ GET /internal/discover
 Example request:
 
 ```shell
-curl --request GET --header "Gitlab-Shared-Secret: <Base64 encoded secret>" "http://localhost:3001/api/v4/internal/discover?key_id=7"
+curl --request GET --header "Gitlab-Shell-Api-Request: <JWT token>" "http://localhost:3001/api/v4/internal/discover?key_id=7"
 ```
 
 Example response:
@@ -226,7 +224,7 @@ GET /internal/check
 Example request:
 
 ```shell
-curl --request GET --header "Gitlab-Shared-Secret: <Base64 encoded secret>" "http://localhost:3001/api/v4/internal/check"
+curl --request GET --header "Gitlab-Shell-Api-Request: <JWT token>" "http://localhost:3001/api/v4/internal/check"
 ```
 
 Example response:
@@ -263,7 +261,7 @@ GET /internal/two_factor_recovery_codes
 Example request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded secret>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "key_id=7" "http://localhost:3001/api/v4/internal/two_factor_recovery_codes"
 ```
 
@@ -311,7 +309,7 @@ POST /internal/personal_access_token
 Example request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded secret>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "user_id=29&name=mytokenname&scopes[]=read_user&scopes[]=read_repository&expires_at=2020-07-24" \
      "http://localhost:3001/api/v4/internal/personal_access_token"
 ```
@@ -348,7 +346,7 @@ POST /internal/error_tracking/allowed
 Example request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded secret>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "project_id=111&public_key=generated-error-tracking-key" \
           "http://localhost:3001/api/v4/internal/error_tracking/allowed"
 ```
@@ -379,7 +377,7 @@ POST /internal/pre_receive
 Example request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded secret>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "gl_repository=project-7" "http://localhost:3001/api/v4/internal/pre_receive"
 ```
 
@@ -412,7 +410,7 @@ POST /internal/post_receive
 Example Request:
 
 ```shell
-curl --request POST --header "Gitlab-Shared-Secret: <Base64 encoded secret>" \
+curl --request POST --header "Gitlab-Shell-Api-Request: <JWT token>" \
      --data "gl_repository=project-7" --data "identifier=user-1" \
      --data "changes=0000000000000000000000000000000000000000 fd9e76b9136bdd9fe217061b497745792fe5a5ee gh-pages\n" \
      "http://localhost:3001/api/v4/internal/post_receive"
@@ -476,7 +474,7 @@ agent to be authorized is [not yet implemented](https://gitlab.com/gitlab-org/gi
 
 | Attribute | Type   | Required | Description |
 |:----------|:-------|:---------|:------------|
-| `id` | integer/string | yes | The ID or [URL-encoded path of the project](../../api/index.md#namespaced-path-encoding) |
+| `id` | integer/string | yes | The ID or [URL-encoded path of the project](../../api/rest/index.md#namespaced-path-encoding) |
 
 ```plaintext
 GET /internal/kubernetes/project_info
@@ -496,8 +494,6 @@ metric counters.
 
 | Attribute                                                                  | Type          | Required | Description                                                                                                      |
 |:---------------------------------------------------------------------------|:--------------|:---------|:-----------------------------------------------------------------------------------------------------------------|
-| `gitops_sync_count` (DEPRECATED)                                           | integer       | no | The number to increase the `gitops_sync` counter by                                                              |
-| `k8s_api_proxy_request_count` (DEPRECATED)                                 | integer       | no | The number to increase the `k8s_api_proxy_request` counter by                                                    |
 | `counters`                                                                 | hash          | no | The number to increase the `k8s_api_proxy_request` counter by                                                    |
 | `counters["k8s_api_proxy_request"]`                                        | integer       | no | The number to increase the `k8s_api_proxy_request` counter by                                                    |
 | `counters["gitops_sync"]`                                                  | integer       | no | The number to increase the `gitops_sync` counter by                                                              |
@@ -512,7 +508,7 @@ Example Request:
 
 ```shell
 curl --request POST --header "Gitlab-Kas-Api-Request: <JWT token>" --header "Content-Type: application/json" \
-     --data '{"gitops_sync_count":1}' "http://localhost:3000/api/v4/internal/kubernetes/usage_metrics"
+     --data '{"counters": {"gitops_sync":1}}' "http://localhost:3000/api/v4/internal/kubernetes/usage_metrics"
 ```
 
 ### Create Starboard vulnerability
@@ -665,8 +661,7 @@ Example response:
 
 ## Subscriptions
 
-The subscriptions endpoint is used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`)
-in order to apply subscriptions including trials, and add-on purchases, for personal namespaces or top-level groups within GitLab.com.
+The subscriptions endpoint is used by [CustomersDot](https://gitlab.com/gitlab-org/customers-gitlab-com) (`customers.gitlab.com`) to apply subscriptions including trials, and add-on purchases, for personal namespaces or top-level groups within GitLab.com.
 
 ### Creating a subscription
 
@@ -966,3 +961,467 @@ Example response:
 ### Known consumers
 
 - CustomersDot
+
+## Group SCIM API **(PREMIUM SAAS)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/9388) in GitLab 11.10.
+
+The group SCIM API implements the [RFC7644 protocol](https://www.rfc-editor.org/rfc/rfc7644). As this API is for
+**system** use for SCIM provider integration, it is subject to change without notice.
+
+To use this API, enable [Group SSO](../../user/group/saml_sso/index.md) for the group.
+This API is only in use where [SCIM for Group SSO](../../user/group/saml_sso/scim_setup.md) is enabled. It's a prerequisite to the creation of SCIM identities.
+
+This API is different to the [main SCIM API](../../api/scim.md) and the [instance SCIM API](#instance-scim-api).
+
+### Get a list of SCIM provisioned users
+
+This endpoint is used as part of the SCIM syncing mechanism. It only returns
+a single user based on a unique ID which should match the `extern_uid` of the user.
+
+```plaintext
+GET /api/scim/v2/groups/:group_path/Users
+```
+
+Parameters:
+
+| Attribute | Type    | Required | Description                                                                                                                             |
+|:----------|:--------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `filter`   | string  | no     | A [filter](#available-filters) expression. |
+| `group_path` | string | yes    | Full path to the group. |
+| `startIndex` | integer | no    | The 1-based index indicating where to start returning results from. A value of less than one is interpreted as 1. |
+| `count` | integer | no    | Desired maximum number of query results. |
+
+NOTE:
+Pagination follows the [SCIM spec](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.2.4) rather than GitLab pagination as used elsewhere. If records change between requests it is possible for a page to either be missing records that have moved to a different page or repeat records from a previous request.
+
+Example request:
+
+```shell
+curl "https://gitlab.example.com/api/scim/v2/groups/test_group/Users?filter=id%20eq%20%220b1d561c-21ff-4092-beab-8154b17f82f2%22" \
+     --header "Authorization: Bearer <your_scim_token>" \
+     --header "Content-Type: application/scim+json"
+```
+
+Example response:
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+  ],
+  "totalResults": 1,
+  "itemsPerPage": 20,
+  "startIndex": 1,
+  "Resources": [
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User"
+      ],
+      "id": "0b1d561c-21ff-4092-beab-8154b17f82f2",
+      "active": true,
+      "name.formatted": "Test User",
+      "userName": "username",
+      "meta": { "resourceType":"User" },
+      "emails": [
+        {
+          "type": "work",
+          "value": "name@example.com",
+          "primary": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Get a single SCIM provisioned user
+
+```plaintext
+GET /api/scim/v2/groups/:group_path/Users/:id
+```
+
+Parameters:
+
+| Attribute | Type    | Required | Description                                                                                                                             |
+|:----------|:--------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `id`   | string  | yes     | External UID of the user. |
+| `group_path` | string | yes    | Full path to the group. |
+
+Example request:
+
+```shell
+curl "https://gitlab.example.com/api/scim/v2/groups/test_group/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Example response:
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
+  "id": "0b1d561c-21ff-4092-beab-8154b17f82f2",
+  "active": true,
+  "name.formatted": "Test User",
+  "userName": "username",
+  "meta": { "resourceType":"User" },
+  "emails": [
+    {
+      "type": "work",
+      "value": "name@example.com",
+      "primary": true
+    }
+  ]
+}
+```
+
+### Create a SCIM provisioned user
+
+```plaintext
+POST /api/scim/v2/groups/:group_path/Users/
+```
+
+Parameters:
+
+| Attribute      | Type    | Required | Description            |
+|:---------------|:----------|:----|:--------------------------|
+| `externalId` | string      | yes | External UID of the user. |
+| `userName`   | string      | yes | Username of the user. |
+| `emails`     | JSON string | yes | Work email. |
+| `name`       | JSON string | yes | Name of the user. |
+| `meta`       | string      | no  | Resource type (`User`). |
+
+Example request:
+
+```shell
+curl --verbose --request POST "https://gitlab.example.com/api/scim/v2/groups/test_group/Users" \
+     --data '{"externalId":"test_uid","active":null,"userName":"username","emails":[{"primary":true,"type":"work","value":"name@example.com"}],"name":{"formatted":"Test User","familyName":"User","givenName":"Test"},"schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"meta":{"resourceType":"User"}}' \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Example response:
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
+  "id": "0b1d561c-21ff-4092-beab-8154b17f82f2",
+  "active": true,
+  "name.formatted": "Test User",
+  "userName": "username",
+  "meta": { "resourceType":"User" },
+  "emails": [
+    {
+      "type": "work",
+      "value": "name@example.com",
+      "primary": true
+    }
+  ]
+}
+```
+
+Returns a `201` status code if successful.
+
+### Update a single SCIM provisioned user
+
+Fields that can be updated are:
+
+| SCIM/IdP field                   | GitLab field                                                                 |
+|:---------------------------------|:-----------------------------------------------------------------------------|
+| `id/externalId`                  | `extern_uid`                                                                 |
+| `name.formatted`                 | `name` ([Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/363058))     |
+| `emails\[type eq "work"\].value` | `email` ([Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/363058))    |
+| `active`                         | Identity removal if `active` = `false`                                       |
+| `userName`                       | `username` ([Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/363058)) |
+
+```plaintext
+PATCH /api/scim/v2/groups/:group_path/Users/:id
+```
+
+Parameters:
+
+| Attribute | Type    | Required | Description                                                                                                                             |
+|:----------|:--------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `id`   | string  | yes     | External UID of the user. |
+| `group_path` | string | yes    | Full path to the group. |
+| `Operations`   | JSON string  | yes     | An [operations](#available-operations) expression. |
+
+Example request:
+
+```shell
+curl --verbose --request PATCH "https://gitlab.example.com/api/scim/v2/groups/test_group/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
+     --data '{ "Operations": [{"op":"Add","path":"name.formatted","value":"New Name"}] }' \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Returns an empty response with a `204` status code if successful.
+
+### Remove a single SCIM provisioned user
+
+Removes the user's SSO identity and group membership.
+
+```plaintext
+DELETE /api/scim/v2/groups/:group_path/Users/:id
+```
+
+Parameters:
+
+| Attribute    | Type   | Required | Description               |
+| ------------ | ------ | -------- | ------------------------- |
+| `id`         | string | yes      | External UID of the user. |
+| `group_path` | string | yes      | Full path to the group.   |
+
+Example request:
+
+```shell
+curl --verbose --request DELETE "https://gitlab.example.com/api/scim/v2/groups/test_group/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Returns an empty response with a `204` status code if successful.
+
+## Instance SCIM API **(PREMIUM SELF)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/378599) in GitLab 15.8.
+
+The Instance SCIM API implements the [RFC7644 protocol](https://www.rfc-editor.org/rfc/rfc7644). As this API is for
+**system** use for SCIM provider integration, it is subject to change without notice.
+
+To use this API, enable [SAML SSO](../../integration/saml.md) for the instance.
+
+This API is different to the [main SCIM API](../../api/scim.md) and the [group SCIM API](#group-scim-api).
+
+### Get a list of SCIM provisioned users
+
+This endpoint is used as part of the SCIM syncing mechanism. It only returns
+a single user based on a unique ID which should match the `extern_uid` of the user.
+
+```plaintext
+GET /api/scim/v2/application/Users
+```
+
+Parameters:
+
+| Attribute | Type    | Required | Description                                                                                                                             |
+|:----------|:--------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `filter`   | string  | no     | A [filter](#available-filters) expression. |
+| `startIndex` | integer | no    | The 1-based index indicating where to start returning results from. A value of less than one is interpreted as 1. |
+| `count` | integer | no    | Desired maximum number of query results. |
+
+NOTE:
+Pagination follows the [SCIM spec](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.2.4) rather than GitLab pagination as used elsewhere. If records change between requests it is possible for a page to either be missing records that have moved to a different page or repeat records from a previous request.
+
+Example request:
+
+```shell
+curl "https://gitlab.example.com/api/scim/v2/application/Users?filter=id%20eq%20%220b1d561c-21ff-4092-beab-8154b17f82f2%22" \
+     --header "Authorization: Bearer <your_scim_token>" \
+     --header "Content-Type: application/scim+json"
+```
+
+Example response:
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+  ],
+  "totalResults": 1,
+  "itemsPerPage": 20,
+  "startIndex": 1,
+  "Resources": [
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User"
+      ],
+      "id": "0b1d561c-21ff-4092-beab-8154b17f82f2",
+      "active": true,
+      "name.formatted": "Test User",
+      "userName": "username",
+      "meta": { "resourceType":"User" },
+      "emails": [
+        {
+          "type": "work",
+          "value": "name@example.com",
+          "primary": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Get a single SCIM provisioned user
+
+```plaintext
+GET /api/scim/v2/application/Users/:id
+```
+
+Parameters:
+
+| Attribute | Type    | Required | Description                                                                                                                             |
+|:----------|:--------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `id`   | string  | yes     | External UID of the user. |
+
+Example request:
+
+```shell
+curl "https://gitlab.example.com/api/scim/v2/application/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Example response:
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
+  "id": "0b1d561c-21ff-4092-beab-8154b17f82f2",
+  "active": true,
+  "name.formatted": "Test User",
+  "userName": "username",
+  "meta": { "resourceType":"User" },
+  "emails": [
+    {
+      "type": "work",
+      "value": "name@example.com",
+      "primary": true
+    }
+  ]
+}
+```
+
+### Create a SCIM provisioned user
+
+```plaintext
+POST /api/scim/v2/application/Users
+```
+
+Parameters:
+
+| Attribute      | Type    | Required | Description            |
+|:---------------|:----------|:----|:--------------------------|
+| `externalId` | string      | yes | External UID of the user. |
+| `userName`   | string      | yes | Username of the user. |
+| `emails`     | JSON string | yes | Work email. |
+| `name`       | JSON string | yes | Name of the user. |
+| `meta`       | string      | no  | Resource type (`User`). |
+
+Example request:
+
+```shell
+curl --verbose --request POST "https://gitlab.example.com/api/scim/v2/application/Users" \
+     --data '{"externalId":"test_uid","active":null,"userName":"username","emails":[{"primary":true,"type":"work","value":"name@example.com"}],"name":{"formatted":"Test User","familyName":"User","givenName":"Test"},"schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"meta":{"resourceType":"User"}}' \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Example response:
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
+  "id": "0b1d561c-21ff-4092-beab-8154b17f82f2",
+  "active": true,
+  "name.formatted": "Test User",
+  "userName": "username",
+  "meta": { "resourceType":"User" },
+  "emails": [
+    {
+      "type": "work",
+      "value": "name@example.com",
+      "primary": true
+    }
+  ]
+}
+```
+
+Returns a `201` status code if successful.
+
+### Update a single SCIM provisioned user
+
+Fields that can be updated are:
+
+| SCIM/IdP field                   | GitLab field                                                                 |
+|:---------------------------------|:-----------------------------------------------------------------------------|
+| `id/externalId`                  | `extern_uid`                                                                 |
+| `active`                         | Identity removal if `active` = `false`                                       |
+
+```plaintext
+PATCH /api/scim/v2/application/Users/:id
+```
+
+Parameters:
+
+| Attribute | Type    | Required | Description                                                                                                                             |
+|:----------|:--------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------|
+| `id`   | string  | yes     | External UID of the user. |
+| `Operations`   | JSON string  | yes     | An [operations](#available-operations) expression. |
+
+Example request:
+
+```shell
+curl --verbose --request PATCH "https://gitlab.example.com/api/scim/v2/application/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
+     --data '{ "Operations": [{"op":"Add","path":"name.formatted","value":"New Name"}] }' \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Returns an empty response with a `204` status code if successful.
+
+### Remove a single SCIM provisioned user
+
+The user is placed in an `ldap_blocked` status and signed out. This means
+the user cannot sign in or push or pull code.
+
+```plaintext
+DELETE /api/scim/v2/application/Users/:id
+```
+
+Parameters:
+
+| Attribute    | Type   | Required | Description               |
+| ------------ | ------ | -------- | ------------------------- |
+| `id`         | string | yes      | External UID of the user. |
+
+Example request:
+
+```shell
+curl --verbose --request DELETE "https://gitlab.example.com/api/scim/v2/application/Users/f0b1d561c-21ff-4092-beab-8154b17f82f2" \
+     --header "Authorization: Bearer <your_scim_token>" --header "Content-Type: application/scim+json"
+```
+
+Returns an empty response with a `204` status code if successful.
+
+### Available filters
+
+They match an expression as specified in [the RFC7644 filtering section](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.2.2).
+
+| Filter | Description |
+| ----- | ----------- |
+| `eq` | The attribute matches exactly the specified value. |
+
+Example:
+
+```plaintext
+id eq a-b-c-d
+```
+
+### Available operations
+
+They perform an operation as specified in [the RFC7644 update section](https://www.rfc-editor.org/rfc/rfc7644#section-3.5.2).
+
+| Operator | Description |
+| ----- | ----------- |
+| `Replace` | The attribute's value is updated. |
+| `Add` | The attribute has a new value. |
+
+Example:
+
+```json
+{ "op": "Add", "path": "name.formatted", "value": "New Name" }
+```

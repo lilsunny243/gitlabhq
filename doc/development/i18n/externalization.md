@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Internationalization for GitLab
@@ -284,9 +284,7 @@ expect(wrapper.text()).toEqual(MSG_ALERT_SETTINGS_FORM_ERROR);
 
 ### Dynamic translations
 
-Sometimes there are dynamic translations that the parser can't find when running
-`bin/rake gettext:find`. For these scenarios you can use the [`N_` method](https://github.com/grosser/gettext_i18n_rails/blob/c09e38d481e0899ca7d3fc01786834fa8e7aab97/Readme.md#unfound-translations-with-rake-gettextfind).
-There's also an alternative method to [translate messages from validation errors](https://github.com/grosser/gettext_i18n_rails/blob/c09e38d481e0899ca7d3fc01786834fa8e7aab97/Readme.md#option-a).
+For more details you can see how we [keep translations dynamic](#keep-translations-dynamic).
 
 ## Working with special content
 
@@ -463,12 +461,17 @@ use `%{created_at}` in Ruby but `%{createdAt}` in JavaScript. Make sure to
 
 The `n_` and `n__` methods should only be used to fetch pluralized translations of the same
 string, not to control the logic of showing different strings for different
-quantities. Some languages have different quantities of target plural forms.
+quantities. For similar strings, pluralize the entire sentence to provide the most context
+when translating. Some languages have different quantities of target plural forms.
 For example, Chinese (simplified) has only one target plural form in our
 translation tool. This means the translator has to choose to translate only one
 of the strings, and the translation doesn't behave as intended in the other case.
 
-For example, use this:
+Below are some examples:
+
+Example 1: For different strings
+
+Use this:
 
 ```ruby
 if selected_projects.one?
@@ -483,6 +486,27 @@ Instead of this:
 ```ruby
 # incorrect usage example
 format(n_("%{project_name}", "%d projects selected", count), project_name: 'GitLab')
+```
+
+Example 2: For similar strings
+
+Use this:
+
+```ruby
+n__('Last day', 'Last %d days', days.length)
+```
+
+Instead of this:
+
+```ruby
+# incorrect usage example
+const pluralize = n__('day', 'days', days.length)
+
+if (days.length === 1 ) {
+  return sprintf(s__('Last %{pluralize}', pluralize)
+}
+
+return sprintf(s__('Last %{dayNumber} %{pluralize}'), { dayNumber: days.length, pluralize })
 ```
 
 ### Namespaces
@@ -737,6 +761,10 @@ class MyPresenter
   end
 end
 ```
+
+Sometimes there are dynamic translations that the parser can't find when running
+`bin/rake gettext:find`. For these scenarios you can use the [`N_` method](https://github.com/grosser/gettext_i18n_rails/blob/c09e38d481e0899ca7d3fc01786834fa8e7aab97/Readme.md#unfound-translations-with-rake-gettextfind).
+There's also an alternative method to [translate messages from validation errors](https://github.com/grosser/gettext_i18n_rails/blob/c09e38d481e0899ca7d3fc01786834fa8e7aab97/Readme.md#option-a).
 
 ### Splitting sentences
 

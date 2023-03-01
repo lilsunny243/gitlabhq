@@ -17,14 +17,14 @@ export const codeQualityResponseNewErrors = {
   resolved_errors: [],
   existing_errors: [],
   summary: {
-    total: 2,
+    total: 12235,
     resolved: 0,
-    errored: 2,
+    errored: 12235,
   },
 };
 
 export const codeQualityResponseResolvedErrors = {
-  status: 'failed',
+  status: 'success',
   new_errors: [],
   resolved_errors: [
     {
@@ -42,9 +42,9 @@ export const codeQualityResponseResolvedErrors = {
   ],
   existing_errors: [],
   summary: {
-    total: 2,
-    resolved: 2,
-    errored: 0,
+    total: 12235,
+    resolved: 0,
+    errored: 12235,
   },
 };
 
@@ -68,9 +68,9 @@ export const codeQualityResponseResolvedAndNewErrors = {
   ],
   existing_errors: [],
   summary: {
-    total: 2,
+    total: 12233,
     resolved: 1,
-    errored: 1,
+    errored: 12233,
   },
 };
 
@@ -80,8 +80,8 @@ export const codeQualityResponseNoErrors = {
   resolved_errors: [],
   existing_errors: [],
   summary: {
-    total: 0,
+    total: 12234,
     resolved: 0,
-    errored: 0,
+    errored: 12234,
   },
 };

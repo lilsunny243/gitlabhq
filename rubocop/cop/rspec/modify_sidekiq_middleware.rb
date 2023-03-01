@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rubocop-rspec'
+
 module RuboCop
   module Cop
     module RSpec
@@ -20,7 +22,9 @@ module RuboCop
       #   end
       #
       #
-      class ModifySidekiqMiddleware < RuboCop::Cop::Cop
+      class ModifySidekiqMiddleware < RuboCop::Cop::Base
+        extend RuboCop::Cop::AutoCorrector
+
         MSG = <<~MSG
           Don't modify global sidekiq middleware, use the `#with_sidekiq_server_middleware`
           helper instead
@@ -35,11 +39,7 @@ module RuboCop
         def on_send(node)
           return unless modifies_sidekiq_middleware?(node)
 
-          add_offense(node, location: :expression)
-        end
-
-        def autocorrect(node)
-          -> (corrector) do
+          add_offense(node) do |corrector|
             corrector.replace(node.loc.expression,
                               'with_sidekiq_server_middleware')
           end

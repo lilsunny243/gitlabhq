@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::RemoveApprovalService do
+RSpec.describe MergeRequests::RemoveApprovalService, feature_category: :code_review_workflow do
   describe '#execute' do
     let(:user) { create(:user) }
     let(:project) { create(:project) }
@@ -45,6 +45,18 @@ RSpec.describe MergeRequests::RemoveApprovalService do
 
         execute!
       end
+
+      it_behaves_like 'triggers GraphQL subscription mergeRequestMergeStatusUpdated' do
+        let(:action) { execute! }
+      end
+
+      it_behaves_like 'triggers GraphQL subscription mergeRequestReviewersUpdated' do
+        let(:action) { execute! }
+      end
+
+      it_behaves_like 'triggers GraphQL subscription mergeRequestApprovalStateUpdated' do
+        let(:action) { execute! }
+      end
     end
 
     context 'with a user who has not approved' do
@@ -60,6 +72,18 @@ RSpec.describe MergeRequests::RemoveApprovalService do
           .not_to receive(:track_unapprove_mr_action).with(user: user)
 
         execute!
+      end
+
+      it_behaves_like 'does not trigger GraphQL subscription mergeRequestMergeStatusUpdated' do
+        let(:action) { execute! }
+      end
+
+      it_behaves_like 'does not trigger GraphQL subscription mergeRequestReviewersUpdated' do
+        let(:action) { execute! }
+      end
+
+      it_behaves_like 'does not trigger GraphQL subscription mergeRequestApprovalStateUpdated' do
+        let(:action) { execute! }
       end
     end
   end

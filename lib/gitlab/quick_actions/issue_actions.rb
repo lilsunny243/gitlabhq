@@ -80,7 +80,7 @@ module Gitlab
 
         desc { _('Mark this issue as a duplicate of another issue') }
         explanation do |duplicate_reference|
-          _("Marks this issue as a duplicate of %{duplicate_reference}.") % { duplicate_reference: duplicate_reference }
+          _("Closes this issue. Marks as related to, and a duplicate of, %{duplicate_reference}.") % { duplicate_reference: duplicate_reference }
         end
         params '#issue'
         types Issue
@@ -94,7 +94,7 @@ module Gitlab
           if canonical_issue.present?
             @updates[:canonical_issue_id] = canonical_issue.id
 
-            message = _("Marked this issue as a duplicate of %{duplicate_param}.") % { duplicate_param: duplicate_param }
+            message = _("Closed this issue. Marked as related to, and a duplicate of, %{duplicate_param}.") % { duplicate_param: duplicate_param }
           else
             message = _('Failed to mark this issue as a duplicate because referenced issue was not found.')
           end
@@ -161,23 +161,6 @@ module Gitlab
           @execution_message[:move] = message
         end
 
-        desc { _('Make issue confidential') }
-        explanation do
-          _('Makes this issue confidential.')
-        end
-        execution_message do
-          _('Made this issue confidential.')
-        end
-        types Issue
-        condition do
-          quick_action_target.issue_type_supports?(:confidentiality) &&
-            !quick_action_target.confidential? &&
-            current_user.can?(:set_confidentiality, quick_action_target)
-        end
-        command :confidential do
-          @updates[:confidential] = true
-        end
-
         desc { _('Create a merge request') }
         explanation do |branch_name = nil|
           if branch_name
@@ -207,19 +190,22 @@ module Gitlab
 
         desc { _('Add Zoom meeting') }
         explanation { _('Adds a Zoom meeting.') }
-        params '<Zoom URL>'
+        params do
+          zoom_link_params
+        end
         types Issue
         condition do
           @zoom_service = zoom_link_service
+
           @zoom_service.can_add_link?
         end
-        parse_params do |link|
-          @zoom_service.parse_link(link)
+        parse_params do |link_params|
+          @zoom_service.parse_link(link_params)
         end
-        command :zoom do |link|
-          result = @zoom_service.add_link(link)
+        command :zoom do |link, link_text = nil|
+          result = add_zoom_link(link, link_text)
           @execution_message[:zoom] = result.message
-          @updates.merge!(result.payload) if result.payload
+          merge_updates(result, @updates)
         end
 
         desc { _('Remove Zoom meeting') }
@@ -266,23 +252,14 @@ module Gitlab
 
         desc { _('Promote issue to incident') }
         explanation { _('Promotes issue to incident') }
+        execution_message { _('Issue has been promoted to incident') }
         types Issue
         condition do
-          quick_action_target.persisted? &&
-            !quick_action_target.incident? &&
-            current_user.can?(:update_issue, quick_action_target)
+          !quick_action_target.incident? &&
+            current_user.can?(:"set_#{quick_action_target.issue_type}_metadata", quick_action_target)
         end
         command :promote_to_incident do
-          issue = ::Issues::UpdateService
-            .new(project: quick_action_target.project, current_user: current_user, params: { issue_type: 'incident' })
-            .execute(quick_action_target)
-
-          @execution_message[:promote_to_incident] =
-            if issue.incident?
-              _('Issue has been promoted to incident')
-            else
-              _('Failed to promote issue to incident')
-            end
+          @updates[:issue_type] = "incident"
         end
 
         desc { _('Add customer relation contacts') }
@@ -315,11 +292,51 @@ module Gitlab
           @updates[:remove_contacts] = contact_emails.split(' ')
         end
 
-        private
-
-        def zoom_link_service
-          ::Issues::ZoomLinkService.new(project: quick_action_target.project, current_user: current_user, params: { issue: quick_action_target })
+        desc { _('Add a timeline event to incident') }
+        explanation { _('Adds a timeline event to incident.') }
+        params '<timeline comment> | <date(YYYY-MM-DD)> <time(HH:MM)>'
+        types Issue
+        condition do
+          quick_action_target.incident? &&
+            current_user.can?(:admin_incident_management_timeline_event, quick_action_target)
         end
+        parse_params do |event_params|
+          Gitlab::QuickActions::TimelineTextAndDateTimeSeparator.new(event_params).execute
+        end
+        command :timeline do |event_text, date_time|
+          if event_text && date_time
+            timeline_event = timeline_event_create_service(event_text, date_time).execute
+
+            @execution_message[:timeline] =
+              if timeline_event.success?
+                _('Timeline event added successfully.')
+              else
+                _('Something went wrong while adding timeline event.')
+              end
+          end
+        end
+      end
+
+      private
+
+      def zoom_link_service
+        ::Issues::ZoomLinkService.new(container: quick_action_target.project, current_user: current_user, params: { issue: quick_action_target })
+      end
+
+      def zoom_link_params
+        '<Zoom URL>'
+      end
+
+      def add_zoom_link(link, _link_text)
+        zoom_link_service.add_link(link)
+      end
+
+      def merge_updates(result, update_hash)
+        update_hash.merge!(result.payload) if result.payload
+      end
+
+      def timeline_event_create_service(event_text, event_date_time)
+        ::IncidentManagement::TimelineEvents::CreateService.new(quick_action_target, current_user, { note: event_text, occurred_at: event_date_time, editable: true })
       end
     end
   end

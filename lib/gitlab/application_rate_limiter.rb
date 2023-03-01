@@ -46,11 +46,21 @@ module Gitlab
           search_rate_limit_unauthenticated: { threshold: -> { application_settings.search_rate_limit_unauthenticated }, interval: 1.minute },
           gitlab_shell_operation: { threshold: 600, interval: 1.minute },
           pipelines_create: { threshold: -> { application_settings.pipeline_limit_per_project_user_sha }, interval: 1.minute },
-          temporary_email_failure: { threshold: 50, interval: 1.day },
+          temporary_email_failure: { threshold: 300, interval: 1.day },
+          permanent_email_failure: { threshold: 5, interval: 1.day },
           project_testing_integration: { threshold: 5, interval: 1.minute },
           email_verification: { threshold: 10, interval: 10.minutes },
           email_verification_code_send: { threshold: 10, interval: 1.hour },
-          namespace_exists: { threshold: 20, interval: 1.minute }
+          phone_verification_send_code: { threshold: 10, interval: 1.hour },
+          phone_verification_verify_code: { threshold: 10, interval: 10.minutes },
+          namespace_exists: { threshold: 20, interval: 1.minute },
+          fetch_google_ip_list: { threshold: 10, interval: 1.minute },
+          project_fork_sync: { threshold: 10, interval: 30.minutes },
+          jobs_index: { threshold: 600, interval: 1.minute },
+          bulk_import: { threshold: 6, interval: 1.minute },
+          projects_api_rate_limit_unauthenticated: {
+            threshold: -> { application_settings.projects_api_rate_limit_unauthenticated }, interval: 10.minutes
+          }
         }.freeze
       end
 
@@ -108,6 +118,38 @@ module Gitlab
                 end
 
         value > threshold_value
+      end
+
+      # Similar to #throttled? above but checks for the bypass header in the request and logs the request when it is over the rate limit
+      #
+      # @param request [Http::Request] - Web request used to check the header and log
+      # @param current_user [User] Current user of the request, it can be nil
+      # @param key [Symbol] Key attribute registered in `.rate_limits`
+      # @param scope [Array<ActiveRecord>] Array of ActiveRecord models, Strings
+      #     or Symbols to scope throttling to a specific request (e.g. per user
+      #     per project)
+      # @param resource [ActiveRecord] An ActiveRecord model to count an action
+      #     for (e.g. limit unique project (resource) downloads (action) to five
+      #     per user (scope))
+      # @param threshold [Integer] Optional threshold value to override default
+      #     one registered in `.rate_limits`
+      # @param interval [Integer] Optional interval value to override default
+      #     one registered in `.rate_limits`
+      # @param users_allowlist [Array<String>] Optional list of usernames to
+      #     exclude from the limit. This param will only be functional if Scope
+      #     includes a current user.
+      # @param peek [Boolean] Optional. When true the key will not be
+      #     incremented but the current throttled state will be returned.
+      #
+      # @return [Boolean] Whether or not a request should be throttled
+      def throttled_request?(request, current_user, key, scope:, **options)
+        if ::Gitlab::Throttle.bypass_header.present? && request.get_header(Gitlab::Throttle.bypass_header) == '1'
+          return false
+        end
+
+        throttled?(key, scope: scope, **options).tap do |throttled|
+          log_request(request, "#{key}_request_limit".to_sym, current_user) if throttled
+        end
       end
 
       # Returns the current rate limited state without incrementing the count.

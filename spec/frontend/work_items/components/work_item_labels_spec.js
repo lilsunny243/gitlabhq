@@ -5,12 +5,22 @@ import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import { DEFAULT_DEBOUNCE_AND_THROTTLE_MS } from '~/lib/utils/constants';
-import labelSearchQuery from '~/vue_shared/components/sidebar/labels_select_widget/graphql/project_labels.query.graphql';
+import labelSearchQuery from '~/sidebar/components/labels/labels_select_widget/graphql/project_labels.query.graphql';
 import workItemQuery from '~/work_items/graphql/work_item.query.graphql';
+import workItemLabelsSubscription from 'ee_else_ce/work_items/graphql/work_item_labels.subscription.graphql';
+import updateWorkItemMutation from '~/work_items/graphql/update_work_item.mutation.graphql';
+import workItemByIidQuery from '~/work_items/graphql/work_item_by_iid.query.graphql';
 import WorkItemLabels from '~/work_items/components/work_item_labels.vue';
-import { i18n } from '~/work_items/constants';
-import { temporaryConfig, resolvers } from '~/graphql_shared/issuable_client';
-import { projectLabelsResponse, mockLabels, workItemQueryResponse } from '../mock_data';
+import { i18n, I18N_WORK_ITEM_ERROR_FETCHING_LABELS } from '~/work_items/constants';
+import {
+  projectLabelsResponse,
+  mockLabels,
+  workItemQueryResponse,
+  workItemResponseFactory,
+  updateWorkItemMutationResponse,
+  workItemLabelsSubscriptionResponse,
+  projectWorkItemResponse,
+} from '../mock_data';
 
 Vue.use(VueApollo);
 
@@ -21,35 +31,41 @@ describe('WorkItemLabels component', () => {
 
   const findTokenSelector = () => wrapper.findComponent(GlTokenSelector);
   const findSkeletonLoader = () => wrapper.findComponent(GlSkeletonLoader);
-
   const findEmptyState = () => wrapper.findByTestId('empty-state');
+  const findLabelsTitle = () => wrapper.findByTestId('labels-title');
 
+  const workItemQuerySuccess = jest.fn().mockResolvedValue(workItemQueryResponse);
+  const workItemByIidResponseHandler = jest.fn().mockResolvedValue(projectWorkItemResponse);
   const successSearchQueryHandler = jest.fn().mockResolvedValue(projectLabelsResponse);
+  const successUpdateWorkItemMutationHandler = jest
+    .fn()
+    .mockResolvedValue(updateWorkItemMutationResponse);
+  const subscriptionHandler = jest.fn().mockResolvedValue(workItemLabelsSubscriptionResponse);
   const errorHandler = jest.fn().mockRejectedValue('Houston, we have a problem');
 
   const createComponent = ({
-    labels = mockLabels,
     canUpdate = true,
+    workItemQueryHandler = workItemQuerySuccess,
     searchQueryHandler = successSearchQueryHandler,
+    updateWorkItemMutationHandler = successUpdateWorkItemMutationHandler,
+    fetchByIid = false,
+    queryVariables = { id: workItemId },
   } = {}) => {
-    const apolloProvider = createMockApollo([[labelSearchQuery, searchQueryHandler]], resolvers, {
-      typePolicies: temporaryConfig.cacheConfig.typePolicies,
-    });
-
-    apolloProvider.clients.defaultClient.writeQuery({
-      query: workItemQuery,
-      variables: {
-        id: workItemId,
-      },
-      data: workItemQueryResponse.data,
-    });
+    const apolloProvider = createMockApollo([
+      [workItemQuery, workItemQueryHandler],
+      [labelSearchQuery, searchQueryHandler],
+      [updateWorkItemMutation, updateWorkItemMutationHandler],
+      [workItemLabelsSubscription, subscriptionHandler],
+      [workItemByIidQuery, workItemByIidResponseHandler],
+    ]);
 
     wrapper = mountExtended(WorkItemLabels, {
       propsData: {
-        labels,
         workItemId,
         canUpdate,
         fullPath: 'test-project-path',
+        queryVariables,
+        fetchByIid,
       },
       attachTo: document.body,
       apolloProvider,
@@ -60,10 +76,16 @@ describe('WorkItemLabels component', () => {
     wrapper.destroy();
   });
 
+  it('has a label', () => {
+    createComponent();
+
+    expect(findTokenSelector().props('ariaLabelledby')).toEqual(findLabelsTitle().attributes('id'));
+  });
+
   it('focuses token selector on token selector input event', async () => {
     createComponent();
     findTokenSelector().vm.$emit('input', [mockLabels[0]]);
-    await nextTick();
+    await waitForPromises();
 
     expect(findEmptyState().exists()).toBe(false);
     expect(findTokenSelector().element.contains(document.activeElement)).toBe(true);
@@ -151,7 +173,7 @@ describe('WorkItemLabels component', () => {
     findTokenSelector().vm.$emit('focus');
     await waitForPromises();
 
-    expect(wrapper.emitted('error')).toEqual([[i18n.fetchError]]);
+    expect(wrapper.emitted('error')).toEqual([[I18N_WORK_ITEM_ERROR_FETCHING_LABELS]]);
   });
 
   it('should search for with correct key after text input', async () => {
@@ -163,7 +185,108 @@ describe('WorkItemLabels component', () => {
     await waitForPromises();
 
     expect(successSearchQueryHandler).toHaveBeenCalledWith(
-      expect.objectContaining({ search: searchKey }),
+      expect.objectContaining({ searchTerm: searchKey }),
     );
+  });
+
+  it('adds new labels to the end', async () => {
+    const response = workItemResponseFactory({ labels: [mockLabels[1]] });
+    const workItemQueryHandler = jest.fn().mockResolvedValue(response);
+    createComponent({
+      workItemQueryHandler,
+      updateWorkItemMutationHandler: successUpdateWorkItemMutationHandler,
+    });
+    await waitForPromises();
+
+    findTokenSelector().vm.$emit('input', [mockLabels[0]]);
+    await waitForPromises();
+
+    const labels = findTokenSelector().props('selectedTokens');
+    expect(labels[0]).toMatchObject(mockLabels[1]);
+    expect(labels[1]).toMatchObject(mockLabels[0]);
+  });
+
+  describe('when clicking outside the token selector', () => {
+    it('calls a mutation with correct variables', () => {
+      createComponent();
+
+      findTokenSelector().vm.$emit('input', [mockLabels[0]]);
+      findTokenSelector().vm.$emit('blur', new FocusEvent({ relatedTarget: null }));
+
+      expect(successUpdateWorkItemMutationHandler).toHaveBeenCalledWith({
+        input: {
+          labelsWidget: { addLabelIds: [mockLabels[0].id], removeLabelIds: [] },
+          id: 'gid://gitlab/WorkItem/1',
+        },
+      });
+    });
+
+    it('emits an error and resets labels if mutation was rejected', async () => {
+      createComponent({ updateWorkItemMutationHandler: errorHandler });
+
+      await waitForPromises();
+
+      const initialLabels = findTokenSelector().props('selectedTokens');
+
+      findTokenSelector().vm.$emit('input', [mockLabels[0]]);
+      findTokenSelector().vm.$emit('blur', new FocusEvent({ relatedTarget: null }));
+
+      await waitForPromises();
+
+      const updatedLabels = findTokenSelector().props('selectedTokens');
+
+      expect(wrapper.emitted('error')).toEqual([[i18n.updateError]]);
+      expect(updatedLabels).toEqual(initialLabels);
+    });
+
+    it('does not make server request if no labels added or removed', async () => {
+      const updateWorkItemMutationHandler = jest
+        .fn()
+        .mockResolvedValue(updateWorkItemMutationResponse);
+
+      createComponent({ updateWorkItemMutationHandler });
+
+      await waitForPromises();
+
+      findTokenSelector().vm.$emit('input', []);
+      findTokenSelector().vm.$emit('blur', new FocusEvent({ relatedTarget: null }));
+
+      await waitForPromises();
+
+      expect(updateWorkItemMutationHandler).not.toHaveBeenCalled();
+    });
+
+    it('has a subscription', async () => {
+      createComponent();
+
+      await waitForPromises();
+
+      expect(subscriptionHandler).toHaveBeenCalledWith({
+        issuableId: workItemId,
+      });
+    });
+  });
+
+  it('calls the global ID work item query when `fetchByIid` prop is false', async () => {
+    createComponent({ fetchByIid: false });
+    await waitForPromises();
+
+    expect(workItemQuerySuccess).toHaveBeenCalled();
+    expect(workItemByIidResponseHandler).not.toHaveBeenCalled();
+  });
+
+  it('calls the IID work item query when when `fetchByIid` prop is true', async () => {
+    createComponent({ fetchByIid: true });
+    await waitForPromises();
+
+    expect(workItemQuerySuccess).not.toHaveBeenCalled();
+    expect(workItemByIidResponseHandler).toHaveBeenCalled();
+  });
+
+  it('skips calling the handlers when missing the needed queryVariables', async () => {
+    createComponent({ queryVariables: {}, fetchByIid: false });
+    await waitForPromises();
+
+    expect(workItemQuerySuccess).not.toHaveBeenCalled();
   });
 });

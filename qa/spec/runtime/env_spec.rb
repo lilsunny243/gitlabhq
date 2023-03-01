@@ -7,7 +7,7 @@ RSpec.describe QA::Runtime::Env do
     it_behaves_like 'boolean method with parameter', kwargs
   end
 
-  shared_examples 'boolean method with parameter' do |method:, param: nil, env_key:, default:|
+  shared_examples 'boolean method with parameter' do |method:, env_key:, default:, param: nil|
     context 'when there is an env variable set' do
       it 'returns false when falsey values specified' do
         stub_env(env_key, 'false')
@@ -337,6 +337,37 @@ RSpec.describe QA::Runtime::Env do
 
         expect(described_class.remote_grid).to eq('http://localhost:4444/wd/hub')
       end
+    end
+  end
+
+  describe '.canary_cookie' do
+    subject { described_class.canary_cookie }
+
+    context 'with QA_COOKIES set' do
+      using RSpec::Parameterized::TableSyntax
+
+      where(:cookie_value, :result) do
+        'gitlab_canary=true'                      | { gitlab_canary: "true" }
+        'other_cookie=value\;gitlab_canary=true'  | { gitlab_canary: "true" }
+        'gitlab_canary=false'                     | { gitlab_canary: "false" }
+        'gitlab_canary=false\;other_cookie=value' | { gitlab_canary: "false" }
+      end
+
+      with_them do
+        before do
+          stub_env('QA_COOKIES', cookie_value)
+        end
+
+        it { is_expected.to eq(result) }
+      end
+    end
+
+    context 'without QA_COOKIES set' do
+      before do
+        stub_env('QA_COOKIES', nil)
+      end
+
+      it { is_expected.to be_empty }
     end
   end
 end

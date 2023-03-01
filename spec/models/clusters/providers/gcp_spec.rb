@@ -8,13 +8,14 @@ RSpec.describe Clusters::Providers::Gcp do
 
   include_examples 'provider status', :cluster_provider_gcp
 
-  describe 'default_value_for' do
+  describe 'default values' do
     let(:gcp) { build(:cluster_provider_gcp) }
 
     it "has default value" do
       expect(gcp.zone).to eq('us-central1-a')
       expect(gcp.num_nodes).to eq(3)
       expect(gcp.machine_type).to eq('n1-standard-2')
+      expect(gcp.cloud_run).to eq(false)
     end
   end
 
@@ -107,31 +108,6 @@ RSpec.describe Clusters::Providers::Gcp do
       let(:gcp) { create(:cluster_provider_gcp, :cloud_run_enabled) }
 
       it { is_expected.to be_truthy }
-    end
-  end
-
-  describe '#api_client' do
-    subject { gcp.api_client }
-
-    context 'when status is creating' do
-      let(:gcp) { build(:cluster_provider_gcp, :creating) }
-
-      it 'returns Cloud Platform API clinet' do
-        expect(subject).to be_an_instance_of(GoogleApi::CloudPlatform::Client)
-        expect(subject.access_token).to eq(gcp.access_token)
-      end
-    end
-
-    context 'when status is created' do
-      let(:gcp) { build(:cluster_provider_gcp, :created) }
-
-      it { is_expected.to be_nil }
-    end
-
-    context 'when status is errored' do
-      let(:gcp) { build(:cluster_provider_gcp, :errored) }
-
-      it { is_expected.to be_nil }
     end
   end
 

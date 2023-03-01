@@ -1,7 +1,18 @@
 <script>
+import { mapMutations } from 'vuex';
 import { GlButton } from '@gitlab/ui';
 import { s__ } from '~/locale';
+
+import { reloadPage, persistBaseUrl, retrieveBaseUrl } from '~/jira_connect/subscriptions/utils';
+import { updateInstallation, setApiBaseURL } from '~/jira_connect/subscriptions/api';
+import {
+  GITLAB_COM_BASE_PATH,
+  I18N_UPDATE_INSTALLATION_ERROR_MESSAGE,
+} from '~/jira_connect/subscriptions/constants';
+import { SET_ALERT } from '~/jira_connect/subscriptions/store/mutation_types';
+
 import SignInOauthButton from '../../../components/sign_in_oauth_button.vue';
+import SetupInstructions from './setup_instructions.vue';
 import VersionSelectForm from './version_select_form.vue';
 
 export default {
@@ -9,11 +20,14 @@ export default {
   components: {
     GlButton,
     SignInOauthButton,
+    SetupInstructions,
     VersionSelectForm,
   },
   data() {
     return {
       gitlabBasePath: null,
+      loadingVersionSelect: false,
+      showSetupInstructions: false,
     };
   },
   computed: {
@@ -26,12 +40,38 @@ export default {
         : this.$options.i18n.versionSelectSubtitle;
     },
   },
+  mounted() {
+    this.gitlabBasePath = retrieveBaseUrl();
+    setApiBaseURL(this.gitlabBasePath);
+    if (this.gitlabBasePath !== GITLAB_COM_BASE_PATH) {
+      this.showSetupInstructions = true;
+    }
+  },
   methods: {
+    ...mapMutations({
+      setAlert: SET_ALERT,
+    }),
     resetGitlabBasePath() {
       this.gitlabBasePath = null;
+      setApiBaseURL();
     },
     onVersionSelect(gitlabBasePath) {
-      this.gitlabBasePath = gitlabBasePath;
+      this.loadingVersionSelect = true;
+      updateInstallation(gitlabBasePath)
+        .then(() => {
+          persistBaseUrl(gitlabBasePath);
+          reloadPage();
+        })
+        .catch(() => {
+          this.setAlert({
+            message: I18N_UPDATE_INSTALLATION_ERROR_MESSAGE,
+            variant: 'danger',
+          });
+          this.loadingVersionSelect = false;
+        });
+    },
+    onSetupNext() {
+      this.showSetupInstructions = false;
     },
     onSignInError() {
       this.$emit('error');
@@ -53,20 +93,30 @@ export default {
       <p data-testid="subtitle">{{ subtitle }}</p>
     </div>
 
-    <version-select-form v-if="!hasSelectedVersion" class="gl-mt-7" @submit="onVersionSelect" />
+    <version-select-form
+      v-if="!hasSelectedVersion"
+      class="gl-mt-7"
+      :loading="loadingVersionSelect"
+      @submit="onVersionSelect"
+    />
 
-    <div v-else class="gl-text-center">
-      <sign-in-oauth-button
-        class="gl-mb-5"
-        @sign-in="$emit('sign-in-oauth', $event)"
-        @error="onSignInError"
-      />
+    <template v-else>
+      <setup-instructions v-if="showSetupInstructions" @next="onSetupNext" />
 
-      <div>
-        <gl-button category="tertiary" variant="confirm" @click="resetGitlabBasePath">
-          {{ $options.i18n.changeVersionButtonText }}
-        </gl-button>
+      <div v-else class="gl-text-center">
+        <sign-in-oauth-button
+          class="gl-mb-5"
+          :gitlab-base-path="gitlabBasePath"
+          @sign-in="$emit('sign-in-oauth', $event)"
+          @error="onSignInError"
+        />
+
+        <div>
+          <gl-button category="tertiary" variant="confirm" @click="resetGitlabBasePath">
+            {{ $options.i18n.changeVersionButtonText }}
+          </gl-button>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>

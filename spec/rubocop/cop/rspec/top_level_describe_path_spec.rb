@@ -4,8 +4,6 @@ require 'rubocop_spec_helper'
 require_relative '../../../../rubocop/cop/rspec/top_level_describe_path'
 
 RSpec.describe RuboCop::Cop::RSpec::TopLevelDescribePath do
-  subject(:cop) { described_class.new }
-
   context 'when the file ends in _spec.rb' do
     it 'registers no offenses' do
       expect_no_offenses(<<~SOURCE, 'spec/foo_spec.rb')
@@ -21,6 +19,19 @@ RSpec.describe RuboCop::Cop::RSpec::TopLevelDescribePath do
         describe 'Foo' do
         end
       SOURCE
+    end
+  end
+
+  context 'when the describe is in a shared context' do
+    context 'with shared_context' do
+      it 'registers no offenses' do
+        expect_no_offenses(<<~SOURCE, 'spec/foo.rb')
+          shared_context 'Foo' do
+            describe '#bar' do
+            end
+          end
+        SOURCE
+      end
     end
   end
 

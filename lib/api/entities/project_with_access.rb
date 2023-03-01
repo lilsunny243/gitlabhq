@@ -25,23 +25,19 @@ module API
 
       # rubocop: disable CodeReuse/ActiveRecord
       def self.preload_relation(projects_relation, options = {})
-        relation = super(projects_relation, options)
-        # use reselect to override the existing select and
-        # prevent an error `subquery has too many columns`
-        project_ids = relation.reselect('projects.id')
-        namespace_ids = relation.reselect(:namespace_id)
+        super(projects_relation, options)
+      end
 
+      def self.postload_relation(projects_relation, options = {})
         options[:project_members] = options[:current_user]
           .project_members
-          .where(source_id: project_ids)
+          .where(source_id: projects_relation.subquery(:id))
           .preload(:source, user: [notification_settings: :source])
 
         options[:group_members] = options[:current_user]
           .group_members
-          .where(source_id: namespace_ids)
+          .where(source_id: projects_relation.subquery(:namespace_id))
           .preload(:source, user: [notification_settings: :source])
-
-        relation
       end
       # rubocop: enable CodeReuse/ActiveRecord
     end

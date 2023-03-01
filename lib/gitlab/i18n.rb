@@ -44,36 +44,36 @@ module Gitlab
     TRANSLATION_LEVELS = {
       'bg' => 0,
       'cs_CZ' => 0,
-      'da_DK' => 39,
-      'de' => 17,
+      'da_DK' => 34,
+      'de' => 16,
       'en' => 100,
       'eo' => 0,
-      'es' => 38,
+      'es' => 33,
       'fil_PH' => 0,
-      'fr' => 11,
+      'fr' => 99,
       'gl_ES' => 0,
       'id_ID' => 0,
       'it' => 1,
-      'ja' => 32,
-      'ko' => 12,
-      'nb_NO' => 26,
+      'ja' => 31,
+      'ko' => 20,
+      'nb_NO' => 23,
       'nl_NL' => 0,
-      'pl_PL' => 4,
-      'pt_BR' => 55,
-      'ro_RO' => 100,
-      'ru' => 27,
-      'si_LK' => 10,
-      'tr_TR' => 12,
-      'uk' => 50,
-      'zh_CN' => 99,
+      'pl_PL' => 3,
+      'pt_BR' => 57,
+      'ro_RO' => 91,
+      'ru' => 26,
+      'si_LK' => 11,
+      'tr_TR' => 10,
+      'uk' => 55,
+      'zh_CN' => 98,
       'zh_HK' => 1,
-      'zh_TW' => 100
+      'zh_TW' => 98
     }.freeze
     private_constant :TRANSLATION_LEVELS
 
-    def selectable_locales
+    def selectable_locales(minimum_translation_level = MINIMUM_TRANSLATION_LEVEL)
       AVAILABLE_LANGUAGES.reject do |code, _name|
-        percentage_translated_for(code) < MINIMUM_TRANSLATION_LEVEL
+        percentage_translated_for(code) < minimum_translation_level
       end
     end
 
@@ -115,6 +115,49 @@ module Gitlab
 
     def with_default_locale(&block)
       with_locale(::I18n.default_locale, &block)
+    end
+
+    def setup(domain:, default_locale:)
+      custom_pluralization
+      setup_repositories(domain)
+      setup_default_locale(default_locale)
+    end
+
+    private
+
+    def custom_pluralization
+      Gitlab::I18n::Pluralization.install_on(FastGettext)
+    end
+
+    def setup_repositories(domain)
+      translation_repositories = [
+        (po_repository(domain, 'jh/locale') if Gitlab.jh?),
+        po_repository(domain, 'locale')
+      ].compact
+
+      FastGettext.add_text_domain(
+        domain,
+        type: :chain,
+        chain: translation_repositories,
+        ignore_fuzzy: true
+      )
+
+      FastGettext.default_text_domain = domain
+    end
+
+    def po_repository(domain, path)
+      FastGettext::TranslationRepository.build(
+        domain,
+        path: Rails.root.join(path),
+        type: :po,
+        ignore_fuzzy: true
+      )
+    end
+
+    def setup_default_locale(locale)
+      FastGettext.default_locale = locale
+      FastGettext.default_available_locales = available_locales
+      ::I18n.available_locales = available_locales
     end
   end
 end

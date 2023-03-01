@@ -8,6 +8,7 @@ FactoryBot.define do
     sha { 'b83d6e391c22777fca1ed3012fce84f633d7fed0' }
     status { 'pending' }
     add_attribute(:protected) { false }
+    partition_id { Ci::Pipeline.current_partition_value }
 
     project
 
@@ -18,6 +19,8 @@ FactoryBot.define do
     transient { child_of { nil } }
     transient { upstream_of { nil } }
 
+    transient { name { nil } }
+
     after(:build) do |pipeline, evaluator|
       if evaluator.child_of
         pipeline.project = evaluator.child_of.project
@@ -25,6 +28,10 @@ FactoryBot.define do
       end
 
       pipeline.ensure_project_iid!
+
+      if evaluator.name
+        pipeline.pipeline_metadata = build(:ci_pipeline_metadata, name: evaluator.name, project: pipeline.project, pipeline: pipeline)
+      end
     end
 
     after(:create) do |pipeline, evaluator|
@@ -76,6 +83,7 @@ FactoryBot.define do
       end
 
       trait :running do
+        started_at { Time.current }
         status { :running }
       end
 
@@ -229,7 +237,9 @@ FactoryBot.define do
 
       trait :with_job do
         after(:build) do |pipeline, evaluator|
-          pipeline.builds << build(:ci_build, pipeline: pipeline, project: pipeline.project)
+          stage = build(:ci_stage, pipeline: pipeline)
+
+          pipeline.builds << build(:ci_build, pipeline: pipeline, project: pipeline.project, ci_stage: stage)
         end
       end
 

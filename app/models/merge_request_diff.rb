@@ -6,7 +6,6 @@ class MergeRequestDiff < ApplicationRecord
   include ManualInverseAssociation
   include EachBatch
   include Gitlab::Utils::StrongMemoize
-  include ObjectStorage::BackgroundMove
   include BulkInsertableAssociations
 
   # Don't display more than 100 commits at once
@@ -267,7 +266,7 @@ class MergeRequestDiff < ApplicationRecord
   end
 
   # This method will rely on repository branch sha
-  # in case start_commit_sha is nil. Its necesarry for old merge request diff
+  # in case start_commit_sha is nil. It's necessary for old merge request diff
   # created before version 8.4 to work
   def safe_start_commit_sha
     start_commit_sha || merge_request.target_branch_sha
@@ -292,9 +291,9 @@ class MergeRequestDiff < ApplicationRecord
     end
   end
 
-  def commits(limit: nil, load_from_gitaly: false)
-    strong_memoize(:"commits_#{limit || 'all'}_#{load_from_gitaly}") do
-      load_commits(limit: limit, load_from_gitaly: load_from_gitaly)
+  def commits(limit: nil, load_from_gitaly: false, page: nil)
+    strong_memoize(:"commits_#{limit || 'all'}_#{load_from_gitaly}_page_#{page}") do
+      load_commits(limit: limit, load_from_gitaly: load_from_gitaly, page: page)
     end
   end
 
@@ -393,8 +392,13 @@ class MergeRequestDiff < ApplicationRecord
 
   def diffs_in_batch(batch_page, batch_size, diff_options:)
     fetching_repository_diffs(diff_options) do |comparison|
-      reorder_diff_files!
-      diffs_batch = diffs_in_batch_collection(batch_page, batch_size, diff_options: diff_options)
+      Gitlab::Metrics.measure(:diffs_reorder) do
+        reorder_diff_files!
+      end
+
+      diffs_batch = Gitlab::Metrics.measure(:diffs_collection) do
+        diffs_in_batch_collection(batch_page, batch_size, diff_options: diff_options)
+      end
 
       if comparison
         if diff_options[:paths].blank? && !without_files?
@@ -407,9 +411,34 @@ class MergeRequestDiff < ApplicationRecord
           )
         end
 
-        comparison.diffs(diff_options)
+        Gitlab::Metrics.measure(:diffs_comparison) do
+          comparison.diffs(diff_options)
+        end
       else
         diffs_batch
+      end
+    end
+  end
+
+  def paginated_diffs(page, per_page)
+    fetching_repository_diffs({}) do |comparison|
+      reorder_diff_files!
+
+      collection = Gitlab::Diff::FileCollection::PaginatedMergeRequestDiff.new(
+        self,
+        page,
+        per_page
+      )
+
+      if comparison
+        comparison.diffs(
+          paths: collection.diff_paths,
+          page: collection.current_page,
+          per_page: collection.limit_value,
+          count: collection.total_count
+        )
+      else
+        collection
       end
     end
   end
@@ -725,17 +754,19 @@ class MergeRequestDiff < ApplicationRecord
     end
   end
 
-  def load_commits(limit: nil, load_from_gitaly: false)
+  def load_commits(limit: nil, load_from_gitaly: false, page: nil)
+    diff_commits = page.present? ? merge_request_diff_commits.page(page).per(limit) : merge_request_diff_commits.limit(limit)
+
     if load_from_gitaly
-      commits = Gitlab::Git::Commit.batch_by_oid(repository, merge_request_diff_commits.limit(limit).map(&:sha))
+      commits = Gitlab::Git::Commit.batch_by_oid(repository, diff_commits.map(&:sha))
       commits = Commit.decorate(commits, project)
     else
-      commits = merge_request_diff_commits.with_users.limit(limit)
+      commits = diff_commits.with_users
         .map { |commit| Commit.from_hash(commit.to_hash, project) }
     end
 
     CommitCollection
-      .new(merge_request.target_project, commits, merge_request.target_branch)
+      .new(merge_request.target_project, commits, merge_request.target_branch, page: page.to_i, per_page: limit, count: commits_count)
   end
 
   def save_diffs

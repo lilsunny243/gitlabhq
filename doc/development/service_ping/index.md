@@ -1,10 +1,10 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Service Ping Guide **(FREE SELF)**
+# Service Ping Guide
 
 > - Introduced in GitLab Ultimate 11.2, more statistics.
 > - In GitLab 14.1, [renamed from Usage Ping to Service Ping](https://gitlab.com/groups/gitlab-org/-/epics/5990). In 14.0 and earlier, use the Usage Ping documentation for the Rails commands appropriate to your version.
@@ -115,7 +115,7 @@ sequenceDiagram
    > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/295289) in GitLab 15.2. [Feature flag `measure_service_ping_metric_collection`](https://gitlab.com/gitlab-org/gitlab/-/issues/358128) removed.
 
 ```ruby
-    { 
+    {
       "metadata"=>
       {
         "uuid"=>"0000000-0000-0000-0000-000000000000",
@@ -210,7 +210,6 @@ The following is example content of the Service Ping payload.
   "prometheus_metrics_enabled": false,
   "reply_by_email_enabled": "incoming+%{key}@incoming.gitlab.com",
   "signup_enabled": true,
-  "web_ide_clientside_preview_enabled": true,
   "projects_with_expiration_policy_disabled": 999,
   "projects_with_expiration_policy_enabled": 999,
   ...
@@ -408,7 +407,7 @@ To generate Service Ping, use [Teleport](https://goteleport.com/docs/) or a deta
 
 1. Request temporary [access](https://gitlab.com/gitlab-com/runbooks/-/blob/master/docs/Teleport/Connect_to_Rails_Console_via_Teleport.md#how-to-use-teleport-to-connect-to-rails-console) to the required environment.
 1. After your approval is issued, [access the Rails console](https://gitlab.com/gitlab-com/runbooks/-/blob/master/docs/Teleport/Connect_to_Rails_Console_via_Teleport.md#access-approval).
-1. Run `ServicePing::SubmitService.new.execute`.
+1. Run `GitlabServicePingWorker.new.perform('triggered_from_cron' => false)`.
 
 #### Trigger Service Ping with a detached screen session
 
@@ -433,7 +432,7 @@ To generate Service Ping, use [Teleport](https://goteleport.com/docs/) or a deta
 1. Run:
 
    ```shell
-   ServicePing::SubmitService.new.execute
+   GitlabServicePingWorker.new.perform('triggered_from_cron' => false)
    ```
 
 1. To detach from screen, press `ctrl + A`, `ctrl + D`.
@@ -493,7 +492,7 @@ To skip database write operations, DevOps report creation, and storage of usage 
 
 ```shell
 skip_db_write:
-ServicePing::SubmitService.new(skip_db_write: true).execute
+GitlabServicePingWorker.new.perform('triggered_from_cron' => false, 'skip_db_write' => true)
 ```
 
 ## Monitoring
@@ -504,7 +503,7 @@ Service Ping reporting process state is monitored with [internal SiSense dashboa
 
 - [Product Intelligence Guide](https://about.gitlab.com/handbook/product/product-intelligence-guide/)
 - [Snowplow Guide](../snowplow/index.md)
-- [Product Intelligence Direction](https://about.gitlab.com/direction/product-intelligence/)
+- [Product Intelligence Direction](https://about.gitlab.com/direction/analytics/product-intelligence/)
 - [Data Analysis Process](https://about.gitlab.com/handbook/business-technology/data-team/#data-analysis-process/)
 - [Data for Product Managers](https://about.gitlab.com/handbook/business-technology/data-team/programs/data-for-product-managers/)
 - [Data Infrastructure](https://about.gitlab.com/handbook/business-technology/data-team/platform/infrastructure/)

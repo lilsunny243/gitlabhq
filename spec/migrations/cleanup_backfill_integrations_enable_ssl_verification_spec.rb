@@ -3,7 +3,8 @@
 require 'spec_helper'
 require_migration!
 
-RSpec.describe CleanupBackfillIntegrationsEnableSslVerification, :migration do
+RSpec.describe CleanupBackfillIntegrationsEnableSslVerification, :migration,
+feature_category: :system_access do
   let(:job_class_name) { 'BackfillIntegrationsEnableSslVerification' }
 
   before do

@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Query.ciConfig' do
+RSpec.describe 'Query.ciConfig', feature_category: :continuous_integration do
   include GraphqlHelpers
   include StubRequests
+  include RepoHelpers
 
   subject(:post_graphql_query) { post_graphql(query, current_user: user) }
 
@@ -176,22 +177,22 @@ RSpec.describe 'Query.ciConfig' do
                   "jobs" =>
                     {
                       "nodes" => [
-                      {
-                        "name" => "docker",
-                        "groupName" => "docker",
-                        "stage" => "test",
-                        "script" => ["curl http://dockerhub/URL"],
-                        "beforeScript" => ["bundle install", "bundle exec rake db:create"],
-                        "afterScript" => ["echo 'run this after'"],
-                        "allowFailure" => true,
-                        "only" => { "refs" => %w[branches tags] },
-                        "when" => "manual",
-                        "except" => { "refs" => ["branches"] },
-                        "environment" => nil,
-                        "tags" => [],
-                        "needs" => { "nodes" => [{ "name" => "spinach" }, { "name" => "rspec 0 1" }] }
-                      }
-                    ]
+                        {
+                          "name" => "docker",
+                          "groupName" => "docker",
+                          "stage" => "test",
+                          "script" => ["curl http://dockerhub/URL"],
+                          "beforeScript" => ["bundle install", "bundle exec rake db:create"],
+                          "afterScript" => ["echo 'run this after'"],
+                          "allowFailure" => true,
+                          "only" => { "refs" => %w[branches tags] },
+                          "when" => "manual",
+                          "except" => { "refs" => ["branches"] },
+                          "environment" => nil,
+                          "tags" => [],
+                          "needs" => { "nodes" => [{ "name" => "spinach" }, { "name" => "rspec 0 1" }] }
+                        }
+                      ]
                   }
                 }
               ]
@@ -209,22 +210,22 @@ RSpec.describe 'Query.ciConfig' do
                   "jobs" =>
                     {
                       "nodes" => [
-                      {
-                        "name" => "deploy_job",
-                        "groupName" => "deploy_job",
-                        "stage" => "deploy",
-                        "script" => ["echo 'done'"],
-                        "beforeScript" => ["bundle install", "bundle exec rake db:create"],
-                        "afterScript" => ["echo 'run this after'"],
-                        "allowFailure" => false,
-                        "only" => { "refs" => %w[branches tags] },
-                        "when" => "on_success",
-                        "except" => nil,
-                        "environment" => "production",
-                        "tags" => [],
-                        "needs" => { "nodes" => [] }
-                      }
-                    ]
+                        {
+                          "name" => "deploy_job",
+                          "groupName" => "deploy_job",
+                          "stage" => "deploy",
+                          "script" => ["echo 'done'"],
+                          "beforeScript" => ["bundle install", "bundle exec rake db:create"],
+                          "afterScript" => ["echo 'run this after'"],
+                          "allowFailure" => false,
+                          "only" => { "refs" => %w[branches tags] },
+                          "when" => "on_success",
+                          "except" => nil,
+                          "environment" => "production",
+                          "tags" => [],
+                          "needs" => { "nodes" => [] }
+                        }
+                      ]
                   }
                 }
               ]
@@ -245,17 +246,22 @@ RSpec.describe 'Query.ciConfig' do
       )
     end
 
-    before do
-      allow_next_instance_of(Repository) do |repository|
-        allow(repository).to receive(:blob_data_at).with(an_instance_of(String), 'other_file.yml') do
-          YAML.dump(
-            build: {
-              script: 'build'
-            }
-          )
-        end
-      end
+    let(:project_files) do
+      {
+        'other_file.yml' => <<~YAML
+        build:
+          script: build
+        YAML
+      }
+    end
 
+    around do |example|
+      create_and_delete_files(project, project_files) do
+        example.run
+      end
+    end
+
+    before do
       post_graphql_query
     end
 
@@ -370,25 +376,33 @@ RSpec.describe 'Query.ciConfig' do
       )
     end
 
-    before do
-      allow_next_instance_of(Repository) do |repository|
-        allow(repository).to receive(:blob_data_at).with(an_instance_of(String), 'other_file.yml') do
-          YAML.dump(
-            build: {
-              script: 'build'
-            }
-          )
-        end
+    let(:project_files) do
+      {
+        'other_file.yml' => <<~YAML
+        build:
+          script: build
+        YAML
+      }
+    end
 
-        allow(repository).to receive(:blob_data_at).with(an_instance_of(String), 'other_project_file.yml') do
-          YAML.dump(
-            other_project_test: {
-              script: 'other_project_test'
-            }
-          )
+    let(:other_project_files) do
+      {
+        'other_project_file.yml' => <<~YAML
+        other_project_test:
+          script: other_project_test
+        YAML
+      }
+    end
+
+    around do |example|
+      create_and_delete_files(project, project_files) do
+        create_and_delete_files(other_project, other_project_files) do
+          example.run
         end
       end
+    end
 
+    before do
       stub_full_request('https://gitlab.com/gitlab-org/gitlab/raw/1234/.hello.yml').to_return(body: remote_file_content)
 
       post_graphql_query

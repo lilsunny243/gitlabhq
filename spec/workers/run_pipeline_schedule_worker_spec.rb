@@ -2,13 +2,24 @@
 
 require 'spec_helper'
 
-RSpec.describe RunPipelineScheduleWorker do
+RSpec.describe RunPipelineScheduleWorker, feature_category: :continuous_integration do
+  it 'has an until_executed deduplicate strategy' do
+    expect(described_class.get_deduplicate_strategy).to eq(:until_executed)
+  end
+
   describe '#perform' do
-    let_it_be(:project) { create(:project) }
+    let_it_be(:group) { create(:group) }
+    let_it_be(:project) { create(:project, namespace: group) }
     let_it_be(:user) { create(:user) }
     let_it_be(:pipeline_schedule) { create(:ci_pipeline_schedule, :nightly, project: project ) }
 
     let(:worker) { described_class.new }
+
+    around do |example|
+      travel_to(pipeline_schedule.next_run_at + 1.hour) do
+        example.run
+      end
+    end
 
     context 'when a schedule not found' do
       it 'does not call the Service' do
@@ -41,14 +52,82 @@ RSpec.describe RunPipelineScheduleWorker do
       end
     end
 
-    context 'when everything is ok' do
-      let(:create_pipeline_service) { instance_double(Ci::CreatePipelineService) }
+    describe "#run_pipeline_schedule" do
+      let(:create_pipeline_service) { instance_double(Ci::CreatePipelineService, execute: service_response) }
+      let(:service_response) { instance_double(ServiceResponse, payload: pipeline, error?: false) }
+      let(:pipeline) { instance_double(Ci::Pipeline, persisted?: true) }
 
-      it 'calls the Service' do
-        expect(Ci::CreatePipelineService).to receive(:new).with(project, user, ref: pipeline_schedule.ref).and_return(create_pipeline_service)
-        expect(create_pipeline_service).to receive(:execute!).with(:schedule, ignore_skip_ci: true, save_on_errors: false, schedule: pipeline_schedule)
+      context 'when pipeline can be created' do
+        before do
+          expect(Ci::CreatePipelineService).to receive(:new).with(project, user, ref: pipeline_schedule.ref).and_return(create_pipeline_service)
 
-        worker.perform(pipeline_schedule.id, user.id)
+          expect(create_pipeline_service).to receive(:execute).with(:schedule, ignore_skip_ci: true, save_on_errors: false, schedule: pipeline_schedule).and_return(service_response)
+        end
+
+        context "when pipeline is persisted" do
+          it "returns the service response" do
+            expect(worker.perform(pipeline_schedule.id, user.id)).to eq(service_response)
+          end
+
+          it "does not log errors" do
+            expect(worker).not_to receive(:log_extra_metadata_on_done)
+
+            expect(worker.perform(pipeline_schedule.id, user.id)).to eq(service_response)
+          end
+
+          it "does not change the next_run_at" do
+            expect { worker.perform(pipeline_schedule.id, user.id) }.not_to change { pipeline_schedule.reload.next_run_at }
+          end
+
+          context 'when scheduling option is given as true' do
+            it "returns the service response" do
+              expect(worker.perform(pipeline_schedule.id, user.id, scheduling: true)).to eq(service_response)
+            end
+
+            it "does not log errors" do
+              expect(worker).not_to receive(:log_extra_metadata_on_done)
+
+              expect(worker.perform(pipeline_schedule.id, user.id, scheduling: true)).to eq(service_response)
+            end
+
+            it "changes the next_run_at" do
+              expect { worker.perform(pipeline_schedule.id, user.id, scheduling: true) }.to change { pipeline_schedule.reload.next_run_at }.by(1.day)
+            end
+          end
+        end
+
+        context "when pipeline was not persisted" do
+          let(:service_response) { instance_double(ServiceResponse, error?: true, message: "Error", payload: pipeline) }
+          let(:pipeline) { instance_double(Ci::Pipeline, persisted?: false) }
+
+          it "logs a pipeline creation error" do
+            expect(worker)
+              .to receive(:log_extra_metadata_on_done)
+              .with(:pipeline_creation_error, service_response.message)
+              .and_call_original
+
+            expect(worker.perform(pipeline_schedule.id, user.id)).to eq(service_response.message)
+          end
+        end
+      end
+
+      context 'when schedule is already executed' do
+        let(:time_in_future) { 1.hour.since }
+
+        before do
+          pipeline_schedule.update_column(:next_run_at, time_in_future)
+        end
+
+        it 'does not change the next_run_at' do
+          expect { worker.perform(pipeline_schedule.id, user.id) }.to not_change { pipeline_schedule.reload.next_run_at }
+        end
+
+        it 'creates a pipeline' do
+          expect(Ci::CreatePipelineService).to receive(:new).with(project, user, ref: pipeline_schedule.ref).and_return(create_pipeline_service)
+          expect(create_pipeline_service).to receive(:execute).with(:schedule, ignore_skip_ci: true, save_on_errors: false, schedule: pipeline_schedule).and_return(service_response)
+
+          worker.perform(pipeline_schedule.id, user.id)
+        end
       end
     end
 
@@ -76,21 +155,6 @@ RSpec.describe RunPipelineScheduleWorker do
         expect(Gitlab::AppLogger)
           .to receive(:error)
           .with(a_string_matching('ActiveRecord::StatementInvalid'))
-          .and_call_original
-
-        worker.perform(pipeline_schedule.id, user.id)
-      end
-    end
-
-    context 'when pipeline cannot be created' do
-      before do
-        allow(Ci::CreatePipelineService).to receive(:new) { raise Ci::CreatePipelineService::CreateError }
-      end
-
-      it 'logging a pipeline error' do
-        expect(worker)
-          .to receive(:log_extra_metadata_on_done)
-          .with(:pipeline_creation_error, an_instance_of(Ci::CreatePipelineService::CreateError))
           .and_call_original
 
         worker.perform(pipeline_schedule.id, user.id)

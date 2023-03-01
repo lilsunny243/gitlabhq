@@ -5,11 +5,11 @@ require 'spec_helper'
 RSpec.describe Ci::UnlockArtifactsService do
   using RSpec::Parameterized::TableSyntax
 
-  where(:tag, :ci_update_unlocked_job_artifacts) do
-    false | false
-    false | true
-    true  | false
-    true  | true
+  where(:tag) do
+    [
+      [false],
+      [true]
+    ]
   end
 
   with_them do
@@ -22,6 +22,7 @@ RSpec.describe Ci::UnlockArtifactsService do
     let!(:old_unlocked_pipeline) { create(:ci_pipeline, :with_persisted_artifacts, ref: ref, tag: tag, project: project, locked: :unlocked) }
     let!(:older_pipeline) { create(:ci_pipeline, :with_persisted_artifacts, ref: ref, tag: tag, project: project, locked: :artifacts_locked) }
     let!(:older_ambiguous_pipeline) { create(:ci_pipeline, :with_persisted_artifacts, ref: ref, tag: !tag, project: project, locked: :artifacts_locked) }
+    let!(:code_coverage_pipeline) { create(:ci_pipeline, :with_coverage_report_artifact, ref: ref, tag: tag, project: project, locked: :artifacts_locked) }
     let!(:pipeline) { create(:ci_pipeline, :with_persisted_artifacts, ref: ref, tag: tag, project: project, locked: :artifacts_locked) }
     let!(:child_pipeline) { create(:ci_pipeline, :with_persisted_artifacts, ref: ref, tag: tag, project: project, locked: :artifacts_locked) }
     let!(:newer_pipeline) { create(:ci_pipeline, :with_persisted_artifacts, ref: ref, tag: tag, project: project, locked: :artifacts_locked) }
@@ -30,7 +31,6 @@ RSpec.describe Ci::UnlockArtifactsService do
 
     before do
       stub_const("#{described_class}::BATCH_SIZE", 1)
-      stub_feature_flags(ci_update_unlocked_job_artifacts: ci_update_unlocked_job_artifacts)
     end
 
     describe '#execute' do
@@ -68,9 +68,11 @@ RSpec.describe Ci::UnlockArtifactsService do
         end
 
         it 'unlocks job artifact records' do
-          pending unless ci_update_unlocked_job_artifacts
-
           expect { execute }.to change { ::Ci::JobArtifact.artifact_unlocked.count }.from(0).to(2)
+        end
+
+        it 'unlocks pipeline artifact records' do
+          expect { execute }.to change { ::Ci::PipelineArtifact.artifact_unlocked.count }.from(0).to(1)
         end
       end
 
@@ -102,9 +104,11 @@ RSpec.describe Ci::UnlockArtifactsService do
         end
 
         it 'unlocks job artifact records' do
-          pending unless ci_update_unlocked_job_artifacts
-
           expect { execute }.to change { ::Ci::JobArtifact.artifact_unlocked.count }.from(0).to(8)
+        end
+
+        it 'unlocks pipeline artifact records' do
+          expect { execute }.to change { ::Ci::PipelineArtifact.artifact_unlocked.count }.from(0).to(1)
         end
       end
     end

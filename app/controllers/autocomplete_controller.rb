@@ -6,10 +6,10 @@ class AutocompleteController < ApplicationController
   skip_before_action :authenticate_user!, only: [:users, :award_emojis, :merge_request_target_branches]
   before_action :check_search_rate_limit!, only: [:users, :projects]
 
-  feature_category :users, [:users, :user]
+  feature_category :user_profile, [:users, :user]
   feature_category :projects, [:projects]
   feature_category :team_planning, [:award_emojis]
-  feature_category :code_review, [:merge_request_target_branches]
+  feature_category :code_review_workflow, [:merge_request_target_branches]
   feature_category :continuous_delivery, [:deploy_keys_with_owners]
 
   urgency :low, [:merge_request_target_branches, :deploy_keys_with_owners, :users]
@@ -25,7 +25,20 @@ class AutocompleteController < ApplicationController
       .new(params: params, current_user: current_user, project: project, group: group)
       .execute
 
-    render json: UserSerializer.new(params.merge({ current_user: current_user })).represent(users, project: project)
+    presented_users = UserSerializer
+                        .new(params.merge({ current_user: current_user }))
+                        .represent(users, project: project)
+
+    extra_users = presented_suggested_users
+
+    if extra_users.present?
+      presented_users.reject! do |user|
+        extra_users.any? { |suggested_user| suggested_user[:id] == user[:id] }
+      end
+      presented_users += extra_users
+    end
+
+    render json: presented_users
   end
 
   def user
@@ -79,6 +92,11 @@ class AutocompleteController < ApplicationController
 
   def target_branch_params
     params.permit(:group_id, :project_id).select { |_, v| v.present? }
+  end
+
+  # overridden in EE
+  def presented_suggested_users
+    []
   end
 end
 

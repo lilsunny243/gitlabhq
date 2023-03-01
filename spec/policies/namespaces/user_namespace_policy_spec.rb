@@ -8,7 +8,7 @@ RSpec.describe Namespaces::UserNamespacePolicy do
   let_it_be(:admin) { create(:admin) }
   let_it_be(:namespace) { create(:user_namespace, owner: owner) }
 
-  let(:owner_permissions) { [:owner_access, :create_projects, :admin_namespace, :read_namespace, :read_statistics, :transfer_projects, :admin_package] }
+  let(:owner_permissions) { [:owner_access, :create_projects, :admin_namespace, :read_namespace, :read_statistics, :transfer_projects, :admin_package, :read_billing, :edit_billing] }
 
   subject { described_class.new(current_user, namespace) }
 
@@ -31,6 +31,13 @@ RSpec.describe Namespaces::UserNamespacePolicy do
 
     context 'user who has exceeded project limit' do
       let(:owner) { create(:user, projects_limit: 0) }
+
+      it { is_expected.to be_disallowed(:create_projects) }
+      it { is_expected.to be_disallowed(:transfer_projects) }
+    end
+
+    context 'bot user' do
+      let(:owner) { create(:user, :project_bot) }
 
       it { is_expected.to be_disallowed(:create_projects) }
       it { is_expected.to be_disallowed(:transfer_projects) }

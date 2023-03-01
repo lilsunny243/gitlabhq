@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner, :requires_admin do
+  RSpec.describe 'Verify', :runner, :requires_admin, product_group: :pipeline_insights do
     describe 'Artifacts' do
       context 'when locked' do
         let(:file_name) { 'artifact.txt' }
@@ -15,7 +15,7 @@ module QA
         end
 
         let!(:runner) do
-          Resource::Runner.fabricate! do |runner|
+          Resource::ProjectRunner.fabricate! do |runner|
             runner.project = project
             runner.name = executor
             runner.tags = [executor]

@@ -4,6 +4,8 @@ module API
   class Releases < ::API::Base
     include PaginationParams
 
+    releases_tags = %w[releases]
+
     RELEASE_ENDPOINT_REQUIREMENTS = API::NAMESPACE_OR_PROJECT_REQUIREMENTS
       .merge(tag_name: API::NO_SLASH_URL_PART_REGEX)
     RELEASE_CLI_USER_AGENT = 'GitLab-release-cli'
@@ -12,20 +14,37 @@ module API
     urgency :low
 
     params do
-      requires :id, type: String, desc: 'The ID of a group'
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the group'
     end
     resource :groups, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       before { authorize_read_group_releases! }
 
-      desc 'Get a list of releases for projects in this group.' do
+      desc 'List group releases' do
+        detail 'Returns a list of group releases.'
         success Entities::Release
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not found' }
+        ]
+        is_array true
+        tags releases_tags
       end
       params do
-        requires :id, type: Integer, desc: 'The ID of the group to get releases for'
-        optional :sort, type: String, values: %w[asc desc], default: 'desc',
-                        desc: 'Return projects sorted in ascending and descending order by released_at'
-        optional :simple, type: Boolean, default: false,
-                          desc: 'Return only the ID, URL, name, and path of each project'
+        requires :id,
+          types: [String, Integer],
+          desc: 'The ID or URL-encoded path of the group owned by the authenticated user'
+
+        optional :sort,
+          type: String,
+          values: %w[asc desc],
+          default: 'desc',
+          desc: 'The direction of the order. Either `desc` (default) for descending order or `asc` for ascending order'
+
+        optional :simple,
+          type: Boolean,
+          default: false,
+          desc: 'Return only limited fields for each release'
 
         use :pagination
       end
@@ -42,26 +61,38 @@ module API
     end
 
     params do
-      requires :id, type: String, desc: 'The ID of a project'
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
     end
     resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       before { authorize_read_releases! }
 
       after { track_release_event }
 
-      desc 'Get a project releases' do
-        detail 'This feature was introduced in GitLab 11.7.'
+      desc 'List Releases' do
+        detail 'Returns a paginated list of releases. This feature was introduced in GitLab 11.7.'
         named 'get_releases'
+        is_array true
         success Entities::Release
+        tags releases_tags
       end
       params do
         use :pagination
-        optional :order_by, type: String, values: %w[released_at created_at], default: 'released_at',
-                            desc: 'Return releases ordered by `released_at` or `created_at`.'
-        optional :sort, type: String, values: %w[asc desc], default: 'desc',
-                        desc: 'Return releases sorted in `asc` or `desc` order.'
-        optional :include_html_description, type: Boolean,
-                                            desc: 'If `true`, a response includes HTML rendered markdown of the release description.'
+
+        optional :order_by,
+          type: String,
+          values: %w[released_at created_at],
+          default: 'released_at',
+          desc: 'The field to use as order. Either `released_at` (default) or `created_at`'
+
+        optional :sort,
+          type: String,
+          values: %w[asc desc],
+          default: 'desc',
+          desc: 'The direction of the order. Either `desc` (default) for descending order or `asc` for ascending order'
+
+        optional :include_html_description,
+          type: Boolean,
+          desc: 'If `true`, a response includes HTML rendered markdown of the release description'
       end
       route_setting :authentication, job_token_allowed: true
       get ':id/releases' do
@@ -81,46 +112,153 @@ module API
                         include_html_description: params[:include_html_description]
       end
 
-      desc 'Get a single project release' do
-        detail 'This feature was introduced in GitLab 11.7.'
+      desc 'Get a release by a tag name' do
+        detail 'Gets a release for the given tag. This feature was introduced in GitLab 11.7.'
         named 'get_release'
         success Entities::Release
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags releases_tags
       end
       params do
-        requires :tag_name, type: String, desc: 'The name of the tag', as: :tag
-        optional :include_html_description, type: Boolean,
-                                            desc: 'If `true`, a response includes HTML rendered markdown of the release description.'
+        requires :tag_name, type: String, desc: 'The Git tag the release is associated with', as: :tag
+
+        optional :include_html_description,
+          type: Boolean,
+          desc: 'If `true`, a response includes HTML rendered markdown of the release description'
       end
       route_setting :authentication, job_token_allowed: true
       get ':id/releases/:tag_name', requirements: RELEASE_ENDPOINT_REQUIREMENTS do
-        authorize_download_code!
+        authorize_read_code!
 
         not_found! unless release
 
         present release, with: Entities::Release, current_user: current_user, include_html_description: params[:include_html_description]
       end
 
-      desc 'Create a new release' do
-        detail 'This feature was introduced in GitLab 11.7.'
-        named 'create_release'
-        success Entities::Release
+      desc 'Download a project release asset file' do
+        detail 'This feature was introduced in GitLab 15.4.'
+        named 'download_release_asset_file'
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags releases_tags
       end
       params do
-        requires :tag_name,    type: String, desc: 'The name of the tag', as: :tag
+        requires :tag_name, type: String, desc: 'The Git tag the release is associated with', as: :tag
+
+        requires :direct_asset_path,
+          type: String,
+          file_path: true,
+          desc: 'The path to the file to download, as specified when creating the release asset',
+          as: :filepath
+      end
+      route_setting :authentication, job_token_allowed: true
+      get ':id/releases/:tag_name/downloads/*direct_asset_path', format: false, requirements: RELEASE_ENDPOINT_REQUIREMENTS do
+        authorize_read_code!
+
+        not_found! unless release
+
+        link = release.links.find_by_filepath!("/#{params[:filepath]}")
+
+        not_found! unless link
+
+        redirect link.url
+      end
+
+      desc 'Get the latest project release' do
+        detail 'This feature was introduced in GitLab 15.4.'
+        named 'get_latest_release'
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags releases_tags
+      end
+      params do
+        requires :suffix_path,
+          type: String,
+          file_path: true,
+          desc: 'The path to be suffixed to the latest release'
+      end
+      route_setting :authentication, job_token_allowed: true
+      get ':id/releases/permalink/latest(/)(*suffix_path)', format: false, requirements: RELEASE_ENDPOINT_REQUIREMENTS do
+        authorize_read_code!
+
+        # Try to find the latest release
+        latest_release = find_latest_release
+        not_found! unless latest_release
+
+        # Build the full API URL with the tag of the latest release
+        redirect_url = api_v4_projects_releases_path(id: user_project.id, tag_name: latest_release.tag)
+
+        # Include the additional suffix_path if present
+        redirect_url += "/#{params[:suffix_path]}" if params[:suffix_path].present?
+
+        # Include any query parameter except `order_by` since we have plans to extend it in the future.
+        # See https://gitlab.com/gitlab-org/gitlab/-/issues/352945 for reference.
+        query_parameters_except_order_by = get_query_params.except('order_by')
+
+        if query_parameters_except_order_by.present?
+          redirect_url += "?#{query_parameters_except_order_by.compact.to_param}"
+        end
+
+        redirect redirect_url
+      end
+
+      desc 'Create a release' do
+        detail 'Creates a release. Developer level access to the project is required to create a release. This feature was introduced in GitLab 11.7.'
+        named 'create_release'
+        success Entities::Release
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not found' },
+          { code: 409, message: 'Conflict' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags releases_tags
+      end
+      params do
+        requires :tag_name,    type: String, desc: 'The tag where the release is created from', as: :tag
         optional :tag_message, type: String, desc: 'Message to use if creating a new annotated tag'
-        optional :name,        type: String, desc: 'The name of the release'
-        optional :description, type: String, desc: 'The release notes'
-        optional :ref,         type: String, desc: 'Commit SHA or branch name to use if creating a new tag'
+        optional :name,        type: String, desc: 'The release name'
+        optional :description, type: String, desc: 'The description of the release. You can use Markdown'
+
+        optional :ref,
+          type: String,
+          desc: "If a tag specified in `tag_name` doesn't exist, the release is created from `ref` and tagged " \
+                "with `tag_name`. It can be a commit SHA, another tag name, or a branch name."
+
         optional :assets, type: Hash do
           optional :links, type: Array do
-            requires :name, type: String, desc: 'The name of the link'
-            requires :url, type: String, desc: 'The URL of the link'
-            optional :filepath, type: String, desc: 'The filepath of the link'
-            optional :link_type, type: String, desc: 'The link type, one of: "runbook", "image", "package" or "other"'
+            requires :name, type: String, desc: 'The name of the link. Link names must be unique within the release'
+            requires :url, type: String, desc: 'The URL of the link. Link URLs must be unique within the release'
+            optional :direct_asset_path, type: String, desc: 'Optional path for a direct asset link', as: :filepath
+            optional :link_type, type: String, desc: 'The type of the link: `other`, `runbook`, `image`, `package`. Defaults to `other`'
           end
         end
-        optional :milestones, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, desc: 'The titles of the related milestones', default: []
-        optional :released_at, type: DateTime, desc: 'The date when the release will be/was ready. Defaults to the current time.'
+
+        optional :milestones,
+          type: Array[String],
+          coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce,
+          desc: 'The title of each milestone the release is associated with. GitLab Premium customers can specify group milestones. Cannot be combined with `milestone_ids` parameter.'
+
+        optional :milestone_ids,
+           type: Array[String, Integer],
+           coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce,
+           desc: 'The ID of each milestone the release is associated with. GitLab Premium customers can specify group milestones. Cannot be combined with `milestones` parameter.'
+
+        mutually_exclusive :milestones, :milestone_ids, message: 'Cannot specify milestones and milestone_ids at the same time'
+
+        optional :released_at,
+          type: DateTime,
+          desc: 'Date and time for the release. Defaults to the current time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). ' \
+                'Only provide this field if creating an upcoming or historical release.'
       end
       route_setting :authentication, job_token_allowed: true
       post ':id/releases' do
@@ -140,16 +278,34 @@ module API
       end
 
       desc 'Update a release' do
-        detail 'This feature was introduced in GitLab 11.7.'
+        detail 'Updates a release. Developer level access to the project is required to update a release. This feature was introduced in GitLab 11.7.'
         named 'update_release'
         success Entities::Release
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags releases_tags
       end
       params do
-        requires :tag_name,    type: String, desc: 'The name of the tag', as: :tag
-        optional :name,        type: String, desc: 'The name of the release'
-        optional :description, type: String, desc: 'Release notes with markdown support'
-        optional :released_at, type: DateTime, desc: 'The date when the release will be/was ready.'
-        optional :milestones,  type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, desc: 'The titles of the related milestones'
+        requires :tag_name,    type: String, desc: 'The Git tag the release is associated with', as: :tag
+        optional :name,        type: String, desc: 'The release name'
+        optional :description, type: String, desc: 'The description of the release. You can use Markdown'
+        optional :released_at, type: DateTime, desc: 'The date when the release is/was ready. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`)'
+
+        optional :milestones,
+          type: Array[String],
+          coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce,
+          desc: 'The title of each milestone to associate with the release. GitLab Premium customers can specify group milestones. Cannot be combined with `milestone_ids` parameter. To remove all milestones from the release, specify `[]`'
+
+        optional :milestone_ids,
+          type: Array[String, Integer],
+          coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce,
+          desc: 'The ID of each milestone the release is associated with. GitLab Premium customers can specify group milestones. Cannot be combined with `milestones` parameter. To remove all milestones from the release, specify `[]`'
+
+        mutually_exclusive :milestones, :milestone_ids, message: 'Cannot specify milestones and milestone_ids at the same time'
       end
       route_setting :authentication, job_token_allowed: true
       put ':id/releases/:tag_name', requirements: RELEASE_ENDPOINT_REQUIREMENTS do
@@ -170,12 +326,19 @@ module API
       end
 
       desc 'Delete a release' do
-        detail 'This feature was introduced in GitLab 11.7.'
+        detail "Delete a release. Deleting a release doesn't delete the associated tag. Maintainer level access to the project is required to delete a release. This feature was introduced in GitLab 11.7."
         named 'delete_release'
         success Entities::Release
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags releases_tags
       end
       params do
-        requires :tag_name, type: String, desc: 'The name of the tag', as: :tag
+        requires :tag_name, type: String, desc: 'The Git tag the release is associated with', as: :tag
       end
       route_setting :authentication, job_token_allowed: true
       delete ':id/releases/:tag_name', requirements: RELEASE_ENDPOINT_REQUIREMENTS do
@@ -224,12 +387,26 @@ module API
         authorize! :download_code, user_project
       end
 
+      def authorize_read_code!
+        authorize! :read_code, user_project
+      end
+
       def authorize_create_evidence!
         # extended in EE
       end
 
       def release
         @release ||= user_project.releases.find_by_tag(params[:tag])
+      end
+
+      def find_latest_release
+        ReleasesFinder.new(user_project, current_user, { order_by: 'released_at', sort: 'desc' }).execute.first
+      end
+
+      def get_query_params
+        return {} unless @request.query_string.present?
+
+        Rack::Utils.parse_nested_query(@request.query_string)
       end
 
       def log_release_created_audit_event(release)

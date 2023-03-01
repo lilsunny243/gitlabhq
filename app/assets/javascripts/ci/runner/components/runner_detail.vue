@@ -1,0 +1,55 @@
+<script>
+import { __ } from '~/locale';
+
+/**
+ * Usage:
+ *
+ * With a `value` prop:
+ *
+ * <runner-detail label="Field Name" :value="value" />
+ *
+ * Or a `value` slot:
+ *
+ * <runner-detail label="Field Name">
+ *   <template #value>
+ *     <strong>{{ value }}</strong>
+ *   </template>
+ * </runner-detail>
+ *
+ */
+export default {
+  props: {
+    label: {
+      type: String,
+      default: null,
+      required: false,
+    },
+    value: {
+      type: String,
+      default: null,
+      required: false,
+    },
+    emptyValue: {
+      type: String,
+      default: __('None'),
+      required: false,
+    },
+  },
+};
+</script>
+
+<template>
+  <div class="gl-display-contents">
+    <dt class="gl-mb-5 gl-mr-6 gl-max-w-26">
+      <template v-if="label || $scopedSlots.label">
+        <slot name="label">{{ label }}</slot>
+      </template>
+    </dt>
+    <dd class="gl-mb-5">
+      <template v-if="value || $scopedSlots.value">
+        <slot name="value">{{ value }}</slot>
+      </template>
+      <span v-else class="gl-text-secondary">{{ emptyValue }}</span>
+    </dd>
+  </div>
+</template>

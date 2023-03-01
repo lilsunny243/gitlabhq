@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, howto
 ---
 
@@ -17,7 +17,7 @@ select a limited role, and provide an expiry date.
 
 Use a project access token to authenticate:
 
-- With the [GitLab API](../../../api/index.md#personalprojectgroup-access-tokens).
+- With the [GitLab API](../../../api/rest/index.md#personalprojectgroup-access-tokens).
 - With Git, when using HTTP Basic Authentication, use:
   - Any non-blank value as a username.
   - The project access token as the password.
@@ -26,6 +26,13 @@ Project access tokens are similar to [group access tokens](../../group/settings/
 and [personal access tokens](../../profile/personal_access_tokens.md).
 
 In self-managed instances, project access tokens are subject to the same [maximum lifetime limits](../../admin_area/settings/account_and_limit_settings.md#limit-the-lifetime-of-access-tokens) as personal access tokens if the limit is set.
+
+WARNING:
+The ability to create project access tokens without expiry was
+[deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/369122) in GitLab 15.4 and is planned for removal in GitLab
+16.0. When this ability is removed, existing project access tokens without an expiry are planned to have an expiry added.
+The automatic adding of an expiry occurs on GitLab.com during the 16.0 milestone. The automatic adding of an expiry
+occurs on self-managed instances when they are upgraded to GitLab 16.0. This change is a breaking change.
 
 You can use project access tokens:
 
@@ -48,7 +55,7 @@ configured for personal access tokens.
 
 To create a project access token:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Access Tokens**.
 1. Enter a name. The token name is visible to any user with permissions to view the project.
 1. Optional. Enter an expiry date for the token. The token expires on that date at midnight UTC. An instance-wide [maximum lifetime](../../admin_area/settings/account_and_limit_settings.md#limit-the-lifetime-of-access-tokens) setting can limit the maximum allowable lifetime in self-managed instances.
@@ -59,11 +66,16 @@ To create a project access token:
 
 A project access token is displayed. Save the project access token somewhere safe. After you leave or refresh the page, you can't view it again.
 
+WARNING:
+Project access tokens are treated as [internal users](../../../development/internal_users.md).
+If an internal user creates a project access token, that token is able to access
+all projects that have visibility level set to [Internal](../../public_access.md).
+
 ## Revoke a project access token
 
 To revoke a project access token:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Access Tokens**.
 1. Next to the project access token to revoke, select **Revoke**.
 
@@ -75,10 +87,10 @@ The scope determines the actions you can perform when you authenticate with a pr
 |:-------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `api`              | Grants complete read and write access to the scoped project API, including the [Package Registry](../../packages/package_registry/index.md).                |
 | `read_api`         | Grants read access to the scoped project API, including the [Package Registry](../../packages/package_registry/index.md).                                   |
-| `read_registry`    | Allows read access (pull) to the [Container Registry](../../packages/container_registry/index.md) images if a project is private and authorization is required. |
-| `write_registry`   | Allows write access (push) to the [Container Registry](../../packages/container_registry/index.md).                                                             |
-| `read_repository`  | Allows read access (pull) to the repository.                                                                                                                |
-| `write_repository` | Allows read and write access (pull and push) to the repository.                                                                                             |
+| `read_registry`    | Grants read access (pull) to the [Container Registry](../../packages/container_registry/index.md) images if a project is private and authorization is required. |
+| `write_registry`   | Grants write access (push) to the [Container Registry](../../packages/container_registry/index.md).                                                             |
+| `read_repository`  | Grants read access (pull) to the repository.                                                                                                                |
+| `write_repository` | Grants read and write access (pull and push) to the repository.                                                                                             |
 
 ## Enable or disable project access token creation
 
@@ -86,7 +98,7 @@ The scope determines the actions you can perform when you authenticate with a pr
 
 To enable or disable project access token creation for all projects in a top-level group:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Permissions and group features**.
 1. Under **Permissions**, turn on or off **Allow project and group access token creation**.
@@ -106,12 +118,8 @@ The bot users for projects have [permissions](../../permissions.md#project-membe
 selected role and [scope](#scopes-for-a-project-access-token) of the project access token.
 
 - The name is set to the name of the token.
-- The username is set to `project_{project_id}_bot` for the first access token. For example, `project_123_bot`.
-- The email is set to `project{project_id}_bot@noreply.{Gitlab.config.gitlab.host}`. For example, `project123_bot@noreply.example.com`.
-- For additional access tokens in the same project, the username is set to `project_{project_id}_bot{bot_count}`. For
-  example, `project_123_bot1`.
-- For additional access tokens in the same project, the email is set to `project{project_id}_bot{bot_count}@noreply.{Gitlab.config.gitlab.host}`.
-  For example, `project123_bot1@noreply.example.com`.
+- The username is set to `project_{project_id}_bot_{random_string}`. For example, `project_123_bot_4ffca233d8298ea1`.
+- The email is set to `project_{project_id}_bot_{random_string}@noreply.{Gitlab.config.gitlab.host}`. For example, `project_123_bot_4ffca233d8298ea1@noreply.example.com`.
 
 API calls made with a project access token are associated with the corresponding bot user.
 
@@ -128,3 +136,7 @@ When the project access token is [revoked](#revoke-a-project-access-token):
 - All records are moved to a system-wide user with the username [Ghost User](../../profile/account/delete_account.md#associated-records).
 
 See also [Bot users for groups](../../group/settings/group_access_tokens.md#bot-users-for-groups).
+
+## Token availability
+
+Project access tokens are only available in paid subscriptions, and not available in trial subscriptions. For more information, see the ["What is included" section of the GitLab Trial FAQ](https://about.gitlab.com/free-trial/#what-is-included-in-my-free-trial-what-is-excluded).

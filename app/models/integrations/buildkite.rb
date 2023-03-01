@@ -6,13 +6,13 @@ module Integrations
   class Buildkite < BaseCi
     include HasWebHook
     include ReactivelyCached
-    extend Gitlab::Utils::Override
 
     ENDPOINT = "https://buildkite.com"
 
     field :project_url,
       title: -> { _('Pipeline URL') },
       placeholder: "#{ENDPOINT}/example-org/test-pipeline",
+      exposes_secrets: true,
       required: true
 
     field :token,
@@ -50,7 +50,11 @@ module Integrations
 
     override :hook_url
     def hook_url
-      "#{buildkite_endpoint('webhook')}/deliver/#{webhook_token}"
+      "#{buildkite_endpoint('webhook')}/deliver/{webhook_token}"
+    end
+
+    def url_variables
+      { 'webhook_token' => webhook_token }
     end
 
     def execute(data)

@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe MergeRequests::CreatePipelineService, :clean_gitlab_redis_cache do
   include ProjectForksHelper
 
-  let_it_be(:project, reload: true) { create(:project, :repository) }
+  let_it_be(:project, refind: true) { create(:project, :repository) }
   let_it_be(:user) { create(:user) }
 
   let(:service) { described_class.new(project: project, current_user: actor, params: params) }
@@ -221,6 +221,27 @@ RSpec.describe MergeRequests::CreatePipelineService, :clean_gitlab_redis_cache d
         expect(response).to be_error
         expect(response.message).to eq('Cannot create a pipeline for this merge request.')
         expect(response.payload).to be_nil
+      end
+    end
+
+    context 'when merge request pipeline creates a dynamic environment' do
+      let(:config) do
+        {
+          review_app: {
+            script: 'echo',
+            only: ['merge_requests'],
+            environment: { name: "review/$CI_COMMIT_REF_NAME" }
+          }
+        }
+      end
+
+      it 'associates merge request with the environment' do
+        expect { response }.to change { Ci::Pipeline.count }.by(1)
+
+        environment = Environment.find_by_name('review/feature')
+        expect(response).to be_success
+        expect(environment).to be_present
+        expect(environment.merge_request).to eq(merge_request)
       end
     end
   end

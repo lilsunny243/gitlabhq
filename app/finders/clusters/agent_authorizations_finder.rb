@@ -24,13 +24,13 @@ module Clusters
 
     # rubocop: disable CodeReuse/ActiveRecord
     def project_authorizations
-      ancestor_ids = project.group ? project.ancestors.select(:id) : project.namespace_id
+      namespace_ids = project.group ? all_namespace_ids : project.namespace_id
 
       Clusters::Agents::ProjectAuthorization
         .where(project_id: project.id)
         .joins(agent: :project)
         .preload(agent: :project)
-        .where(cluster_agents: { projects: { namespace_id: ancestor_ids } })
+        .where(cluster_agents: { projects: { namespace_id: namespace_ids } })
         .with_available_ci_access_fields(project)
         .to_a
     end
@@ -53,13 +53,17 @@ module Clusters
         .with(ordered_ancestors_cte.to_arel)
         .joins(cte_join_sources)
         .joins(agent: :project)
-        .where('projects.namespace_id IN (SELECT id FROM ordered_ancestors)')
         .with_available_ci_access_fields(project)
+        .where(projects: { namespace_id: all_namespace_ids })
         .order(Arel.sql('agent_id, array_position(ARRAY(SELECT id FROM ordered_ancestors)::bigint[], agent_group_authorizations.group_id)'))
         .select('DISTINCT ON (agent_id) agent_group_authorizations.*')
         .preload(agent: :project)
         .to_a
     end
     # rubocop: enable CodeReuse/ActiveRecord
+
+    def all_namespace_ids
+      project.root_ancestor.self_and_descendants.select(:id)
+    end
   end
 end

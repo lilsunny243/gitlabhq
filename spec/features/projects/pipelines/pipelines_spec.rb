@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Pipelines', :js do
+RSpec.describe 'Pipelines', :js, feature_category: :projects do
+  include ListboxHelpers
   include ProjectForksHelper
   include Spec::Support::Helpers::ModalHelpers
 
@@ -342,11 +343,18 @@ RSpec.describe 'Pipelines', :js do
         end
 
         context 'when user played a delayed job immediately' do
+          let(:manual_action_selector) { '[data-testid="pipelines-manual-actions-dropdown"]' }
+
           before do
-            find('[data-testid="pipelines-manual-actions-dropdown"]').click
+            find(manual_action_selector).click
             accept_gl_confirm do
               click_button 'delayed job 1'
             end
+
+            # Wait for UI to transition to ensure a request has been made
+            within(manual_action_selector) { find('.gl-spinner') }
+            within(manual_action_selector) { find('[data-testid="play-icon"]') }
+
             wait_for_requests
           end
 
@@ -587,7 +595,7 @@ RSpec.describe 'Pipelines', :js do
         end
 
         it 'changes the Pipeline ID column for Pipeline IID' do
-          page.find('[data-testid="pipeline-key-dropdown"]').click
+          page.find('[data-testid="pipeline-key-collapsible-box"]').click
 
           within '.gl-new-dropdown-contents' do
             dropdown_options = page.find_all '.gl-new-dropdown-item'
@@ -611,6 +619,8 @@ RSpec.describe 'Pipelines', :js do
               user: user)
       end
 
+      let(:external_stage) { create(:ci_stage, name: 'external', pipeline: pipeline) }
+
       before do
         create_build('build', 0, 'build', :success)
         create_build('test', 1, 'rspec 0:2', :pending)
@@ -620,7 +630,7 @@ RSpec.describe 'Pipelines', :js do
         create_build('test', 1, 'audit', :created)
         create_build('deploy', 2, 'production', :created)
 
-        create(:generic_commit_status, pipeline: pipeline, stage: 'external', name: 'jenkins', stage_idx: 3, ref: 'master')
+        create(:generic_commit_status, pipeline: pipeline, ci_stage: external_stage, name: 'jenkins', ref: 'master')
 
         visit project_pipeline_path(project, pipeline)
         wait_for_requests
@@ -635,10 +645,10 @@ RSpec.describe 'Pipelines', :js do
         expect(page).to have_link(pipeline.user.name, href: user_path(pipeline.user))
 
         # stages
-        expect(page).to have_text('Build')
-        expect(page).to have_text('Test')
-        expect(page).to have_text('Deploy')
-        expect(page).to have_text('External')
+        expect(page).to have_text('build')
+        expect(page).to have_text('test')
+        expect(page).to have_text('deploy')
+        expect(page).to have_text('external')
 
         # builds
         expect(page).to have_text('rspec')
@@ -665,7 +675,7 @@ RSpec.describe 'Pipelines', :js do
           click_button project.default_branch
           wait_for_requests
 
-          find('p', text: 'master').click
+          find('.gl-new-dropdown-item', text: 'master').click
           wait_for_requests
         end
 
@@ -769,8 +779,7 @@ RSpec.describe 'Pipelines', :js do
 
       describe 'new pipeline page' do
         it 'has field to add a new pipeline' do
-          expect(page).to have_selector('[data-testid="ref-select"]')
-          expect(find('[data-testid="ref-select"]')).to have_content project.default_branch
+          expect(page).to have_button project.default_branch
           expect(page).to have_content('Run for')
         end
       end
@@ -778,14 +787,9 @@ RSpec.describe 'Pipelines', :js do
       describe 'find pipelines' do
         it 'shows filtered pipelines', :js do
           click_button project.default_branch
+          send_keys('fix')
 
-          page.within '[data-testid="ref-select"]' do
-            find('[data-testid="search-refs"]').native.send_keys('fix')
-
-            page.within '.gl-new-dropdown-contents' do
-              expect(page).to have_content('fix')
-            end
-          end
+          expect_listbox_item('fix')
         end
       end
     end

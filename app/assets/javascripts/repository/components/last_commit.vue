@@ -1,12 +1,6 @@
 <script>
-import {
-  GlTooltipDirective,
-  GlLink,
-  GlButton,
-  GlButtonGroup,
-  GlLoadingIcon,
-  GlSafeHtmlDirective,
-} from '@gitlab/ui';
+import { GlTooltipDirective, GlLink, GlButton, GlButtonGroup, GlLoadingIcon } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import defaultAvatarUrl from 'images/no_avatar.png';
 import pathLastCommitQuery from 'shared_queries/repository/path_last_commit.query.graphql';
 import { sprintf, s__ } from '~/locale';
@@ -32,7 +26,7 @@ export default {
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   mixins: [getRefMixin],
   apollo: {
@@ -122,14 +116,12 @@ export default {
         :link-href="commit.author.webPath"
         :img-src="commit.author.avatarUrl"
         :img-size="32"
-        :img-css-classes="'gl-mr-0!' /* NOTE: this is needed only while we migrate user-avatar-image to GlAvatar (7731 epics) */"
         class="gl-my-2 gl-mr-4"
       />
       <user-avatar-image
         v-else
         class="gl-my-2 gl-mr-4"
         :img-src="commit.authorGravatar || $options.defaultAvatarUrl"
-        :css-classes="'gl-mr-0!' /* NOTE: this is needed only while we migrate user-avatar-image to GlAvatar (7731 epics) */"
         :size="32"
       />
       <div
@@ -171,7 +163,7 @@ export default {
             v-if="commitDescription"
             v-safe-html:[$options.safeHtmlConfig]="commitDescription"
             :class="{ 'd-block': showDescription }"
-            class="commit-row-description gl-mb-3"
+            class="commit-row-description gl-mb-3 gl-white-space-pre-line"
           ></pre>
         </div>
         <div class="gl-flex-grow-1"></div>

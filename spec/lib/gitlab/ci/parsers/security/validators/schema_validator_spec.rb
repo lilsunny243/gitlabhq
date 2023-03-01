@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
+RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator, feature_category: :vulnerability_management do
   let_it_be(:project) { create(:project) }
 
+  let(:current_dast_versions) { described_class::CURRENT_VERSIONS[:dast].join(', ') }
   let(:supported_dast_versions) { described_class::SUPPORTED_VERSIONS[:dast].join(', ') }
   let(:deprecated_schema_version_message) {}
   let(:missing_schema_version_message) do
@@ -19,17 +20,44 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
     }
   end
 
+  let(:analyzer_vendor) do
+    { 'name' => 'A DAST analyzer' }
+  end
+
+  let(:scanner_vendor) do
+    { 'name' => 'A DAST scanner' }
+  end
+
+  let(:report_data) do
+    {
+      'scan' => {
+        'analyzer' => {
+          'id' => 'my-dast-analyzer',
+          'name' => 'My DAST analyzer',
+          'version' => '0.1.0',
+          'vendor' => analyzer_vendor
+        },
+        'end_time' => '2020-01-28T03:26:02',
+        'scanned_resources' => [],
+        'scanner' => {
+          'id' => 'my-dast-scanner',
+          'name' => 'My DAST scanner',
+          'version' => '0.2.0',
+          'vendor' => scanner_vendor
+        },
+        'start_time' => '2020-01-28T03:26:01',
+        'status' => 'success',
+        'type' => 'dast'
+      },
+      'version' => report_version,
+      'vulnerabilities' => []
+    }
+  end
+
   let(:validator) { described_class.new(report_type, report_data, report_version, project: project, scanner: scanner) }
 
   shared_examples 'report is valid' do
     context 'and the report is valid' do
-      let(:report_data) do
-        {
-          'version' => report_version,
-          'vulnerabilities' => []
-        }
-      end
-
       it { is_expected.to be_truthy }
     end
   end
@@ -76,7 +104,7 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
     context 'when all files under schema path are explicitly listed' do
       # We only care about the part that comes before report-format.json
       # https://rubular.com/r/N8Juz7r8hYDYgD
-      filename_regex = /(?<report_type>[-\w]*)\-report-format.json/
+      filename_regex = /(?<report_type>[-\w]*)-report-format.json/
 
       versions = Dir.glob(File.join(schema_path, "*", File::SEPARATOR)).map { |path| path.split("/").last }
 
@@ -245,13 +273,6 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
 
   shared_examples 'report is valid with no error' do
     context 'and the report is valid' do
-      let(:report_data) do
-        {
-          'version' => report_version,
-          'vulnerabilities' => []
-        }
-      end
-
       it { is_expected.to be_empty }
     end
   end
@@ -278,7 +299,7 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
 
         let(:expected_errors) do
           [
-            'root is missing required keys: vulnerabilities'
+            'root is missing required keys: scan, vulnerabilities'
           ]
         end
 
@@ -446,8 +467,9 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
 
       let(:report_version) { described_class::DEPRECATED_VERSIONS[report_type].last }
       let(:expected_deprecation_message) do
-        "Version #{report_version} for report type #{report_type} has been deprecated, supported versions for this "\
-        "report type are: #{supported_dast_versions}. GitLab will attempt to parse and ingest this report if valid."
+        "version #{report_version} for report type #{report_type} is deprecated. "\
+        "However, GitLab will still attempt to parse and ingest this report. "\
+        "Upgrade the security report to one of the following versions: #{current_dast_versions}."
       end
 
       let(:expected_deprecation_warnings) do
@@ -479,6 +501,22 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
         end
 
         it_behaves_like 'report with expected warnings'
+      end
+
+      context 'and the report passes schema validation as a GitLab-vendored analyzer' do
+        let(:analyzer_vendor) do
+          { 'name' => 'GitLab' }
+        end
+
+        it { is_expected.to be_empty }
+      end
+
+      context 'and the report passes schema validation as a GitLab-vendored scanner' do
+        let(:scanner_vendor) do
+          { 'name' => 'GitLab' }
+        end
+
+        it { is_expected.to be_empty }
       end
     end
 
@@ -529,6 +567,28 @@ RSpec.describe Gitlab::Ci::Parsers::Security::Validators::SchemaValidator do
         end
 
         it { is_expected.to match_array([message]) }
+
+        context 'without license', unless: Gitlab.ee? do
+          let(:schema_path) { Rails.root.join(*%w[lib gitlab ci parsers security validators schemas]) }
+
+          it 'tries to validate against the latest patch version available' do
+            expect(File).to receive(:file?).with("#{schema_path}/#{report_version}/#{report_type}-report-format.json")
+            expect(File).to receive(:file?).with("#{schema_path}/#{latest_patch_version}/#{report_type}-report-format.json")
+
+            subject
+          end
+        end
+
+        context 'with license', if: Gitlab.ee? do
+          let(:schema_path) { Rails.root.join(*%w[ee lib ee gitlab ci parsers security validators schemas]) }
+
+          it 'tries to validate against the latest patch version available' do
+            expect(File).to receive(:file?).with("#{schema_path}/#{report_version}/#{report_type}-report-format.json")
+            expect(File).to receive(:file?).with("#{schema_path}/#{latest_patch_version}/#{report_type}-report-format.json")
+
+            subject
+          end
+        end
       end
 
       context 'and the report is invalid' do

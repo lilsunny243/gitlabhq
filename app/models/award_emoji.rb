@@ -23,11 +23,11 @@ class AwardEmoji < ApplicationRecord
 
   scope :downvotes, -> { named(DOWNVOTE_NAME) }
   scope :upvotes, -> { named(UPVOTE_NAME) }
-  scope :named, -> (names) { where(name: names) }
-  scope :awarded_by, -> (users) { where(user: users) }
+  scope :named, ->(names) { where(name: names) }
+  scope :awarded_by, ->(users) { where(user: users) }
 
-  after_save :expire_cache
   after_destroy :expire_cache
+  after_save :expire_cache
 
   class << self
     def votes_for_collection(ids, type)
@@ -55,11 +55,11 @@ class AwardEmoji < ApplicationRecord
   end
 
   def downvote?
-    self.name == DOWNVOTE_NAME
+    name == DOWNVOTE_NAME
   end
 
   def upvote?
-    self.name == UPVOTE_NAME
+    name == UPVOTE_NAME
   end
 
   def url
@@ -72,5 +72,9 @@ class AwardEmoji < ApplicationRecord
     awardable.try(:bump_updated_at)
     awardable.expire_etag_cache if awardable.is_a?(Note)
     awardable.try(:update_upvotes_count) if upvote?
+  end
+
+  def to_ability_name
+    'emoji'
   end
 end

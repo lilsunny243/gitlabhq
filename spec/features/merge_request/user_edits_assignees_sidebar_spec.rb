@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > User edits assignees sidebar', :js do
+RSpec.describe 'Merge request > User edits assignees sidebar', :js, feature_category: :code_review_workflow do
+  include Spec::Support::Helpers::Features::InviteMembersModalHelper
+
   let(:project) { create(:project, :public, :repository) }
   let(:protected_branch) { create(:protected_branch, :maintainers_can_push, name: 'master', project: project) }
   let(:merge_request) { create(:merge_request, :simple, source_project: project, target_branch: protected_branch.name) }
@@ -15,11 +17,17 @@ RSpec.describe 'Merge request > User edits assignees sidebar', :js do
 
   # DOM finders to simplify and improve readability
   let(:sidebar_assignee_block) { page.find('.js-issuable-sidebar .assignee') }
-  let(:sidebar_assignee_avatar_link) { sidebar_assignee_block.find_all('a').find { |a| a['href'].include? assignee.username } }
+  let(:sidebar_assignee_avatar_link) do
+    sidebar_assignee_block.find_all('a').find { |a| a['href'].include? assignee.username }
+  end
+
   let(:sidebar_assignee_tooltip) { sidebar_assignee_avatar_link['title'] || '' }
 
   context 'when GraphQL assignees widget feature flag is disabled' do
-    let(:sidebar_assignee_dropdown_item) { sidebar_assignee_block.find(".dropdown-menu li[data-user-id=\"#{assignee.id}\"]") }
+    let(:sidebar_assignee_dropdown_item) do
+      sidebar_assignee_block.find(".dropdown-menu li[data-user-id=\"#{assignee.id}\"]")
+    end
+
     let(:sidebar_assignee_dropdown_tooltip) { sidebar_assignee_dropdown_item.find('a')['data-title'] || '' }
 
     before do
@@ -88,7 +96,7 @@ RSpec.describe 'Merge request > User edits assignees sidebar', :js do
   end
 
   context 'when GraphQL assignees widget feature flag is enabled' do
-    let(:sidebar_assignee_dropdown_item) { sidebar_assignee_block.find(".dropdown-item", text: assignee.username ) }
+    let(:sidebar_assignee_dropdown_item) { sidebar_assignee_block.find(".dropdown-item", text: assignee.username) }
     let(:sidebar_assignee_dropdown_tooltip) { sidebar_assignee_dropdown_item['title'] }
 
     context 'when user is an owner' do
@@ -154,13 +162,13 @@ RSpec.describe 'Merge request > User edits assignees sidebar', :js do
 
           page.within '.dropdown-menu-user' do
             expect(page).to have_link('Invite members')
-            expect(page).to have_selector('[data-track-action="click_invite_members"]')
-            expect(page).to have_selector('[data-track-label="edit_assignee"]')
+
+            click_link 'Invite members'
           end
 
-          click_link 'Invite members'
-
-          expect(page).to have_content("You're inviting members to the")
+          page.within invite_modal_selector do
+            expect(page).to have_content("You're inviting members to the #{project.name} project")
+          end
         end
       end
 

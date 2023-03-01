@@ -1,3 +1,16 @@
+export const mockTimelineEventTags = {
+  nodes: [
+    {
+      id: 'gid://gitlab/IncidentManagement::TimelineEvent/132',
+      name: 'Start time',
+    },
+    {
+      id: 'gid://gitlab/IncidentManagement::TimelineEvent/132',
+      name: 'End time',
+    },
+  ],
+};
+
 export const mockEvents = [
   {
     action: 'comment',
@@ -13,6 +26,9 @@ export const mockEvents = [
     noteHtml: '<p>Dummy event 1</p>',
     occurredAt: '2022-03-22T15:59:00Z',
     updatedAt: '2022-03-22T15:59:08Z',
+    timelineEventTags: {
+      nodes: [],
+    },
     __typename: 'TimelineEventType',
   },
   {
@@ -29,6 +45,7 @@ export const mockEvents = [
     noteHtml: '<p>Dummy event 2</p>',
     occurredAt: '2022-03-23T14:57:00Z',
     updatedAt: '2022-03-23T14:57:08Z',
+    timelineEventTags: mockTimelineEventTags,
     __typename: 'TimelineEventType',
   },
   {
@@ -45,6 +62,9 @@ export const mockEvents = [
     noteHtml: '<p>Dummy event 3</p>',
     occurredAt: '2022-03-23T15:59:00Z',
     updatedAt: '2022-03-23T15:59:08Z',
+    timelineEventTags: {
+      nodes: [],
+    },
     __typename: 'TimelineEventType',
   },
 ];
@@ -56,6 +76,7 @@ const mockUpdatedEvent = {
   action: 'comment',
   occurredAt: '2022-07-01T12:47:00Z',
   createdAt: '2022-07-20T12:47:40Z',
+  timelineEventTags: [],
 };
 
 export const timelineEventsQueryListResponse = {
@@ -152,6 +173,9 @@ export const mockGetTimelineData = {
           action: 'comment',
           occurredAt: '2022-07-01T12:47:00Z',
           createdAt: '2022-07-20T12:47:40Z',
+          timelineEventTags: {
+            nodes: [],
+          },
         },
       ],
     },
@@ -165,5 +189,12 @@ export const mockInputData = {
   occurredAt: '2020-08-10T02:30:00.000Z',
 };
 
-const { id, note, occurredAt } = mockEvents[0];
-export const fakeEventData = { id, note, occurredAt };
+const { id, note, occurredAt, timelineEventTags } = mockEvents[0];
+export const fakeEventData = { id, note, occurredAt, timelineEventTags };
+export const fakeEventSaveData = {
+  id,
+  note,
+  occurredAt,
+  timelineEventTagNames: timelineEventTags,
+  ...mockInputData,
+};

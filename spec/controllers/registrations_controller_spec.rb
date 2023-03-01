@@ -2,11 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe RegistrationsController do
+RSpec.describe RegistrationsController, feature_category: :user_profile do
   include TermsHelper
+  include FullNameHelper
 
   before do
     stub_application_setting(require_admin_approval_after_user_signup: false)
+    stub_feature_flags(arkose_labs_signup_challenge: false)
   end
 
   describe '#new' do
@@ -17,6 +19,8 @@ RSpec.describe RegistrationsController do
       expect(response).to have_gitlab_http_status(:ok)
       expect(assigns(:resource)).to be_a(User)
     end
+
+    it_behaves_like "switches to user preferred language", 'Sign up'
   end
 
   describe '#create' do
@@ -32,7 +36,7 @@ RSpec.describe RegistrationsController do
 
     let(:session_params) { {} }
 
-    subject { post(:create, params: user_params, session: session_params) }
+    subject(:post_create) { post(:create, params: user_params, session: session_params) }
 
     context '`blocked_pending_approval` state' do
       context 'when the `require_admin_approval_after_user_signup` setting is turned on' do
@@ -71,9 +75,9 @@ RSpec.describe RegistrationsController do
         end
 
         context 'email confirmation' do
-          context 'when `send_user_confirmation_email` is true' do
+          context 'when `email_confirmation_setting` is set to `hard`' do
             before do
-              stub_application_setting(send_user_confirmation_email: true)
+              stub_application_setting_enum('email_confirmation_setting', 'hard')
             end
 
             it 'does not send a confirmation email' do
@@ -118,9 +122,10 @@ RSpec.describe RegistrationsController do
         end
 
         context 'email confirmation' do
-          context 'when `send_user_confirmation_email` is true' do
+          context 'when `email_confirmation_setting` is set to `hard`' do
             before do
-              stub_application_setting(send_user_confirmation_email: true)
+              stub_application_setting_enum('email_confirmation_setting', 'hard')
+              stub_feature_flags(identity_verification: false)
             end
 
             it 'sends a confirmation email' do
@@ -132,19 +137,38 @@ RSpec.describe RegistrationsController do
       end
     end
 
+    context 'private profile' do
+      context 'when the `user_defaults_to_private_profile` setting is turned on' do
+        before do
+          stub_application_setting(user_defaults_to_private_profile: true)
+        end
+
+        it 'creates new user with profile set to private' do
+          subject
+          user = User.find_by(email: base_user_params[:email], private_profile: true)
+
+          expect(user).to be_present
+        end
+      end
+    end
+
     context 'email confirmation' do
-      context 'when send_user_confirmation_email is false' do
+      before do
+        stub_feature_flags(identity_verification: false)
+      end
+
+      context 'when `email_confirmation_setting` is set to `off`' do
         it 'signs the user in' do
-          stub_application_setting(send_user_confirmation_email: false)
+          stub_application_setting_enum('email_confirmation_setting', 'off')
 
           expect { subject }.not_to have_enqueued_mail(DeviseMailer, :confirmation_instructions)
           expect(controller.current_user).not_to be_nil
         end
       end
 
-      context 'when send_user_confirmation_email is true' do
+      context 'when `email_confirmation_setting` is set to `hard`' do
         before do
-          stub_application_setting(send_user_confirmation_email: true)
+          stub_application_setting_enum('email_confirmation_setting', 'hard')
         end
 
         context 'when soft email confirmation is not enabled' do
@@ -156,6 +180,16 @@ RSpec.describe RegistrationsController do
           it 'does not authenticate the user and sends a confirmation email' do
             expect { subject }.to have_enqueued_mail(DeviseMailer, :confirmation_instructions)
             expect(controller.current_user).to be_nil
+          end
+
+          it 'tracks an almost there redirect' do
+            post_create
+
+            expect_snowplow_event(
+              category: described_class.name,
+              action: 'render',
+              user: User.find_by(email: base_user_params[:email])
+            )
           end
 
           context 'when registration is triggered from an accepted invite' do
@@ -181,11 +215,18 @@ RSpec.describe RegistrationsController do
                     property: member.id.to_s,
                     user: member.reload.user
                   )
+
+                  expect_snowplow_event(
+                    category: 'RegistrationsController',
+                    action: 'create_user',
+                    label: 'invited',
+                    user: member.reload.user
+                  )
                 end
               end
 
               context 'when member does not exist from the session key value' do
-                let(:originating_member_id) { -1 }
+                let(:originating_member_id) { nil }
 
                 it 'does not track invite acceptance' do
                   subject
@@ -194,6 +235,13 @@ RSpec.describe RegistrationsController do
                     category: 'RegistrationsController',
                     action: 'accepted',
                     label: 'invite_email'
+                  )
+
+                  expect_snowplow_event(
+                    category: 'RegistrationsController',
+                    action: 'create_user',
+                    label: 'signup',
+                    user: member.reload.user
                   )
                 end
               end
@@ -249,6 +297,16 @@ RSpec.describe RegistrationsController do
             expect { subject }.to have_enqueued_mail(DeviseMailer, :confirmation_instructions)
             expect(controller.current_user).to be_present
             expect(response).to redirect_to(users_sign_up_welcome_path)
+          end
+
+          it 'does not track an almost there redirect' do
+            post_create
+
+            expect_no_snowplow_event(
+              category: described_class.name,
+              action: 'render',
+              user: User.find_by(email: base_user_params[:email])
+            )
           end
 
           context 'when invite email matches email used on registration' do
@@ -457,7 +515,7 @@ RSpec.describe RegistrationsController do
 
       expect(User.last.first_name).to eq(base_user_params[:first_name])
       expect(User.last.last_name).to eq(base_user_params[:last_name])
-      expect(User.last.name).to eq("#{base_user_params[:first_name]} #{base_user_params[:last_name]}")
+      expect(User.last.name).to eq full_name(base_user_params[:first_name], base_user_params[:last_name])
     end
 
     it 'sets the caller_id in the context' do
@@ -471,25 +529,118 @@ RSpec.describe RegistrationsController do
       subject
     end
 
-    describe 'logged_out_marketing_header experiment', :experiment do
+    context 'when the password is weak' do
+      render_views
+      let_it_be(:new_user_params) { { new_user: base_user_params.merge({ password: "password" }) } }
+
+      subject(:post_create) { post(:create, params: new_user_params) }
+
+      it 'renders the form with errors' do
+        expect { post_create }.not_to change(User, :count)
+
+        expect(controller.current_user).to be_nil
+        expect(response).to render_template(:new)
+        expect(response.body).to include(_('Password must not contain commonly used combinations of words and letters'))
+      end
+
+      it 'tracks a weak password error' do
+        post_create
+
+        expect_snowplow_event(
+          category: 'Gitlab::Tracking::Helpers::WeakPasswordErrorEvent',
+          action: 'track_weak_password_error',
+          controller: 'RegistrationsController',
+          method: 'create'
+        )
+      end
+
+      it 'does not track failed form submission' do
+        post_create
+
+        expect_no_snowplow_event(
+          category: described_class.name,
+          action: 'successfully_submitted_form'
+        )
+      end
+    end
+
+    context 'when the password is not weak' do
+      it 'does not track a weak password error' do
+        post_create
+
+        expect_no_snowplow_event(
+          category: 'Gitlab::Tracking::Helpers::WeakPasswordErrorEvent',
+          action: 'track_weak_password_error'
+        )
+      end
+
+      it 'tracks successful form submission' do
+        post_create
+
+        expect_snowplow_event(
+          category: described_class.name,
+          action: 'successfully_submitted_form',
+          user: User.find_by(email: base_user_params[:email])
+        )
+      end
+    end
+
+    context 'with preferred language' do
+      let(:user_preferred_language) { nil }
+
       before do
-        stub_experiments(logged_out_marketing_header: :candidate)
+        cookies['preferred_language'] = user_preferred_language
+
+        post :create, params: { new_user: base_user_params }
       end
 
-      it 'tracks signed_up event' do
-        expect(experiment(:logged_out_marketing_header)).to track(:signed_up).on_next_instance
+      subject { User.last.preferred_language }
 
-        subject
-      end
-
-      context 'when registration fails' do
-        let_it_be(:user_params) { { user: base_user_params.merge({ username: '' }) } }
-
-        it 'does not track signed_up event' do
-          expect(experiment(:logged_out_marketing_header)).not_to track(:signed_up)
-
-          subject
+      context 'with default behavior' do
+        it 'sets preferred language to default' do
+          is_expected.to eq(Gitlab::CurrentSettings.default_preferred_language)
         end
+      end
+
+      context 'when user sets preferred language' do
+        let(:user_preferred_language) { 'zh_CN' }
+
+        it 'sets name from first and last name' do
+          is_expected.to eq(user_preferred_language)
+        end
+      end
+    end
+
+    context 'when the first or last name is not "present?"' do
+      using RSpec::Parameterized::TableSyntax
+
+      render_views
+
+      shared_examples 'a user without present first name or last name' do
+        it 'renders the form with errors' do
+          subject
+          expect(controller.current_user).to be_nil
+          expect(response).to render_template(:new)
+          expect(response.body).to include(_('name cannot be blank')) # include 'First name' or 'Last name' or both
+        end
+      end
+
+      where(:first_name, :last_name) do
+        nil     | 'last'
+        ''      | 'last'
+        '   '   | 'last'
+        'first' | nil
+        'first' | ''
+        'first' | '   '
+        ''      | ''
+      end
+
+      with_them do
+        before do
+          base_user_params.merge!({ first_name: first_name, last_name: last_name })
+        end
+
+        it_behaves_like 'a user without present first name or last name'
       end
     end
   end
@@ -605,8 +756,7 @@ RSpec.describe RegistrationsController do
         m.call(*args)
 
         expect(Gitlab::ApplicationContext.current)
-          .to include('meta.user' => user.username,
-                      'meta.caller_id' => 'RegistrationsController#destroy')
+          .to include('meta.user' => user.username, 'meta.caller_id' => 'RegistrationsController#destroy')
       end
 
       post :destroy

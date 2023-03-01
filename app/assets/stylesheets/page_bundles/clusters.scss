@@ -1,0 +1,32 @@
+@import 'mixins_and_variables_and_functions';
+
+.clusters-container {
+  @include media-breakpoint-down(xs) {
+    .nav-controls {
+      @include gl-w-full;
+      order: -1;
+
+      .gl-dropdown,
+      .split-content-button {
+        @include gl-w-full;
+      }
+    }
+  }
+}
+
+.cluster-card-item {
+  @include media-breakpoint-up(sm) {
+    @include gl-pt-2;
+    min-height: 372px;
+  }
+}
+
+.cluster-button-container:focus-within {
+  @include gl-focus;
+}
+
+.select-agent-dropdown {
+  .gl-button-text {
+    @include gl-flex-grow-1;
+  }
+}

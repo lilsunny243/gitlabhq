@@ -156,25 +156,13 @@ RSpec.shared_examples 'process helm upload' do |user_type, status|
       end
 
       context 'and direct upload disabled' do
-        context 'and background upload disabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: false)
-          end
-
-          it_behaves_like 'creates helm package files'
+        let(:fog_connection) do
+          stub_package_file_object_storage(direct_upload: false)
         end
 
-        context 'and background upload enabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: true)
-          end
-
-          it_behaves_like 'creates helm package files'
-        end
+        it_behaves_like 'creates helm package files'
       end
     end
-
-    it_behaves_like 'background upload schedules a file migration'
   end
 end
 
@@ -191,14 +179,15 @@ RSpec.shared_examples 'process helm download content request' do |user_type, sta
       end
     end
 
-    it_behaves_like 'a package tracking event', 'API::HelmPackages', 'pull_package'
-
     it 'returns expected status and a valid package archive' do
       subject
 
       expect(response).to have_gitlab_http_status(status)
       expect(response.media_type).to eq('application/octet-stream')
     end
+
+    it_behaves_like 'a package tracking event', 'API::HelmPackages', 'pull_package'
+    it_behaves_like 'bumping the package last downloaded at field'
   end
 end
 
@@ -246,6 +235,15 @@ RSpec.shared_examples 'handling helm chart index requests' do
       end
     end
 
+    context 'with access to package registry for everyone' do
+      before do
+        project.update!(visibility: Gitlab::VisibilityLevel::PRIVATE)
+        project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+      end
+
+      it_behaves_like 'process helm service index request', :anonymous, :success
+    end
+
     context 'when an invalid token is passed' do
       let(:headers) { basic_auth_header(user.username, 'wrong') }
 
@@ -278,7 +276,6 @@ RSpec.shared_examples 'handling helm chart index requests' do
   end
 
   it_behaves_like 'deploy token for package GET requests'
-
   it_behaves_like 'rejects helm access with unknown project id' do
     subject { get api(url) }
   end

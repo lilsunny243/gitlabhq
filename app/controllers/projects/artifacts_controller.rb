@@ -1,20 +1,23 @@
 # frozen_string_literal: true
 
 class Projects::ArtifactsController < Projects::ApplicationController
+  include Ci::AuthBuildTrace
   include ExtractsPath
   include RendersBlob
   include SendFileUpload
+  include Gitlab::Ci::Artifacts::Logger
 
   urgency :low, [:browse, :file, :latest_succeeded]
 
   layout 'project'
   before_action :authorize_read_build!
   before_action :authorize_read_build_trace!, only: [:download]
+  before_action :authorize_read_job_artifacts!, only: [:download]
   before_action :authorize_update_build!, only: [:keep]
   before_action :authorize_destroy_artifacts!, only: [:destroy]
   before_action :extract_ref_name_and_path
   before_action :validate_artifacts!, except: [:index, :download, :raw, :destroy]
-  before_action :entry, only: [:file]
+  before_action :entry, only: [:external_file, :file]
 
   MAX_PER_PAGE = 20
 
@@ -26,12 +29,6 @@ class Projects::ArtifactsController < Projects::ApplicationController
     # It should be removed only after resolving the underlying performance
     # issues: https://gitlab.com/gitlab-org/gitlab/issues/32281
     return head :no_content unless Feature.enabled?(:artifacts_management_page, @project)
-
-    finder = Ci::JobArtifactsFinder.new(@project, artifacts_params)
-    all_artifacts = finder.execute
-
-    @artifacts = all_artifacts.page(params[:page]).per(MAX_PER_PAGE)
-    @total_size = all_artifacts.total_size
   end
 
   def destroy
@@ -45,9 +42,10 @@ class Projects::ArtifactsController < Projects::ApplicationController
   end
 
   def download
-    return render_404 unless artifacts_file
+    return render_404 unless artifact_file
 
-    send_upload(artifacts_file, attachment: artifacts_file.filename, proxy: params[:proxy])
+    log_artifacts_filesize(artifact_file.model)
+    send_upload(artifact_file, attachment: artifact_file.filename, proxy: params[:proxy])
   end
 
   def browse
@@ -58,12 +56,19 @@ class Projects::ArtifactsController < Projects::ApplicationController
     render_404 unless @entry.exists?
   end
 
+  # External files are redirected to Gitlab Pages and might have unsecure content
+  # To warn the user about the possible unsecure content, we show a warning page
+  # before redirecting the user.
+  def external_file
+    @blob = @entry.blob
+  end
+
   def file
     blob = @entry.blob
     conditionally_expand_blob(blob)
 
     if blob.external_link?(build)
-      redirect_to blob.external_url(@project, build)
+      redirect_to external_file_project_job_artifacts_path(@project, @build, path: params[:path])
     else
       respond_to do |format|
         format.html do
@@ -79,10 +84,11 @@ class Projects::ArtifactsController < Projects::ApplicationController
 
   def raw
     return render_404 unless zip_artifact?
+    return render_404 unless artifact_file
 
     path = Gitlab::Ci::Build::Artifacts::Path.new(params[:path])
 
-    send_artifacts_entry(artifacts_file, path)
+    send_artifacts_entry(artifact_file, path)
   end
 
   def keep
@@ -149,8 +155,12 @@ class Projects::ArtifactsController < Projects::ApplicationController
     project.latest_successful_build_for_ref(params[:job], @ref_name)
   end
 
-  def artifacts_file
-    @artifacts_file ||= build&.artifacts_file_for_type(params[:file_type] || :archive)
+  def job_artifact
+    @job_artifact ||= build&.artifact_for_type(params[:file_type] || :archive)
+  end
+
+  def artifact_file
+    @artifact_file ||= job_artifact&.file
   end
 
   def zip_artifact?
@@ -170,5 +180,9 @@ class Projects::ArtifactsController < Projects::ApplicationController
     return unless params[:file_type] == 'trace'
 
     super
+  end
+
+  def authorize_read_job_artifacts!
+    return access_denied! unless can?(current_user, :read_job_artifacts, job_artifact)
   end
 end

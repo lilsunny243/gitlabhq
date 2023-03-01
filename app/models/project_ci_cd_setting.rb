@@ -17,14 +17,10 @@ class ProjectCiCdSetting < ApplicationRecord
     },
     allow_nil: true
 
-  default_value_for :forward_deployment_enabled, true
-  default_value_for :separated_caches, true
+  attribute :forward_deployment_enabled, default: true
+  attribute :separated_caches, default: true
 
   chronic_duration_attr :runner_token_expiration_interval_human_readable, :runner_token_expiration_interval
-
-  def forward_deployment_enabled?
-    super && ::Feature.enabled?(:forward_deployment_enabled, project)
-  end
 
   def keep_latest_artifacts_available?
     # The project level feature can only be enabled when the feature is enabled instance wide

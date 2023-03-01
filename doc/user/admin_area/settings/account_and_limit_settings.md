@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference
 ---
 
@@ -16,7 +16,7 @@ the [project limits for existing users](#projects-limit-for-a-user).
 
 To configure the maximum number of projects in personal namespaces for new users:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
 1. Increase or decrease that **Default projects limit** value.
 
@@ -28,7 +28,7 @@ in their users personal namespace. However, projects can still be created in a g
 You can edit a specific user, and change the maximum number of projects this user
 can create in their personal namespace:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview** > **Users**.
 1. From the list of users, select a user.
 1. Select **Edit**.
@@ -39,7 +39,7 @@ can create in their personal namespace:
 The maximum file size for attachments in GitLab comments and replies is 10 MB.
 To change the maximum attachment size:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
 1. Increase or decrease by changing the value in **Maximum attachment size (MB)**.
 
@@ -53,11 +53,11 @@ For GitLab.com repository size limits, read [accounts and limit settings](../../
 
 You can change the maximum push size for your instance:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
 1. Increase or decrease by changing the value in **Maximum push size (MB)**.
 
-For GitLab.com application limits, read [GitLab application limits](../../../administration/instance_limits.md#max-push-size).
+For GitLab.com push size limits, read [accounts and limit settings](../../gitlab_com/index.md#account-and-limit-settings).
 
 NOTE:
 When you [add files to a repository](../../project/repository/web_editor.md#create-a-file)
@@ -72,7 +72,7 @@ Use [Git LFS](../../../topics/git/lfs/index.md) to add large files to a reposito
 
 To modify the maximum file size for exports in GitLab:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
 1. Increase or decrease by changing the value in **Maximum export size (MB)**.
 
@@ -82,9 +82,12 @@ To modify the maximum file size for exports in GitLab:
 
 To modify the maximum file size for imports in GitLab:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
 1. Increase or decrease by changing the value in **Maximum import size (MB)**.
+
+This setting applies only to repositories
+[imported from a GitLab export file](../../project/settings/import_export.md#import-a-project-and-its-data).
 
 If you choose a size larger than the configured value for the web server,
 you may receive errors. See the [troubleshooting section](#troubleshooting) for more
@@ -102,13 +105,14 @@ to find tokens more quickly, or for use with automation tools.
 
 The default prefix is `glpat-` but administrators can change it.
 
-[Project access tokens](../../project/settings/project_access_tokens.md) also inherit this prefix.
+[Project access tokens](../../project/settings/project_access_tokens.md) and
+[group access tokens](../../group/settings/group_access_tokens.md) also inherit this prefix.
 
 ### Set a prefix
 
 To change the default global prefix:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Account and limit** section.
 1. Fill in the **Personal Access Token prefix** field.
@@ -154,7 +158,7 @@ These settings can be found in:
   1. Fill in the **Repository size limit (MB)** field in the **Naming, visibility** section.
   1. Select **Save changes**.
 - GitLab global settings:
-  1. On the top bar, select **Menu > Admin**.
+  1. On the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Settings > General**.
   1. Expand the **Account and limit** section.
   1. Fill in the **Size limit per repository (MB)** field.
@@ -170,6 +174,16 @@ wiki, packages, or snippets. The repository size limit applies to both private a
 
 For details on manually purging files, see [reducing the repository size using Git](../../project/repository/reducing_the_repo_size_using_git.md).
 
+## Customize the default session duration
+
+You can change how long users can remain signed in.
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Account and limit**. The set duration is in **Session duration (minutes)**.
+
+For details, see [cookies used for sign-in](../../profile/index.md#cookies-used-for-sign-in).
+
 ## Customize session duration for Git Operations when 2FA is enabled **(PREMIUM SELF)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/296669) in GitLab 13.9.
@@ -182,7 +196,7 @@ GitLab administrators can choose to customize the session duration (in minutes) 
 
 To set a limit on how long these sessions are valid:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Account and limit** section.
 1. Fill in the **Session duration for Git operations when 2FA is enabled (minutes)** field.
@@ -209,7 +223,7 @@ there are no restrictions.
 
 To set a lifetime on how long SSH keys are valid:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Account and limit** section.
 1. Fill in the **Maximum allowable lifetime for SSH keys (days)** field.
@@ -245,7 +259,7 @@ there are no restrictions.
 
 To set a lifetime on how long access tokens are valid:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Account and limit** section.
 1. Fill in the **Maximum allowable lifetime for access tokens (days)** field.
@@ -259,18 +273,6 @@ Once a lifetime for access tokens is set, GitLab:
   allowed lifetime. Three hours is given to allow administrators to change the allowed lifetime,
   or remove it, before revocation takes place.
 
-<!-- start_remove The following content will be removed on remove_date: '2022-08-22' -->
-## Allow expired access tokens to be used (removed) **(ULTIMATE SELF)**
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/214723) in GitLab 13.1.
-> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/296881) in GitLab 13.9.
-> - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/351962) in GitLab 14.8.
-> - [Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/351962) in GitLab 15.0.
-
-This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/351962) in GitLab 14.8.
-This feature was [removed](https://gitlab.com/gitlab-org/gitlab/-/issues/351962) in GitLab 15.0.
-<!-- end_remove -->
-
 ## Disable user profile name changes **(PREMIUM SELF)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24605) in GitLab 12.7.
@@ -279,7 +281,7 @@ To maintain integrity of user details in [Audit Events](../../../administration/
 
 To do this:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
 1. Select the **Prevent users from changing their profile name** checkbox.
 
@@ -287,6 +289,31 @@ NOTE:
 When this ability is disabled, GitLab administrators can still use the
 [Admin Area](../index.md#administering-users) or the
 [API](../../../api/users.md#user-modification) to update usernames.
+
+## Prevent new users from creating top-level groups
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/367754) in GitLab 15.5.
+
+By default, new users can create top-level groups. GitLab administrators can prevent new users from creating top-level groups:
+
+- In GitLab 15.5 and later, using either:
+  - The GitLab UI using the steps in this section.
+  - The [application setting API](../../../api/settings.md#change-application-settings).
+- In GitLab 15.4 and earlier, a [configuration file](../../../administration/user_settings.md#use-configuration-files-to-prevent-new-users-from-creating-top-level-groups).
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
+1. Clear the **Allow new users to create top-level groups** checkbox.
+
+## Set profiles of new users to private by default
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/231301) in GitLab 15.8.
+
+By default, newly created users have a public profile. GitLab administrators can set new users to have a private profile by default:
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > General**, then expand **Account and limit**.
+1. Select the **Make new users' profiles private by default** checkbox.
 
 ## Troubleshooting
 

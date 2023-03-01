@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Navigation bar counter', :use_clean_rails_memory_store_caching do
+RSpec.describe 'Navigation bar counter', :use_clean_rails_memory_store_caching, feature_category: :team_planning do
   let(:user) { create(:user) }
   let(:project) { create(:project, namespace: user.namespace) }
   let(:issue) { create(:issue, project: project) }
@@ -19,9 +19,9 @@ RSpec.describe 'Navigation bar counter', :use_clean_rails_memory_store_caching d
 
     expect_counters('issues', '1', n_("%d assigned issue", "%d assigned issues", 1) % 1)
 
-    issue.assignees = []
+    issue.update!(assignees: [])
 
-    user.invalidate_cache_counts
+    Users::AssignedIssuesCountService.new(current_user: user).delete_cache
 
     travel_to(3.minutes.from_now) do
       visit issues_path

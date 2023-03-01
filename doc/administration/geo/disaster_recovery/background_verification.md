@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Automatic background verification **(PREMIUM SELF)**
@@ -55,7 +55,7 @@ Feature.enable('geo_repository_verification')
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Expand **Verification information** tab for that site to view automatic checksumming
    status for repositories and wikis. Successes are shown in green, pending work
@@ -65,7 +65,7 @@ On the **primary** site:
 
 On the **secondary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Expand **Verification information** tab for that site to view automatic checksumming
    status for repositories and wikis. Successes are shown in green, pending work
@@ -93,7 +93,7 @@ increase load and vice versa.
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Select **Edit** for the **primary** site to customize the minimum
    re-verification interval:
@@ -122,7 +122,7 @@ be resynced with a back-off period. If you want to reset them manually, this
 Rake task marks projects where verification has failed or the checksum mismatch
 to be resynced without the back-off period:
 
-Run the appropriate commands on a **Rails node on the primary** site.
+Run the appropriate commands on a **Rails node on the secondary** site.
 
 For repositories:
 
@@ -141,7 +141,7 @@ sudo gitlab-rake geo:verification:wiki:reset
 If the **primary** and **secondary** sites have a checksum verification mismatch, the cause may not be apparent. To find the cause of a checksum mismatch:
 
 1. On the **primary** site:
-   1. On the top bar, select **Menu > Admin**.
+   1. On the top bar, select **Main menu > Admin**.
    1. On the left sidebar, select **Overview > Projects**.
    1. Find the project that you want to check the checksum differences and
       select its name.

@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
@@ -12,7 +12,7 @@ of GitLab to their liking.
 
 To navigate to your profile's preferences:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 
 ## Navigation theme
@@ -51,7 +51,7 @@ See the epic for:
 - A list of known issues.
 - Our planned direction and next steps.
 
-If you find an issue that isn't listed, please leave a comment on the epic or create a
+If you find an issue that isn't listed, leave a comment on the epic or create a
 new issue.
 
 Dark mode is available as a navigation theme, for MVC and compatibility reasons.
@@ -67,7 +67,7 @@ GitLab uses the [rouge Ruby library](http://rouge.jneen.net/ "Rouge website")
 for syntax highlighting outside of any Editor context. The WebIDE (like Snippets)
 uses [Monaco Editor](https://microsoft.github.io/monaco-editor/) and it's provided
 [Monarch](https://microsoft.github.io/monaco-editor/monarch.html) library for
-syntax highlighting. For a list of supported languages, visit the documentation of
+syntax highlighting. For a list of supported languages, see the documentation of
 the respective libraries.
 
 Changing this setting allows you to customize the color theme when viewing any
@@ -96,7 +96,7 @@ A diff compares the old/removed content with the new/added content (for example,
 [Markdown inline diff](../markdown.md#inline-diff)).
 Typically, the colors red and green are used for removed and added lines in diffs.
 The exact colors depend on the selected [syntax highlighting theme](#syntax-highlighting-theme).
-The colors may lead to difficulties in case of red–green color blindness.
+The colors may lead to difficulties in case of red-green color blindness.
 
 For this reason, you can customize the following colors:
 
@@ -116,29 +116,16 @@ between the fixed (max. `1280px`) and the fluid (`100%`) application layout.
 NOTE:
 While `1280px` is the standard max width when using fixed layout, some pages still use 100% width, depending on the content.
 
-### Default dashboard
+### Dashboard
 
 For users who have access to a large number of projects but only keep up with a
-select few, the amount of activity on the default Dashboard page can be
-overwhelming. Changing this setting allows you to redefine your default
-dashboard.
-
-You can include the following options for your default dashboard view:
-
-- Your projects (default)
-- Starred projects
-- Your projects' activity
-- Starred projects' activity
-- Followed Users' Activity
-- Your groups
-- Your [To-Do List](../todos.md)
-- Assigned Issues
-- Assigned Merge Requests
-- [Operations Dashboard](../operations_dashboard/index.md)
+select few, the amount of activity on the your dashboard can be
+overwhelming. From the **Dashboard** dropdown list, select what you'd like displayed on your
+personal dashboard.
 
 ### Group overview content
 
-The **Group overview content** dropdown allows you to choose what information is
+The **Group overview content** dropdown list allows you to choose what information is
 displayed on a group's home page.
 
 You can choose between 2 options:
@@ -202,7 +189,23 @@ To set your time preference:
 
 NOTE:
 This feature is experimental, and choosing absolute times might break certain layouts.
-Please open an issue if you notice that using absolute times breaks a layout.
+Open an issue if you notice that using absolute times breaks a layout.
+
+## Web IDE
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/370139) in GitLab 15.7 [with a flag](../../administration/feature_flags.md) named `vscode_web_ide`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `vscode_web_ide`. On GitLab.com, this feature is available.
+
+The [Web IDE Beta](../project/web_ide_beta/index.md) is
+the default editing environment when the `vscode_web_ide` feature
+flag is enabled.
+
+To stop using the Web IDE Beta:
+
+1. In the **Web IDE** section, select the **Opt out of the Web IDE Beta** checkbox.
+1. Select **Save changes**.
 
 ## Integrations
 
@@ -231,6 +234,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

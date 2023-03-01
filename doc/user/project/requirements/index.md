@@ -1,11 +1,11 @@
 ---
 type: reference, howto
 stage: Plan
-group: Certify
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Product Planning
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Requirements Management **(ULTIMATE)**
+# Requirements management **(ULTIMATE)**
 
 NOTE:
 In 14.4, Requirements was moved under **Issues**.
@@ -120,8 +120,8 @@ You can search for a requirement from the requirements list page based on the fo
 To search for a requirement:
 
 1. In a project, go to **Issues > Requirements > List**.
-1. Select the **Search or filter results** field. A dropdown menu appears.
-1. Select the requirement author or status from the dropdown or enter plain text to search by requirement title.
+1. Select the **Search or filter results** field. A dropdown list appears.
+1. Select the requirement author or status from the dropdown list or enter plain text to search by requirement title.
 1. Press <kbd>Enter</kbd> on your keyboard to filter the list.
 
 You can also sort the requirements list by:
@@ -235,9 +235,9 @@ Before you import your file:
 To import requirements:
 
 1. In a project, go to **Issues > Requirements**.
-   - If the project already has existing requirements, select the import icon (**{import}**) in the
-     top right.
-   - For a project without any requirements, select **Import CSV** in the middle of the page.
+   - For a project with requirements, in the
+     upper-right corner, select the import icon (**{import}**).
+   - For a project without requirements, in the middle of the page, select **Import CSV**.
 1. Select the file and select **Import requirements**.
 
 The file is processed in the background and a notification email is sent
@@ -296,7 +296,7 @@ Prerequisite:
 To export requirements:
 
 1. In a project, go to **Issues > Requirements**.
-1. In the top right, select the **Export as CSV** icon (**{export}**).
+1. In the upper-right corner, select **Export as CSV** (**{export}**).
 
    A confirmation modal appears.
 

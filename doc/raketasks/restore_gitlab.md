@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Restore GitLab
@@ -17,8 +17,10 @@ You can restore a backup only to _the exact same version and type (CE/EE)_ of
 GitLab that you created it on (for example CE 9.1.0).
 
 If your backup is a different version than the current installation, you must
-[downgrade your GitLab installation](../update/package/downgrade.md)
+[downgrade](../update/package/downgrade.md) or [upgrade](../update/package/index.md#upgrade-to-a-specific-version-using-the-official-repositories) your GitLab installation
 before restoring the backup.
+
+Each backup archive contains a full self-contained backup, including those created through the [incremental repository backup procedure](backup_gitlab.md#incremental-repository-backups). To restore an incremental repository backup, use the same instructions as restoring any other regular backup archive.
 
 ## Restore prerequisites
 
@@ -41,10 +43,6 @@ You may also want to restore your previous `/etc/gitlab/gitlab.rb` (for Omnibus 
 or `/home/git/gitlab/config/gitlab.yml` (for installations from source) and
 any TLS keys, certificates (`/etc/gitlab/ssl`, `/etc/gitlab/trusted-certs`), or
 [SSH host keys](https://superuser.com/questions/532040/copy-ssh-keys-from-one-server-to-another-server/532079#532079).
-
-Starting with GitLab 12.9, if an untarred backup (like the ones made with
-`SKIP=tar`) is found, and no backup is chosen with `BACKUP=<timestamp>`, the
-untarred backup is used.
 
 Depending on your case, you might want to run the restore command with one or
 more of the following options:
@@ -381,3 +379,20 @@ For example, to restore all repositories for all projects in **Group A** (`group
   ```shell
   sudo -u git -H bundle exec rake gitlab:backup:restore BACKUP=timestamp_of_backup REPOSITORIES_PATHS=group-a,group-b/project-c
   ```
+
+### Restore untarred backups
+
+If an [untarred backup](backup_gitlab.md#skipping-tar-creation) (made with `SKIP=tar`) is found,
+and no backup is chosen with `BACKUP=<timestamp>`, the untarred backup is used.
+
+For example, for Omnibus GitLab installations:
+
+```shell
+sudo gitlab-backup restore
+```
+
+For example, for installations from source:
+
+```shell
+sudo -u git -H bundle exec rake gitlab:backup:restore
+```

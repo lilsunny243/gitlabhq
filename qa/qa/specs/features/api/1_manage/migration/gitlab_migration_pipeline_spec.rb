@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require_relative 'gitlab_project_migration_common'
-
 module QA
   RSpec.describe 'Manage' do
-    describe 'Gitlab migration' do
+    describe 'Gitlab migration', product_group: :import do
       include_context 'with gitlab project migration'
 
       context 'with ci pipeline' do
@@ -24,7 +22,7 @@ module QA
 
         before do
           Resource::Repository::Commit.fabricate_via_api! do |commit|
-            commit.api_client = api_client
+            commit.api_client = source_admin_api_client
             commit.project = source_project
             commit.commit_message = 'Add .gitlab-ci.yml'
             commit.add_files(
@@ -49,7 +47,7 @@ module QA
           'successfully imports ci pipeline',
           testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/354650'
         ) do
-          expect_import_finished
+          expect_project_import_finished_successfully
 
           expect(imported_pipelines).to eq(source_pipelines)
         end

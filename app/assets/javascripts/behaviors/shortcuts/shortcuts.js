@@ -24,6 +24,7 @@ import {
   GO_TO_MILESTONE_LIST,
   GO_TO_YOUR_SNIPPETS,
   GO_TO_PROJECT_FIND_FILE,
+  GO_TO_YOUR_REVIEW_REQUESTS,
 } from './keybindings';
 import { disableShortcuts, shouldDisableShortcuts } from './shortcuts_toggle';
 
@@ -94,6 +95,9 @@ export default class Shortcuts {
     Mousetrap.bind(keysFor(GO_TO_YOUR_MERGE_REQUESTS), () =>
       findAndFollowLink('.dashboard-shortcuts-merge_requests'),
     );
+    Mousetrap.bind(keysFor(GO_TO_YOUR_REVIEW_REQUESTS), () =>
+      findAndFollowLink('.dashboard-shortcuts-review_requests'),
+    );
     Mousetrap.bind(keysFor(GO_TO_YOUR_PROJECTS), () =>
       findAndFollowLink('.dashboard-shortcuts-projects'),
     );
@@ -120,8 +124,11 @@ export default class Shortcuts {
       e.preventDefault();
     });
 
+    const shortcutsModalTriggerEvent = 'click.shortcutsModalTrigger';
     // eslint-disable-next-line @gitlab/no-global-event-off
-    $('.js-shortcuts-modal-trigger').off('click').on('click', this.onToggleHelp);
+    $(document)
+      .off(shortcutsModalTriggerEvent)
+      .on(shortcutsModalTriggerEvent, '.js-shortcuts-modal-trigger', this.onToggleHelp);
 
     if (shouldDisableShortcuts()) {
       disableShortcuts();

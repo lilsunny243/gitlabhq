@@ -1,19 +1,19 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Trello Power-Up **(FREE)**
+# Trello Power-Ups **(FREE)**
 
-You can use the Trello Power-Up for GitLab to attach
+You can use Trello Power-Ups for GitLab to attach
 GitLab merge requests to Trello cards.
 
-![GitLab Trello PowerUp - Trello card](img/trello_card_with_gitlab_powerup.png)
+![GitLab Trello Power-Ups - Trello card](img/trello_card_with_gitlab_powerup.png)
 
-## Configure the Power-Up
+## Configure Power-Ups
 
-To configure a Power-Up for a Trello board:
+To configure Power-Ups for a Trello board:
 
 1. Go to your Trello board.
 1. Select **Power-Ups** and find the **GitLab** row.

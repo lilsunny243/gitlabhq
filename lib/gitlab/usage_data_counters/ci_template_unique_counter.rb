@@ -10,14 +10,15 @@ module Gitlab::UsageDataCounters
         expanded_template_name = expand_template_name(template)
         return unless expanded_template_name
 
-        Gitlab::UsageDataCounters::HLLRedisCounter.track_event(
-          ci_template_event_name(expanded_template_name, config_source), values: project.id
-        )
+        event_name = ci_template_event_name(expanded_template_name, config_source)
+        Gitlab::UsageDataCounters::HLLRedisCounter.track_event(event_name, values: project.id)
 
         namespace = project.namespace
-        if Feature.enabled?(:route_hll_to_snowplow, namespace)
-          Gitlab::Tracking.event(name, 'ci_templates_unique', namespace: namespace, user: user, project: project)
-        end
+        context = Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll,
+                                                           event: event_name).to_context
+        label = 'redis_hll_counters.ci_templates.ci_templates_total_unique_counts_monthly'
+        Gitlab::Tracking.event(name, 'ci_templates_unique', namespace: namespace,
+                               project: project, context: [context], user: user, label: label)
       end
 
       def ci_templates(relative_base = 'lib/gitlab/ci/templates')
@@ -32,6 +33,21 @@ module Gitlab::UsageDataCounters
 
       def expand_template_name(template_name)
         Gitlab::Template::GitlabCiYmlTemplate.find(template_name.chomp('.gitlab-ci.yml'))&.full_name
+      end
+
+      def all_included_templates(template_name)
+        expanded_template_name = expand_template_name(template_name)
+        results = [expanded_template_name].tap do |result|
+          template = Gitlab::Template::GitlabCiYmlTemplate.find(template_name.chomp('.gitlab-ci.yml'))
+          data = Gitlab::Ci::Config::Yaml.load!(template.content)
+          [data[:include]].compact.flatten.each do |ci_include|
+            if ci_include_template = ci_include[:template]
+              result.concat(all_included_templates(ci_include_template))
+            end
+          end
+        end
+
+        results.uniq.sort_by { _1['name'] }
       end
 
       private

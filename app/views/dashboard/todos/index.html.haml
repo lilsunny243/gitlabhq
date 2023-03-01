@@ -5,6 +5,7 @@
 = render_two_factor_auth_recovery_settings_check
 = render_dashboard_ultimate_trial(current_user)
 - add_page_specific_style 'page_bundles/todos'
+- add_page_specific_style 'page_bundles/issuable'
 
 .page-title-holder.d-flex.align-items-center
   %h1.page-title.gl-font-size-h-display= _("To-Do List")
@@ -22,10 +23,10 @@
     .nav-controls
       - if @allowed_todos.any?(&:pending?)
         .gl-mr-3
-          = link_to destroy_all_dashboard_todos_path(todos_filter_params), class: 'gl-button btn btn-default btn-loading align-items-center js-todos-mark-all', method: :delete, data: { href: destroy_all_dashboard_todos_path(todos_filter_params) } do
+          = render Pajamas::ButtonComponent.new(button_options: { class: 'btn-loading gl-align-items-center js-todos-mark-all'}, method: :delete, href: destroy_all_dashboard_todos_path(todos_filter_params)) do
             = gl_loading_icon(inline: true)
             = s_("Todos|Mark all as done")
-          = link_to bulk_restore_dashboard_todos_path, class: 'gl-button btn btn-default btn-loading align-items-center js-todos-undo-all hidden', method: :patch , data: { href: bulk_restore_dashboard_todos_path(todos_filter_params) } do
+          = render Pajamas::ButtonComponent.new(button_options: { class: 'btn-loading gl-align-items-center js-todos-undo-all hidden'}, method: :patch, href: bulk_restore_dashboard_todos_path(todos_filter_params)) do
             = gl_loading_icon(inline: true)
             = s_("Todos|Undo mark all as done")
 
@@ -36,7 +37,7 @@
           .filter-item.gl-m-2
             - if params[:group_id].present?
               = hidden_field_tag(:group_id, params[:group_id])
-            = dropdown_tag(group_dropdown_label(params[:group_id], _("Group")), options: { toggle_class: 'js-group-search js-filter-submit gl-xs-w-full!', title: s_("Todos|Filter by group"), filter: true, filterInput: 'input#group-search', dropdown_class: 'dropdown-menu-selectable dropdown-menu-group js-filter-submit', placeholder: _("Search groups"), data: { default_label: _("Group"), display: 'static' } })
+            = dropdown_tag(group_dropdown_label(params[:group_id], _("Group")), options: { toggle_class: 'js-group-search js-filter-submit gl-xs-w-full!', title: s_("Todos|Filter by group"), filter: true, filterInput: 'input#group-search', dropdown_class: 'dropdown-menu-selectable dropdown-menu-group js-filter-submit', placeholder: _("Search groups"), data: { default_label: _("Group"), display: 'static', qa_selector: 'group_dropdown' } })
           .filter-item.gl-m-2
             - if params[:project_id].present?
               = hidden_field_tag(:project_id, params[:project_id])
@@ -93,7 +94,7 @@
       .text-content.gl-text-center
         - if todos_filter_empty?
           %h4
-            = Gitlab.config.gitlab.no_todos_messages.sample
+            = no_todos_messages.sample
           %p
             = (s_("Todos|Are you looking for things to do? Take a look at %{strongStart}%{openIssuesLinkStart}open issues%{openIssuesLinkEnd}%{strongEnd}, contribute to %{strongStart}%{mergeRequestLinkStart}a merge request%{mergeRequestLinkEnd}%{mergeRequestLinkEnd}%{strongEnd}, or mention someone in a comment to automatically assign them a new to-do item.") % { strongStart: '<strong>', strongEnd: '</strong>', openIssuesLinkStart: "<a href=\"#{issues_dashboard_path}\">", openIssuesLinkEnd: '</a>', mergeRequestLinkStart: "<a href=\"#{merge_requests_dashboard_path}\">", mergeRequestLinkEnd: '</a>' }).html_safe
         - else

@@ -1,0 +1,7 @@
+- breadcrumb_title s_('MlExperimentTracking|Model experiments')
+- page_title s_('MlExperimentTracking|Model experiments')
+
+#js-project-ml-experiments-index{ data: {
+  experiments: experiments_as_data(@project, @experiments),
+  page_info: formatted_page_info(@page_info)
+} }

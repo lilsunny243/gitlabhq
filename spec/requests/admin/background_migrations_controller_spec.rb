@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Admin::BackgroundMigrationsController, :enable_admin_mode do
+RSpec.describe Admin::BackgroundMigrationsController, :enable_admin_mode, feature_category: :database do
   let(:admin) { create(:admin) }
 
   before do
@@ -82,7 +82,7 @@ RSpec.describe Admin::BackgroundMigrationsController, :enable_admin_mode do
 
         it 'returns CI database records' do
           # If we only have one DB we'll see both migrations
-          skip_if_multiple_databases_not_setup
+          skip_if_multiple_databases_not_setup(:ci)
 
           ci_database_migration = Gitlab::Database::SharedModel.using_connection(ci_model.connection) { create(:batched_background_migration, :active) }
 

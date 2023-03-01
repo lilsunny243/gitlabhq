@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: 'This article describes how to install Git on macOS, Ubuntu Linux and Windows.'
 ---
 
@@ -52,6 +52,20 @@ To install Git on macOS:
    git --version
    ```
 
+#### macOS update
+
+Periodically you may need to update the version of Git installed by
+[Homebrew](/ee/topics/git/how_to_install_git/index.md#macos). To do so,
+open a terminal and run these commands:
+
+```shell
+brew update
+brew upgrade git
+```
+
+To verify you are on the updated version, run `git --version` to display
+your current version of Git.
+
 ### Ubuntu Linux
 
 On Ubuntu and other Linux operating systems, use the built-in package manager
@@ -73,6 +87,10 @@ from the officially
    git --version
    ```
 
+#### Ubuntu Linux Update
+
+Periodically it may be necessary to update Git installed. To do so, run the same [commands](/ee/topics/git/how_to_install_git/index.md#ubuntu-linux).
+
 ### Windows
 
 Go to the [Git website](https://git-scm.com/), and then download and install Git for Windows.
@@ -89,6 +107,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

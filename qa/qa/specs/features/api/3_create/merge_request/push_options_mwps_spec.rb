@@ -2,7 +2,7 @@
 
 module QA
   RSpec.describe 'Create' do
-    describe 'Merge request push options' do
+    describe 'Merge request push options', product_group: :code_review do
       # If run locally on GDK, push options need to be enabled on the host with the following command:
       #
       # git config --global receive.advertisepushoptions true
@@ -18,7 +18,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.project = project
           runner.name = "runner-for-#{project.name}"
           runner.tags = ["runner-for-#{project.name}"]

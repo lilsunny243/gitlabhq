@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/shortcuts.html'
 ---
@@ -15,7 +15,7 @@ To display a window in GitLab that lists its keyboard shortcuts, use one of the
 following methods:
 
 - Press <kbd>?</kbd>.
-- In the Help menu in the top right of the application, select **Keyboard shortcuts**.
+- In the Help menu, in the upper-right corner of the application, select **Keyboard shortcuts**.
 
 Although [global shortcuts](#global-shortcuts) work from any area of GitLab,
 you must be in specific pages for the other shortcuts to be available, as
@@ -37,10 +37,11 @@ These shortcuts are available in most areas of GitLab:
 | <kbd>f</kbd>                       | Put cursor in the filter bar. |
 | <kbd>Shift</kbd> + <kbd>i</kbd>    | Go to your Issues page. |
 | <kbd>Shift</kbd> + <kbd>m</kbd>    | Go to your [Merge requests](project/merge_requests/index.md) page. |
+| <kbd>Shift</kbd> + <kbd>r</kbd>    | Go to your Review requests page. |
 | <kbd>Shift</kbd> + <kbd>t</kbd>    | Go to your To-Do List page. |
-| <kbd>p</kbd>, then <kbd>b</kbd>     | Show or hide the Performance Bar. |
+| <kbd>p</kbd>, then <kbd>b</kbd>    | Show or hide the Performance Bar. |
 | <kbd>Escape</kbd>                  | Hide tooltips or popovers. |
-| <kbd>g</kbd>, then <kbd>x</kbd>     | Toggle between [GitLab](https://gitlab.com/) and [GitLab Next](https://next.gitlab.com/) (GitLab SaaS only). |
+| <kbd>g</kbd>, then <kbd>x</kbd>    | Toggle between [GitLab](https://gitlab.com/) and [GitLab Next](https://next.gitlab.com/) (GitLab SaaS only). |
 | <kbd>.</kbd>                       | Open the [Web IDE](project/web_ide/index.md). |
 
 Additionally, the following shortcuts are available when editing text in text
@@ -54,7 +55,10 @@ descriptions):
 | <kbd>Command</kbd> + <kbd>b</kbd>       | <kbd>Control</kbd> + <kbd>b</kbd> | Bold the selected text (surround it with `**`). |
 | <kbd>Command</kbd> + <kbd>i</kbd>       | <kbd>Control</kbd> + <kbd>i</kbd> | Italicize the selected text (surround it with `_`). |
 | <kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>x</kbd> | <kbd>Control</kbd> + <kbd>Shift</kbd> + <kbd>x</kbd> | Strike through the selected text (surround it with `~~`). |
-| <kbd>Command</kbd> + <kbd>k</kbd>       | <kbd>Control</kbd> + <kbd>k</kbd> | Add a link (surround the selected text with `[]()`). |
+| <kbd>Command</kbd> + <kbd>k</kbd>       | <kbd>Control</kbd> + <kbd>k</kbd>     | Add a link (surround the selected text with `[]()`). |
+| <kbd>Command</kbd> + <kbd>&#93;</kbd>   | <kbd>Control</kbd> + <kbd>&#93;</kbd> | Indent list item. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/351924) in GitLab 15.3. |
+| <kbd>Command</kbd> + <kbd>&#91;</kbd>   | <kbd>Control</kbd> + <kbd>&#91;</kbd> | Outdent list item. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/351924) in GitLab 15.3. |
+| <kbd>Shift</kbd> + <kbd>Enter</kbd>     | <kbd>Shift</kbd> + <kbd>Enter</kbd>   | Add a [line break](markdown.md#newlines). [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/21916) in GitLab 15.10. |
 
 The shortcuts for editing in text fields are always enabled, even if other
 keyboard shortcuts are disabled.
@@ -109,7 +113,7 @@ These shortcuts are available when viewing [merge requests](project/merge_reques
 | macOS shortcut                    | Windows shortcut    | Description |
 |-----------------------------------|---------------------|-------------|
 | <kbd>]</kbd> or <kbd>j</kbd>      |                     | Move to next file. |
-| <kbd>&#91;</kbd> or <kbd>k</kbd>     |                     | Move to previous file. |
+| <kbd>&#91;</kbd> or <kbd>k</kbd>  |                     | Move to previous file. |
 | <kbd>Command</kbd> + <kbd>p</kbd> | <kbd>Control</kbd> + <kbd>p</kbd> | Search for, and then jump to a file for review. |
 | <kbd>n</kbd>                      |                     | Move to next unresolved discussion. |
 | <kbd>p</kbd>                      |                     | Move to previous unresolved discussion. |
@@ -270,10 +274,11 @@ These shortcuts are available when editing a file with the
 | <kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> | <kbd>Control</kbd> + <kbd>Shift</kbd> + <kbd>8</kbd> | Unordered list |
 | <kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>9</kbd> | <kbd>Control</kbd> + <kbd>Shift</kbd> + <kbd>9</kbd> | Task list |
 | <kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>b</kbd> | <kbd>Control</kbd> + <kbd>Shift</kbd> + <kbd>b</kbd> | Blockquote |
-| <kbd>Command</kbd> + <kbd>Alt</kbd> + <kbd>c</kbd> | <kbd>Control</kbd> + <kbd>Shift</kbd> + <kbd>c</kbd> | Code block |
+| <kbd>Command</kbd> + <kbd>Alt</kbd> + <kbd>c</kbd> | <kbd>Control</kbd> + <kbd>Alt</kbd> + <kbd>c</kbd> | Code block |
+| <kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>h</kbd> | <kbd>Control</kbd> + <kbd>Shift</kbd> + <kbd>h</kbd> | Highlight |
 | <kbd>Command</kbd> + <kbd>,</kbd> | <kbd>Control</kbd> + <kbd>,</kbd> | Subscript |
 | <kbd>Command</kbd> + <kbd>.</kbd> | <kbd>Control</kbd> + <kbd>.</kbd> | Superscript |
-| <kbd>Tab</kbd> | <kbd>Tab</kbd> | Indent list |
+| <kbd>Tab</kbd>                    | <kbd>Tab</kbd>                    | Indent list |
 | <kbd>Shift</kbd> + <kbd>Tab</kbd> | <kbd>Shift</kbd> + <kbd>Tab</kbd> | Outdent list |
 
 #### Text selection
@@ -327,6 +332,13 @@ To disable keyboard shortcuts:
 
 1. While viewing a page that supports keyboard shortcuts, and outside a text box,
 press <kbd>?</kbd> to display the list of shortcuts.
+1. Select **Toggle shortcuts**.
+
+## Enable keyboard shortcuts
+
+To enable keyboard shortcuts:
+
+1. On the top bar, select the Help menu (**{question}**), then **Keyboard shortcuts**.
 1. Select **Toggle shortcuts**.
 
 ## Troubleshooting

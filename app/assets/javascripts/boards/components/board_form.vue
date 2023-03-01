@@ -1,10 +1,9 @@
 <script>
 import { GlModal, GlAlert } from '@gitlab/ui';
-import { mapGetters, mapActions, mapState } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { visitUrl, updateHistory, getParameterByName } from '~/lib/utils/url_utility';
 import { __, s__ } from '~/locale';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import { formType } from '../constants';
 
 import createBoardMutation from '../graphql/board_create.mutation.graphql';
@@ -45,13 +44,21 @@ export default {
     BoardConfigurationOptions,
     GlAlert,
   },
-  mixins: [glFeatureFlagMixin()],
   inject: {
     fullPath: {
       default: '',
     },
     boardBaseUrl: {
       default: '',
+    },
+    isGroupBoard: {
+      default: false,
+    },
+    isProjectBoard: {
+      default: false,
+    },
+    isApolloBoard: {
+      default: false,
     },
   },
   props: {
@@ -86,7 +93,6 @@ export default {
   },
   computed: {
     ...mapState(['error']),
-    ...mapGetters(['isIssueBoard', 'isGroupBoard', 'isProjectBoard']),
     isNewForm() {
       return this.currentPage === formType.new;
     },
@@ -210,7 +216,11 @@ export default {
       } else {
         try {
           const board = await this.createOrUpdateBoard();
-          this.setBoard(board);
+          if (this.isApolloBoard) {
+            this.$emit('addBoard', board);
+          } else {
+            this.setBoard(board);
+          }
           this.cancel();
 
           const param = getParameterByName('group_by')
@@ -233,9 +243,8 @@ export default {
       }
     },
     setIteration(iteration) {
-      if (this.glFeatures.iterationCadences) {
-        this.board.iterationCadenceId = iteration.iterationCadenceId;
-      }
+      this.board.iterationCadenceId = iteration.iterationCadenceId;
+
       this.$set(this.board, 'iteration', {
         id: iteration.id,
       });
@@ -276,7 +285,7 @@ export default {
     @hide.prevent
   >
     <gl-alert
-      v-if="error"
+      v-if="!isApolloBoard && error"
       class="gl-mb-3"
       variant="danger"
       :dismissible="true"

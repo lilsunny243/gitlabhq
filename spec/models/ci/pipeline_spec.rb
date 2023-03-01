@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
+RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep, feature_category: :continuous_integration do
   include ProjectForksHelper
   include StubRequests
   include Ci::SourcePipelineHelpers
@@ -43,12 +43,14 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
   it { is_expected.to have_one(:triggered_by_pipeline) }
   it { is_expected.to have_one(:source_job) }
   it { is_expected.to have_one(:pipeline_config) }
+  it { is_expected.to have_one(:pipeline_metadata) }
 
   it { is_expected.to respond_to :git_author_name }
   it { is_expected.to respond_to :git_author_email }
   it { is_expected.to respond_to :git_author_full_text }
   it { is_expected.to respond_to :short_sha }
   it { is_expected.to delegate_method(:full_path).to(:project).with_prefix }
+  it { is_expected.to delegate_method(:name).to(:pipeline_metadata).allow_nil }
 
   describe 'validations' do
     it { is_expected.to validate_presence_of(:sha) }
@@ -164,13 +166,19 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       it do
         pipeline.status = from_status.to_s
 
-        if from_status != to_status
+        if from_status != to_status || success_to_success?
           expect(pipeline.set_status(to_status.to_s))
             .to eq(true)
         else
           expect(pipeline.set_status(to_status.to_s))
             .to eq(false), "loopback transitions are not allowed"
         end
+      end
+
+      private
+
+      def success_to_success?
+        from_status == :success && to_status == :success
       end
     end
   end
@@ -208,6 +216,29 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
 
     it 'returns the pipeline' do
       is_expected.to contain_exactly(pipeline)
+    end
+  end
+
+  describe '.for_name' do
+    subject { described_class.for_name(name) }
+
+    let_it_be(:pipeline1) { create(:ci_pipeline, name: 'Build pipeline') }
+    let_it_be(:pipeline2) { create(:ci_pipeline, name: 'Chatops pipeline') }
+
+    context 'when name exists' do
+      let(:name) { 'Build pipeline' }
+
+      it 'performs exact compare' do
+        is_expected.to contain_exactly(pipeline1)
+      end
+    end
+
+    context 'when name does not exist' do
+      let(:name) { 'absent-name' }
+
+      it 'returns empty' do
+        is_expected.to be_empty
+      end
     end
   end
 
@@ -463,6 +494,48 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
 
     it 'only returns older pipelines outside pipeline family' do
       expect(before_pipeline).to contain_exactly(older_other_pipeline)
+    end
+  end
+
+  describe '.jobs_count_in_alive_pipelines' do
+    before do
+      ::Ci::HasStatus::ALIVE_STATUSES.each do |status|
+        alive_pipeline = create(:ci_pipeline, status: status, project: project)
+        create(:ci_build, pipeline: alive_pipeline)
+        create(:ci_bridge, pipeline: alive_pipeline)
+      end
+
+      completed_pipeline = create(:ci_pipeline, :success, project: project)
+      create(:ci_build, pipeline: completed_pipeline)
+
+      old_pipeline = create(:ci_pipeline, :running, project: project, created_at: 2.days.ago)
+      create(:ci_build, pipeline: old_pipeline)
+    end
+
+    it 'includes all jobs in alive pipelines created in the last 24 hours' do
+      expect(described_class.jobs_count_in_alive_pipelines)
+        .to eq(::Ci::HasStatus::ALIVE_STATUSES.count * 2)
+    end
+  end
+
+  describe '.builds_count_in_alive_pipelines' do
+    before do
+      ::Ci::HasStatus::ALIVE_STATUSES.each do |status|
+        alive_pipeline = create(:ci_pipeline, status: status, project: project)
+        create(:ci_build, pipeline: alive_pipeline)
+        create(:ci_bridge, pipeline: alive_pipeline)
+      end
+
+      completed_pipeline = create(:ci_pipeline, :success, project: project)
+      create(:ci_build, pipeline: completed_pipeline)
+
+      old_pipeline = create(:ci_pipeline, :running, project: project, created_at: 2.days.ago)
+      create(:ci_build, pipeline: old_pipeline)
+    end
+
+    it 'includes all builds in alive pipelines created in the last 24 hours' do
+      expect(described_class.builds_count_in_alive_pipelines)
+        .to eq(::Ci::HasStatus::ALIVE_STATUSES.count)
     end
   end
 
@@ -997,281 +1070,6 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#predefined_variables' do
-    subject { pipeline.predefined_variables }
-
-    let(:pipeline) { build(:ci_empty_pipeline, :created) }
-
-    it 'includes all predefined variables in a valid order' do
-      keys = subject.map { |variable| variable[:key] }
-
-      expect(keys).to eq %w[
-        CI_PIPELINE_IID
-        CI_PIPELINE_SOURCE
-        CI_PIPELINE_CREATED_AT
-        CI_COMMIT_SHA
-        CI_COMMIT_SHORT_SHA
-        CI_COMMIT_BEFORE_SHA
-        CI_COMMIT_REF_NAME
-        CI_COMMIT_REF_SLUG
-        CI_COMMIT_BRANCH
-        CI_COMMIT_MESSAGE
-        CI_COMMIT_TITLE
-        CI_COMMIT_DESCRIPTION
-        CI_COMMIT_REF_PROTECTED
-        CI_COMMIT_TIMESTAMP
-        CI_COMMIT_AUTHOR
-        CI_BUILD_REF
-        CI_BUILD_BEFORE_SHA
-        CI_BUILD_REF_NAME
-        CI_BUILD_REF_SLUG
-      ]
-    end
-
-    context 'when merge request is present' do
-      let_it_be(:assignees) { create_list(:user, 2) }
-      let_it_be(:milestone) { create(:milestone, project: project) }
-      let_it_be(:labels) { create_list(:label, 2) }
-
-      let(:merge_request) do
-        create(:merge_request, :simple,
-               source_project: project,
-               target_project: project,
-               assignees: assignees,
-               milestone: milestone,
-               labels: labels)
-      end
-
-      context 'when pipeline for merge request is created' do
-        let(:pipeline) do
-          create(:ci_pipeline, :detached_merge_request_pipeline,
-            ci_ref_presence: false,
-            user: user,
-            merge_request: merge_request)
-        end
-
-        before do
-          project.add_developer(user)
-        end
-
-        it 'exposes merge request pipeline variables' do
-          expect(subject.to_hash)
-            .to include(
-              'CI_MERGE_REQUEST_ID' => merge_request.id.to_s,
-              'CI_MERGE_REQUEST_IID' => merge_request.iid.to_s,
-              'CI_MERGE_REQUEST_REF_PATH' => merge_request.ref_path.to_s,
-              'CI_MERGE_REQUEST_PROJECT_ID' => merge_request.project.id.to_s,
-              'CI_MERGE_REQUEST_PROJECT_PATH' => merge_request.project.full_path,
-              'CI_MERGE_REQUEST_PROJECT_URL' => merge_request.project.web_url,
-              'CI_MERGE_REQUEST_TARGET_BRANCH_NAME' => merge_request.target_branch.to_s,
-              'CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED' => ProtectedBranch.protected?(merge_request.target_project, merge_request.target_branch).to_s,
-              'CI_MERGE_REQUEST_TARGET_BRANCH_SHA' => '',
-              'CI_MERGE_REQUEST_SOURCE_PROJECT_ID' => merge_request.source_project.id.to_s,
-              'CI_MERGE_REQUEST_SOURCE_PROJECT_PATH' => merge_request.source_project.full_path,
-              'CI_MERGE_REQUEST_SOURCE_PROJECT_URL' => merge_request.source_project.web_url,
-              'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME' => merge_request.source_branch.to_s,
-              'CI_MERGE_REQUEST_SOURCE_BRANCH_SHA' => '',
-              'CI_MERGE_REQUEST_TITLE' => merge_request.title,
-              'CI_MERGE_REQUEST_ASSIGNEES' => merge_request.assignee_username_list,
-              'CI_MERGE_REQUEST_MILESTONE' => milestone.title,
-              'CI_MERGE_REQUEST_LABELS' => labels.map(&:title).sort.join(','),
-              'CI_MERGE_REQUEST_EVENT_TYPE' => 'detached',
-              'CI_OPEN_MERGE_REQUESTS' => merge_request.to_reference(full: true))
-        end
-
-        it 'exposes diff variables' do
-          expect(subject.to_hash)
-            .to include(
-              'CI_MERGE_REQUEST_DIFF_ID' => merge_request.merge_request_diff.id.to_s,
-              'CI_MERGE_REQUEST_DIFF_BASE_SHA' => merge_request.merge_request_diff.base_commit_sha)
-        end
-
-        context 'without assignee' do
-          let(:assignees) { [] }
-
-          it 'does not expose assignee variable' do
-            expect(subject.to_hash.keys).not_to include('CI_MERGE_REQUEST_ASSIGNEES')
-          end
-        end
-
-        context 'without milestone' do
-          let(:milestone) { nil }
-
-          it 'does not expose milestone variable' do
-            expect(subject.to_hash.keys).not_to include('CI_MERGE_REQUEST_MILESTONE')
-          end
-        end
-
-        context 'without labels' do
-          let(:labels) { [] }
-
-          it 'does not expose labels variable' do
-            expect(subject.to_hash.keys).not_to include('CI_MERGE_REQUEST_LABELS')
-          end
-        end
-      end
-
-      context 'when pipeline on branch is created' do
-        let(:pipeline) do
-          create(:ci_pipeline, project: project, user: user, ref: 'feature')
-        end
-
-        context 'when a merge request is created' do
-          before do
-            merge_request
-          end
-
-          context 'when user has access to project' do
-            before do
-              project.add_developer(user)
-            end
-
-            it 'merge request references are returned matching the pipeline' do
-              expect(subject.to_hash).to include(
-                'CI_OPEN_MERGE_REQUESTS' => merge_request.to_reference(full: true))
-            end
-          end
-
-          context 'when user does not have access to project' do
-            it 'CI_OPEN_MERGE_REQUESTS is not returned' do
-              expect(subject.to_hash).not_to have_key('CI_OPEN_MERGE_REQUESTS')
-            end
-          end
-        end
-
-        context 'when no a merge request is created' do
-          it 'CI_OPEN_MERGE_REQUESTS is not returned' do
-            expect(subject.to_hash).not_to have_key('CI_OPEN_MERGE_REQUESTS')
-          end
-        end
-      end
-
-      context 'with merged results' do
-        let(:pipeline) do
-          create(:ci_pipeline, :merged_result_pipeline, merge_request: merge_request)
-        end
-
-        it 'exposes merge request pipeline variables' do
-          expect(subject.to_hash)
-            .to include(
-              'CI_MERGE_REQUEST_ID' => merge_request.id.to_s,
-              'CI_MERGE_REQUEST_IID' => merge_request.iid.to_s,
-              'CI_MERGE_REQUEST_REF_PATH' => merge_request.ref_path.to_s,
-              'CI_MERGE_REQUEST_PROJECT_ID' => merge_request.project.id.to_s,
-              'CI_MERGE_REQUEST_PROJECT_PATH' => merge_request.project.full_path,
-              'CI_MERGE_REQUEST_PROJECT_URL' => merge_request.project.web_url,
-              'CI_MERGE_REQUEST_TARGET_BRANCH_NAME' => merge_request.target_branch.to_s,
-              'CI_MERGE_REQUEST_TARGET_BRANCH_PROTECTED' => ProtectedBranch.protected?(merge_request.target_project, merge_request.target_branch).to_s,
-              'CI_MERGE_REQUEST_TARGET_BRANCH_SHA' => merge_request.target_branch_sha,
-              'CI_MERGE_REQUEST_SOURCE_PROJECT_ID' => merge_request.source_project.id.to_s,
-              'CI_MERGE_REQUEST_SOURCE_PROJECT_PATH' => merge_request.source_project.full_path,
-              'CI_MERGE_REQUEST_SOURCE_PROJECT_URL' => merge_request.source_project.web_url,
-              'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME' => merge_request.source_branch.to_s,
-              'CI_MERGE_REQUEST_SOURCE_BRANCH_SHA' => merge_request.source_branch_sha,
-              'CI_MERGE_REQUEST_TITLE' => merge_request.title,
-              'CI_MERGE_REQUEST_ASSIGNEES' => merge_request.assignee_username_list,
-              'CI_MERGE_REQUEST_MILESTONE' => milestone.title,
-              'CI_MERGE_REQUEST_LABELS' => labels.map(&:title).sort.join(','),
-              'CI_MERGE_REQUEST_EVENT_TYPE' => 'merged_result')
-        end
-
-        it 'exposes diff variables' do
-          expect(subject.to_hash)
-            .to include(
-              'CI_MERGE_REQUEST_DIFF_ID' => merge_request.merge_request_diff.id.to_s,
-              'CI_MERGE_REQUEST_DIFF_BASE_SHA' => merge_request.merge_request_diff.base_commit_sha)
-        end
-      end
-    end
-
-    context 'when source is external pull request' do
-      let(:pipeline) do
-        create(:ci_pipeline, source: :external_pull_request_event, external_pull_request: pull_request)
-      end
-
-      let(:pull_request) { create(:external_pull_request, project: project) }
-
-      it 'exposes external pull request pipeline variables' do
-        expect(subject.to_hash)
-          .to include(
-            'CI_EXTERNAL_PULL_REQUEST_IID' => pull_request.pull_request_iid.to_s,
-            'CI_EXTERNAL_PULL_REQUEST_SOURCE_REPOSITORY' => pull_request.source_repository,
-            'CI_EXTERNAL_PULL_REQUEST_TARGET_REPOSITORY' => pull_request.target_repository,
-            'CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_SHA' => pull_request.source_sha,
-            'CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_SHA' => pull_request.target_sha,
-            'CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_NAME' => pull_request.source_branch,
-            'CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME' => pull_request.target_branch
-          )
-      end
-    end
-
-    describe 'variable CI_KUBERNETES_ACTIVE' do
-      context 'when pipeline.has_kubernetes_active? is true' do
-        before do
-          allow(pipeline).to receive(:has_kubernetes_active?).and_return(true)
-        end
-
-        it "is included with value 'true'" do
-          expect(subject.to_hash).to include('CI_KUBERNETES_ACTIVE' => 'true')
-        end
-      end
-
-      context 'when pipeline.has_kubernetes_active? is false' do
-        before do
-          allow(pipeline).to receive(:has_kubernetes_active?).and_return(false)
-        end
-
-        it 'is not included' do
-          expect(subject.to_hash).not_to have_key('CI_KUBERNETES_ACTIVE')
-        end
-      end
-    end
-
-    describe 'variable CI_GITLAB_FIPS_MODE' do
-      context 'when FIPS flag is enabled' do
-        before do
-          allow(Gitlab::FIPS).to receive(:enabled?).and_return(true)
-        end
-
-        it "is included with value 'true'" do
-          expect(subject.to_hash).to include('CI_GITLAB_FIPS_MODE' => 'true')
-        end
-      end
-
-      context 'when FIPS flag is disabled' do
-        before do
-          allow(Gitlab::FIPS).to receive(:enabled?).and_return(false)
-        end
-
-        it 'is not included' do
-          expect(subject.to_hash).not_to have_key('CI_GITLAB_FIPS_MODE')
-        end
-      end
-    end
-
-    context 'without a commit' do
-      let(:pipeline) { build(:ci_empty_pipeline, :created, sha: nil) }
-
-      it 'does not expose commit variables' do
-        expect(subject.to_hash.keys)
-          .not_to include(
-            'CI_COMMIT_SHA',
-            'CI_COMMIT_SHORT_SHA',
-            'CI_COMMIT_BEFORE_SHA',
-            'CI_COMMIT_REF_NAME',
-            'CI_COMMIT_REF_SLUG',
-            'CI_COMMIT_BRANCH',
-            'CI_COMMIT_TAG',
-            'CI_COMMIT_MESSAGE',
-            'CI_COMMIT_TITLE',
-            'CI_COMMIT_DESCRIPTION',
-            'CI_COMMIT_REF_PROTECTED',
-            'CI_COMMIT_TIMESTAMP',
-            'CI_COMMIT_AUTHOR')
-      end
-    end
-  end
-
   describe '#protected_ref?' do
     let(:pipeline) { build(:ci_empty_pipeline, :created) }
 
@@ -1557,7 +1355,8 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
 
     describe 'track artifact report' do
-      let(:pipeline) { create(:ci_pipeline, :running, :with_test_reports, status: :running) }
+      let_it_be(:user) { create(:user) }
+      let_it_be_with_reload(:pipeline) { create(:ci_pipeline, :running, :with_test_reports, :with_coverage_reports, status: :running, user: user) }
 
       context 'when transitioning to completed status' do
         %i[drop! skip! succeed! cancel!].each do |command|
@@ -1569,11 +1368,12 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       end
 
       context 'when pipeline retried from failed to success', :clean_gitlab_redis_shared_state do
-        let(:test_event_name) { 'i_testing_test_report_uploaded' }
+        let(:test_event_name_1) { 'i_testing_test_report_uploaded' }
+        let(:test_event_name_2) { 'i_testing_coverage_report_uploaded' }
         let(:start_time) { 1.week.ago }
         let(:end_time) { 1.week.from_now }
 
-        it 'counts only one report' do
+        it 'counts only one test event report' do
           expect(Ci::JobArtifacts::TrackArtifactReportWorker).to receive(:perform_async).with(pipeline.id).twice.and_call_original
 
           Sidekiq::Testing.inline! do
@@ -1583,7 +1383,24 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
           end
 
           unique_pipeline_pass = Gitlab::UsageDataCounters::HLLRedisCounter.unique_events(
-            event_names: test_event_name,
+            event_names: test_event_name_1,
+            start_date: start_time,
+            end_date: end_time
+          )
+          expect(unique_pipeline_pass).to eq(1)
+        end
+
+        it 'counts only one coverage event report' do
+          expect(Ci::JobArtifacts::TrackArtifactReportWorker).to receive(:perform_async).with(pipeline.id).twice.and_call_original
+
+          Sidekiq::Testing.inline! do
+            pipeline.drop!
+            pipeline.run!
+            pipeline.succeed!
+          end
+
+          unique_pipeline_pass = Gitlab::UsageDataCounters::HLLRedisCounter.unique_events(
+            event_names: test_event_name_2,
             start_date: start_time,
             end_date: end_time
           )
@@ -2939,6 +2756,24 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
 
     let_it_be(:pipeline) { create(:ci_empty_pipeline, :created) }
 
+    it 'logs the event' do
+      allow(Gitlab::AppJsonLogger).to receive(:info)
+
+      pipeline.cancel_running
+
+      expect(Gitlab::AppJsonLogger)
+        .to have_received(:info)
+        .with(
+          a_hash_including(
+            event: 'pipeline_cancel_running',
+            pipeline_id: pipeline.id,
+            auto_canceled_by_pipeline_id: nil,
+            cascade_to_children: true,
+            execute_async: true
+          )
+        )
+    end
+
     context 'when there is a running external job and a regular job' do
       before do
         create(:ci_build, :running, pipeline: pipeline)
@@ -3629,8 +3464,8 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#environments_in_self_and_descendants' do
-    subject { pipeline.environments_in_self_and_descendants }
+  describe '#environments_in_self_and_project_descendants' do
+    subject { pipeline.environments_in_self_and_project_descendants }
 
     context 'when pipeline is not child nor parent' do
       let_it_be(:pipeline) { create(:ci_pipeline, :created) }
@@ -3771,7 +3606,7 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
   describe '#upstream_root' do
     subject { pipeline.upstream_root }
 
-    let_it_be(:pipeline) { create(:ci_pipeline) }
+    let_it_be_with_refind(:pipeline) { create(:ci_pipeline) }
 
     context 'when pipeline is child of child pipeline' do
       let!(:root_ancestor) { create(:ci_pipeline) }
@@ -4036,13 +3871,13 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#self_and_descendants_complete?' do
+  describe '#self_and_project_descendants_complete?' do
     let_it_be(:pipeline) { create(:ci_pipeline, :success) }
     let_it_be(:child_pipeline) { create(:ci_pipeline, :success, child_of: pipeline) }
     let_it_be_with_reload(:grandchild_pipeline) { create(:ci_pipeline, :success, child_of: child_pipeline) }
 
     context 'when all pipelines in the hierarchy is complete' do
-      it { expect(pipeline.self_and_descendants_complete?).to be(true) }
+      it { expect(pipeline.self_and_project_descendants_complete?).to be(true) }
     end
 
     context 'when a pipeline in the hierarchy is not complete' do
@@ -4050,12 +3885,12 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
         grandchild_pipeline.update!(status: :running)
       end
 
-      it { expect(pipeline.self_and_descendants_complete?).to be(false) }
+      it { expect(pipeline.self_and_project_descendants_complete?).to be(false) }
     end
   end
 
-  describe '#builds_in_self_and_descendants' do
-    subject(:builds) { pipeline.builds_in_self_and_descendants }
+  describe '#builds_in_self_and_project_descendants' do
+    subject(:builds) { pipeline.builds_in_self_and_project_descendants }
 
     let(:pipeline) { create(:ci_pipeline) }
     let!(:build) { create(:ci_build, pipeline: pipeline) }
@@ -4087,7 +3922,7 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#build_with_artifacts_in_self_and_descendants' do
+  describe '#build_with_artifacts_in_self_and_project_descendants' do
     let_it_be(:pipeline) { create(:ci_pipeline) }
 
     let!(:build) { create(:ci_build, name: 'test', pipeline: pipeline) }
@@ -4095,14 +3930,14 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     let!(:child_build) { create(:ci_build, :artifacts, name: 'test', pipeline: child_pipeline) }
 
     it 'returns the build with a given name, having artifacts' do
-      expect(pipeline.build_with_artifacts_in_self_and_descendants('test')).to eq(child_build)
+      expect(pipeline.build_with_artifacts_in_self_and_project_descendants('test')).to eq(child_build)
     end
 
     context 'when same job name is present in both parent and child pipeline' do
       let!(:build) { create(:ci_build, :artifacts, name: 'test', pipeline: pipeline) }
 
       it 'returns the job in the parent pipeline' do
-        expect(pipeline.build_with_artifacts_in_self_and_descendants('test')).to eq(build)
+        expect(pipeline.build_with_artifacts_in_self_and_project_descendants('test')).to eq(build)
       end
     end
   end
@@ -4111,7 +3946,7 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     let(:pipeline) { create(:ci_pipeline) }
     let!(:old_job) { create(:ci_build, name: 'rspec', retried: true, pipeline: pipeline) }
     let!(:job_without_artifacts) { create(:ci_build, name: 'rspec', pipeline: pipeline) }
-    let!(:expected_job) { create(:ci_build, :artifacts, name: 'rspec', pipeline: pipeline ) }
+    let!(:expected_job) { create(:ci_build, :artifacts, name: 'rspec', pipeline: pipeline) }
     let!(:different_job) { create(:ci_build, name: 'deploy', pipeline: pipeline) }
 
     subject { pipeline.find_job_with_archive_artifacts('rspec') }
@@ -4183,7 +4018,7 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#latest_report_builds_in_self_and_descendants' do
+  describe '#latest_report_builds_in_self_and_project_descendants' do
     let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
     let_it_be(:child_pipeline) { create(:ci_pipeline, child_of: pipeline) }
     let_it_be(:grandchild_pipeline) { create(:ci_pipeline, child_of: child_pipeline) }
@@ -4193,26 +4028,57 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       child_build = create(:ci_build, :coverage_reports, pipeline: child_pipeline)
       grandchild_build = create(:ci_build, :codequality_reports, pipeline: grandchild_pipeline)
 
-      expect(pipeline.latest_report_builds_in_self_and_descendants).to contain_exactly(parent_build, child_build, grandchild_build)
+      expect(pipeline.latest_report_builds_in_self_and_project_descendants).to contain_exactly(parent_build, child_build, grandchild_build)
     end
 
     it 'filters builds by scope' do
       create(:ci_build, :test_reports, pipeline: pipeline)
       grandchild_build = create(:ci_build, :codequality_reports, pipeline: grandchild_pipeline)
 
-      expect(pipeline.latest_report_builds_in_self_and_descendants(Ci::JobArtifact.of_report_type(:codequality))).to contain_exactly(grandchild_build)
+      expect(pipeline.latest_report_builds_in_self_and_project_descendants(Ci::JobArtifact.of_report_type(:codequality))).to contain_exactly(grandchild_build)
     end
 
     it 'only returns builds that are not retried' do
       create(:ci_build, :codequality_reports, :retried, pipeline: grandchild_pipeline)
       grandchild_build = create(:ci_build, :codequality_reports, pipeline: grandchild_pipeline)
 
-      expect(pipeline.latest_report_builds_in_self_and_descendants).to contain_exactly(grandchild_build)
+      expect(pipeline.latest_report_builds_in_self_and_project_descendants).to contain_exactly(grandchild_build)
     end
   end
 
   describe '#has_reports?' do
     subject { pipeline.has_reports?(Ci::JobArtifact.of_report_type(:test)) }
+
+    let(:pipeline) { create(:ci_pipeline, :running) }
+
+    context 'when pipeline has builds with test reports' do
+      before do
+        create(:ci_build, :test_reports, pipeline: pipeline)
+      end
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when pipeline does not have builds with test reports' do
+      before do
+        create(:ci_build, :artifacts, pipeline: pipeline)
+      end
+
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when retried build has test reports but latest one has none' do
+      before do
+        create(:ci_build, :retried, :test_reports, pipeline: pipeline)
+        create(:ci_build, :artifacts, pipeline: pipeline)
+      end
+
+      it { is_expected.to be_falsey }
+    end
+  end
+
+  describe '#complete_and_has_reports?' do
+    subject { pipeline.complete_and_has_reports?(Ci::JobArtifact.of_report_type(:test)) }
 
     context 'when pipeline has builds with test reports' do
       before do
@@ -4456,10 +4322,11 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       end
 
       it 'returns accessibility report with collected data' do
-        expect(subject.urls.keys).to match_array([
-          "https://pa11y.org/",
-          "https://about.gitlab.com/"
-        ])
+        expect(subject.urls.keys).to match_array(
+          [
+            "https://pa11y.org/",
+            "https://about.gitlab.com/"
+          ])
       end
 
       context 'when builds are retried' do
@@ -4967,8 +4834,58 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#self_and_ancestors' do
-    subject(:self_and_ancestors) { pipeline.self_and_ancestors }
+  describe '#self_and_downstreams' do
+    subject(:self_and_downstreams) { pipeline.self_and_downstreams }
+
+    let(:pipeline) { create(:ci_pipeline, :created) }
+
+    context 'when pipeline is not child nor parent' do
+      it 'returns just the pipeline itself' do
+        expect(self_and_downstreams).to contain_exactly(pipeline)
+      end
+    end
+
+    context 'when pipeline is child' do
+      let(:parent)    { create(:ci_pipeline) }
+      let!(:pipeline) { create(:ci_pipeline, child_of: parent) }
+
+      it 'returns self and no ancestors' do
+        expect(self_and_downstreams).to contain_exactly(pipeline)
+      end
+    end
+
+    context 'when pipeline is parent' do
+      let(:child) { create(:ci_pipeline, child_of: pipeline) }
+
+      it 'returns self and child' do
+        expect(self_and_downstreams).to contain_exactly(pipeline, child)
+      end
+    end
+
+    context 'when pipeline is a grandparent pipeline' do
+      let(:child)      { create(:ci_pipeline, child_of: pipeline) }
+      let(:grandchild) { create(:ci_pipeline, child_of: child) }
+
+      it 'returns self, child, and grandchild' do
+        expect(self_and_downstreams).to contain_exactly(pipeline, child, grandchild)
+      end
+    end
+
+    context 'when pipeline is a triggered pipeline from a different project' do
+      let(:downstream) { create(:ci_pipeline) }
+
+      before do
+        create_source_pipeline(pipeline, downstream)
+      end
+
+      it 'returns self and cross-project downstream' do
+        expect(self_and_downstreams).to contain_exactly(pipeline, downstream)
+      end
+    end
+  end
+
+  describe '#self_and_project_ancestors' do
+    subject(:self_and_project_ancestors) { pipeline.self_and_project_ancestors }
 
     context 'when pipeline is child' do
       let(:pipeline) { create(:ci_pipeline, :created) }
@@ -4981,7 +4898,7 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       end
 
       it 'returns parent and self' do
-        expect(self_and_ancestors).to contain_exactly(parent, pipeline)
+        expect(self_and_project_ancestors).to contain_exactly(parent, pipeline)
       end
     end
 
@@ -4995,80 +4912,189 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       end
 
       it 'returns only self' do
-        expect(self_and_ancestors).to contain_exactly(pipeline)
+        expect(self_and_project_ancestors).to contain_exactly(pipeline)
+      end
+    end
+  end
+
+  describe '#complete_hierarchy_count' do
+    context 'with a combination of ancestor, descendant and sibling pipelines' do
+      let!(:pipeline)            { create(:ci_pipeline) }
+      let!(:child_pipeline)      { create(:ci_pipeline, child_of: pipeline) }
+      let!(:sibling_pipeline)    { create(:ci_pipeline, child_of: pipeline) }
+      let!(:grandchild_pipeline) { create(:ci_pipeline, child_of: child_pipeline) }
+
+      it 'counts the whole tree' do
+        expect(sibling_pipeline.complete_hierarchy_count).to eq(4)
       end
     end
   end
 
   describe '#reset_source_bridge!' do
-    let(:pipeline) { create(:ci_pipeline, :created, project: project) }
+    subject(:reset_bridge) { pipeline.reset_source_bridge!(current_user) }
 
-    subject(:reset_bridge) { pipeline.reset_source_bridge!(project.first_owner) }
+    context 'with downstream pipeline' do
+      let_it_be(:owner) { project.first_owner }
 
-    context 'when the pipeline is a child pipeline and the bridge is depended' do
-      let!(:parent_pipeline) { create(:ci_pipeline) }
-      let!(:bridge) { create_bridge(parent_pipeline, pipeline, true) }
+      let!(:first_upstream_pipeline) { create(:ci_pipeline, user: owner) }
+      let_it_be_with_reload(:pipeline) { create(:ci_pipeline, :created, project: project, user: owner) }
 
-      it 'marks source bridge as pending' do
-        reset_bridge
-
-        expect(bridge.reload).to be_pending
+      let!(:bridge) do
+        create_bridge(
+          upstream: first_upstream_pipeline,
+          downstream: pipeline,
+          depends: true
+        )
       end
 
-      context 'when the parent pipeline has subsequent jobs after the bridge' do
-        let!(:after_bridge_job) { create(:ci_build, :skipped, pipeline: parent_pipeline, stage_idx: bridge.stage_idx + 1) }
+      context 'when the user has permissions for the processable' do
+        let(:current_user) { owner }
 
-        it 'marks subsequent jobs of the bridge as processable' do
-          reset_bridge
+        context 'when the downstream has strategy: depend' do
+          it 'marks source bridge as pending' do
+            expect { reset_bridge }
+              .to change { bridge.reload.status }
+              .to('pending')
+          end
 
-          expect(after_bridge_job.reload).to be_created
+          context 'with subsequent jobs' do
+            let!(:after_bridge_job) { add_bridge_dependant_job }
+            let!(:bridge_dependant_dag_job) { add_bridge_dependant_dag_job }
+
+            it 'changes subsequent job statuses to created' do
+              expect { reset_bridge }
+                .to change { after_bridge_job.reload.status }
+                .from('skipped').to('created')
+                .and change { bridge_dependant_dag_job.reload.status }
+                .from('skipped').to('created')
+            end
+
+            context 'when the user is not the build user' do
+              let(:current_user) { create(:user) }
+
+              before do
+                project.add_maintainer(current_user)
+              end
+
+              it 'changes subsequent jobs user' do
+                expect { reset_bridge }
+                  .to change { after_bridge_job.reload.user }
+                  .from(owner).to(current_user)
+                  .and change { bridge_dependant_dag_job.reload.user }
+                  .from(owner).to(current_user)
+              end
+            end
+          end
+
+          context 'when the upstream pipeline pipeline has a dependent upstream pipeline' do
+            let(:upstream_of_upstream) { create(:ci_pipeline, project: create(:project)) }
+            let!(:upstream_bridge) do
+              create_bridge(
+                upstream: upstream_of_upstream,
+                downstream: first_upstream_pipeline,
+                depends: true
+              )
+            end
+
+            it 'marks all source bridges as pending' do
+              expect { reset_bridge }
+                .to change { bridge.reload.status }
+                .from('skipped').to('pending')
+                .and change { upstream_bridge.reload.status }
+                .from('skipped').to('pending')
+            end
+          end
+
+          context 'without strategy: depend' do
+            let!(:upstream_pipeline) { create(:ci_pipeline) }
+            let!(:bridge) do
+              create_bridge(
+                upstream: first_upstream_pipeline,
+                downstream: pipeline,
+                depends: false
+              )
+            end
+
+            it 'does not touch source bridge' do
+              expect { reset_bridge }.to not_change { bridge.status }
+            end
+
+            context 'when the upstream pipeline has a dependent upstream pipeline' do
+              let!(:upstream_bridge) do
+                create_bridge(
+                  upstream: create(:ci_pipeline, project: create(:project)),
+                  downstream: first_upstream_pipeline,
+                  depends: true
+                )
+              end
+
+              it 'does not touch any source bridge' do
+                expect { reset_bridge }.to not_change { bridge.status }
+                  .and not_change { upstream_bridge.status }
+              end
+            end
+          end
+        end
+
+        context 'when the current user is not the bridge user' do
+          let(:current_user) { create(:user) }
+
+          before do
+            project.add_maintainer(current_user)
+          end
+
+          it 'changes bridge user to current user' do
+            expect { reset_bridge }
+              .to change { bridge.reload.user }
+              .from(owner).to(current_user)
+          end
         end
       end
 
-      context 'when the parent pipeline has a dependent upstream pipeline' do
-        let!(:upstream_bridge) do
-          create_bridge(create(:ci_pipeline, project: create(:project)), parent_pipeline, true)
+      context 'when the user does not have permissions for the processable' do
+        let(:current_user) { create(:user) }
+
+        it 'does not change bridge status' do
+          expect { reset_bridge }.to not_change { bridge.status }
         end
 
-        it 'marks all source bridges as pending' do
-          reset_bridge
+        context 'with subsequent jobs' do
+          let!(:after_bridge_job) { add_bridge_dependant_job }
+          let!(:bridge_dependant_dag_job) { add_bridge_dependant_dag_job }
 
-          expect(bridge.reload).to be_pending
-          expect(upstream_bridge.reload).to be_pending
-        end
-      end
-    end
-
-    context 'when the pipeline is a child pipeline and the bridge is not depended' do
-      let!(:parent_pipeline) { create(:ci_pipeline) }
-      let!(:bridge) { create_bridge(parent_pipeline, pipeline, false) }
-
-      it 'does not touch source bridge' do
-        reset_bridge
-
-        expect(bridge.reload).to be_success
-      end
-
-      context 'when the parent pipeline has a dependent upstream pipeline' do
-        let!(:upstream_bridge) do
-          create_bridge(create(:ci_pipeline, project: create(:project)), parent_pipeline, true)
+          it 'does not change job statuses' do
+            expect { reset_bridge }.to not_change { after_bridge_job.reload.status }
+              .and not_change { bridge_dependant_dag_job.reload.status }
+          end
         end
 
-        it 'does not touch any source bridge' do
-          reset_bridge
+        context 'when the current user is not the bridge user' do
+          let(:current_user) { create(:user) }
 
-          expect(bridge.reload).to be_success
-          expect(upstream_bridge.reload).to be_success
+          it 'does not change bridge user' do
+            expect { reset_bridge }
+              .to not_change { bridge.reload.user }
+          end
         end
       end
     end
 
     private
 
-    def create_bridge(upstream, downstream, depend = false)
-      options = depend ? { trigger: { strategy: 'depend' } } : {}
+    def add_bridge_dependant_job
+      create(:ci_build, :skipped, pipeline: first_upstream_pipeline, stage_idx: bridge.stage_idx + 1, user: owner)
+    end
 
-      bridge = create(:ci_bridge, pipeline: upstream, status: 'success', options: options)
+    def add_bridge_dependant_dag_job
+      create(:ci_build, :skipped, name: 'dependant-build-1', pipeline: first_upstream_pipeline, user: owner).tap do |build|
+        create(:ci_build_need, build: build, name: bridge.name)
+      end
+    end
+
+    def create_bridge(upstream:, downstream:, depends: false)
+      options = depends ? { trigger: { strategy: 'depend' } } : {}
+
+      bridge = create(:ci_bridge, pipeline: upstream, status: 'skipped', options: options, user: owner)
       create(:ci_sources_pipeline, pipeline: downstream, source_job: bridge)
 
       bridge
@@ -5180,19 +5206,18 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
     end
   end
 
-  describe '#authorized_cluster_agents' do
+  describe '#cluster_agent_authorizations' do
     let(:pipeline) { create(:ci_empty_pipeline, :created) }
-    let(:agent) { instance_double(Clusters::Agent) }
-    let(:authorization) { instance_double(Clusters::Agents::GroupAuthorization, agent: agent) }
+    let(:authorization) { instance_double(Clusters::Agents::GroupAuthorization) }
     let(:finder) { double(execute: [authorization]) }
 
-    it 'retrieves agent records from the finder and caches the result' do
+    it 'retrieves authorization records from the finder and caches the result' do
       expect(Clusters::AgentAuthorizationsFinder).to receive(:new).once
         .with(pipeline.project)
         .and_return(finder)
 
-      expect(pipeline.authorized_cluster_agents).to contain_exactly(agent)
-      expect(pipeline.authorized_cluster_agents).to contain_exactly(agent) # cached
+      expect(pipeline.cluster_agent_authorizations).to contain_exactly(authorization)
+      expect(pipeline.cluster_agent_authorizations).to contain_exactly(authorization) # cached
     end
   end
 
@@ -5221,16 +5246,10 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
       it { is_expected.to be_falsey }
     end
 
-    context 'when the pipeline is still running' do
-      let(:pipeline) { create(:ci_pipeline, :running) }
+    context 'when the pipeline is still running and with test reports' do
+      let(:pipeline) { create(:ci_pipeline, :running, :with_test_reports) }
 
-      it { is_expected.to be_falsey }
-    end
-
-    context 'when the pipeline is completed without test reports' do
-      let(:pipeline) { create(:ci_pipeline, :success) }
-
-      it { is_expected.to be_falsey }
+      it { is_expected.to be_truthy }
     end
   end
 
@@ -5351,6 +5370,135 @@ RSpec.describe Ci::Pipeline, :mailer, factory_default: :keep do
         pipeline_id = Ci::Pipeline.where(id: pipeline.id).select(:id).first
 
         expect { pipeline_id.age_in_minutes }.to raise_error(ArgumentError)
+      end
+    end
+  end
+
+  describe '#merge_request_diff' do
+    context 'when the pipeline has no merge request' do
+      it 'is nil' do
+        pipeline = build(:ci_empty_pipeline)
+
+        expect(pipeline.merge_request_diff).to be_nil
+      end
+    end
+
+    context 'when the pipeline has a merge request' do
+      context 'when the pipeline is a merged result pipeline' do
+        it 'returns the diff for the source sha' do
+          pipeline = create(:ci_pipeline, :merged_result_pipeline)
+
+          expect(pipeline.merge_request_diff.head_commit_sha).to eq(pipeline.source_sha)
+        end
+      end
+
+      context 'when the pipeline is not a merged result pipeline' do
+        it 'returns the diff for the pipeline sha' do
+          pipeline = create(:ci_pipeline, merge_request: create(:merge_request))
+
+          expect(pipeline.merge_request_diff.head_commit_sha).to eq(pipeline.sha)
+        end
+      end
+    end
+  end
+
+  describe 'partitioning' do
+    let(:pipeline) { build(:ci_pipeline, partition_id: nil) }
+
+    before do
+      allow(described_class).to receive(:current_partition_value) { 123 }
+    end
+
+    it 'sets partition_id to the current partition value' do
+      expect { pipeline.valid? }.to change(pipeline, :partition_id).to(123)
+    end
+
+    context 'when it is already set' do
+      let(:pipeline) { build(:ci_pipeline, partition_id: 125) }
+
+      it 'does not change the partition_id value' do
+        expect { pipeline.valid? }.not_to change(pipeline, :partition_id)
+      end
+    end
+
+    context 'without current partition value' do
+      before do
+        allow(described_class).to receive(:current_partition_value) {}
+      end
+
+      it { is_expected.to validate_presence_of(:partition_id) }
+
+      it 'does not change the partition_id value' do
+        expect { pipeline.valid? }.not_to change(pipeline, :partition_id)
+      end
+    end
+  end
+
+  describe '#notes=' do
+    context 'when notes already exist' do
+      it 'does not create duplicate notes', :aggregate_failures do
+        time = Time.zone.now
+        pipeline = create(:ci_pipeline, user: user, project: project)
+        note = Note.new(
+          note: 'note',
+          noteable_type: 'Commit',
+          noteable_id: pipeline.id,
+          commit_id: pipeline.id,
+          author_id: user.id,
+          project_id: pipeline.project_id,
+          created_at: time
+        )
+        another_note = note.dup.tap { |note| note.note = 'another note' }
+
+        expect(project.notes.for_commit_id(pipeline.sha).count).to eq(0)
+
+        pipeline.notes = [note]
+
+        expect(project.notes.for_commit_id(pipeline.sha).count).to eq(1)
+
+        pipeline.notes = [note, note, another_note]
+
+        expect(project.notes.for_commit_id(pipeline.sha).count).to eq(2)
+        expect(project.notes.for_commit_id(pipeline.sha).pluck(:note)).to contain_exactly(note.note, another_note.note)
+      end
+    end
+  end
+
+  describe '#has_erasable_artifacts?' do
+    subject { pipeline.has_erasable_artifacts? }
+
+    context 'when pipeline is not complete' do
+      let(:pipeline) { create(:ci_pipeline, :running, :with_job) }
+
+      context 'and has erasable artifacts' do
+        before do
+          create(:ci_job_artifact, :archive, job: pipeline.builds.first)
+        end
+
+        it { is_expected.to be_falsey }
+      end
+    end
+
+    context 'when pipeline is complete' do
+      let(:pipeline) { create(:ci_pipeline, :success, :with_job) }
+
+      context 'and has no artifacts' do
+        it { is_expected.to be_falsey }
+      end
+
+      Ci::JobArtifact.erasable_file_types.each do |type|
+        context "and has an artifact of type #{type}" do
+          before do
+            create(
+              :ci_job_artifact,
+              file_format: ::Ci::JobArtifact::TYPE_AND_FORMAT_PAIRS[type.to_sym],
+              file_type: type,
+              job: pipeline.builds.first
+            )
+          end
+
+          it { is_expected.to be_truthy }
+        end
       end
     end
   end

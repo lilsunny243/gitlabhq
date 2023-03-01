@@ -31,7 +31,7 @@ class SnippetRepository < ApplicationRecord
 
     options[:actions] = transform_file_entries(files)
 
-    capture_git_error { repository.multi_action(user, **options) }
+    capture_git_error { repository.commit_files(user, **options) }
   ensure
     Gitlab::ExclusiveLease.cancel(lease_key, uuid)
   end
@@ -121,7 +121,7 @@ class SnippetRepository < ApplicationRecord
 
   def invalid_signature_error?(err)
     err.is_a?(ArgumentError) &&
-      err.message.downcase.match?(/failed to parse signature/)
+      err.message.downcase.include?('failed to parse signature')
   end
 
   def only_rename_action?(action)

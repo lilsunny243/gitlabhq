@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe API::NugetGroupPackages do
+RSpec.describe API::NugetGroupPackages, feature_category: :package_registry do
   include_context 'nuget api setup'
 
   using RSpec::Parameterized::TableSyntax
@@ -12,29 +12,56 @@ RSpec.describe API::NugetGroupPackages do
   let_it_be(:deploy_token) { create(:deploy_token, :group, read_package_registry: true, write_package_registry: true) }
   let_it_be(:group_deploy_token) { create(:group_deploy_token, deploy_token: deploy_token, group: group) }
 
+  let(:snowplow_gitlab_standard_context) { { namespace: project.group, property: 'i_package_nuget_user' } }
   let(:target_type) { 'groups' }
 
   shared_examples 'handling all endpoints' do
     describe 'GET /api/v4/groups/:id/-/packages/nuget' do
-      it_behaves_like 'handling nuget service requests', anonymous_requests_example_name: 'rejects nuget packages access', anonymous_requests_status: :unauthorized do
+      it_behaves_like 'handling nuget service requests',
+                      example_names_with_status: {
+                        anonymous_requests_example_name: 'rejects nuget packages access',
+                        anonymous_requests_status: :unauthorized,
+                        guest_requests_example_name: 'process nuget service index request',
+                        guest_requests_status: :success
+                      } do
         let(:url) { "/groups/#{target.id}/-/packages/nuget/index.json" }
       end
     end
 
     describe 'GET /api/v4/groups/:id/-/packages/nuget/metadata/*package_name/index' do
-      it_behaves_like 'handling nuget metadata requests with package name', anonymous_requests_example_name: 'rejects nuget packages access', anonymous_requests_status: :unauthorized do
+      it_behaves_like 'handling nuget metadata requests with package name',
+                      example_names_with_status:
+                        {
+                          anonymous_requests_example_name: 'rejects nuget packages access',
+                          anonymous_requests_status: :unauthorized,
+                          guest_requests_example_name: 'rejects nuget packages access',
+                          guest_requests_status: :not_found
+                        } do
         let(:url) { "/groups/#{target.id}/-/packages/nuget/metadata/#{package_name}/index.json" }
       end
     end
 
     describe 'GET /api/v4/groups/:id/-/packages/nuget/metadata/*package_name/*package_version' do
-      it_behaves_like 'handling nuget metadata requests with package name and package version', anonymous_requests_example_name: 'rejects nuget packages access', anonymous_requests_status: :unauthorized do
+      it_behaves_like 'handling nuget metadata requests with package name and package version',
+                      example_names_with_status:
+                        {
+                          anonymous_requests_example_name: 'rejects nuget packages access',
+                          anonymous_requests_status: :unauthorized,
+                          guest_requests_example_name: 'rejects nuget packages access',
+                          guest_requests_status: :not_found
+                        } do
         let(:url) { "/groups/#{target.id}/-/packages/nuget/metadata/#{package_name}/#{package.version}.json" }
       end
     end
 
     describe 'GET /api/v4/groups/:id/-/packages/nuget/query' do
-      it_behaves_like 'handling nuget search requests', anonymous_requests_example_name: 'rejects nuget packages access', anonymous_requests_status: :unauthorized do
+      it_behaves_like 'handling nuget search requests',
+                      example_names_with_status: {
+                        anonymous_requests_example_name: 'rejects nuget packages access',
+                        anonymous_requests_status: :unauthorized,
+                        guest_requests_example_name: 'process empty nuget search request',
+                        guest_requests_status: :success
+                      } do
         let(:url) { "/groups/#{target.id}/-/packages/nuget/query?#{query_parameters.to_query}" }
       end
     end
@@ -46,7 +73,6 @@ RSpec.describe API::NugetGroupPackages do
     let_it_be(:group_deploy_token) { create(:group_deploy_token, deploy_token: deploy_token, group: subgroup) }
 
     let(:target) { subgroup }
-    let(:snowplow_gitlab_standard_context) { { namespace: subgroup } }
 
     it_behaves_like 'handling all endpoints'
 
@@ -58,7 +84,7 @@ RSpec.describe API::NugetGroupPackages do
 
   context 'a group' do
     let(:target) { group }
-    let(:snowplow_gitlab_standard_context) { { namespace: group } }
+    let(:snowplow_gitlab_standard_context) { { namespace: target, property: 'i_package_nuget_user' } }
 
     it_behaves_like 'handling all endpoints'
 
@@ -133,13 +159,13 @@ RSpec.describe API::NugetGroupPackages do
       describe 'GET /api/v4/groups/:id/-/packages/nuget/metadata/*package_name/index' do
         let(:url) { "/groups/#{group.id}/-/packages/nuget/metadata/#{package_name}/index.json" }
 
-        it_behaves_like 'returning response status', :forbidden
+        it_behaves_like 'returning response status', :success
       end
 
       describe 'GET /api/v4/groups/:id/-/packages/nuget/metadata/*package_name/*package_version' do
         let(:url) { "/groups/#{group.id}/-/packages/nuget/metadata/#{package_name}/#{package.version}.json" }
 
-        it_behaves_like 'returning response status', :forbidden
+        it_behaves_like 'returning response status', :success
       end
 
       describe 'GET /api/v4/groups/:id/-/packages/nuget/query' do
@@ -150,7 +176,7 @@ RSpec.describe API::NugetGroupPackages do
         let(:query_parameters) { { q: search_term, take: take, skip: skip, prerelease: include_prereleases }.compact }
         let(:url) { "/groups/#{group.id}/-/packages/nuget/query?#{query_parameters.to_query}" }
 
-        it_behaves_like 'returning response status', :forbidden
+        it_behaves_like 'returning response status', :success
       end
     end
 

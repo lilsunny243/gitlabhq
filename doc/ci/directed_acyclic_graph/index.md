@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -10,7 +10,7 @@ type: reference
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/47063) in GitLab 12.2.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/206902) in GitLab 12.10.
 
-A [directed acyclic graph](https://www.techopedia.com/definition/5739/directed-acyclic-graph-dag) can be
+A [directed acyclic graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph) can be
 used in the context of a CI/CD pipeline to build relationships between jobs such that
 execution is performed in the quickest possible manner, regardless how stages may
 be set up.
@@ -38,15 +38,15 @@ It has a pipeline that looks like the following:
 
 | build | test | deploy |
 | ----- | ---- | ------ |
-| build_a | test_a | deploy_a |
-| build_b | test_b | deploy_b |
-| build_c | test_c | deploy_c |
-| build_d | test_d | deploy_d |
+| `build_a` | `test_a` | `deploy_a` |
+| `build_b` | `test_b` | `deploy_b` |
+| `build_c` | `test_c` | `deploy_c` |
+| `build_d` | `test_d` | `deploy_d` |
 
 Using a DAG, you can relate the `_a` jobs to each other separately from the `_b` jobs,
 and even if service `a` takes a very long time to build, service `b` doesn't
 wait for it and finishes as quickly as it can. In this very same pipeline, `_c` and
-`_d` can be left alone and run together in staged sequence just like any normal
+`_d` can be left alone and run together in staged sequence just like any standard
 GitLab pipeline.
 
 ## Use cases
@@ -68,7 +68,7 @@ as quickly as possible.
 
 Relationships are defined between jobs using the [`needs` keyword](../yaml/index.md#needs).
 
-Note that `needs` also works with the [parallel](../yaml/index.md#parallel) keyword,
+The `needs` keyword also works with the [parallel](../yaml/index.md#parallel) keyword,
 giving you powerful options for parallelization within your pipeline.
 
 ## Limitations
@@ -91,7 +91,7 @@ To see the needs visualization, select **Needs** when viewing a pipeline that us
 
 ![Needs visualization example](img/dag_graph_example_v13_1.png)
 
-Clicking a node highlights all the job paths it depends on.
+Selecting a node highlights all the job paths it depends on.
 
 ![Needs visualization with path highlight](img/dag_graph_example_clicked_v13_1.png)
 

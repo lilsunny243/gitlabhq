@@ -1,10 +1,5 @@
 <!-- Set the correct label and milestone using autocomplete for guidance. Please @mention only the DRI(s) for each stage or group rather than an entire department. -->
 
-/label ~"release post" ~"release post item" ~"Technical Writing" ~devops:: ~group:: ~"release post item::deprecation"
-/label ~"type::maintenance"
-/milestone %
-/assign `@EM/PM` (choose the DRI; remove backticks here, and below)
-
 **Be sure to link this MR to the relevant deprecation issue(s).**
 
 - Deprecation Issue:
@@ -42,21 +37,24 @@ They are frequently updated, and everyone should make sure they are aware of the
 
 - [ ] Set yourself as the Assignee, meaning you are the DRI.
 - [ ] If the deprecation is a [breaking change](https://about.gitlab.com/handbook/product/gitlab-the-product/#breaking-change), add label `breaking change`.
+- [ ] Confirm this MR is labeled ~"release post item::deprecation"
 - [ ] Follow the process to [create a deprecation YAML file](https://about.gitlab.com/handbook/marketing/blog/release-posts/#creating-a-deprecation-entry).
 - [ ] Add reviewers by the 10th.
-- [ ] When ready to be merged and not later than the 15th, add the `~ready` label and @ message the TW for final review and merge.
+- [ ] Add scoped `devops::` and `group::` labels as necessary.
+- [ ] Add the appropriate milestone to this MR.
+- [ ] When ready to be merged (and no later than the 15th) `@mention` the TW for final review and merge.
 
 ## Reviewers
 
 When the content is ready for review, it must be reviewed by a Technical Writer and Engineering Manager, but can also be reviewed by
 Product Marketing, Product Design, and the Product Leaders for this area. Please use the
-[Reviewers for Merge Requests](https://docs.gitlab.com/ee/user/project/merge_requests/getting_started#reviewer)
+[reviewers](https://docs.gitlab.com/ee/user/project/merge_requests/reviews/)
 feature for all reviews. Reviewers will then `approve` the MR and remove themselves from Reviewers when their review is complete.
 
 - [ ] (Recommended) PMM
 - [ ] (Optional) Product Designer
 - [ ] (Optional) Group Manager or Director
-- [ ] Required review and approval: [Technical Writer designated to the corresponding DevOps stage/group](https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments).
+- [ ] Required review and approval: [Technical Writer designated to the corresponding DevOps stage/group](https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments).
 
 ### Tech writer review
 
@@ -73,7 +71,8 @@ yourself as a reviewer if it's not ready for merge yet.
 - [ ] Title:
   - Length limit: 7 words (not including articles or prepositions).
   - Capitalization: ensure the title is [sentence cased](https://design.gitlab.com/content/punctuation#case).
-  - Rewrite to exclude the words `deprecation`, `deprecate`, `removal`, and `remove` if necessary.
+- [ ] Dates:
+  - Make sure that the milestone dates are based on the dates in [Product milestone creation](https://about.gitlab.com/handbook/product/milestones/#product-milestone-creation).
 - [ ] Consistency:
   - Ensure that all resources (docs, deprecation, etc.) refer to the feature with the same term / feature name.
 - [ ] Content:
@@ -104,3 +103,7 @@ must be updated before this MR is merged:
 1. Set the MR to merge when the pipeline succeeds (or merge if the pipeline is already complete).
 
 If you have trouble running the Rake task, check the [troubleshooting steps](https://about.gitlab.com/handbook/marketing/blog/release-posts/#deprecation-rake-task-troubleshooting).
+
+/label ~"release post" ~"release post item" ~"Technical Writing" ~"release post item::deprecation"
+/label ~"type::maintenance"
+/label ~"maintenance::refactor"

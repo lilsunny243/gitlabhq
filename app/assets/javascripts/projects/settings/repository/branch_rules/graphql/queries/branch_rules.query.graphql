@@ -4,6 +4,27 @@ query getBranchRules($projectPath: ID!) {
     branchRules {
       nodes {
         name
+        isDefault
+        matchingBranchesCount
+        branchProtection {
+          allowForcePush
+          mergeAccessLevels {
+            edges {
+              node {
+                accessLevel
+                accessLevelDescription
+              }
+            }
+          }
+          pushAccessLevels {
+            edges {
+              node {
+                accessLevel
+                accessLevelDescription
+              }
+            }
+          }
+        }
       }
     }
   }

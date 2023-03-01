@@ -46,41 +46,28 @@ RSpec.describe OauthAccessToken do
         expect(described_class.by_token(plaintext_token)).to be_a(OauthAccessToken)
       end
     end
-
-    context 'when hash_oauth_secrets is disabled' do
-      let(:hashed_token) { create(:oauth_access_token, application_id: app_one.id) }
-
-      before do
-        hashed_token
-        stub_feature_flags(hash_oauth_tokens: false)
-      end
-
-      it 'stores the token in plaintext' do
-        expect(token.token).to eq(token.plaintext_token)
-      end
-
-      it 'finds a token by plaintext token' do
-        expect(described_class.by_token(token.plaintext_token)).to be_a(OauthAccessToken)
-      end
-
-      it 'does not find a token that was previously stored as hashed' do
-        expect(described_class.by_token(hashed_token.plaintext_token)).to be_nil
-      end
-    end
   end
 
   describe '.matching_token_for' do
     it 'does not find existing tokens' do
       expect(described_class.matching_token_for(app_one, token.resource_owner, token.scopes)).to be_nil
     end
+  end
 
-    context 'when hash oauth tokens is disabled' do
-      before do
-        stub_feature_flags(hash_oauth_tokens: false)
+  describe '#expires_in' do
+    context 'when token has expires_in value set' do
+      it 'uses the expires_in value' do
+        token = OauthAccessToken.new(expires_in: 1.minute)
+
+        expect(token).to be_valid
       end
+    end
 
-      it 'finds an existing token' do
-        expect(described_class.matching_token_for(app_one, token.resource_owner, token.scopes)).to be_present
+    context 'when token has nil expires_in' do
+      it 'uses default value' do
+        token = OauthAccessToken.new(expires_in: nil)
+
+        expect(token).to be_invalid
       end
     end
   end

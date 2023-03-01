@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Project milestones API **(FREE)**
@@ -21,18 +21,22 @@ GET /projects/:id/milestones?state=active
 GET /projects/:id/milestones?state=closed
 GET /projects/:id/milestones?title=1.0
 GET /projects/:id/milestones?search=version
+GET /projects/:id/milestones?updated_before=2013-10-02T09%3A24%3A18Z
+GET /projects/:id/milestones?updated_after=2013-10-02T09%3A24%3A18Z
 ```
 
 Parameters:
 
 | Attribute                         | Type   | Required | Description |
 | ----------------------------      | ------ | -------- | ----------- |
-| `id`                              | integer or string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
-| `iids[]`                          | integer array | optional | Return only the milestones having the given `iid` (Note: ignored if `include_parent_milestones` is set as `true`) |
-| `state`                           | string | optional | Return only `active` or `closed` milestones |
-| `title`                           | string | optional | Return only the milestones having the given `title` |
-| `search`                          | string | optional | Return only milestones with a title or description matching the provided string |
-| `include_parent_milestones`       | boolean | optional | Include group milestones from parent group and its ancestors. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/196066) in GitLab 13.4 |
+| `id`                              | integer or string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
+| `iids[]`                          | integer array | no | Return only the milestones having the given `iid` (Note: ignored if `include_parent_milestones` is set as `true`) |
+| `state`                           | string | no | Return only `active` or `closed` milestones |
+| `title`                           | string | no | Return only the milestones having the given `title` |
+| `search`                          | string | no | Return only milestones with a title or description matching the provided string |
+| `include_parent_milestones`       | boolean | no | Include group milestones from parent group and its ancestors. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/196066) in GitLab 13.4 |
+| `updated_before`                  | datetime | no | Return only milestones updated before the given datetime. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). Introduced in GitLab 15.10 |
+| `updated_after`                   | datetime | no | Return only milestones updated after the given datetime. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). Introduced in GitLab 15.10 |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/milestones"
@@ -70,7 +74,7 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |
 
 ## Create new milestone
@@ -85,11 +89,11 @@ Parameters:
 
 | Attribute     | Type           | Required | Description                                                                                                     |
 |---------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`          | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`          | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `title`       | string         | yes      | The title of a milestone                                                                                        |
 | `description` | string         | no       | The description of the milestone                                                                                |
-| `due_date`    | string         | no       | The due date of the milestone                                                                                   |
-| `start_date`  | string         | no       | The start date of the milestone                                                                                 |
+| `due_date`    | string         | no       | The due date of the milestone (`YYYYMMDD`)                                                                        |
+| `start_date`  | string         | no       | The start date of the milestone (`YYYYMMDD`)                                                                                |
 
 ## Edit milestone
 
@@ -103,12 +107,12 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |
 | `title`        | string         | no       | The title of a milestone                                                                                        |
 | `description`  | string         | no       | The description of the milestone                                                                                |
-| `due_date`     | string         | no       | The due date of the milestone                                                                                   |
-| `start_date`   | string         | no       | The start date of the milestone                                                                                 |
+| `due_date`     | string         | no       | The due date of the milestone (`YYYYMMDD`)                                                                                   |
+| `start_date`   | string         | no       | The start date of the milestone (`YYYYMMDD`)                                                                                 |
 | `state_event`  | string         | no       | The state event of the milestone (close or activate)                                                            |
 
 ## Delete project milestone
@@ -125,7 +129,7 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |
 
 ## Get all issues assigned to a single milestone
@@ -140,7 +144,7 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |
 
 ## Get all merge requests assigned to a single milestone
@@ -155,7 +159,7 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |
 
 ## Promote project milestone to a group milestone
@@ -172,7 +176,7 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |
 
 ## Get all burndown chart events for a single milestone **(PREMIUM)**
@@ -190,5 +194,5 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                     |
 |----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `milestone_id` | integer        | yes      | The ID of the project's milestone                                                                               |

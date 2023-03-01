@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe SearchController do
+RSpec.describe SearchController, feature_category: :global_search do
   include ExternalAuthorizationServiceHelpers
 
   context 'authorized user' do
@@ -218,14 +218,19 @@ RSpec.describe SearchController do
         end
       end
 
-      it_behaves_like 'Snowplow event tracking' do
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
         subject { get :show, params: { group_id: namespace.id, scope: 'blobs', search: 'term' } }
 
         let(:project) { nil }
         let(:category) { described_class.to_s }
-        let(:action) { 'i_search_total' }
+        let(:action) { 'executed' }
+        let(:label) { 'redis_hll_counters.search.search_total_unique_counts_monthly' }
+        let(:property) { 'i_search_total' }
+        let(:context) do
+          [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: property).to_context]
+        end
+
         let(:namespace) { create(:group) }
-        let(:feature_flag_name) { :route_hll_to_snowplow_phase2 }
       end
 
       context 'on restricted projects' do
@@ -281,6 +286,48 @@ RSpec.describe SearchController do
 
         get :show, params: { scope: 'issues', search: 'hello world' }
       end
+
+      context 'custom search sli error rate' do
+        context 'when the search is successful' do
+          it 'increments the custom search sli error rate with error: false' do
+            expect(Gitlab::Metrics::GlobalSearchSlis).to receive(:record_error_rate).with(
+              error: false,
+              search_scope: 'issues',
+              search_type: 'basic',
+              search_level: 'global'
+            )
+
+            get :show, params: { scope: 'issues', search: 'hello world' }
+          end
+        end
+
+        context 'when the search raises an error' do
+          before do
+            allow_next_instance_of(SearchService) do |service|
+              allow(service).to receive(:search_results).and_raise(ActiveRecord::QueryCanceled)
+            end
+          end
+
+          it 'increments the custom search sli error rate with error: true' do
+            expect(Gitlab::Metrics::GlobalSearchSlis).to receive(:record_error_rate).with(
+              error: true,
+              search_scope: 'issues',
+              search_type: 'basic',
+              search_level: 'global'
+            )
+
+            get :show, params: { scope: 'issues', search: 'hello world' }
+          end
+        end
+
+        context 'when something goes wrong before a search is done' do
+          it 'does not increment the error rate' do
+            expect(Gitlab::Metrics::GlobalSearchSlis).not_to receive(:record_error_rate)
+
+            get :show, params: { scope: 'issues' } # no search query
+          end
+        end
+      end
     end
 
     describe 'GET #count', :aggregate_failures do
@@ -310,12 +357,13 @@ RSpec.describe SearchController do
         end.to raise_error(ActionController::ParameterMissing)
       end
 
-      it 'sets private cache control headers' do
+      it 'sets correct cache control headers' do
         get :count, params: { search: 'hello', scope: 'projects' }
 
         expect(response).to have_gitlab_http_status(:ok)
 
         expect(response.headers['Cache-Control']).to eq('max-age=60, private')
+        expect(response.headers['Pragma']).to be_nil
       end
 
       it 'does NOT blow up if search param is NOT a string' do
@@ -353,7 +401,7 @@ RSpec.describe SearchController do
       it_behaves_like 'support for active record query timeouts', :autocomplete, { term: 'hello' }, :project, :json
 
       it 'returns an empty array when given abusive search term' do
-        get :autocomplete, params: { term: ('hal' * 9000), scope: 'projects' }
+        get :autocomplete, params: { term: ('hal' * 4000), scope: 'projects' }
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response).to match_array([])
       end
@@ -371,6 +419,21 @@ RSpec.describe SearchController do
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response.count).to eq(1)
         expect(json_response.first['label']).to match(/User settings/)
+      end
+
+      it 'makes a call to search_autocomplete_opts' do
+        expect(controller).to receive(:search_autocomplete_opts).once
+
+        get :autocomplete, params: { term: 'setting', filter: 'generic' }
+      end
+
+      it 'sets correct cache control headers' do
+        get :autocomplete, params: { term: 'setting', filter: 'generic' }
+
+        expect(response).to have_gitlab_http_status(:ok)
+
+        expect(response.headers['Cache-Control']).to eq('max-age=60, private')
+        expect(response.headers['Pragma']).to be_nil
       end
     end
 

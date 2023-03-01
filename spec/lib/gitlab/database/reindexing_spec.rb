@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database::Reindexing do
+RSpec.describe Gitlab::Database::Reindexing, feature_category: :database, time_travel_to: '2023-01-07T09:44:07Z' do
   include ExclusiveLeaseHelpers
   include Database::DatabaseHelpers
 
@@ -68,6 +68,25 @@ RSpec.describe Gitlab::Database::Reindexing do
         end
       end
     end
+
+    context 'when async FK validation is enabled' do
+      it 'executes FK validation for each database prior to any reindexing actions' do
+        expect(Gitlab::Database::AsyncConstraints).to receive(:validate_pending_entries!).ordered.exactly(databases_count).times
+        expect(described_class).to receive(:automatic_reindexing).ordered.exactly(databases_count).times
+
+        described_class.invoke
+      end
+    end
+
+    context 'when async FK validation is disabled' do
+      it 'does not execute FK validation' do
+        stub_feature_flags(database_async_foreign_key_validation: false)
+
+        expect(Gitlab::Database::AsyncConstraints).not_to receive(:validate_pending_entries!)
+
+        described_class.invoke
+      end
+    end
   end
 
   describe '.automatic_reindexing' do
@@ -76,7 +95,7 @@ RSpec.describe Gitlab::Database::Reindexing do
     let(:limit) { 5 }
 
     before_all do
-      swapout_view_for_table(:postgres_indexes)
+      swapout_view_for_table(:postgres_indexes, connection: ApplicationRecord.connection)
     end
 
     before do
@@ -147,7 +166,7 @@ RSpec.describe Gitlab::Database::Reindexing do
     subject { described_class.perform_from_queue(maximum_records: limit) }
 
     before_all do
-      swapout_view_for_table(:postgres_indexes)
+      swapout_view_for_table(:postgres_indexes, connection: ApplicationRecord.connection)
     end
 
     let(:limit) { 2 }

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::PipelineSchedules do
+RSpec.describe API::Ci::PipelineSchedules, feature_category: :continuous_integration do
   let_it_be(:developer) { create(:user) }
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project, :repository, public_builds: false) }
@@ -473,12 +473,12 @@ RSpec.describe API::Ci::PipelineSchedules do
     end
 
     context 'as the existing owner of the schedule' do
-      it 'rejects the request and leaves the schedule unchanged' do
+      it 'accepts the request and leaves the schedule unchanged' do
         expect do
           post api("/projects/#{project.id}/pipeline_schedules/#{pipeline_schedule.id}/take_ownership", developer)
         end.not_to change { pipeline_schedule.reload.owner }
 
-        expect(response).to have_gitlab_http_status(:forbidden)
+        expect(response).to have_gitlab_http_status(:success)
       end
     end
   end

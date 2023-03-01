@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -16,9 +16,9 @@ when you go to **New project > Create from template** and select the **Instance*
 Every project in the group, but not its subgroups, can be selected when a new project
 is created, based on the user's access permissions:
 
-- Public projects can be selected by any signed-in user as a template for a new project,
+- Public projects can be selected by any authenticated user as a template for a new project,
   if all enabled [project features](../project/settings/index.md#configure-project-visibility-features-and-permissions)
-  except for **GitLab Pages** and **Security & Compliance** are set to **Everyone With Access**.
+  except for **GitLab Pages** and **Security and Compliance** are set to **Everyone With Access**.
   The same applies to internal projects.
 - Private projects can be selected only by users who are members of the projects.
 
@@ -34,7 +34,7 @@ To set project templates at the group level, see [Custom group-level project tem
 
 To select the group to use as the source for the project templates:
 
-1. On the top bar, navigate to **Menu > Admin > Settings > Templates**.
+1. On the top bar, navigate to **Main menu > Admin > Settings > Templates**.
 1. Expand **Custom project templates**.
 1. Select a group to use.
 1. Select **Save changes**.
@@ -49,6 +49,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

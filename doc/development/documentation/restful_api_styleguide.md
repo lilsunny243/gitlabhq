@@ -1,5 +1,5 @@
 ---
-info: For assistance with this Style Guide page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-other-projects-and-subjects.
+info: For assistance with this Style Guide page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-other-projects-and-subjects.
 stage: none
 group: unassigned
 description: 'Writing styles, markup, formatting, and other standards for the GitLab RESTful APIs.'
@@ -9,7 +9,8 @@ description: 'Writing styles, markup, formatting, and other standards for the Gi
 
 REST API resources are documented in Markdown under
 [`/doc/api`](https://gitlab.com/gitlab-org/gitlab/-/tree/master/doc/api). Each
-resource has its own Markdown file, which is linked from `api_resources.md`.
+resource has its own Markdown file, which is linked from
+[`api_resources.md`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/api/api_resources.md).
 
 When modifying the Markdown, also update the corresponding
 [OpenAPI definition](https://gitlab.com/gitlab-org/gitlab/-/tree/master/doc/api/openapi)
@@ -35,6 +36,8 @@ In the Markdown doc for a resource (AKA endpoint):
   Put the badge in the **Attribute** column, like the
   `**(<tier>)**` code in the following template.
 
+After a new API documentation page is added, [add an entry in the global navigation](site_architecture/global_nav.md#add-a-navigation-entry). [Example](https://gitlab.com/gitlab-org/gitlab-docs/-/merge_requests/3497).
+
 ## API topic template
 
 Use the following template to help you get started. Be sure to list any
@@ -59,14 +62,14 @@ METHOD /endpoint
 
 Supported attributes:
 
-| Attribute                | Type     | Required               | Description           |
-|:-------------------------|:---------|:-----------------------|:----------------------|
-| `attribute`              | datatype | **{check-circle}** Yes | Detailed description. |
-| `attribute` **(<tier>)** | datatype | **{dotted-circle}** No | Detailed description. |
-| `attribute`              | datatype | **{dotted-circle}** No | Detailed description. |
-| `attribute`              | datatype | **{dotted-circle}** No | Detailed description. |
+| Attribute                | Type     | Required | Description           |
+|:-------------------------|:---------|:---------|:----------------------|
+| `attribute`              | datatype | Yes      | Detailed description. |
+| `attribute` **(<tier>)** | datatype | No       | Detailed description. |
+| `attribute`              | datatype | No       | Detailed description. |
+| `attribute`              | datatype | No       | Detailed description. |
 
-If successful, returns [`<status_code>`](../../api/index.md#status-codes) and the following
+If successful, returns [`<status_code>`](rest/index.md#status-codes) and the following
 response attributes:
 
 | Attribute                | Type     | Description           |
@@ -123,13 +126,13 @@ To deprecate an attribute:
 1. Add inline deprecation text to the description.
 
    ```markdown
-   | Attribute     | Type   | Required               | Description                                  |
-   |:--------------|:-------|:-----------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------|
-   | `widget_name` | string | **{dotted-circle}** No | [Deprecated](<link-to-issue>) in GitLab 14.7 and is planned for removal in 15.4. Use `widget_id` instead. The name of the widget. |
+   | Attribute     | Type   | Required | Description                                  |
+   |:--------------|:-------|:---------|:----------------------------------------------------------------------------------------------------------------------------------------------------|
+   | `widget_name` | string | No       | [Deprecated](<link-to-issue>) in GitLab 14.7 and is planned for removal in 15.4. Use `widget_id` instead. The name of the widget. |
    ```
 
 To widely announce a deprecation, or if it's a breaking change,
-[update the deprecations and removals documentation](../deprecation_guidelines/index.md#update-the-deprecations-and-removals-documentation).
+[update the deprecations and removals documentation pages](../deprecation_guidelines/index.md#update-the-deprecations-and-removals-documentation-pages).
 
 ## Method description
 
@@ -139,30 +142,30 @@ always be in code blocks using backticks (`` ` ``).
 Sort the table by required attributes first, then alphabetically.
 
 ```markdown
-| Attribute                    | Type          | Required               | Description                                         |
-|:-----------------------------|:--------------|:-----------------------|:----------------------------------------------------|
-| `title`                      | string        | **{check-circle}** Yes | Title of the issue.                                 |
-| `assignee_ids` **(PREMIUM)** | integer array | **{dotted-circle}** No | IDs of the users to assign the issue to.            |
-| `confidential`               | boolean       | **{dotted-circle}** No | Sets the issue to confidential. Default is `false`. |
+| Attribute                    | Type          | Required | Description                                         |
+|:-----------------------------|:--------------|:---------|:----------------------------------------------------|
+| `title`                      | string        | Yes      | Title of the issue.                                 |
+| `assignee_ids` **(PREMIUM)** | integer array | No       | IDs of the users to assign the issue to.            |
+| `confidential`               | boolean       | No       | Sets the issue to confidential. Default is `false`. |
 ```
 
 Rendered example:
 
-| Attribute                    | Type          | Required               | Description                                         |
-|:-----------------------------|:--------------|:-----------------------|:----------------------------------------------------|
-| `title`                      | string        | **{check-circle}** Yes | Title of the issue.                                 |
-| `assignee_ids` **(PREMIUM)** | integer array | **{dotted-circle}** No | IDs of the users to assign the issue to.            |
-| `confidential`               | boolean       | **{dotted-circle}** No | Sets the issue to confidential. Default is `false`. |
+| Attribute                    | Type          | Required | Description                                         |
+|:-----------------------------|:--------------|:---------|:----------------------------------------------------|
+| `title`                      | string        | Yes      | Title of the issue.                                 |
+| `assignee_ids` **(PREMIUM)** | integer array | No       | IDs of the users to assign the issue to.            |
+| `confidential`               | boolean       | No       | Sets the issue to confidential. Default is `false`. |
 
 For information about writing attribute descriptions, see the [GraphQL API description style guide](../api_graphql_styleguide.md#description-style-guide).
 
 ## Response body description
 
 Start the description with the following sentence, replacing `status code` with the
-relevant [HTTP status code](../../api/index.md#status-codes), for example:
+relevant [HTTP status code](../../api/rest/index.md#status-codes), for example:
 
 ```markdown
-If successful, returns [`200 OK`](../../api/index.md#status-codes) and the
+If successful, returns [`200 OK`](../../api/rest/index.md#status-codes) and the
 following response attributes:
 ```
 
@@ -289,7 +292,7 @@ contains spaces in its title. Observe how spaces are escaped using the `%20`
 ASCII code.
 
 ```shell
-curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/42/issues?title=Hello%20Dude"
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/42/issues?title=Hello%20GitLab"
 ```
 
 Use `%2F` for slashes (`/`).

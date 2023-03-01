@@ -22,6 +22,12 @@ module Projects
     end
 
     def execute
+      params[:wiki_enabled] = params[:wiki_access_level] if params[:wiki_access_level]
+      params[:builds_enabled] = params[:builds_access_level] if params[:builds_access_level]
+      params[:snippets_enabled] = params[:builds_access_level] if params[:snippets_access_level]
+      params[:merge_requests_enabled] = params[:merge_requests_access_level] if params[:merge_requests_access_level]
+      params[:issues_enabled] = params[:issues_access_level] if params[:issues_access_level]
+
       if create_from_template?
         return ::Projects::CreateFromTemplateService.new(current_user, params).execute
       end
@@ -119,7 +125,7 @@ module Projects
 
       setup_authorizations
 
-      current_user.invalidate_personal_projects_count
+      project.invalidate_personal_projects_count_of_owner
 
       Projects::PostCreationWorker.perform_async(@project.id)
 
@@ -154,18 +160,28 @@ module Projects
         # AuthorizedProjectsWorker but with some delay and lower urgency as a
         # safety net.
         @project.group.refresh_members_authorized_projects(
-          blocking: false,
           priority: UserProjectAccessChangedService::LOW_PRIORITY
         )
       else
-        @project.add_owner(@project.namespace.owner, current_user: current_user)
+        owner_user = @project.namespace.owner
+        owner_member = @project.add_owner(owner_user, current_user: current_user)
+
+        # There is a possibility that the sidekiq job to refresh the authorizations of the owner_user in this project
+        # isn't picked up (or finished) by the time the user is redirected to the newly created project's page.
+        # If that happens, the user will hit a 404. To avoid that scenario, we manually create a `project_authorizations` record for the user here.
+        if owner_member.persisted?
+          owner_user.project_authorizations.safe_find_or_create_by(
+            project: @project,
+            access_level: ProjectMember::OWNER
+          )
+        end
         # During the process of adding a project owner, a check on permissions is made on the user which caches
         # the max member access for that user on this project.
         # Since that is `0` before the member is created - and we are still inside the request
         # cycle when we need to do other operations that might check those permissions (e.g. write a commit)
         # we need to purge that cache so that the updated permissions is fetched instead of using the outdated cached value of 0
         # from before member creation
-        @project.team.purge_member_access_cache_for_user_id(@project.namespace.owner.id)
+        @project.team.purge_member_access_cache_for_user_id(owner_user.id)
       end
     end
 
@@ -181,7 +197,7 @@ module Projects
     end
 
     def create_sast_commit
-      ::Security::CiConfiguration::SastCreateService.new(@project, current_user, {}, commit_on_default: true).execute
+      ::Security::CiConfiguration::SastCreateService.new(@project, current_user, { initialize_with_sast: true }, commit_on_default: true).execute
     end
 
     def readme_content
@@ -306,6 +322,3 @@ module Projects
 end
 
 Projects::CreateService.prepend_mod_with('Projects::CreateService')
-
-# Measurable should be at the bottom of the ancestor chain, so it will measure execution of EE::Projects::CreateService as well
-Projects::CreateService.prepend(Measurable)

@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import ArtifactsApp from '~/vue_merge_request_widget/components/artifacts_list_app.vue';
 import DeploymentList from '~/vue_merge_request_widget/components/deployment/deployment_list.vue';
 import MrWidgetPipeline from '~/vue_merge_request_widget/components/mr_widget_pipeline.vue';
@@ -25,7 +26,7 @@ describe('MrWidgetPipelineContainer', () => {
 
   beforeEach(() => {
     mock = new MockAdapter(axios);
-    mock.onGet().reply(200, {});
+    mock.onGet().reply(HTTP_STATUS_OK, {});
   });
 
   afterEach(() => {
@@ -41,8 +42,8 @@ describe('MrWidgetPipelineContainer', () => {
     });
 
     it('renders pipeline', () => {
-      expect(wrapper.find(MrWidgetPipeline).exists()).toBe(true);
-      expect(wrapper.find(MrWidgetPipeline).props()).toMatchObject({
+      expect(wrapper.findComponent(MrWidgetPipeline).exists()).toBe(true);
+      expect(wrapper.findComponent(MrWidgetPipeline).props()).toMatchObject({
         pipeline: mockStore.pipeline,
         pipelineCoverageDelta: mockStore.pipelineCoverageDelta,
         ciStatus: mockStore.ciStatus,
@@ -82,9 +83,9 @@ describe('MrWidgetPipelineContainer', () => {
     });
 
     it('renders pipeline', () => {
-      expect(wrapper.find(MrWidgetPipeline).exists()).toBe(true);
+      expect(wrapper.findComponent(MrWidgetPipeline).exists()).toBe(true);
       expect(findCIErrorMessage().exists()).toBe(false);
-      expect(wrapper.find(MrWidgetPipeline).props()).toMatchObject({
+      expect(wrapper.findComponent(MrWidgetPipeline).props()).toMatchObject({
         pipeline: mockStore.mergePipeline,
         pipelineCoverageDelta: mockStore.pipelineCoverageDelta,
         ciStatus: mockStore.mergePipeline.details.status.text,
@@ -102,7 +103,7 @@ describe('MrWidgetPipelineContainer', () => {
           targetBranch: 'Foo<script>alert("XSS")</script>',
         },
       });
-      expect(wrapper.find(MrWidgetPipeline).props().sourceBranchLink).toBe('Foo');
+      expect(wrapper.findComponent(MrWidgetPipeline).props().sourceBranchLink).toBe('Foo');
     });
 
     it('renders deployments', () => {
@@ -125,7 +126,7 @@ describe('MrWidgetPipelineContainer', () => {
     it('renders the artifacts app', () => {
       factory();
 
-      expect(wrapper.find(ArtifactsApp).isVisible()).toBe(true);
+      expect(wrapper.findComponent(ArtifactsApp).isVisible()).toBe(true);
     });
   });
 });

@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Two-factor authentication **(FREE)**
@@ -21,7 +21,7 @@ If you set up a device, also set up a TOTP so you can still access your account 
 
 ## Use personal access tokens with two-factor authentication
 
-When 2FA is enabled, you can't use your password to authenticate with Git over HTTPS or the [GitLab API](../../../api/index.md).
+When 2FA is enabled, you can't use your password to authenticate with Git over HTTPS or the [GitLab API](../../../api/rest/index.md).
 You can use a [personal access token](../personal_access_tokens.md) instead.
 
 ## Git Credential Manager
@@ -61,7 +61,6 @@ To enable 2FA with a one-time password:
    1. Install a compatible application. For example:
       - Cloud-based (recommended because you can restore access if you lose the hardware device):
         - [Authy](https://authy.com/)
-        - [Duo Mobile](https://duo.com/product/multi-factor-authentication-mfa/duo-mobile-app)
       - Other:
         - [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en)
         - [Microsoft Authenticator](https://www.microsoft.com/en-us/security/mobile-authenticator-app)
@@ -72,6 +71,9 @@ To enable 2FA with a one-time password:
    1. Enter the six-digit pin number from the entry on your device into **Pin code**.
    1. Enter your current password.
    1. Select **Submit**.
+
+NOTE:
+DUO [cannot be used for 2FA](https://gitlab.com/gitlab-org/gitlab/-/issues/15760).
 
 If you entered the correct pin, GitLab displays a list of [recovery codes](#recovery-codes). Download them and keep them
 in a safe place.
@@ -295,7 +297,7 @@ If you regenerate 2FA recovery codes, save them. You can't use any previously cr
 
 ## Sign in with two-factor authentication enabled
 
-Signing in with 2FA enabled is only slightly different than the normal sign-in process. Enter your username and password
+Signing in with 2FA enabled is only slightly different than the typical sign-in process. Enter your username and password
 and you're presented with a second prompt, depending on which type of 2FA you've enabled.
 
 ### Sign in using a one-time password
@@ -442,7 +444,7 @@ This error occurs in the following scenarios:
   password. For 2FA-enabled users, a [personal access token](../personal_access_tokens.md) (PAT)
   must be used instead of a password. To authenticate:
   - Git requests over HTTP(S), a PAT with `read_repository` or `write_repository` scope is required.
-  - [GitLab Container Registry](../../packages/container_registry/index.md#authenticate-with-the-container-registry) requests, a PAT
+  - [GitLab Container Registry](../../packages/container_registry/authenticate_with_container_registry.md) requests, a PAT
     with `read_registry` or `write_registry` scope is required.
   - [Dependency Proxy](../../packages/dependency_proxy/index.md#authenticate-with-the-dependency-proxy) requests, a PAT with
     `read_registry` and `write_registry` scopes is required.
@@ -452,11 +454,10 @@ This error occurs in the following scenarios:
   [enforce 2FA for all users](../../../security/two_factor_authentication.md#enforce-2fa-for-all-users) setting.
 - You do not have 2FA enabled, but an administrator has disabled the
   [password authentication enabled for Git over HTTP(S)](../../admin_area/settings/sign_in_restrictions.md#password-authentication-enabled)
-  setting. If LDAP is:
-  - Configured, an [LDAP password](../../../administration/auth/ldap/index.md)
-    or a [personal access token](../personal_access_tokens.md)
-    must be used to authenticate Git requests over HTTP(S).
-  - Not configured, you must use a [personal access token](../personal_access_tokens.md).
+  setting. You can authenticate Git requests:
+  - Over HTTP(S) using a [personal access token](../personal_access_tokens.md).
+  - In your browser using [Git Credential Manager](#git-credential-manager).
+  - If you have configured LDAP, over HTTP(S) using an [LDAP password](../../../administration/auth/ldap/index.md).
 
 ### Error: "invalid pin code"
 

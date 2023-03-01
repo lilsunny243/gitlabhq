@@ -2,12 +2,16 @@
 type: reference, howto
 stage: Secure
 group: Composition Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# License compliance **(ULTIMATE)**
+# License compliance (DEPRECATED) **(ULTIMATE)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/5483) in GitLab 11.0.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/5483) in GitLab 11.0.
+> - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387561) in GitLab 15.9.
+
+WARNING:
+This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387561) in GitLab 15.9. Users should migrate over to use the [new method of license scanning](../license_scanning_of_cyclonedx_files/index.md) prior to GitLab 16.0.
 
 If you're using [GitLab CI/CD](../../../ci/index.md), you can use License Compliance to search your
 project's dependencies for their licenses. You can then decide whether to allow or deny the use of
@@ -21,10 +25,15 @@ For the job to activate, License Finder needs to find a compatible package defin
 GitLab checks the License Compliance report, compares the
 licenses between the source and target branches, and shows the information right on the merge
 request. Denied licenses are indicated by a `x` red icon next to them as well as new licenses that
-need a decision from you. In addition, you can [manually allow or deny](#policies) licenses in your
+need a decision from you. In addition, you can [manually allow or deny](../license_check_rules.md) licenses in your
 project's license compliance policy section. If a denied license is detected in a new commit,
 GitLab blocks any merge requests containing that commit and instructs the developer to remove the
 license.
+
+NOTE:
+Starting with GitLab 15.9, License Compliance can detect the licenses in use
+[using Dependency Scanning CI jobs](../license_scanning_of_cyclonedx_files/index.md)
+instead of the License Scanning ones.
 
 NOTE:
 If the license compliance report doesn't have anything to compare to, no information
@@ -40,23 +49,11 @@ that you can later download and analyze.
 WARNING:
 License Compliance Scanning does not support run-time installation of compilers and interpreters.
 
-![License Compliance Widget](img/license_compliance_v13_0.png)
-
-You can select a license to see more information.
-
-When GitLab detects a **Denied** license, you can view it in the [license list](#license-list).
-
-![License List](img/license_list_v13_0.png)
-
-You can view and modify existing policies from the [policies](#policies) tab.
-
-![Edit Policy](img/policies_maintainer_edit_v14_3.png)
-
 ## License expressions
 
-GitLab has limited support for [composite licenses](https://spdx.github.io/spdx-spec/SPDX-license-expressions/).
+GitLab has limited support for [composite licenses](https://spdx.github.io/spdx-spec/v2-draft/SPDX-license-expressions/).
 License compliance can read multiple licenses, but always considers them combined using the `AND` operator. For example,
-if a dependency has two licenses, and one of them is allowed and the other is denied by the project [policy](#policies),
+if a dependency has two licenses, and one of them is allowed and the other is denied by the project [policy](../license_check_rules.md),
 GitLab evaluates the composite license as _denied_, as this is the safer option.
 The ability to support other license expression operators (like `OR`, `WITH`) is tracked
 in [this epic](https://gitlab.com/groups/gitlab-org/-/epics/6571).
@@ -100,7 +97,7 @@ To enable License Compliance in your project's pipeline, either:
   (provided by [Auto DevOps](../../../topics/autodevops/index.md)).
 - Include the [`License-Scanning.gitlab-ci.yml` template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Security/License-Scanning.gitlab-ci.yml) in your `.gitlab-ci.yml` file.
 
-Please note that License Compliance is not supported when GitLab is run with FIPS mode enabled.
+License Compliance is not supported when GitLab is run with FIPS mode enabled.
 
 ### Include the License Scanning template
 
@@ -177,7 +174,7 @@ directory of your project.
 Depending on your language, you may need to specify the path to the individual
 projects of a monorepo using the `LICENSE_FINDER_CLI_OPTS` variable. Passing in
 the project paths can significantly speed up builds over using the `--recursive`
-license_finder option.
+License Finder option.
 
 ```yaml
 include:
@@ -388,7 +385,7 @@ source "https://gems.example.com"
 You can supply a custom root certificate to complete TLS verification by using the
 `ADDITIONAL_CA_CERT_BUNDLE` [CI/CD variable](#available-cicd-variables), or by
 specifying a [`BUNDLE_SSL_CA_CERT`](https://bundler.io/v2.0/man/bundle-config.1.html)
-[variable](../../../ci/variables/index.md#custom-cicd-variables)
+[variable](../../../ci/variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file)
 in the job definition.
 
 ### Configuring Cargo projects
@@ -412,7 +409,7 @@ To supply a custom root certificate to complete TLS verification, do one of the 
 
 - Use the `ADDITIONAL_CA_CERT_BUNDLE` [CI/CD variable](#available-cicd-variables).
 - Specify a [`CARGO_HTTP_CAINFO`](https://doc.rust-lang.org/cargo/reference/environment-variables.html)
-  [variable](../../../ci/variables/index.md#custom-cicd-variables)
+  [variable](../../../ci/variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file)
   in the job definition.
 
 ### Configuring Composer projects
@@ -445,7 +442,7 @@ For example:
 You can supply a custom root certificate to complete TLS verification by using the
 `ADDITIONAL_CA_CERT_BUNDLE` [CI/CD variable](#available-cicd-variables), or by
 specifying a [`COMPOSER_CAFILE`](https://getcomposer.org/doc/03-cli.md#composer-cafile)
-[variable](../../../ci/variables/index.md#custom-cicd-variables)
+[variable](../../../ci/variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file)
 in the job definition.
 
 ### Configuring Conan projects
@@ -508,7 +505,7 @@ example:
 }
 ```
 
-If credentials are required to authenticate then you can configure a [protected CI/CD variable](../../../ci/variables/index.md#protected-cicd-variables)
+If credentials are required to authenticate then you can configure a [protected CI/CD variable](../../../ci/variables/index.md#protect-a-cicd-variable)
 following the naming convention described in the [`CONAN_LOGIN_USERNAME` documentation](https://docs.conan.io/en/latest/reference/env_vars.html#conan-login-username-conan-login-username-remote-name).
 
 #### Custom root certificates for Conan
@@ -556,8 +553,8 @@ license_scanning:
 #### Using private NuGet registries
 
 If you have a private NuGet registry you can add it as a source
-by adding it to the [`packageSources`](https://docs.microsoft.com/en-us/nuget/reference/nuget-config-file#package-source-sections)
-section of a [`nuget.config`](https://docs.microsoft.com/en-us/nuget/reference/nuget-config-file) file.
+by adding it to the [`packageSources`](https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file#package-source-sections)
+section of a [`nuget.config`](https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file) file.
 
 For example:
 
@@ -656,11 +653,11 @@ registry.gitlab.com/security-products/license-finder:latest
 ```
 
 The process for importing Docker images into a local offline Docker registry depends on
-**your network security policy**. Please consult your IT staff to find an accepted and approved
+**your network security policy**. Consult your IT staff to find an accepted and approved
 process by which external resources can be imported or temporarily accessed. Note that these scanners are [updated periodically](../../application_security/index.md#vulnerability-scanner-maintenance)
 with new definitions, so consider if you are able to make periodic updates yourself.
 
-For details on saving and transporting Docker images as a file, see Docker's documentation on
+For details on saving and transporting Docker images as a file, see the Docker documentation on
 [`docker save`](https://docs.docker.com/engine/reference/commandline/save/), [`docker load`](https://docs.docker.com/engine/reference/commandline/load/),
 [`docker export`](https://docs.docker.com/engine/reference/commandline/export/), and [`docker import`](https://docs.docker.com/engine/reference/commandline/import/).
 
@@ -696,98 +693,11 @@ Additional configuration may be needed for connecting to private registries for:
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/212388) in GitLab 13.3.
 
-Prior to GitLab 13.3, offline environments required an exact name match for [project policies](#policies).
-In GitLab 13.3 and later, GitLab matches the name of [project policies](#policies)
+Prior to GitLab 13.3, offline environments required an exact name match for [project policies](../license_check_rules.md).
+In GitLab 13.3 and later, GitLab matches the name of [project policies](../license_check_rules.md)
 with identifiers from the [SPDX license list](https://spdx.org/licenses/).
 A local copy of the SPDX license list is distributed with the GitLab instance. If needed, the GitLab
 instance's administrator can manually update it with a [Rake task](../../../raketasks/spdx.md).
-
-## License list
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13582) in GitLab 12.7.
-
-The License list allows you to see your project's licenses and key
-details about them.
-
-For the licenses to appear under the license list, the following
-requirements must be met:
-
-1. The License Compliance CI/CD job must be [enabled](#enable-license-compliance) for your project.
-1. Your project must use at least one of the
-   [supported languages and package managers](#supported-languages-and-package-managers).
-
-When everything is configured, on the left sidebar, select **Security & Compliance > License Compliance**.
-
-The licenses are displayed, where:
-
-- **Name:** The name of the license.
-- **Component:** The components which have this license.
-- **Policy Violation:** The license has a [license policy](#policies) marked as **Deny**.
-
-![License List](img/license_list_v13_0.png)
-
-## Policies
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/22465) in GitLab 12.9.
-
-Policies allow you to specify licenses that are `allowed` or `denied` in a project. If a `denied`
-license is newly committed it blocks the merge request and instructs the developer to remove it.
-Note, the merge request is not able to be merged until the `denied` license is removed.
-You may add a [`License-Check` approval rule](#enabling-license-approvals-within-a-project),
-which enables a designated approver that can approve and then merge a merge request with `denied` license.
-
-These policies can be configured by using the [Managed Licenses API](../../../api/managed_licenses.md).
-
-![Merge request with denied licenses](img/denied_licenses_v13_3.png)
-
-The **Policies** tab in the project's license compliance section displays your project's license
-policies. Project maintainers can specify policies in this section.
-
-![Edit Policy](img/policies_maintainer_edit_v14_3.png)
-
-![Add Policy](img/policies_maintainer_add_v14_3.png)
-
-Developers of the project can view the policies configured in a project.
-
-![View Policies](img/policies_v13_0.png)
-
-## Enabling License Approvals within a project
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13067) in GitLab 12.3.
-
-Prerequisites:
-
-- Maintainer or Owner role.
-
-`License-Check` is a [merge request approval](../../project/merge_requests/approvals/index.md) rule
-you can enable to allow an individual or group to approve a merge request that contains a `denied`
-license.
-
-You can enable `License-Check` one of two ways:
-
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
-1. Expand **Merge request approvals**.
-1. Select **Enable** or **Edit**.
-1. Add or change the **Rule name** to `License-Check` (case sensitive).
-
-![License Check Approver Rule](img/license-check_v13_4.png)
-
-- Create an approval group in the [project policies section for License Compliance](#policies).
-  You must set this approval group's number of approvals required to greater than zero. Once you
-  enable this group in your project, the approval rule is enabled for all merge requests.
-
-Any code changes cause the approvals required to reset.
-
-An approval is required when a license report:
-
-- Contains a dependency that includes a software license that is `denied`.
-- Is not generated during pipeline execution.
-
-An approval is optional when a license report:
-
-- Contains no software license violations.
-- Contains only new licenses that are `allowed` or unknown.
 
 ## Warnings
 
@@ -857,29 +767,60 @@ A full list of variables can be found in [CI/CD variables](#available-cicd-varia
 To find out what tools are pre-installed in the `license_scanning` Docker image use the following command:
 
 ```shell
-$ docker run --entrypoint='' registry.gitlab.com/security-products/license-finder:4 /bin/bash -lc 'asdf list'
+$ docker run --entrypoint='' -ti --rm registry.gitlab.com/security-products/license-finder:4 \
+  /bin/bash -c 'dpkg -i /opt/toolcache/*.deb && asdf list'
+...
+dotnet-core
+  3.1.302
+elixir
+  1.10.4
 golang
-  1.14
+  1.15.5
+  1.16.2
 gradle
-  6.3
+No versions installed
 java
-  adopt-openjdk-11.0.7+10
-  adopt-openjdk-8u242-b08
+  11
+  14
+  15
+  8
 maven
-  3.6.3
+No versions installed
 nodejs
-  10.20.1
-  12.16.3
+  10.21.0
+  12.18.2
+  14.17.1
 php
-  7.4.5
+  7.4.8
 python
   2.7.18
-  3.8.2
+  3.3.7
+  3.4.10
+  3.5.9
+  3.6.11
+  3.7.7
+  3.8.5
 ruby
+  2.4.10
+  2.4.5
+  2.4.9
+  2.5.8
+  2.6.0
+  2.6.1
+  2.6.2
+  2.6.3
+  2.6.4
+  2.6.5
   2.6.6
-sbt
-  1.3.8
+  2.7.0
+  2.7.1
+  2.7.2
+rust
+  1.45.0
 ```
+
+It might take more than 10 minutes to run the command above.
+This is because it installs every single tool version available in the Docker image.
 
 To interact with the `license_scanning` runtime environment use the following command:
 
@@ -890,3 +831,17 @@ root@6abb70e9f193:~#
 
 NOTE:
 Selecting a custom version of [Mono](https://www.mono-project.com/) or [.NET Core](https://dotnet.microsoft.com/download/dotnet) is currently not supported.
+
+### LicenseFinder::Maven: is not installed error
+
+If your project contains a `mvnw` or `mvnw.cmd` file, then the license scanning job may fail with the `LicenseFinder::Maven: is not installed error` error. To resolve this, modify the license scanning job to remove the files in the `before_script` section. Example:
+
+```yaml
+include:
+  - template: License-Scanning.gitlab-ci.yml
+
+license_scanning:
+  before_script:
+    - rm mvnw
+    - rm mvnw.cmd
+```

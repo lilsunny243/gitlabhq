@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe API::DebianGroupPackages do
+RSpec.describe API::DebianGroupPackages, feature_category: :package_registry do
   include HttpBasicAuthHelpers
   include WorkhorseHelpers
 
@@ -36,10 +36,28 @@ RSpec.describe API::DebianGroupPackages do
       it_behaves_like 'Debian packages read endpoint', 'GET', :success, /Description: This is an incomplete Packages file/
     end
 
+    describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/binary-:architecture/Packages.gz' do
+      let(:url) { "/groups/#{container.id}/-/packages/debian/dists/#{distribution.codename}/#{component.name}/binary-#{architecture.name}/Packages.gz" }
+
+      it_behaves_like 'Debian packages read endpoint', 'GET', :not_found, /Format gz is not supported/
+    end
+
+    describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/binary-:architecture/by-hash/SHA256/:file_sha256' do
+      let(:url) { "/groups/#{container.id}/-/packages/debian/dists/#{distribution.codename}/#{component.name}/binary-#{architecture.name}/by-hash/SHA256/#{component_file_older_sha256.file_sha256}" }
+
+      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /^Other SHA256$/
+    end
+
     describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/source/Sources' do
       let(:url) { "/groups/#{container.id}/-/packages/debian/dists/#{distribution.codename}/#{component.name}/source/Sources" }
 
       it_behaves_like 'Debian packages read endpoint', 'GET', :success, /Description: This is an incomplete Sources file/
+    end
+
+    describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/source/by-hash/SHA256/:file_sha256' do
+      let(:url) { "/groups/#{container.id}/-/packages/debian/dists/#{distribution.codename}/#{component.name}/source/by-hash/SHA256/#{component_file_sources_older_sha256.file_sha256}" }
+
+      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /^Other SHA256$/
     end
 
     describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/debian-installer/binary-:architecture/Packages' do
@@ -48,11 +66,23 @@ RSpec.describe API::DebianGroupPackages do
       it_behaves_like 'Debian packages read endpoint', 'GET', :success, /Description: This is an incomplete D-I Packages file/
     end
 
+    describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/debian-installer/binary-:architecture/Packages.gz' do
+      let(:url) { "/groups/#{container.id}/-/packages/debian/dists/#{distribution.codename}/#{component.name}/debian-installer/binary-#{architecture.name}/Packages.gz" }
+
+      it_behaves_like 'Debian packages read endpoint', 'GET', :not_found, /Format gz is not supported/
+    end
+
+    describe 'GET groups/:id/-/packages/debian/dists/*distribution/:component/debian-installer/binary-:architecture/by-hash/SHA256/:file_sha256' do
+      let(:url) { "/groups/#{container.id}/-/packages/debian/dists/#{distribution.codename}/#{component.name}/debian-installer/binary-#{architecture.name}/by-hash/SHA256/#{component_file_di_older_sha256.file_sha256}" }
+
+      it_behaves_like 'Debian packages read endpoint', 'GET', :success, /^Other SHA256$/
+    end
+
     describe 'GET groups/:id/-/packages/debian/pool/:codename/:project_id/:letter/:package_name/:package_version/:file_name' do
+      using RSpec::Parameterized::TableSyntax
+
       let(:url) { "/groups/#{container.id}/-/packages/debian/pool/#{package.debian_distribution.codename}/#{project.id}/#{letter}/#{package.name}/#{package.version}/#{file_name}" }
       let(:file_name) { params[:file_name] }
-
-      using RSpec::Parameterized::TableSyntax
 
       where(:file_name, :success_body) do
         'sample_1.2.3~alpha2.tar.xz'          | /^.7zXZ/
@@ -65,6 +95,12 @@ RSpec.describe API::DebianGroupPackages do
 
       with_them do
         it_behaves_like 'Debian packages read endpoint', 'GET', :success, params[:success_body]
+
+        context 'for bumping last downloaded at' do
+          include_context 'Debian repository access', :public, :developer, :basic do
+            it_behaves_like 'bumping the package last downloaded at field'
+          end
+        end
       end
     end
   end

@@ -1,0 +1,7 @@
+- data = local_assigns.fetch(:data)
+- data[:display_text] = local_assigns.fetch(:display_text)
+- data[:icon] = local_assigns.fetch(:icon)
+
+.js-invite-members-trigger{ data: data }
+
+= render 'projects/invite_members_modal', project: local_assigns.fetch(:context)

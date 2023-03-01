@@ -14,7 +14,7 @@ class ProfilesController < Profiles::ApplicationController
     push_frontend_feature_flag(:webauthn)
   end
 
-  feature_category :users, [:show, :update, :reset_incoming_email_token, :reset_feed_token,
+  feature_category :user_profile, [:show, :update, :reset_incoming_email_token, :reset_feed_token,
                             :reset_static_object_token, :update_username]
 
   feature_category :authentication_and_authorization, [:audit_log]
@@ -127,6 +127,7 @@ class ProfilesController < Profiles::ApplicationController
       :commit_email,
       :skype,
       :twitter,
+      :discord,
       :username,
       :website_url,
       :organization,
@@ -137,7 +138,7 @@ class ProfilesController < Profiles::ApplicationController
       :pronouns,
       :pronunciation,
       :validation_password,
-      status: [:emoji, :message, :availability]
+      status: [:emoji, :message, :availability, :clear_status_after]
     ]
   end
 

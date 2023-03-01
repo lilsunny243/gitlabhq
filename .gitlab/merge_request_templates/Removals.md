@@ -18,7 +18,7 @@ If there is no relevant deprecation issue, hit pause and:
 
 Removals must be [announced as deprecations](https://about.gitlab.com/handbook/marketing/blog/release-posts/#deprecations) at least 2 milestones in advance of the planned removal date.
 
-If the removal creates a [breaking change](https://about.gitlab.com/handbook/product/gitlab-the-product/#breaking-changes-deprecations-and-removing-features), it can only be removed in a major "XX.0" release.
+If the removal creates a [breaking change](https://about.gitlab.com/handbook/product/gitlab-the-product/#deprecations-removals-and-breaking-changes), it can only be removed in a major "XX.0" release.
 
 **By the 10th**: Assign this MR to these team members as reviewers, and for approval:
 
@@ -46,6 +46,7 @@ Please review:
 - [ ] Set yourself as the Assignee, meaning you are the DRI.
 - [ ] If the removal is a [breaking change](https://about.gitlab.com/handbook/product/gitlab-the-product/#breaking-change), add label `breaking change`.
 - [ ] Follow the process to [create a removal YAML file](https://about.gitlab.com/handbook/marketing/blog/release-posts/#creating-a-removal-entry).
+- [ ] Make sure that the milestone dates are based on the dates in [Product milestone creation](https://about.gitlab.com/handbook/product/milestones/#product-milestone-creation).
 - [ ] Add reviewers by the 10th.
 - [ ] When ready to be merged and not later than the 15th, add the ~ready label and @ message the TW for final review and merge.
   - Removal notices should not be merged before the code is removed from the product. Do not mark ~ready until the removal is complete, or you are certain it will be completed within the current milestone and released. If PMs are not sure, they should confirm with their Engineering Manager.
@@ -55,13 +56,13 @@ Please review:
 When the content is ready for review, the Technical Writer and Engineering Manager _must_
 review it. Optional reviewers can include Product Marketing, Product Design, and the Product Leaders
 for this area. Use the
-[Reviewers for Merge Requests](https://docs.gitlab.com/ee/user/project/merge_requests/getting_started#reviewer)
+[reviewers](https://docs.gitlab.com/ee/user/project/merge_requests/reviews/)
 feature for all reviews. Reviewers will `approve` the MR and remove themselves from the reviewers list when their review is complete.
 
 - [ ] (Recommended) PMM
 - [ ] (Optional) Product Designer
 - [ ] (Optional) Group Manager or Director
-- [ ] Required review and approval: [Technical Writer designated to the corresponding DevOps stage/group](https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments).
+- [ ] Required review and approval: [Technical Writer designated to the corresponding DevOps stage/group](https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments).
 
 ### Tech writer review
 
@@ -78,7 +79,8 @@ yourself as a reviewer if it's not yet ready for merge.
 - [ ] Title:
   - Length limit: 7 words (not including articles or prepositions).
   - Capitalization: ensure the title is [sentence cased](https://design.gitlab.com/content/punctuation#case).
-  - Rewrite to exclude the words `removal` and `remove` if necessary.
+- [ ] Dates:
+  - Make sure that the milestone dates are based on the dates in [Product milestone creation](https://about.gitlab.com/handbook/product/milestones/#product-milestone-creation).
 - [ ] Consistency:
   - Ensure that all resources (docs, removal, etc.) refer to the feature with the same term / feature name.
 - [ ] Content:

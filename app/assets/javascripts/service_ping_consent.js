@@ -1,5 +1,5 @@
 import $ from 'jquery';
-import createFlash, { hideFlash } from './flash';
+import { createAlert } from '~/flash';
 import axios from './lib/utils/axios_utils';
 import { parseBoolean } from './lib/utils/common_utils';
 import { __ } from './locale';
@@ -18,7 +18,7 @@ export default () => {
     };
 
     const hideConsentMessage = () =>
-      hideFlash(document.querySelector('.service-ping-consent-message'));
+      document.querySelector('.service-ping-consent-message .js-close')?.click();
 
     axios
       .put(url, data)
@@ -27,7 +27,7 @@ export default () => {
       })
       .catch(() => {
         hideConsentMessage();
-        createFlash({
+        createAlert({
           message: __('Something went wrong. Try again later.'),
         });
       });

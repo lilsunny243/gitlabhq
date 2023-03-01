@@ -51,6 +51,14 @@ RSpec.describe ::Ci::PipelineArtifacts::CreateCodeQualityMrDiffReportService do
               end
             end
 
+            it "artifact has pipeline's locked status" do
+              subject
+
+              artifact = Ci::PipelineArtifact.first
+
+              expect(artifact.locked).to eq(head_pipeline.locked)
+            end
+
             it 'does not persist the same artifact twice' do
               2.times { described_class.new(head_pipeline).execute }
 

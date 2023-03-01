@@ -22,7 +22,7 @@ module Ci
       delegate :set_cancel_gracefully, to: :metadata, prefix: false, allow_nil: false
       delegate :id_tokens, to: :metadata, allow_nil: true
 
-      before_create :ensure_metadata
+      before_validation :ensure_metadata, on: :create
     end
 
     def has_exposed_artifacts?
@@ -80,11 +80,21 @@ module Ci
     end
 
     def id_tokens?
-      !!metadata&.id_tokens?
+      metadata&.id_tokens.present?
     end
 
     def id_tokens=(value)
       ensure_metadata.id_tokens = value
+    end
+
+    def enqueue_immediately?
+      !!options[:enqueue_immediately]
+    end
+
+    def set_enqueue_immediately!
+      # ensures that even if `config_options: nil` in the database we set the
+      # new value correctly.
+      self.options = options.merge(enqueue_immediately: true)
     end
 
     private

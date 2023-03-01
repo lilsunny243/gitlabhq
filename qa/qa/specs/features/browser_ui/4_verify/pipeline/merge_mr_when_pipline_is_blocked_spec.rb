@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner do
-    context 'When pipeline is blocked' do
-      let(:executor) { "qa-runner-#{Faker::Alphanumeric.alphanumeric(8)}" }
+  RSpec.describe 'Verify', :runner, product_group: :pipeline_execution do
+    context 'when pipeline is blocked' do
+      let(:executor) { "qa-runner-#{Faker::Alphanumeric.alphanumeric(number: 8)}" }
 
       let(:project) do
         Resource::Project.fabricate_via_api! do |project|
@@ -12,7 +12,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.project = project
           runner.name = executor
           runner.tags = [executor]

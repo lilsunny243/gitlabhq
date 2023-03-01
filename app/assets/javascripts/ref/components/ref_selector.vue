@@ -1,13 +1,8 @@
 <script>
-import {
-  GlDropdown,
-  GlDropdownDivider,
-  GlSearchBoxByType,
-  GlSprintf,
-  GlLoadingIcon,
-} from '@gitlab/ui';
+import { GlBadge, GlIcon, GlCollapsibleListbox } from '@gitlab/ui';
 import { debounce, isArray } from 'lodash';
 import { mapActions, mapGetters, mapState } from 'vuex';
+import { sprintf } from '~/locale';
 import {
   ALL_REF_TYPES,
   SEARCH_DEBOUNCE_MS,
@@ -17,18 +12,16 @@ import {
   REF_TYPE_COMMITS,
 } from '../constants';
 import createStore from '../stores';
-import RefResultsSection from './ref_results_section.vue';
+import { formatListBoxItems, formatErrors } from '../format_refs';
 
 export default {
   name: 'RefSelector',
   components: {
-    GlDropdown,
-    GlDropdownDivider,
-    GlSearchBoxByType,
-    GlSprintf,
-    GlLoadingIcon,
-    RefResultsSection,
+    GlBadge,
+    GlIcon,
+    GlCollapsibleListbox,
   },
+  inheritAttrs: false,
   props: {
     enabledRefTypes: {
       type: Array,
@@ -48,6 +41,11 @@ export default {
       type: String,
       required: false,
       default: '',
+    },
+    refType: {
+      type: String,
+      required: false,
+      default: null,
     },
     projectId: {
       type: String,
@@ -70,6 +68,20 @@ export default {
       required: false,
       default: true,
     },
+
+    /* Underlying form field name for scenarios where ref_selector
+     * is used as part of submitting an HTML form
+     */
+    name: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    toggleButtonClass: {
+      type: [String, Object, Array],
+      required: false,
+      default: null,
+    },
   },
   data() {
     return {
@@ -89,35 +101,34 @@ export default {
         ...this.translations,
       };
     },
-    showBranchesSection() {
-      return (
-        this.enabledRefTypes.includes(REF_TYPE_BRANCHES) &&
-        Boolean(this.matches.branches.totalCount > 0 || this.matches.branches.error)
-      );
+    listBoxItems() {
+      return formatListBoxItems(this.branches, this.tags, this.commits);
     },
-    showTagsSection() {
-      return (
-        this.enabledRefTypes.includes(REF_TYPE_TAGS) &&
-        Boolean(this.matches.tags.totalCount > 0 || this.matches.tags.error)
-      );
+    branches() {
+      return this.enabledRefTypes.includes(REF_TYPE_BRANCHES) ? this.matches.branches.list : [];
     },
-    showCommitsSection() {
-      return (
-        this.enabledRefTypes.includes(REF_TYPE_COMMITS) &&
-        Boolean(this.matches.commits.totalCount > 0 || this.matches.commits.error)
-      );
+    tags() {
+      return this.enabledRefTypes.includes(REF_TYPE_TAGS) ? this.matches.tags.list : [];
     },
-    showNoResults() {
-      return !this.showBranchesSection && !this.showTagsSection && !this.showCommitsSection;
+    commits() {
+      return this.enabledRefTypes.includes(REF_TYPE_COMMITS) ? this.matches.commits.list : [];
     },
-    showSectionHeaders() {
-      return this.enabledRefTypes.length > 1;
-    },
-    toggleButtonClass() {
-      return {
-        'gl-inset-border-1-red-500!': !this.state,
-        'gl-font-monospace': Boolean(this.selectedRef),
-      };
+    extendedToggleButtonClass() {
+      const classes = [
+        {
+          'gl-inset-border-1-red-500!': !this.state,
+          'gl-font-monospace': Boolean(this.selectedRef),
+        },
+        'gl-mb-0',
+      ];
+
+      if (Array.isArray(this.toggleButtonClass)) {
+        classes.push(...this.toggleButtonClass);
+      } else {
+        classes.push(this.toggleButtonClass);
+      }
+
+      return classes;
     },
     footerSlotProps() {
       return {
@@ -125,6 +136,9 @@ export default {
         matches: this.matches,
         query: this.lastQuery,
       };
+    },
+    errors() {
+      return formatErrors(this.matches.branches, this.matches.tags, this.matches.commits);
     },
     selectedRefForDisplay() {
       if (this.useSymbolicRefNames && this.selectedRef) {
@@ -135,6 +149,13 @@ export default {
     },
     buttonText() {
       return this.selectedRefForDisplay || this.i18n.noRefSelected;
+    },
+    noResultsMessage() {
+      return this.lastQuery
+        ? sprintf(this.i18n.noResultsWithQuery, {
+            query: this.lastQuery,
+          })
+        : this.i18n.noResults;
     },
   },
   watch: {
@@ -162,9 +183,7 @@ export default {
     // because we need to access the .cancel() method
     // lodash attaches to the function, which is
     // made inaccessible by Vue.
-    this.debouncedSearch = debounce(function search() {
-      this.search();
-    }, SEARCH_DEBOUNCE_MS);
+    this.debouncedSearch = debounce(this.search, SEARCH_DEBOUNCE_MS);
 
     this.setProjectId(this.projectId);
 
@@ -191,14 +210,8 @@ export default {
       'setSelectedRef',
     ]),
     ...mapActions({ storeSearch: 'search' }),
-    focusSearchBox() {
-      this.$refs.searchBox.$el.querySelector('input').focus();
-    },
-    onSearchBoxEnter() {
-      this.debouncedSearch.cancel();
-      this.search();
-    },
-    onSearchBoxInput() {
+    onSearchBoxInput(searchQuery = '') {
+      this.query = searchQuery?.trim();
       this.debouncedSearch();
     },
     selectRef(ref) {
@@ -208,94 +221,61 @@ export default {
     search() {
       this.storeSearch(this.query);
     },
+    totalCountText(count) {
+      return count > 999 ? this.i18n.totalCountLabel : `${count}`;
+    },
   },
 };
 </script>
 
 <template>
-  <gl-dropdown
-    :header-text="i18n.dropdownHeader"
-    :toggle-class="toggleButtonClass"
-    :text="buttonText"
-    class="ref-selector"
-    v-bind="$attrs"
-    v-on="$listeners"
-    @shown="focusSearchBox"
-  >
-    <template #header>
-      <gl-search-box-by-type
-        ref="searchBox"
-        v-model.trim="query"
-        :placeholder="i18n.searchPlaceholder"
-        autocomplete="off"
-        @input="onSearchBoxInput"
-        @keydown.enter.prevent="onSearchBoxEnter"
-      />
-    </template>
-
-    <gl-loading-icon v-if="isLoading" size="lg" class="gl-my-3" />
-
-    <div v-else-if="showNoResults" class="gl-text-center gl-mx-3 gl-py-3" data-testid="no-results">
-      <gl-sprintf v-if="lastQuery" :message="i18n.noResultsWithQuery">
-        <template #query>
-          <b class="gl-word-break-all">{{ lastQuery }}</b>
-        </template>
-      </gl-sprintf>
-
-      <span v-else>{{ i18n.noResults }}</span>
-    </div>
-
-    <template v-else>
-      <template v-if="showBranchesSection">
-        <ref-results-section
-          :section-title="i18n.branches"
-          :total-count="matches.branches.totalCount"
-          :items="matches.branches.list"
-          :selected-ref="selectedRef"
-          :error="matches.branches.error"
-          :error-message="i18n.branchesErrorMessage"
-          :show-header="showSectionHeaders"
-          data-testid="branches-section"
-          data-qa-selector="branches_section"
-          @selected="selectRef($event)"
-        />
-
-        <gl-dropdown-divider v-if="showTagsSection || showCommitsSection" />
+  <div>
+    <gl-collapsible-listbox
+      class="ref-selector gl-w-full"
+      block
+      searchable
+      :selected="selectedRef"
+      :header-text="i18n.dropdownHeader"
+      :items="listBoxItems"
+      :no-results-text="noResultsMessage"
+      :searching="isLoading"
+      :search-placeholder="i18n.searchPlaceholder"
+      :toggle-class="extendedToggleButtonClass"
+      :toggle-text="buttonText"
+      v-bind="$attrs"
+      v-on="$listeners"
+      @hidden="$emit('hide')"
+      @search="onSearchBoxInput"
+      @select="selectRef"
+    >
+      <template #group-label="{ group }">
+        {{ group.text }} <gl-badge size="sm">{{ totalCountText(group.options.length) }}</gl-badge>
       </template>
-
-      <template v-if="showTagsSection">
-        <ref-results-section
-          :section-title="i18n.tags"
-          :total-count="matches.tags.totalCount"
-          :items="matches.tags.list"
-          :selected-ref="selectedRef"
-          :error="matches.tags.error"
-          :error-message="i18n.tagsErrorMessage"
-          :show-header="showSectionHeaders"
-          data-testid="tags-section"
-          @selected="selectRef($event)"
-        />
-
-        <gl-dropdown-divider v-if="showCommitsSection" />
+      <template #list-item="{ item }">
+        {{ item.text }}
+        <gl-badge v-if="item.default" size="sm" variant="info">{{
+          i18n.defaultLabelText
+        }}</gl-badge>
       </template>
-
-      <template v-if="showCommitsSection">
-        <ref-results-section
-          :section-title="i18n.commits"
-          :total-count="matches.commits.totalCount"
-          :items="matches.commits.list"
-          :selected-ref="selectedRef"
-          :error="matches.commits.error"
-          :error-message="i18n.commitsErrorMessage"
-          :show-header="showSectionHeaders"
-          data-testid="commits-section"
-          @selected="selectRef($event)"
-        />
+      <template #footer>
+        <slot name="footer" v-bind="footerSlotProps"></slot>
+        <div
+          v-for="errorMessage in errors"
+          :key="errorMessage"
+          data-testid="red-selector-error-list"
+          class="gl-display-flex gl-align-items-flex-start gl-text-red-500 gl-mx-4 gl-my-3"
+        >
+          <gl-icon name="error" class="gl-mr-2 gl-mt-2 gl-flex-shrink-0" />
+          <span>{{ errorMessage }}</span>
+        </div>
       </template>
-    </template>
-
-    <template #footer>
-      <slot name="footer" v-bind="footerSlotProps"></slot>
-    </template>
-  </gl-dropdown>
+    </gl-collapsible-listbox>
+    <input
+      v-if="name"
+      data-testid="selected-ref-form-field"
+      type="hidden"
+      :value="selectedRef"
+      :name="name"
+    />
+  </div>
 </template>

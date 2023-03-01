@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
-group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Configure
+group: Configure
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Web terminals (DEPRECATED) **(FREE)**
@@ -41,7 +41,7 @@ In brief:
 - The WebSocket is handled in [Workhorse](https://gitlab.com/gitlab-org/gitlab-workhorse),
   rather than the Rails application server.
 - Workhorse queries Rails for connection details and user permissions. Rails
-  queries Kubernetes for them in the background using [Sidekiq](../troubleshooting/sidekiq.md).
+  queries Kubernetes for them in the background using [Sidekiq](../sidekiq/sidekiq_troubleshooting.md).
 - Workhorse acts as a proxy server between the user's browser and the Kubernetes
   API, passing WebSocket frames between the two.
 - Workhorse regularly polls Rails, terminating the WebSocket connection if the
@@ -64,8 +64,8 @@ detail below.
 ## Enabling and disabling terminal support
 
 NOTE:
-AWS Classic Load Balancers (CLBs) do not support web sockets.
-If you want web terminals to work, use AWS Network Load Balancers (NLBs).
+AWS Classic Load Balancers do not support web sockets.
+If you want web terminals to work, use AWS Network Load Balancers.
 Read [AWS Elastic Load Balancing Product Comparison](https://aws.amazon.com/elasticloadbalancing/features/#compare)
 for more information.
 
@@ -114,7 +114,7 @@ they receive a `Connection failed` message.
 By default, terminal sessions do not expire. To limit the terminal session
 lifetime in your GitLab instance:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. Select
    [**Settings > Web terminal**](../../user/admin_area/settings/index.md#general).
 1. Set a `max session time`.

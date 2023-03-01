@@ -2,7 +2,10 @@
 
 module QA
   RSpec.describe 'Create' do
-    describe 'Branch with unusual name', product_group: :source_code do
+    describe 'Branch with unusual name', product_group: :source_code, quarantine: {
+      issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/364565',
+      type: :bug
+    } do
       let(:branch_name) { 'unUsually/named#br--anch' }
       let(:project) do
         Resource::Project.fabricate_via_api! do |resource|
@@ -22,15 +25,23 @@ module QA
             commit.branch = branch_name
             commit.start_branch = project.default_branch
             commit.commit_message = 'Add new file'
-            commit.add_files([
-                                 { file_path: 'test-folder/test-file.md', content: 'new content' }
-                             ])
+            commit.add_files([{ file_path: 'test-folder/test-file.md', content: 'new content' }])
           end
 
           project.visit!
 
           Page::Project::Show.perform do |show|
             show.switch_to_branch(branch_name)
+
+            # It takes a few seconds for console errors to appear
+            sleep 3
+
+            errors = page.driver.browser.logs.get(:browser)
+                         .select { |e| e.level == "SEVERE" }
+                         .to_a
+
+            raise("Console error(s):\n#{errors.join("\n\n")}") if errors.present?
+
             show.click_file('test-folder')
 
             expect(show).to have_file('test-file.md')

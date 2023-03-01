@@ -8,17 +8,21 @@ import waitForPromises from 'helpers/wait_for_promises';
 import axios from '~/lib/utils/axios_utils';
 import extensionsContainer from '~/vue_merge_request_widget/components/extensions/container';
 import { registerExtension } from '~/vue_merge_request_widget/components/extensions';
-import httpStatusCodes from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_NO_CONTENT,
+  HTTP_STATUS_OK,
+} from '~/lib/utils/http_status';
 import TestCaseDetails from '~/pipelines/components/test_reports/test_case_details.vue';
 
-import { failedReport } from 'jest/reports/mock_data/mock_data';
-import mixedResultsTestReports from 'jest/reports/mock_data/new_and_fixed_failures_report.json';
-import newErrorsTestReports from 'jest/reports/mock_data/new_errors_report.json';
-import newFailedTestReports from 'jest/reports/mock_data/new_failures_report.json';
-import newFailedTestWithNullFilesReport from 'jest/reports/mock_data/new_failures_with_null_files_report.json';
-import successTestReports from 'jest/reports/mock_data/no_failures_report.json';
-import resolvedFailures from 'jest/reports/mock_data/resolved_failures.json';
-import recentFailures from 'jest/reports/mock_data/recent_failures_report.json';
+import { failedReport } from 'jest/ci/reports/mock_data/mock_data';
+import mixedResultsTestReports from 'jest/ci/reports/mock_data/new_and_fixed_failures_report.json';
+import newErrorsTestReports from 'jest/ci/reports/mock_data/new_errors_report.json';
+import newFailedTestReports from 'jest/ci/reports/mock_data/new_failures_report.json';
+import newFailedTestWithNullFilesReport from 'jest/ci/reports/mock_data/new_failures_with_null_files_report.json';
+import successTestReports from 'jest/ci/reports/mock_data/no_failures_report.json';
+import resolvedFailures from 'jest/ci/reports/mock_data/resolved_failures.json';
+import recentFailures from 'jest/ci/reports/mock_data/recent_failures_report.json';
 
 const reportWithParsingErrors = failedReport;
 reportWithParsingErrors.suites[0].suite_errors = {
@@ -42,7 +46,7 @@ describe('Test report extension', () => {
   const findFullReportLink = () => wrapper.findByTestId('full-report-link');
   const findCopyFailedSpecsBtn = () => wrapper.findByTestId('copy-failed-specs-btn');
   const findAllExtensionListItems = () => wrapper.findAllByTestId('extension-list-item');
-  const findModal = () => wrapper.find(TestCaseDetails);
+  const findModal = () => wrapper.findComponent(TestCaseDetails);
 
   const createComponent = () => {
     wrapper = mountExtended(extensionsContainer, {
@@ -57,7 +61,7 @@ describe('Test report extension', () => {
   };
 
   const createExpandedWidgetWithData = async (data = mixedResultsTestReports) => {
-    mockApi(httpStatusCodes.OK, data);
+    mockApi(HTTP_STATUS_OK, data);
     createComponent();
     await waitForPromises();
     findToggleCollapsedButton().trigger('click');
@@ -75,14 +79,14 @@ describe('Test report extension', () => {
 
   describe('summary', () => {
     it('displays loading state initially', () => {
-      mockApi(httpStatusCodes.OK);
+      mockApi(HTTP_STATUS_OK);
       createComponent();
 
       expect(wrapper.text()).toContain(i18n.loading);
     });
 
     it('with a 204 response, continues to display loading state', async () => {
-      mockApi(httpStatusCodes.NO_CONTENT, '');
+      mockApi(HTTP_STATUS_NO_CONTENT, '');
       createComponent();
 
       await waitForPromises();
@@ -91,7 +95,7 @@ describe('Test report extension', () => {
     });
 
     it('with an error response, displays failed to load text', async () => {
-      mockApi(httpStatusCodes.INTERNAL_SERVER_ERROR);
+      mockApi(HTTP_STATUS_INTERNAL_SERVER_ERROR);
       createComponent();
 
       await waitForPromises();
@@ -107,7 +111,7 @@ describe('Test report extension', () => {
       ${'failed test results'}    | ${newFailedTestReports}    | ${'Test summary: 2 failed, 11 total tests'}
       ${'resolved failures'}      | ${resolvedFailures}        | ${'Test summary: 4 fixed test results, 11 total tests'}
     `('displays summary text for $description', async ({ mockData, expectedResult }) => {
-      mockApi(httpStatusCodes.OK, mockData);
+      mockApi(HTTP_STATUS_OK, mockData);
       createComponent();
 
       await waitForPromises();
@@ -116,7 +120,7 @@ describe('Test report extension', () => {
     });
 
     it('displays report level recently failed count', async () => {
-      mockApi(httpStatusCodes.OK, recentFailures);
+      mockApi(HTTP_STATUS_OK, recentFailures);
       createComponent();
 
       await waitForPromises();
@@ -127,7 +131,7 @@ describe('Test report extension', () => {
     });
 
     it('displays a link to the full report', async () => {
-      mockApi(httpStatusCodes.OK);
+      mockApi(HTTP_STATUS_OK);
       createComponent();
 
       await waitForPromises();
@@ -137,7 +141,7 @@ describe('Test report extension', () => {
     });
 
     it('hides copy failed tests button when there are no failing tests', async () => {
-      mockApi(httpStatusCodes.OK);
+      mockApi(HTTP_STATUS_OK);
       createComponent();
 
       await waitForPromises();
@@ -146,7 +150,7 @@ describe('Test report extension', () => {
     });
 
     it('displays copy failed tests button when there are failing tests', async () => {
-      mockApi(httpStatusCodes.OK, newFailedTestReports);
+      mockApi(HTTP_STATUS_OK, newFailedTestReports);
       createComponent();
 
       await waitForPromises();
@@ -159,7 +163,7 @@ describe('Test report extension', () => {
     });
 
     it('hides copy failed tests button when endpoint returns null files', async () => {
-      mockApi(httpStatusCodes.OK, newFailedTestWithNullFilesReport);
+      mockApi(HTTP_STATUS_OK, newFailedTestWithNullFilesReport);
       createComponent();
 
       await waitForPromises();
@@ -168,7 +172,7 @@ describe('Test report extension', () => {
     });
 
     it('copy failed tests button updates tooltip text when clicked', async () => {
-      mockApi(httpStatusCodes.OK, newFailedTestReports);
+      mockApi(HTTP_STATUS_OK, newFailedTestReports);
       createComponent();
 
       await waitForPromises();
@@ -195,7 +199,7 @@ describe('Test report extension', () => {
     });
 
     it('shows an error when a suite has a parsing error', async () => {
-      mockApi(httpStatusCodes.OK, reportWithParsingErrors);
+      mockApi(HTTP_STATUS_OK, reportWithParsingErrors);
       createComponent();
 
       await waitForPromises();

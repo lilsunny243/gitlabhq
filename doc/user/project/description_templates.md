@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Description templates **(FREE)**
@@ -32,7 +32,7 @@ directory in your repository.
 
 To create an issue description template:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Repository**.
 1. Next to the default branch, select **{plus}**.
 1. Select **New file**.
@@ -40,7 +40,7 @@ To create an issue description template:
    where `mytemplate` is the name of your issue template.
 1. Commit to your default branch.
 
-To check if this has worked correctly, [create a new issue](issues/managing_issues.md#create-an-issue)
+To check if this has worked correctly, [create a new issue](issues/create_issues.md)
 and see if you can find your description template in the **Choose a template** dropdown list.
 
 ## Create a merge request template
@@ -51,7 +51,7 @@ push to your default branch.
 
 To create a merge request description template:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Repository**.
 1. Next to the default branch, select **{plus}**.
 1. Select **New file**.
@@ -81,7 +81,27 @@ To discard any changes to the description you've made after selecting the templa
 
 NOTE:
 You can create shortcut links to create an issue using a designated template.
-For example: `https://gitlab.com/gitlab-org/gitlab/-/issues/new?issuable_template=Feature%20proposal`. Read more about [creating issues using a URL with prefilled values](issues/managing_issues.md#using-a-url-with-prefilled-values).
+For example: `https://gitlab.com/gitlab-org/gitlab/-/issues/new?issuable_template=Feature%20proposal`. Read more about [creating issues using a URL with prefilled values](issues/create_issues.md#using-a-url-with-prefilled-values).
+
+### Supported variables in merge request templates
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/89810) in GitLab 15.7.
+
+NOTE:
+This feature is available only for
+[the default template](#set-a-default-template-for-merge-requests-and-issues).
+
+When you save a merge request for the first time, GitLab replaces these variables in
+your merge request template with their values:
+
+| Variable | Description | Output example |
+|----------|-------------|----------------|
+| `%{all_commits}` | Messages from all commits in the merge request. Limited to 100 most recent commits. Skips commit bodies exceeding 100 KiB and merge commit messages. | `* Feature introduced` <br><br> `This commit implements feature` <br> `Changelog:added` <br><br> `* Bug fixed` <br><br> `* Documentation improved` <br><br>`This commit introduced better docs.` |
+| `%{co_authored_by}` | Names and emails of commit authors in a `Co-authored-by` Git commit trailer format. Limited to authors of 100 most recent commits in merge request. | `Co-authored-by: Zane Doe <zdoe@example.com>` <br> `Co-authored-by: Blake Smith <bsmith@example.com>` |
+| `%{first_commit}` | Full message of the first commit in merge request diff. | `Update README.md` |
+| `%{first_multiline_commit}` | Full message of the first commit that's not a merge commit and has more than one line in message body. Merge request title if all commits aren't multiline. | `Update README.md`<br><br>`Improved project description in readme file.` |
+| `%{source_branch}` | The name of the branch being merged. | `my-feature-branch`  |
+| `%{target_branch}` | The name of the branch that the changes are applied to. | `main` |
 
 ### Set instance-level description templates **(PREMIUM SELF)**
 
@@ -103,7 +123,7 @@ As a result, you can use the same templates in issues and merge requests in all 
 
 To re-use templates [you've created](../project/description_templates.md#create-an-issue-template):
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Templates**.
 1. From the dropdown list, select your template project as the template repository at group level.
@@ -134,10 +154,9 @@ To set a default description template for merge requests, either:
   This [doesn't overwrite](#priority-of-default-description-templates) the default template if one has been set in the project settings.
 - Users on GitLab Premium and higher: set the default template in project settings:
 
-  1. On the top bar, select **Menu > Projects** and find your project.
-  1. On the left sidebar, select **Settings**.
-  1. Expand **Merge requests**.
-  1. Fill in the **Default description template for merge requests** text area.
+  1. On the top bar, select **Main menu > Projects** and find your project.
+  1. On the left sidebar, select **Settings > Merge requests**.
+  1. In the **Merge commit message template** section, fill in **Default description template for merge requests**.
   1. Select **Save changes**.
 
 To set a default description template for issues, either:
@@ -147,7 +166,7 @@ To set a default description template for issues, either:
   This [doesn't overwrite](#priority-of-default-description-templates) the default template if one has been set in the project settings.
 - Users on GitLab Premium and higher: set the default template in project settings:
 
-  1. On the top bar, select **Menu > Projects** and find your project.
+  1. On the top bar, select **Main menu > Projects** and find your project.
   1. On the left sidebar, select **Settings**.
   1. Expand **Default issue template**.
   1. Fill in the **Default description template for issues** text area.
@@ -193,7 +212,7 @@ Here is an example of a bug report template:
 
 ## Example Project
 
-(If possible, please create an example project here on GitLab.com that exhibits the problematic
+(If possible, create an example project here on GitLab.com that exhibits the problematic
 behavior, and link to it here in the bug report.
 If you are using an older version of GitLab, this will also determine whether the bug has been fixed
 in a more recent version)
@@ -208,7 +227,7 @@ in a more recent version)
 
 ## Relevant logs and/or screenshots
 
-(Paste any relevant logs - please use code blocks (```) to format console output, logs, and code, as
+(Paste any relevant logs - use code blocks (```) to format console output, logs, and code, as
 it's very hard to read otherwise.)
 
 ## Possible fixes

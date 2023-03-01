@@ -2,7 +2,7 @@
 type: concepts
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # SSL/TLS certificates **(FREE)**
@@ -29,7 +29,7 @@ This might be your first question. If our sites are hosted by GitLab Pages,
 they are static, hence we are not dealing with server-side scripts
 nor credit card transactions, then why do we need secure connections?
 
-Back in the 1990s, where HTTPS came out, [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security#SSL_1.0.2C_2.0_and_3.0) was considered a "special"
+When HTTPS came out in 1990, [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security#SSL_1.0.2C_2.0_and_3.0) was considered a "special"
 security measure, necessary just for big companies like banks and shopping sites
 with financial transactions.
 
@@ -39,7 +39,7 @@ Now we have a different picture. [According to Josh Aas](https://letsencrypt.org
 
 <!-- vale gitlab.rulename = YES -->
 
-> _We've since come to realize that HTTPS is important for almost all websites. It's important for any website that allows people to log in with a password, any website that [tracks its users](https://www.washingtonpost.com/news/the-switch/wp/2013/12/10/nsa-uses-google-cookies-to-pinpoint-targets-for-hacking/) in any way, any website that [doesn't want its content altered](https://arstechnica.com/tech-policy/2014/09/why-comcasts-javascript-ad-injections-threaten-security-net-neutrality/), and for any site that offers content people might not want others to know they are consuming. We've also learned that any site not secured by HTTPS [can be used to attack other sites](https://krebsonsecurity.com/2015/04/dont-be-fodder-for-chinas-great-cannon/)._
+> _We've since come to realize that HTTPS is important for almost all websites. It's important for any website that allows people to sign in with a password, any website that [tracks its users](https://www.washingtonpost.com/news/the-switch/wp/2013/12/10/nsa-uses-google-cookies-to-pinpoint-targets-for-hacking/) in any way, any website that [doesn't want its content altered](https://arstechnica.com/tech-policy/2014/09/why-comcasts-javascript-ad-injections-threaten-security-net-neutrality/), and for any site that offers content people might not want others to know they are consuming. We've also learned that any site not secured by HTTPS [can be used to attack other sites](https://krebsonsecurity.com/2015/04/dont-be-fodder-for-chinas-great-cannon/)._
 
 Therefore, the reason why certificates are so important is that they encrypt
 the connection between the **client** (you, your visitors)
@@ -60,7 +60,7 @@ reiterating the importance of HTTPS.
 
 GitLab Pages accepts certificates provided in the [PEM](https://knowledge.digicert.com/quovadis.html) format, issued by
 [Certificate Authorities](https://en.wikipedia.org/wiki/Certificate_authority) or as
-[self-signed certificates](https://en.wikipedia.org/wiki/Self-signed_certificate). Note that [self-signed certificates are typically not used](https://www.mcafee.com/blogs/other-blogs/mcafee-labs/self-signed-certificates-secure-so-why-ban/)
+[self-signed certificates](https://en.wikipedia.org/wiki/Self-signed_certificate). [Self-signed certificates are typically not used](https://www.mcafee.com/blogs/other-blogs/mcafee-labs/self-signed-certificates-secure-so-why-ban/)
 for public websites for security reasons and to ensure that browsers trust your site's certificate.
 
 There are various kinds of certificates, each one

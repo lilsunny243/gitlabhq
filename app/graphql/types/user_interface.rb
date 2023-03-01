@@ -42,10 +42,23 @@ module Types
           null: true,
           description: 'User email.', method: :public_email,
           deprecated: { reason: :renamed, replacement: 'User.publicEmail', milestone: '13.7' }
+    field :emails,
+          type: Types::Users::EmailType.connection_type,
+          null: true,
+          description: "User's email addresses."
     field :public_email,
           type: GraphQL::Types::String,
           null: true,
           description: "User's public email."
+    field :commit_email,
+          type: GraphQL::Types::String,
+          null: true,
+          description: "User's default commit email.",
+          authorize: :read_user_email_address
+    field :namespace_commit_emails,
+          type: Types::Users::NamespaceCommitEmailType.connection_type,
+          null: true,
+          description: "User's custom namespace commit emails."
     field :avatar_url,
           type: GraphQL::Types::String,
           null: true,
@@ -88,7 +101,10 @@ module Types
           null: true,
           description: 'Personal namespace of the user.'
 
-    field :todos, resolver: Resolvers::TodosResolver, description: 'To-do items of the user.'
+    field :todos,
+          Types::TodoType.connection_type,
+          description: 'To-do items of the user.',
+          resolver: Resolvers::TodosResolver
 
     # Merge request field: MRs can be authored, assigned, or assigned-for-review:
     field :authored_merge_requests,
@@ -121,6 +137,11 @@ module Types
           description: 'Saved replies authored by the user. ' \
                        'Will not return saved replies if `saved_replies` feature flag is disabled.'
 
+    field :saved_reply,
+          resolver: Resolvers::SavedReplyResolver,
+          description: 'Saved reply authored by the user. ' \
+                       'Will not return saved reply if `saved_replies` feature flag is disabled.'
+
     field :gitpod_enabled, GraphQL::Types::Boolean, null: true,
                                                     description: 'Whether Gitpod is enabled at the user level.'
 
@@ -131,6 +152,15 @@ module Types
 
     field :profile_enable_gitpod_path, GraphQL::Types::String, null: true,
                                                                description: 'Web path to enable Gitpod for the user.'
+
+    field :user_achievements,
+          Types::Achievements::UserAchievementType.connection_type,
+          null: true,
+          alpha: { milestone: '15.10' },
+          description: "Achievements for the user. " \
+                       "Only returns for namespaces where the `achievements` feature flag is enabled.",
+          extras: [:lookahead],
+          resolver: ::Resolvers::Achievements::UserAchievementsResolver
 
     definition_methods do
       def resolve_type(object, context)

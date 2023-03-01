@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User views an SVG design that contains XSS', :js do
+RSpec.describe 'User views an SVG design that contains XSS', :js, feature_category: :design_management do
   include DesignManagementTestHelpers
 
   let(:project) { create(:project_empty_repo, :public) }
@@ -28,7 +28,7 @@ RSpec.describe 'User views an SVG design that contains XSS', :js do
     expect(file_content).to include("<script>alert('FAIL')</script>")
   end
 
-  it 'displays the SVG' do
+  it 'displays the SVG', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/381115' do
     find("[data-testid='close-design']").click
     expect(page).to have_selector("img.design-img[alt='xss.svg']", count: 1, visible: false)
   end
@@ -42,7 +42,7 @@ RSpec.describe 'User views an SVG design that contains XSS', :js do
     }
 
     # With the page loaded, there should be no alert modal
-    expect(run_expectation).to raise_error(
+    expect { run_expectation.call }.to raise_error(
       Capybara::ModalNotFound,
       'Unable to find modal dialog'
     )
@@ -51,6 +51,6 @@ RSpec.describe 'User views an SVG design that contains XSS', :js do
     # With an alert modal displaying, the modal should be dismissable.
     execute_script('alert(true)')
 
-    expect(run_expectation).not_to raise_error
+    expect { run_expectation.call }.not_to raise_error
   end
 end

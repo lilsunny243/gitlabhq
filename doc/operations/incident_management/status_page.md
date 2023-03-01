@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Status Page **(ULTIMATE)**
@@ -14,7 +14,7 @@ overview of recent incidents:
 
 ![Status Page landing page](img/status_page_incidents_v12_10.png)
 
-Clicking an incident displays a detail page with more information about a particular incident:
+Selecting an incident displays a detail page with more information about a particular incident:
 
 ![Status Page detail](img/status_page_detail_v12_10.png)
 
@@ -45,7 +45,7 @@ Prerequisite:
 
 To provide GitLab with the AWS account information needed to push content to your Status Page:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Monitor**.
 1. Expand **Status Page**.
 1. Select the **Active** checkbox.
@@ -96,7 +96,7 @@ the issue can potentially [publish comments to your GitLab Status Page](#publish
 After creating the CI/CD variables, configure the Project you want to use for
 Incident issues:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Monitor**.
 1. Expand **Status page**.
 1. Fill in your cloud provider's credentials and make sure to select the **Active** checkbox.
@@ -140,7 +140,7 @@ you provided during setup. As part of publication, GitLab:
 - Publishes any files attached to incident issue descriptions, up to 5000 per issue.
   ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/205166) in GitLab 13.1.)
 
-After publication, you can access the incident's details page by clicking the
+After publication, you can access the incident's details page by selecting the
 **Published on status page** button displayed under the Incident's title.
 
 ![Status Page detail link](img/status_page_detail_link_v13_1.png)

@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe Gitlab::Git::Repository do
+RSpec.describe Gitlab::Git::Repository, feature_category: :source_code_management do
   include Gitlab::EncodingHelper
   include RepoHelpers
   using RSpec::Parameterized::TableSyntax
@@ -70,12 +70,7 @@ RSpec.describe Gitlab::Git::Repository do
     it { is_expected.to include("master") }
     it { is_expected.not_to include("branch-from-space") }
 
-    it 'gets the branch names from GitalyClient' do
-      expect_any_instance_of(Gitlab::GitalyClient::RefService).to receive(:branch_names)
-      subject
-    end
-
-    it_behaves_like 'wrapping gRPC errors', Gitlab::GitalyClient::RefService, :branch_names
+    it_behaves_like 'wrapping gRPC errors', Gitlab::GitalyClient::RefService, :list_refs
   end
 
   describe '#tag_names' do
@@ -100,7 +95,7 @@ RSpec.describe Gitlab::Git::Repository do
     it { is_expected.to include("v1.0.0") }
     it { is_expected.not_to include("v5.0.0") }
 
-    it_behaves_like 'wrapping gRPC errors', Gitlab::GitalyClient::RefService, :tag_names
+    it_behaves_like 'wrapping gRPC errors', Gitlab::GitalyClient::RefService, :list_refs
   end
 
   describe '#tags' do
@@ -309,7 +304,7 @@ RSpec.describe Gitlab::Git::Repository do
           repository.create_branch('right-branch')
 
           left.times do |i|
-            repository.multi_action(
+            repository.commit_files(
               user,
               branch_name: 'left-branch',
               message: 'some more content for a',
@@ -322,7 +317,7 @@ RSpec.describe Gitlab::Git::Repository do
           end
 
           right.times do |i|
-            repository.multi_action(
+            repository.commit_files(
               user,
               branch_name: 'right-branch',
               message: 'some more content for b',
@@ -367,7 +362,7 @@ RSpec.describe Gitlab::Git::Repository do
           repository.create_branch('right-branch')
 
           left.times do |i|
-            repository.multi_action(
+            repository.commit_files(
               user,
               branch_name: 'left-branch',
               message: 'some more content for a',
@@ -380,7 +375,7 @@ RSpec.describe Gitlab::Git::Repository do
           end
 
           right.times do |i|
-            repository.multi_action(
+            repository.commit_files(
               user,
               branch_name: 'right-branch',
               message: 'some more content for b',
@@ -420,6 +415,26 @@ RSpec.describe Gitlab::Git::Repository do
     end
   end
 
+  describe '#delete_branch' do
+    let(:repository) { mutable_repository }
+
+    it 'deletes a branch' do
+      expect(repository.find_branch('feature')).not_to be_nil
+
+      repository.delete_branch('feature')
+
+      expect(repository.find_branch('feature')).to be_nil
+    end
+
+    it 'deletes a fully qualified branch' do
+      expect(repository.find_branch('feature')).not_to be_nil
+
+      repository.delete_branch('refs/heads/feature')
+
+      expect(repository.find_branch('feature')).to be_nil
+    end
+  end
+
   describe '#delete_refs' do
     let(:repository) { mutable_repository }
 
@@ -441,7 +456,7 @@ RSpec.describe Gitlab::Git::Repository do
     end
 
     it 'raises an error if it failed' do
-      expect { repository.delete_refs('refs\heads\fix') }.to raise_error(Gitlab::Git::Repository::GitError)
+      expect { repository.delete_refs('refs\heads\fix') }.to raise_error(Gitlab::Git::InvalidRefFormatError)
     end
   end
 
@@ -462,6 +477,12 @@ RSpec.describe Gitlab::Git::Repository do
 
     it 'displays that branch' do
       expect(repository.branch_names_contains_sha(head_id)).to include('master', new_branch, utf8_branch)
+    end
+
+    context 'when limit is provided' do
+      it 'displays limited number of branches' do
+        expect(repository.branch_names_contains_sha(head_id, limit: 1)).to match_array(['2-mb-file'])
+      end
     end
   end
 
@@ -498,12 +519,13 @@ RSpec.describe Gitlab::Git::Repository do
         prune: false,
         check_tags_changed: false,
         refmap: nil,
-        http_authorization_header: ""
+        http_authorization_header: "",
+        resolved_address: '172.16.123.1'
       }
 
       expect(repository.gitaly_repository_client).to receive(:fetch_remote).with(url, expected_opts)
 
-      repository.fetch_remote(url, ssh_auth: ssh_auth, forced: true, no_tags: true, prune: false, check_tags_changed: false)
+      repository.fetch_remote(url, ssh_auth: ssh_auth, forced: true, no_tags: true, prune: false, check_tags_changed: false, resolved_address: '172.16.123.1')
     end
 
     it_behaves_like 'wrapping gRPC errors', Gitlab::GitalyClient::RepositoryService, :fetch_remote do
@@ -518,7 +540,7 @@ RSpec.describe Gitlab::Git::Repository do
 
     before do
       repository.create_branch(ref)
-      repository.multi_action(
+      repository.commit_files(
         user,
         branch_name: ref,
         message: 'committing something',
@@ -528,7 +550,7 @@ RSpec.describe Gitlab::Git::Repository do
           content: content
         }]
       )
-      repository.multi_action(
+      repository.commit_files(
         user,
         branch_name: ref,
         message: 'committing something',
@@ -605,7 +627,7 @@ RSpec.describe Gitlab::Git::Repository do
       let(:query) { 'file with space.md' }
 
       before do
-        mutable_repository.multi_action(
+        mutable_repository.commit_files(
           user,
           actions: [{ action: :create, file_path: "file with space.md", content: "Test content" }],
           branch_name: ref, message: "Test"
@@ -622,7 +644,7 @@ RSpec.describe Gitlab::Git::Repository do
       let(:query) { file_name }
 
       before do
-        mutable_repository.multi_action(
+        mutable_repository.commit_files(
           user,
           actions: [{ action: :create, file_path: file_name, content: "Test content" }],
           branch_name: ref, message: "Test"
@@ -648,11 +670,11 @@ RSpec.describe Gitlab::Git::Repository do
       expect_any_instance_of(Gitlab::GitalyClient::RemoteService)
         .to receive(:find_remote_root_ref).and_call_original
 
-      expect(repository.find_remote_root_ref(SeedHelper::GITLAB_GIT_TEST_REPO_URL)).to eq 'master'
+      expect(repository.find_remote_root_ref(TestEnv.factory_repo_path.to_s)).to eq 'master'
     end
 
     it 'returns UTF-8' do
-      expect(repository.find_remote_root_ref(SeedHelper::GITLAB_GIT_TEST_REPO_URL)).to be_utf8
+      expect(repository.find_remote_root_ref(TestEnv.factory_repo_path.to_s)).to be_utf8
     end
 
     it 'returns nil when remote name is nil' do
@@ -670,7 +692,7 @@ RSpec.describe Gitlab::Git::Repository do
     end
 
     it_behaves_like 'wrapping gRPC errors', Gitlab::GitalyClient::RemoteService, :find_remote_root_ref do
-      subject { repository.find_remote_root_ref(SeedHelper::GITLAB_GIT_TEST_REPO_URL) }
+      subject { repository.find_remote_root_ref(TestEnv.factory_repo_path.to_s) }
     end
   end
 
@@ -690,7 +712,7 @@ RSpec.describe Gitlab::Git::Repository do
 
       before do
         # Add new commits so that there's a renamed file in the commit history
-        @commit_with_old_name_id = repository.multi_action(
+        @commit_with_old_name_id = repository.commit_files(
           user,
           branch_name: repository.root_ref,
           message: 'Update CHANGELOG',
@@ -700,7 +722,7 @@ RSpec.describe Gitlab::Git::Repository do
             content: 'CHANGELOG'
           }]
         ).newrev
-        @rename_commit_id = repository.multi_action(
+        @rename_commit_id = repository.commit_files(
           user,
           branch_name: repository.root_ref,
           message: 'Move CHANGELOG to encoding/',
@@ -711,7 +733,7 @@ RSpec.describe Gitlab::Git::Repository do
             content: 'CHANGELOG'
           }]
         ).newrev
-        @commit_with_new_name_id = repository.multi_action(
+        @commit_with_new_name_id = repository.commit_files(
           user,
           branch_name: repository.root_ref,
           message: 'Edit encoding/CHANGELOG',
@@ -910,10 +932,8 @@ RSpec.describe Gitlab::Git::Repository do
         let(:options) { { ref: 'master', path: ['PROCESS.md', 'README.md'] } }
 
         def commit_files(commit)
-          Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-            commit.deltas.flat_map do |delta|
-              [delta.old_path, delta.new_path].uniq.compact
-            end
+          commit.deltas.flat_map do |delta|
+            [delta.old_path, delta.new_path].uniq.compact
           end
         end
 
@@ -1005,7 +1025,7 @@ RSpec.describe Gitlab::Git::Repository do
     let(:commit) { create_commit('nested/new-blob.txt' => 'This is a new blob') }
 
     def create_commit(blobs)
-      commit_result = repository.multi_action(
+      commit_result = repository.commit_files(
         user,
         branch_name: 'a-new-branch',
         message: 'Add a file',
@@ -1154,7 +1174,7 @@ RSpec.describe Gitlab::Git::Repository do
   describe '#new_commits' do
     let(:repository) { mutable_repository }
     let(:new_commit) do
-      commit_result = repository.multi_action(
+      commit_result = repository.commit_files(
         user,
         branch_name: 'a-new-branch',
         message: 'Message',
@@ -1328,7 +1348,7 @@ RSpec.describe Gitlab::Git::Repository do
         it "returns the number of commits in the whole repository" do
           options = { all: true }
 
-          expect(repository.count_commits(options)).to eq(314)
+          expect(repository.count_commits(options)).to eq(315)
         end
       end
 
@@ -1352,6 +1372,24 @@ RSpec.describe Gitlab::Git::Repository do
       branch = repository.find_branch('this-is-garbage')
 
       expect(branch).to eq(nil)
+    end
+
+    context 'when branch is ambiguous' do
+      let(:ambiguous_branch) { 'prefix' }
+      let(:branch_with_prefix) { 'prefix/branch' }
+
+      before do
+        repository.create_branch(branch_with_prefix)
+      end
+
+      after do
+        repository.delete_branch(branch_with_prefix)
+      end
+
+      it 'returns nil for ambiguous branch' do
+        expect(repository.find_branch(branch_with_prefix)).to be_a_kind_of(Gitlab::Git::Branch)
+        expect(repository.find_branch(ambiguous_branch)).to eq(nil)
+      end
     end
   end
 
@@ -1390,16 +1428,6 @@ RSpec.describe Gitlab::Git::Repository do
 
       it 'returns the count of local branches' do
         expect(repository.branch_count).to eq(repository.local_branches.count)
-      end
-
-      context 'with Gitaly disabled' do
-        before do
-          allow(Gitlab::GitalyClient).to receive(:feature_enabled?).and_return(false)
-        end
-
-        it 'returns the count of local branches' do
-          expect(repository.branch_count).to eq(repository.local_branches.count)
-        end
       end
     end
   end
@@ -1749,12 +1777,13 @@ RSpec.describe Gitlab::Git::Repository do
     it 'returns exactly the expected results' do
       languages = repository.languages(TestEnv::BRANCH_SHA['master'])
 
-      expect(languages).to match_array([
-        { value: a_value_within(0.1).of(66.7), label: "Ruby", color: "#701516", highlight: "#701516" },
-        { value: a_value_within(0.1).of(22.96), label: "JavaScript", color: "#f1e05a", highlight: "#f1e05a" },
-        { value: a_value_within(0.1).of(7.9), label: "HTML", color: "#e34c26", highlight: "#e34c26" },
-        { value: a_value_within(0.1).of(2.51), label: "CoffeeScript", color: "#244776", highlight: "#244776" }
-      ])
+      expect(languages).to match_array(
+        [
+          { value: a_value_within(0.1).of(66.7), label: "Ruby", color: "#701516", highlight: "#701516" },
+          { value: a_value_within(0.1).of(22.96), label: "JavaScript", color: "#f1e05a", highlight: "#f1e05a" },
+          { value: a_value_within(0.1).of(7.9), label: "HTML", color: "#e34c26", highlight: "#e34c26" },
+          { value: a_value_within(0.1).of(2.51), label: "CoffeeScript", color: "#244776", highlight: "#244776" }
+        ])
     end
 
     it "uses the repository's HEAD when no ref is passed" do
@@ -1764,22 +1793,48 @@ RSpec.describe Gitlab::Git::Repository do
     end
   end
 
-  describe '#license_short_name' do
-    subject { repository.license_short_name }
+  describe '#license' do
+    where(from_gitaly: [true, false])
+    with_them do
+      subject(:license) { repository.license(from_gitaly) }
 
-    context 'when no license file can be found' do
-      let(:project) { create(:project, :repository) }
-      let(:repository) { project.repository.raw_repository }
+      context 'when no license file can be found' do
+        let_it_be(:project) { create(:project, :repository) }
+        let(:repository) { project.repository.raw_repository }
 
-      before do
-        project.repository.delete_file(project.owner, 'LICENSE', message: 'remove license', branch_name: 'master')
+        before do
+          project.repository.delete_file(project.owner, 'LICENSE', message: 'remove license', branch_name: 'master')
+        end
+
+        it { is_expected.to be_nil }
       end
 
-      it { is_expected.to be_nil }
+      context 'when an mit license is found' do
+        it { is_expected.to have_attributes(key: 'mit') }
+      end
+
+      context 'when license is not recognized ' do
+        let_it_be(:project) { create(:project, :repository) }
+        let(:repository) { project.repository.raw_repository }
+
+        before do
+          project.repository.update_file(
+            project.owner,
+            'LICENSE',
+            'This software is licensed under the Dummy license.',
+            message: 'Update license',
+            branch_name: 'master')
+        end
+
+        it { is_expected.to have_attributes(key: 'other', nickname: 'LICENSE') }
+      end
     end
 
-    context 'when an mit license is found' do
-      it { is_expected.to eq('mit') }
+    it 'does not crash when license is invalid' do
+      expect(Licensee::License).to receive(:new)
+        .and_raise(Licensee::InvalidLicense)
+
+      expect(repository.license(false)).to be_nil
     end
   end
 
@@ -1793,7 +1848,7 @@ RSpec.describe Gitlab::Git::Repository do
         let(:source_branch) { 'new-branch-for-fetch-source-branch' }
 
         let!(:new_oid) do
-          source_repository.multi_action(
+          source_repository.commit_files(
             user,
             branch_name: source_branch,
             message: 'Add a file',
@@ -1891,6 +1946,53 @@ RSpec.describe Gitlab::Git::Repository do
       expect(reference).to be_a(Gitaly::ListRefsResponse::Reference)
       expect(reference.name).to be_a(String)
       expect(reference.target).to be_a(String)
+    end
+
+    it 'filters by pattern' do
+      refs = repository.list_refs([Gitlab::Git::TAG_REF_PREFIX])
+
+      refs.each do |reference|
+        expect(reference.name).to include(Gitlab::Git::TAG_REF_PREFIX)
+      end
+    end
+
+    context 'with pointing_at_oids and peel_tags options' do
+      let(:commit_id) { mutable_repository.commit.id }
+      let!(:annotated_tag) { mutable_repository.add_tag('annotated-tag', user: user, target: commit_id, message: 'Tag message') }
+      let!(:lw_tag) { mutable_repository.add_tag('lw-tag', user: user, target: commit_id) }
+
+      it 'filters by target OIDs' do
+        refs = mutable_repository.list_refs([Gitlab::Git::TAG_REF_PREFIX], pointing_at_oids: [commit_id])
+
+        expect(refs.length).to eq(2)
+        expect(refs).to contain_exactly(
+          Gitaly::ListRefsResponse::Reference.new(
+            name: "#{Gitlab::Git::TAG_REF_PREFIX}#{lw_tag.name}",
+            target: commit_id
+          ),
+          Gitaly::ListRefsResponse::Reference.new(
+            name: "#{Gitlab::Git::TAG_REF_PREFIX}#{annotated_tag.name}",
+            target: annotated_tag.id
+          )
+        )
+      end
+
+      it 'returns peeled_target for annotated tags' do
+        refs = mutable_repository.list_refs([Gitlab::Git::TAG_REF_PREFIX], pointing_at_oids: [commit_id], peel_tags: true)
+
+        expect(refs.length).to eq(2)
+        expect(refs).to contain_exactly(
+          Gitaly::ListRefsResponse::Reference.new(
+            name: "#{Gitlab::Git::TAG_REF_PREFIX}#{lw_tag.name}",
+            target: commit_id
+          ),
+          Gitaly::ListRefsResponse::Reference.new(
+            name: "#{Gitlab::Git::TAG_REF_PREFIX}#{annotated_tag.name}",
+            target: annotated_tag.id,
+            peeled_target: commit_id
+          )
+        )
+      end
     end
   end
 
@@ -2004,16 +2106,22 @@ RSpec.describe Gitlab::Git::Repository do
     let(:repository) { mutable_repository }
     let(:source_sha) { '913c66a37b4a45b9769037c55c2d238bd0942d2e' }
     let(:target_branch) { 'test-merge-target-branch' }
+    let(:target_sha) { '6d394385cf567f80a8fd85055db1ab4c5295806f' }
 
     before do
-      repository.create_branch(target_branch, '6d394385cf567f80a8fd85055db1ab4c5295806f')
+      repository.create_branch(target_branch, target_sha)
     end
 
     it 'can perform a merge' do
       merge_commit_id = nil
-      result = repository.merge(user, source_sha, target_branch, 'Test merge') do |commit_id|
-        merge_commit_id = commit_id
-      end
+      result =
+        repository.merge(user,
+          source_sha: source_sha,
+          target_branch: target_branch,
+          target_sha: target_sha,
+          message: 'Test merge') do |commit_id|
+            merge_commit_id = commit_id
+          end
 
       expect(result.newrev).to eq(merge_commit_id)
       expect(result.repo_created).to eq(false)
@@ -2022,10 +2130,15 @@ RSpec.describe Gitlab::Git::Repository do
 
     it 'returns nil if there was a concurrent branch update' do
       concurrent_update_id = '33f3729a45c02fc67d00adb1b8bca394b0e761d9'
-      result = repository.merge(user, source_sha, target_branch, 'Test merge') do
-        # This ref update should make the merge fail
-        repository.write_ref(Gitlab::Git::BRANCH_REF_PREFIX + target_branch, concurrent_update_id)
-      end
+      result =
+        repository.merge(user,
+          source_sha: source_sha,
+          target_branch: target_branch,
+          target_sha: target_sha,
+          message: 'Test merge') do |_commit_id|
+          # This ref update should make the merge fail
+          repository.write_ref(Gitlab::Git::BRANCH_REF_PREFIX + target_branch, concurrent_update_id)
+        end
 
       # This 'nil' signals that the merge was not applied
       expect(result).to be_nil
@@ -2045,7 +2158,13 @@ RSpec.describe Gitlab::Git::Repository do
       repository.create_branch(target_branch, branch_head)
     end
 
-    subject { repository.ff_merge(user, source_sha, target_branch) }
+    subject do
+      repository.ff_merge(user,
+        source_sha: source_sha,
+        target_branch: target_branch,
+        target_sha: branch_head
+      )
+    end
 
     shared_examples '#ff_merge' do
       it 'performs a ff_merge' do
@@ -2057,7 +2176,7 @@ RSpec.describe Gitlab::Git::Repository do
       end
 
       context 'with a non-existing target branch' do
-        subject { repository.ff_merge(user, source_sha, 'this-isnt-real') }
+        subject { repository.ff_merge(user, source_sha: source_sha, target_branch: 'this-isnt-real') }
 
         it 'throws an ArgumentError' do
           expect { subject }.to raise_error(ArgumentError)
@@ -2085,8 +2204,9 @@ RSpec.describe Gitlab::Git::Repository do
 
     it "calls Gitaly's OperationService" do
       expect_any_instance_of(Gitlab::GitalyClient::OperationService)
-        .to receive(:user_ff_branch).with(user, source_sha, target_branch)
-        .and_return(nil)
+        .to receive(:user_ff_branch).with(
+          user, source_sha: source_sha, target_branch: target_branch, target_sha: branch_head
+        ).and_return(nil)
 
       subject
     end
@@ -2160,15 +2280,49 @@ RSpec.describe Gitlab::Git::Repository do
   end
 
   describe '#compare_source_branch' do
-    it 'delegates to Gitlab::Git::CrossRepoComparer' do
-      expect_next_instance_of(::Gitlab::Git::CrossRepoComparer) do |instance|
-        expect(instance.source_repo).to eq(:source_repository)
-        expect(instance.target_repo).to eq(repository)
+    it 'compares two branches cross repo' do
+      mutable_repository.commit_files(
+        user,
+        branch_name: mutable_repository.root_ref, message: 'Committing something',
+        actions: [{ action: :create, file_path: 'encoding/CHANGELOG', content: 'New file' }]
+      )
 
-        expect(instance).to receive(:compare).with('feature', 'master', straight: :straight)
+      repository.commit_files(
+        user,
+        branch_name: repository.root_ref, message: 'Commit to root ref',
+        actions: [{ action: :create, file_path: 'encoding/CHANGELOG', content: 'One more' }]
+      )
+
+      [
+        [repository, mutable_repository, true],
+        [repository, mutable_repository, false],
+        [mutable_repository, repository, true],
+        [mutable_repository, repository, false]
+      ].each do |source_repo, target_repo, straight|
+        raw_compare = target_repo.compare_source_branch(
+          target_repo.root_ref, source_repo, source_repo.root_ref, straight: straight)
+
+        expect(raw_compare).to be_a(::Gitlab::Git::Compare)
+
+        expect(raw_compare.commits).to eq([source_repo.commit])
+        expect(raw_compare.head).to eq(source_repo.commit)
+        expect(raw_compare.base).to eq(target_repo.commit)
+        expect(raw_compare.straight).to eq(straight)
       end
+    end
 
-      repository.compare_source_branch('master', :source_repository, 'feature', straight: :straight)
+    context 'source ref does not exist in source repo' do
+      it 'returns an empty comparison' do
+        expect_next_instance_of(::Gitlab::Git::CrossRepo) do |instance|
+          expect(instance).not_to receive(:fetch_source_branch!)
+        end
+
+        raw_compare = repository.compare_source_branch(
+          repository.root_ref, mutable_repository, 'does-not-exist', straight: true)
+
+        expect(raw_compare).to be_a(::Gitlab::Git::Compare)
+        expect(raw_compare.commits.size).to eq(0)
+      end
     end
   end
 
@@ -2241,7 +2395,7 @@ RSpec.describe Gitlab::Git::Repository do
 
       context 'when the diff contains a rename' do
         let(:end_sha) do
-          repository.multi_action(
+          repository.commit_files(
             user,
             branch_name: repository.root_ref,
             message: 'Move CHANGELOG to encoding/',
@@ -2324,7 +2478,7 @@ RSpec.describe Gitlab::Git::Repository do
 
     it 'can still access objects in the object pool' do
       object_pool.link(repository)
-      new_commit_id = object_pool.repository.multi_action(
+      new_commit_id = object_pool.repository.commit_files(
         project.owner,
         branch_name: object_pool.repository.root_ref,
         message: 'Add a file',
@@ -2397,7 +2551,7 @@ RSpec.describe Gitlab::Git::Repository do
 
     it 'delegates to Gitaly' do
       expect_next_instance_of(Gitlab::GitalyClient::RepositoryService) do |svc|
-        expect(svc).to receive(:import_repository).with(url, http_authorization_header: '', mirror: false).and_return(nil)
+        expect(svc).to receive(:import_repository).with(url, http_authorization_header: '', mirror: false, resolved_address: '').and_return(nil)
       end
 
       repository.import_repository(url)
@@ -2463,6 +2617,32 @@ RSpec.describe Gitlab::Git::Repository do
           expect(new_repository.list_refs([tmp_ref]).map(&:name)).to match_array([tmp_ref])
         end
       end
+    end
+  end
+
+  describe '#check_objects_exist' do
+    it 'returns hash specifying which object exists in repo' do
+      refs_exist = %w(
+        b83d6e391c22777fca1ed3012fce84f633d7fed0
+        498214de67004b1da3d820901307bed2a68a8ef6
+        1b12f15a11fc6e62177bef08f47bc7b5ce50b141
+      )
+      refs_dont_exist = %w(
+        1111111111111111111111111111111111111111
+        2222222222222222222222222222222222222222
+      )
+      object_existence_map = repository.check_objects_exist(refs_exist + refs_dont_exist)
+      expect(object_existence_map).to eq({
+        'b83d6e391c22777fca1ed3012fce84f633d7fed0' => true,
+        '498214de67004b1da3d820901307bed2a68a8ef6' => true,
+        '1b12f15a11fc6e62177bef08f47bc7b5ce50b141' => true,
+        '1111111111111111111111111111111111111111' => false,
+        '2222222222222222222222222222222222222222' => false
+      })
+      expect(object_existence_map.keys).to eq(refs_exist + refs_dont_exist)
+
+      single_sha = 'b83d6e391c22777fca1ed3012fce84f633d7fed0'
+      expect(repository.check_objects_exist(single_sha)).to eq({ single_sha => true })
     end
   end
 end

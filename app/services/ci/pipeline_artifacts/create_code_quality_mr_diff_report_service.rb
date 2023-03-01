@@ -13,21 +13,24 @@ module Ci
         return if pipeline.has_codequality_mr_diff_report?
         return unless new_errors_introduced?
 
-        file = build_carrierwave_file!
-
-        pipeline.pipeline_artifacts.create!(
-          project_id: pipeline.project_id,
-          file_type: :code_quality_mr_diff,
-          file_format: Ci::PipelineArtifact::REPORT_TYPES.fetch(:code_quality_mr_diff),
-          size: file["tempfile"].size,
-          file: file,
-          expire_at: Ci::PipelineArtifact::EXPIRATION_DATE.from_now
-        )
+        Ci::PipelineArtifact.create_or_replace_for_pipeline!(**artifact_attributes)
       end
 
       private
 
       attr_reader :pipeline
+
+      def artifact_attributes
+        file = build_carrierwave_file!
+
+        {
+          pipeline: pipeline,
+          file_type: :code_quality_mr_diff,
+          size: file["tempfile"].size,
+          file: file,
+          locked: pipeline.locked
+        }
+      end
 
       def merge_requests
         strong_memoize(:merge_requests) do
@@ -72,9 +75,9 @@ module Ci
       end
 
       def build_quality_mr_diff_report(mr_diff_report)
-        mr_diff_report.each_with_object({}) do |diff_report, hash|
+        Gitlab::Json.dump(mr_diff_report.each_with_object({}) do |diff_report, hash|
           hash[diff_report.first] = Ci::CodequalityMrDiffReportSerializer.new.represent(diff_report.second) # rubocop: disable CodeReuse/Serializer
-        end.to_json
+        end)
       end
     end
   end

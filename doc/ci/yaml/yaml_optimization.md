@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -13,7 +13,7 @@ files by using:
 - YAML-specific features like [anchors (`&`)](#anchors), aliases (`*`), and map merging (`<<`).
   Read more about the various [YAML features](https://learnxinyminutes.com/docs/yaml/).
 - The [`extends` keyword](#use-extends-to-reuse-configuration-sections),
-  which is more flexible and readable. We recommend you use `extends` where possible.
+  which is more flexible and readable. You should use `extends` where possible.
 
 ## Anchors
 
@@ -21,10 +21,20 @@ YAML has a feature called 'anchors' that you can use to duplicate
 content across your document.
 
 Use anchors to duplicate or inherit properties. Use anchors with [hidden jobs](../jobs/index.md#hide-jobs)
-to provide templates for your jobs. When there are duplicate keys, GitLab
-performs a reverse deep merge based on the keys.
+to provide templates for your jobs. When there are duplicate keys, the latest included key wins, overriding the other keys.
 
-You can use YAML anchors to merge YAML arrays.
+In certain cases (see [YAML anchors for scripts](#yaml-anchors-for-scripts)), you can use YAML anchors to build arrays with multiple components defined elsewhere. For example:
+
+```yaml
+.default_scripts: &default_scripts
+  - ./default-script1.sh
+  - ./default-script2.sh
+
+job1:
+  script:
+    - *default_scripts
+    - ./job-script.sh
+```
 
 You can't use YAML anchors across multiple files when using the [`include`](index.md#include)
 keyword. Anchors are only valid in the file they were defined in. To reuse configuration
@@ -43,12 +53,12 @@ with their own custom `script` defined:
     - redis
 
 test1:
-  <<: *job_configuration           # Merge the contents of the 'job_configuration' alias
+  <<: *job_configuration           # Add the contents of the 'job_configuration' alias
   script:
     - test1 project
 
 test2:
-  <<: *job_configuration           # Merge the contents of the 'job_configuration' alias
+  <<: *job_configuration           # Add the contents of the 'job_configuration' alias
   script:
     - test2 project
 ```
@@ -189,30 +199,6 @@ job2:
     - *some-script-after
 ```
 
-### YAML anchors for variables
-
-Use [YAML anchors](#anchors) with `variables` to repeat assignment
-of variables across multiple jobs. You can also use YAML anchors when a job
-requires a specific `variables` block that would otherwise override the global variables.
-
-The following example shows how override the `GIT_STRATEGY` variable without affecting
-the use of the `SAMPLE_VARIABLE` variable:
-
-```yaml
-# global variables
-variables: &global-variables
-  SAMPLE_VARIABLE: sample_variable_value
-  ANOTHER_SAMPLE_VARIABLE: another_sample_variable_value
-
-# a job that must set the GIT_STRATEGY variable, yet depend on global variables
-job_no_git_strategy:
-  stage: cleanup
-  variables:
-    <<: *global-variables
-    GIT_STRATEGY: none
-  script: echo $SAMPLE_VARIABLE
-```
-
 ## Use `extends` to reuse configuration sections
 
 You can use the [`extends` keyword](index.md#extends) to reuse configuration in
@@ -220,7 +206,7 @@ multiple jobs. It is similar to [YAML anchors](#anchors), but simpler and you ca
 [use `extends` with `includes`](#use-extends-and-include-together).
 
 `extends` supports multi-level inheritance. You should avoid using more than three levels,
-but you can use as many as eleven. The following example has two levels of inheritance:
+due to the additional complexity, but you can use as many as eleven. The following example has two levels of inheritance:
 
 ```yaml
 .tests:
@@ -331,8 +317,9 @@ to the contents of the `script`:
 ### Merge details
 
 You can use `extends` to merge hashes but not arrays.
-The algorithm used for merge is "closest scope wins," so
-keys from the last member always override anything defined on other
+The algorithm used for merge is "closest scope wins". When there are
+duplicate keys, GitLab performs a reverse deep merge based on the keys.
+Keys from the last member always override anything defined on other
 levels. For example:
 
 ```yaml
@@ -473,3 +460,27 @@ nested-references:
 ```
 
 In this example, the `nested-references` job runs all three `echo` commands.
+
+### Configure your IDE to support `!reference` tags
+
+The [pipeline editor](../pipeline_editor/index.md) supports `!reference` tags. However, the schema rules for custom YAML
+tags like `!reference` might be treated as invalid by your editor by default.
+You can configure some editors to accept `!reference` tags. For example:
+
+- In VS Code, you can set `vscode-yaml` to parse `customTags` in your `settings.json` file:
+
+  ```json
+  "yaml.customTags": [
+     "!reference sequence"
+  ]
+  ```
+
+- In Sublime Text, if you are using the `LSP-yaml` package, you can set `customTags` in your `LSP-yaml` user settings:
+
+  ```json
+  {
+    "settings": {
+      "yaml.customTags": ["!reference sequence"]
+    }
+  }
+  ```

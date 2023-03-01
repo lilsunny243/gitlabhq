@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Tooltips on .timeago dates', :js do
+RSpec.describe 'Tooltips on .timeago dates', :js, feature_category: :user_profile do
   let_it_be(:user)      { create(:user) }
   let_it_be(:project)   { create(:project, name: 'test', namespace: user.namespace) }
 
@@ -12,10 +12,14 @@ RSpec.describe 'Tooltips on .timeago dates', :js do
     project.add_maintainer(user)
   end
 
+  before do
+    stub_feature_flags(profile_tabs_vue: false)
+  end
+
   context 'on the activity tab' do
     before do
-      Event.create!( project: project, author_id: user.id, action: :joined,
-                     updated_at: created_date, created_at: created_date)
+      Event.create!(project: project, author_id: user.id, action: :joined,
+                    updated_at: created_date, created_at: created_date)
 
       sign_in user
       visit user_activity_path(user)
@@ -40,10 +44,10 @@ RSpec.describe 'Tooltips on .timeago dates', :js do
       wait_for_requests
     end
 
-    it 'has the datetime formated correctly' do
-      expect(page).to have_selector('.js-timeago.snippet-created-ago', text: '1 day ago')
+    it 'has the datetime formated correctly', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/334481' do
+      expect(page).to have_selector('[data-testid=snippet-created-at] .js-timeago', text: '1 day ago')
 
-      page.find('.js-timeago.snippet-created-ago').hover
+      page.find('[data-testid=snippet-created-at] .js-timeago').hover
 
       expect(datetime_in_tooltip).to eq(created_date)
     end

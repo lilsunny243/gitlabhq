@@ -37,6 +37,10 @@ module Types
           null: false,
           description: 'Path of the project.'
 
+    field :incident_management_timeline_event_tags, [Types::IncidentManagement::TimelineEventTagType],
+          null: true,
+          description: 'Timeline event tags for the project.'
+
     field :sast_ci_configuration, Types::CiConfiguration::Sast::Type,
           null: true,
           calls_gitaly: true,
@@ -226,8 +230,7 @@ module Types
           Types::IssueType.connection_type,
           null: true,
           description: 'Issues of the project.',
-          extras: [:lookahead],
-          resolver: Resolvers::IssuesResolver
+          resolver: Resolvers::ProjectIssuesResolver
 
     field :work_items,
           Types::WorkItemType.connection_type,
@@ -241,7 +244,6 @@ module Types
           Types::IssueStatusCountsType,
           null: true,
           description: 'Counts of issues by status for the project.',
-          extras: [:lookahead],
           resolver: Resolvers::IssueStatusCountsResolver
 
     field :milestones, Types::MilestoneType.connection_type,
@@ -256,8 +258,11 @@ module Types
     field :environments,
           Types::EnvironmentType.connection_type,
           null: true,
-          description: 'Environments of the project.',
-          resolver: Resolvers::EnvironmentsResolver
+          description: 'Environments of the project. ' \
+                       'This field can only be resolved for one project in any single request.',
+          resolver: Resolvers::EnvironmentsResolver do
+            extension ::Gitlab::Graphql::Limit::FieldCallCount, limit: 1
+          end
 
     field :environment,
           Types::EnvironmentType,
@@ -265,8 +270,18 @@ module Types
           description: 'A single environment of the project.',
           resolver: Resolvers::EnvironmentsResolver.single
 
+    field :nested_environments,
+          Types::NestedEnvironmentType.connection_type,
+          null: true,
+          calls_gitaly: true,
+          description: 'Environments for this project with nested folders, ' \
+                       'can only be resolved for one project in any single request',
+          resolver: Resolvers::Environments::NestedEnvironmentsResolver do
+            extension ::Gitlab::Graphql::Limit::FieldCallCount, limit: 1
+          end
+
     field :deployment,
-          Types::DeploymentDetailsType,
+          Types::DeploymentType,
           null: true,
           description: 'Details of the deployment of the project.',
           resolver: Resolvers::DeploymentResolver.single
@@ -275,7 +290,7 @@ module Types
           Types::IssueType,
           null: true,
           description: 'A single issue of the project.',
-          resolver: Resolvers::IssuesResolver.single
+          resolver: Resolvers::ProjectIssuesResolver.single
 
     field :packages,
           description: 'Packages of the project.',
@@ -293,11 +308,27 @@ module Types
           description: 'Jobs of a project. This field can only be resolved for one project in any single request.',
           resolver: Resolvers::ProjectJobsResolver
 
+    field :job,
+          type: Types::Ci::JobType,
+          null: true,
+          authorize: :read_build,
+          description: 'One job belonging to the project, selected by ID.' do
+            argument :id, Types::GlobalIDType[::CommitStatus],
+              required: true,
+              description: 'ID of the job.'
+          end
+
     field :pipelines,
           null: true,
           description: 'Build pipelines of the project.',
           extras: [:lookahead],
           resolver: Resolvers::ProjectPipelinesResolver
+
+    field :pipeline_schedules,
+            type: Types::Ci::PipelineScheduleType.connection_type,
+            null: true,
+            description: 'Pipeline schedules of the project. This field can only be resolved for one project per request.',
+            resolver: Resolvers::ProjectPipelineSchedulesResolver
 
     field :pipeline, Types::Ci::PipelineType,
           null: true,
@@ -314,7 +345,7 @@ module Types
           null: true,
           description: "List of the project's CI/CD variables.",
           authorize: :admin_build,
-          method: :variables
+          resolver: Resolvers::Ci::VariablesResolver
 
     field :ci_cd_settings, Types::Ci::CiCdSettingType,
           null: true,
@@ -362,6 +393,10 @@ module Types
 
     field :services, Types::Projects::ServiceType.connection_type,
           null: true,
+          deprecated: {
+            reason: 'This will be renamed to `Project.integrations`',
+            milestone: '15.9'
+          },
           description: 'Project services.',
           resolver: Resolvers::Projects::ServicesResolver
 
@@ -497,9 +532,7 @@ module Types
 
     field :work_item_types, Types::WorkItems::TypeType.connection_type,
           resolver: Resolvers::WorkItems::TypesResolver,
-          description: 'Work item types available to the project.' \
-                       ' Returns `null` if `work_items` feature flag is disabled.' \
-                       ' This flag is disabled by default, because the feature is experimental and is subject to change without notice.'
+          description: 'Work item types available to the project.'
 
     field :timelog_categories, Types::TimeTracking::TimelogCategoryType.connection_type,
           null: true,
@@ -510,11 +543,51 @@ module Types
           resolver: Resolvers::Projects::ForkTargetsResolver,
           description: 'Namespaces in which the current user can fork the project into.'
 
+    field :fork_details, Types::Projects::ForkDetailsType,
+          calls_gitaly: true,
+          alpha: { milestone: '15.7' },
+          authorize: :read_code,
+          resolver: Resolvers::Projects::ForkDetailsResolver,
+          description: 'Details of the fork project compared to its upstream project.'
+
     field :branch_rules,
           Types::Projects::BranchRuleType.connection_type,
           null: true,
           description: "Branch rules configured for the project.",
           resolver: Resolvers::Projects::BranchRulesResolver
+
+    field :languages, [Types::Projects::RepositoryLanguageType],
+          null: true,
+          description: "Programming languages used in the project.",
+          calls_gitaly: true
+
+    field :runners, Types::Ci::RunnerType.connection_type,
+          null: true,
+          resolver: ::Resolvers::Ci::ProjectRunnersResolver,
+          description: "Find runners visible to the current user."
+
+    field :data_transfer, Types::DataTransfer::ProjectDataTransferType,
+          null: true, # disallow null once data_transfer_monitoring feature flag is rolled-out!
+          resolver: Resolvers::DataTransferResolver.project,
+          description: 'Data transfer data point for a specific period. This is mocked data under a development feature flag.'
+
+    field :visible_forks, Types::ProjectType.connection_type,
+          null: true,
+          alpha: { milestone: '15.10' },
+          description: "Visible forks of the project." do
+            argument :minimum_access_level,
+              type: ::Types::AccessLevelEnum,
+              required: false,
+              description: 'Minimum access level.'
+          end
+
+    field :flow_metrics,
+          ::Types::Analytics::CycleAnalytics::FlowMetrics[:project],
+          null: true,
+          description: 'Flow metrics for value stream analytics.',
+          method: :project_namespace,
+          authorize: :read_cycle_analytics,
+          alpha: { milestone: '15.10' }
 
     def timelog_categories
       object.project_namespace.timelog_categories if Feature.enabled?(:timelog_categories)
@@ -555,7 +628,11 @@ module Types
     end
 
     def open_issues_count
-      object.open_issues_count if object.feature_available?(:issues, context[:current_user])
+      BatchLoader::GraphQL.wrap(object.open_issues_count) if object.feature_available?(:issues, context[:current_user])
+    end
+
+    def forks_count
+      BatchLoader::GraphQL.wrap(object.forks_count)
     end
 
     def statistics
@@ -566,7 +643,9 @@ module Types
       project.container_repositories.size
     end
 
-    def ci_config_variables(sha)
+    # Even if the parameter name is `sha`, it is actually a ref name. We always send `ref` to the endpoint.
+    # See: https://gitlab.com/gitlab-org/gitlab/-/issues/389065
+    def ci_config_variables(sha:)
       result = ::Ci::ListConfigVariablesService.new(object, context[:current_user]).execute(sha)
 
       return if result.nil?
@@ -576,8 +655,18 @@ module Types
       end
     end
 
+    def job(id:)
+      object.commit_statuses.find(id.model_id)
+    rescue ActiveRecord::RecordNotFound
+    end
+
     def sast_ci_configuration
-      return unless Ability.allowed?(current_user, :download_code, object)
+      return unless Ability.allowed?(current_user, :read_code, object)
+
+      if project.repository.empty?
+        raise Gitlab::Graphql::Errors::MutationError,
+              _(format('You must %s before using Security features.', add_file_docs_link.html_safe)).html_safe
+      end
 
       ::Security::CiConfiguration::SastParserService.new(object).configuration
     end
@@ -588,10 +677,31 @@ module Types
       object.service_desk_address
     end
 
+    def languages
+      ::Projects::RepositoryLanguagesService.new(project, current_user).execute
+    end
+
+    def visible_forks(minimum_access_level: nil)
+      if minimum_access_level.nil?
+        object.forks.public_or_visible_to_user(current_user)
+      else
+        object.forks.visible_to_user_and_access_level(current_user, minimum_access_level)
+      end
+    end
+
     private
 
     def project
       @project ||= object.respond_to?(:sync) ? object.sync : object
+    end
+
+    def add_file_docs_link
+      ActionController::Base.helpers.link_to _('add at least one file to the repository'),
+                                               Rails.application.routes.url_helpers.help_page_url(
+                                                 'user/project/repository/index.md',
+                                                 anchor: 'add-files-to-a-repository'),
+                                               target: '_blank',
+                                               rel: 'noopener noreferrer'
     end
   end
 end

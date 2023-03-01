@@ -43,6 +43,19 @@ FactoryBot.define do
     end
   end
 
+  factory :packagist_integration, class: 'Integrations::Packagist' do
+    project
+    type { 'Integrations::Packagist' }
+    active { true }
+    properties do
+      {
+        username: 'username',
+        token: 'test',
+        server: 'https://packagist.example.com'
+      }
+    end
+  end
+
   factory :prometheus_integration, class: 'Integrations::Prometheus' do
     project
     active { true }
@@ -239,6 +252,26 @@ FactoryBot.define do
     project_name { 'testproject' }
     username { 'harborusername' }
     password { 'harborpassword' }
+  end
+
+  factory :apple_app_store_integration, class: 'Integrations::AppleAppStore' do
+    project
+    active { true }
+    type { 'Integrations::AppleAppStore' }
+
+    app_store_issuer_id { 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }
+    app_store_key_id { 'ABC1' }
+    app_store_private_key_file_name { 'auth_key.p8' }
+    app_store_private_key { File.read('spec/fixtures/auth_key.p8') }
+  end
+
+  factory :google_play_integration, class: 'Integrations::GooglePlay' do
+    project
+    active { true }
+    type { 'Integrations::GooglePlay' }
+
+    service_account_key_file_name { 'service_account.json' }
+    service_account_key { File.read('spec/fixtures/service_account.json') }
   end
 
   # this is for testing storing values inside properties, which is deprecated and will be removed in

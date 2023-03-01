@@ -227,10 +227,11 @@ RSpec.describe CommitsHelper do
     end
 
     it 'returns data for cherry picking into a project' do
-      expect(helper.cherry_pick_projects_data(forked_project)).to match_array([
-        { id: project.id.to_s, name: project.full_path, refsUrl: refs_project_path(project) },
-        { id: forked_project.id.to_s, name: forked_project.full_path, refsUrl: refs_project_path(forked_project) }
-      ])
+      expect(helper.cherry_pick_projects_data(forked_project)).to match_array(
+        [
+          { id: project.id.to_s, name: project.full_path, refsUrl: refs_project_path(project) },
+          { id: forked_project.id.to_s, name: forked_project.full_path, refsUrl: refs_project_path(forked_project) }
+        ])
     end
   end
 
@@ -324,21 +325,41 @@ RSpec.describe CommitsHelper do
       assign(:path, current_path)
     end
 
-    it { is_expected.to be_an(Array) }
-    it { is_expected.to include(commit) }
-    it { is_expected.to include(commit.author) }
-    it { is_expected.to include(ref) }
-
     specify do
-      is_expected.to include(
+      expect(subject).to eq([
+        commit,
+        commit.author,
+        ref,
         {
           merge_request: merge_request.cache_key,
           pipeline_status: pipeline.cache_key,
           xhr: true,
           controller: "commits",
-          path: current_path
+          path: current_path,
+          referenced_by: helper.tag_checksum(commit.referenced_by)
         }
-      )
+      ])
+    end
+
+    context 'when the show_tags_on_commits_view flag is disabled' do
+      before do
+        stub_feature_flags(show_tags_on_commits_view: false)
+      end
+
+      specify do
+        expect(subject).to eq([
+          commit,
+          commit.author,
+          ref,
+          {
+            merge_request: merge_request.cache_key,
+            pipeline_status: pipeline.cache_key,
+            xhr: true,
+            controller: "commits",
+            path: current_path
+          }
+        ])
+      end
     end
 
     describe "final cache key output" do

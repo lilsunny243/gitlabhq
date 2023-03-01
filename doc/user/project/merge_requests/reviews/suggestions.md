@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index, reference
 ---
 
@@ -12,7 +12,7 @@ type: index, reference
 
 As a reviewer, you're able to suggest code changes with a Markdown syntax in merge request
 diff threads. Then, the merge request author (or other users with appropriate
-[permission](../../../permissions.md)) can apply these suggestions with a click.
+[permission](../../../permissions.md)) can apply these suggestions.
 This action generates a commit in the merge request, authored by the user that suggested the changes.
 
 1. Choose a line of code to be changed, add a new comment, then select
@@ -47,8 +47,11 @@ After the author applies a suggestion:
 
 ## Multi-line suggestions
 
+> [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/232339) in GitLab 13.11: suggestions in multi-line comments also become multi-line.
+
 Reviewers can also suggest changes to multiple lines with a single suggestion
-within merge request diff threads by adjusting the range offsets. The
+within merge request diff threads by selecting and dragging selection to all
+relevant line numbers or by adjusting the range offsets. The
 offsets are relative to the position of the diff thread, and specify the
 range to be replaced by the suggestion when it is applied.
 
@@ -71,7 +74,13 @@ To add a suggestion that includes a
 [fenced code block](../../../markdown.md#code-spans-and-blocks), wrap your suggestion
 in four backticks instead of three:
 
-![A comment editor with a suggestion with a fenced code block](img/suggestion_code_block_editor_v12_8.png)
+~~~markdown
+````suggestion:-0+2
+```shell
+git config --global receive.advertisepushoptions true
+```
+````
+~~~
 
 ![Output of a comment with a suggestion with a fenced code block](img/suggestion_code_block_output_v12_8.png)
 

@@ -2,7 +2,7 @@
 
 require 'fast_spec_helper'
 
-RSpec.describe Gitlab::ImportExport::AttributesFinder do
+RSpec.describe Gitlab::ImportExport::AttributesFinder, feature_category: :importers do
   describe '#find_root' do
     subject { described_class.new(config: config).find_root(model_key) }
 
@@ -123,7 +123,7 @@ RSpec.describe Gitlab::ImportExport::AttributesFinder do
         is_expected.to match(
           include: [{ merge_requests: {
                       include: [{ notes: { include: [{ author: { include: [] } }],
-                                          preload: { author: nil } } }],
+                                           preload: { author: nil } } }],
                       preload: { notes: { author: nil } }
                     } }],
           preload: { merge_requests: { notes: { author: nil } } }
@@ -132,7 +132,7 @@ RSpec.describe Gitlab::ImportExport::AttributesFinder do
 
       it 'generates the correct hash for a relation with included attributes' do
         setup_yaml(tree: { project: [:issues] },
-                  included_attributes: { issues: [:name, :description] })
+                   included_attributes: { issues: [:name, :description] })
 
         is_expected.to match(
           include: [{ issues: { include: [],
@@ -143,7 +143,7 @@ RSpec.describe Gitlab::ImportExport::AttributesFinder do
 
       it 'generates the correct hash for a relation with excluded attributes' do
         setup_yaml(tree: { project: [:issues] },
-                  excluded_attributes: { issues: [:name] })
+                   excluded_attributes: { issues: [:name] })
 
         is_expected.to match(
           include: [{ issues: { except: [:name],
@@ -154,8 +154,8 @@ RSpec.describe Gitlab::ImportExport::AttributesFinder do
 
       it 'generates the correct hash for a relation with both excluded and included attributes' do
         setup_yaml(tree: { project: [:issues] },
-                  excluded_attributes: { issues: [:name] },
-                  included_attributes: { issues: [:description] })
+                   excluded_attributes: { issues: [:name] },
+                   included_attributes: { issues: [:description] })
 
         is_expected.to match(
           include: [{ issues: { except: [:name],
@@ -167,7 +167,7 @@ RSpec.describe Gitlab::ImportExport::AttributesFinder do
 
       it 'generates the correct hash for a relation with custom methods' do
         setup_yaml(tree: { project: [:issues] },
-                  methods: { issues: [:name] })
+                   methods: { issues: [:name] })
 
         is_expected.to match(
           include: [{ issues: { include: [],
@@ -206,6 +206,19 @@ RSpec.describe Gitlab::ImportExport::AttributesFinder do
       let(:config) { {} }
 
       it { is_expected.to be_nil }
+    end
+
+    context 'when include_import_only_tree is true' do
+      subject { described_class.new(config: config).find_relations_tree(model_key, include_import_only_tree: true) }
+
+      let(:config) do
+        {
+          tree: { project: { ci_pipelines: { stages: { builds: nil } } } },
+          import_only_tree: { project: { ci_pipelines: { stages: { statuses: nil } } } }
+        }
+      end
+
+      it { is_expected.to eq({ ci_pipelines: { stages: { builds: nil, statuses: nil } } }) }
     end
   end
 

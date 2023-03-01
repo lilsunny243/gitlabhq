@@ -15,7 +15,7 @@ RSpec.shared_examples 'with cross-reference system notes' do
     new_merge_request.project.add_developer(user)
 
     hidden_merge_request = create(:merge_request)
-    new_cross_reference = "test commit #{hidden_merge_request.project.commit}"
+    new_cross_reference = "test commit #{hidden_merge_request.project.commit.to_reference(project)}"
     new_note = create(:system_note, noteable: merge_request, project: project, note: new_cross_reference)
     create(:system_note_metadata, note: new_note, action: 'cross_reference')
   end
@@ -121,18 +121,6 @@ RSpec.shared_examples 'discussions API' do |parent_type, noteable_type, id_name,
       post api("/#{parent_type}/#{parent.id}/#{noteable_type}/#{noteable[id_name]}/discussions", user), params: { body: 'hi!' }
 
       expect_snowplow_event(category: 'Notes::CreateService', action: 'execute', label: 'note', value: anything)
-    end
-
-    context 'with notes_create_service_tracking feature flag disabled' do
-      before do
-        stub_feature_flags(notes_create_service_tracking: false)
-      end
-
-      it 'does not track Notes::CreateService events', :snowplow do
-        post api("/#{parent_type}/#{parent.id}/#{noteable_type}/#{noteable[id_name]}/discussions"), params: { body: 'hi!' }
-
-        expect_no_snowplow_event(category: 'Notes::CreateService', action: 'execute')
-      end
     end
 
     context 'when an admin or owner makes the request' do

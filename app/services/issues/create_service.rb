@@ -4,6 +4,7 @@ module Issues
   class CreateService < Issues::BaseService
     include ResolveDiscussions
     prepend RateLimitedService
+    include ::Services::ReturnServiceResponses
 
     rate_limit key: :issues_create,
                opts: { scope: [:project, :current_user, :external_author] }
@@ -12,22 +13,34 @@ module Issues
     # spam_checking is likely to be necessary.  However, if there is not a request available in scope
     # in the caller (for example, an issue created via email) and the required arguments to the
     # SpamParams constructor are not otherwise available, spam_params: must be explicitly passed as nil.
-    def initialize(project:, current_user: nil, params: {}, spam_params:, build_service: nil)
+    def initialize(container:, spam_params:, current_user: nil, params: {}, build_service: nil)
       @extra_params = params.delete(:extra_params) || {}
-      super(project: project, current_user: current_user, params: params)
+      super(container: container, current_user: current_user, params: params)
       @spam_params = spam_params
-      @build_service = build_service || BuildService.new(project: project, current_user: current_user, params: params)
+      @build_service = build_service ||
+        BuildService.new(container: project, current_user: current_user, params: params)
     end
 
     def execute(skip_system_notes: false)
+      return error(_('Operation not allowed'), 403) unless @current_user.can?(authorization_action, @project)
+
       @issue = @build_service.execute
+      # issue_type is set in BuildService, so we can delete it from params, in later phase
+      # it can be set also from quick actions - in that case work_item_id is synced later again
+      params.delete(:issue_type)
 
       handle_move_between_ids(@issue)
 
       @add_related_issue ||= params.delete(:add_related_issue)
       filter_resolve_discussion_params
 
-      create(@issue, skip_system_notes: skip_system_notes)
+      issue = create(@issue, skip_system_notes: skip_system_notes)
+
+      if issue.persisted?
+        success(issue: issue)
+      else
+        error(issue.errors.full_messages, 422, pass_back: { issue: issue })
+      end
     end
 
     def external_author
@@ -47,7 +60,7 @@ module Issues
       issue.run_after_commit do
         NewIssueWorker.perform_async(issue.id, user.id, issue.class.to_s)
         Issues::PlacementWorker.perform_async(nil, issue.project_id)
-        Namespaces::OnboardingIssueCreatedWorker.perform_async(issue.project.namespace_id)
+        Onboarding::IssueCreatedWorker.perform_async(issue.project.namespace_id)
       end
     end
 
@@ -56,9 +69,10 @@ module Issues
       user_agent_detail_service.create
       handle_add_related_issue(issue)
       resolve_discussions_with_issue(issue)
-      create_escalation_status(issue)
+      handle_escalation_status_change(issue)
       create_timeline_event(issue)
       try_to_associate_contacts(issue)
+      change_additional_attributes(issue)
 
       super
     end
@@ -87,11 +101,19 @@ module Issues
 
     private
 
-    attr_reader :spam_params, :extra_params
+    def handle_quick_actions(issue)
+      # Do not handle quick actions unless the work item is the default Issue.
+      # The available quick actions for a work item depend on its type and widgets.
+      return if @params[:work_item_type].present? && @params[:work_item_type] != WorkItems::Type.default_by_type(:issue)
 
-    def create_escalation_status(issue)
-      ::IncidentManagement::IssuableEscalationStatuses::CreateService.new(issue).execute if issue.supports_escalation?
+      super
     end
+
+    def authorization_action
+      :create_issue
+    end
+
+    attr_reader :spam_params, :extra_params
 
     def create_timeline_event(issue)
       return unless issue.incident?
@@ -117,6 +139,15 @@ module Issues
       contacts.concat extra_params[:cc] unless extra_params[:cc].nil?
 
       set_crm_contacts(issue, contacts)
+    end
+
+    override :change_additional_attributes
+    def change_additional_attributes(issue)
+      super
+
+      # issue_type can be still set through quick actions, in that case
+      # we have to make sure to re-sync work_item_type with it
+      issue.work_item_type_id = find_work_item_type_id(params[:issue_type]) if params[:issue_type]
     end
   end
 end

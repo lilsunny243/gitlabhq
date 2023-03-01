@@ -1,5 +1,5 @@
 ---
-info: For assistance with this Style Guide page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-other-projects-and-subjects.
+info: For assistance with this Style Guide page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-other-projects-and-subjects.
 stage: none
 group: unassigned
 description: 'Writing styles, markup, formatting, and other standards for GitLab Documentation.'
@@ -13,7 +13,7 @@ including when features were introduced and when they were updated or removed.
 ## View older documentation versions
 
 Previous versions of the documentation are available on `docs.gitlab.com`.
-To view a previous version, select the **Versions** button in the top right.
+To view a previous version, in the upper-right corner, select **Versions**.
 
 To view versions that are not available on `docs.gitlab.com`:
 
@@ -31,7 +31,7 @@ You do not need to add version information on the pages in the `/development` di
 
 ### Add a **Version history** item
 
-If all content in a topic is related, add a version history item after the topic heading.
+If all content in a topic is related, add a version history item after the topic title.
 For example:
 
 ```markdown
@@ -46,7 +46,7 @@ The item text must include these words in order. Capitalization doesn't matter.
 
 - `introduced`, `enabled`, `deprecated`, `changed`, `moved`, `recommended`, `removed`, or `renamed`
 - `in` or `to`
-- `GitLab`
+- `GitLab` (or, for external projects, the name of the project)
 
 If possible, include a link to the related issue, merge request, or epic.
 Do not link to the pricing page. Do not include the subscription tier.
@@ -68,6 +68,11 @@ If a feature is moved to another subscription tier, use `moved`:
 > - [Moved](<link-to-issue>) from GitLab Ultimate to GitLab Premium in 11.8.
 > - [Moved](<link-to-issue>) from GitLab Premium to GitLab Free in 12.0.
 ```
+
+#### Features introduced behind feature flags
+
+When features are introduced behind feature flags, you must add details about the feature flag to the documentation.
+For more information, see [Document features deployed behind feature flags](feature_flags.md).
 
 ### Inline version text
 
@@ -113,6 +118,22 @@ To deprecate a page or topic:
 
    You can add any additional context-specific details that might help users.
 
+1. Add the following HTML comments above and below the content.
+   For the `remove_date`, set a date three months after the release where it
+   was deprecated.
+
+   ```markdown
+   <!--- start_remove The following content will be removed on remove_date: 'YYYY-MM-DD' -->
+
+   ## Title (deprecated) **(ULTIMATE SELF)**
+
+   WARNING:
+   This feature was [deprecated](<link-to-issue>) in GitLab 14.8
+   and is planned for removal in 15.4. Use [feature X](<link-to-issue>) instead.
+
+   <!--- end_remove -->
+   ```
+
 1. Open a merge request to add the word `(deprecated)` to the left nav, after the page title.
 
 ### Remove a page
@@ -134,7 +155,7 @@ To remove a page:
    ---
    stage: Data Stores
    group: Global Search
-   info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+   info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
    remove_date: '2022-08-02'
    redirect_to: '../newpath/to/file/index.md'
    ---
@@ -149,7 +170,7 @@ To remove a page:
 1. Remove the page's entry from the global navigation by editing [`navigation.yaml`](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/content/_data/navigation.yaml) in `gitlab-docs`.
 
 This content is removed from the documentation as part of the Technical Writing team's
-[regularly scheduled tasks](https://about.gitlab.com/handbook/engineering/ux/technical-writing/#regularly-scheduled-tasks).
+[regularly scheduled tasks](https://about.gitlab.com/handbook/product/ux/technical-writing/#regularly-scheduled-tasks).
 
 ### Remove a topic
 
@@ -174,7 +195,7 @@ To remove a topic:
    ```
 
 This content is removed from the documentation as part of the Technical Writing team's
-[regularly scheduled tasks](https://about.gitlab.com/handbook/engineering/ux/technical-writing/#regularly-scheduled-tasks).
+[regularly scheduled tasks](https://about.gitlab.com/handbook/product/ux/technical-writing/#regularly-scheduled-tasks).
 
 ## Which versions are removed
 
@@ -198,14 +219,14 @@ We cannot guarantee future feature work, and promises
 like these can raise legal issues. Instead, say that an issue exists.
 For example:
 
-- Support for improvements is proposed in issue `[issue-number](LINK-TO-ISSUE)`.
-- You cannot do this thing, but issue `[issue-number](LINK-TO-ISSUE)` proposes to change this behavior.
+- Support for improvements is proposed in `[issue <issue_number>](LINK-TO-ISSUE)`.
+- You cannot do this thing, but `[issue 12345](LINK-TO-ISSUE)` proposes to change this behavior.
 
 You can say that we plan to remove a feature.
 
 ### Legal disclaimer for future features
 
-If you **must** write about features we have not yet delivered, put this exact disclaimer near the content it applies to.
+If you **must** write about features we have not yet delivered, put this exact disclaimer about forward-looking statements near the content it applies to.
 
 ```markdown
 DISCLAIMER:
@@ -227,6 +248,6 @@ As with all projects, the items mentioned on this page are subject to change or 
 The development, release, and timing of any products, features, or functionality remain at the
 sole discretion of GitLab Inc.
 
-If all of the content on the page is not available, use the disclaimer once at the top of the page.
+If all of the content on the page is not available, use the disclaimer about forward-looking statements once at the top of the page.
 
 If the content in a topic is not ready, use the disclaimer in the topic.

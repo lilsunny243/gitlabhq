@@ -3,8 +3,8 @@ import {
   GlDropdown,
   GlDropdownItem,
   GlDropdownSectionHeader,
-  GlSearchBoxByType,
   GlTruncate,
+  GlSearchBoxByType,
 } from '@gitlab/ui';
 import { mount, shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
@@ -12,6 +12,7 @@ import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
+import { stubComponent } from 'helpers/stub_component';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import eventHub from '~/projects/new/event_hub';
 import NewProjectUrlSelect from '~/projects/new/components/new_project_url_select.vue';
@@ -63,9 +64,12 @@ describe('NewProjectUrlSelect component', () => {
     rootUrl: 'https://gitlab.com/',
     trackLabel: 'blank_project',
     userNamespaceId: '1',
+    inputId: 'input_id',
+    inputName: 'input_name',
   };
 
   let mockQueryResponse;
+  let focusInputSpy;
 
   const mountComponent = ({
     search = '',
@@ -76,6 +80,7 @@ describe('NewProjectUrlSelect component', () => {
     mockQueryResponse = jest.fn().mockResolvedValue({ data: queryResponse });
     const requestHandlers = [[searchQuery, mockQueryResponse]];
     const apolloProvider = createMockApollo(requestHandlers);
+    focusInputSpy = jest.fn();
 
     return mountFn(NewProjectUrlSelect, {
       apolloProvider,
@@ -85,14 +90,18 @@ describe('NewProjectUrlSelect component', () => {
           search,
         };
       },
+      stubs: {
+        GlSearchBoxByType: stubComponent(GlSearchBoxByType, {
+          methods: { focusInput: focusInputSpy },
+        }),
+      },
     });
   };
 
   const findButtonLabel = () => wrapper.findComponent(GlButton);
   const findDropdown = () => wrapper.findComponent(GlDropdown);
   const findSelectedPath = () => wrapper.findComponent(GlTruncate);
-  const findInput = () => wrapper.findComponent(GlSearchBoxByType);
-  const findHiddenNamespaceInput = () => wrapper.find('[name="project[namespace_id]"]');
+  const findHiddenNamespaceInput = () => wrapper.find(`[name="${defaultProvide.inputName}`);
 
   const findHiddenSelectedNamespaceInput = () =>
     wrapper.find('[name="project[selected_namespace_id]"]');
@@ -165,6 +174,8 @@ describe('NewProjectUrlSelect component', () => {
 
     it("renders a hidden input with the user's namespace id", () => {
       expect(findHiddenNamespaceInput().attributes('value')).toBe(defaultProvide.userNamespaceId);
+      expect(findHiddenNamespaceInput().attributes('name')).toBe(defaultProvide.inputName);
+      expect(findHiddenNamespaceInput().attributes('id')).toBe(defaultProvide.inputId);
     });
 
     it('renders a hidden input with the selected namespace id', () => {
@@ -173,13 +184,11 @@ describe('NewProjectUrlSelect component', () => {
   });
 
   it('focuses on the input when the dropdown is opened', async () => {
-    wrapper = mountComponent({ mountFn: mount });
-
-    const spy = jest.spyOn(findInput().vm, 'focusInput');
+    wrapper = mountComponent();
 
     await showDropdown();
 
-    expect(spy).toHaveBeenCalledTimes(1);
+    expect(focusInputSpy).toHaveBeenCalledTimes(1);
   });
 
   it('renders expected dropdown items', async () => {
@@ -196,6 +205,18 @@ describe('NewProjectUrlSelect component', () => {
     expect(listItems.at(3).text()).toBe(data.currentUser.groups.nodes[2].fullPath);
     expect(listItems.at(4).findComponent(GlDropdownSectionHeader).text()).toBe('Users');
     expect(listItems.at(5).text()).toBe(data.currentUser.namespace.fullPath);
+  });
+
+  it('does not render users section when user namespace id is not provided', async () => {
+    wrapper = mountComponent({
+      mountFn: mount,
+      provide: { ...defaultProvide, userNamespaceId: null },
+    });
+
+    await showDropdown();
+
+    expect(wrapper.findAllComponents(GlDropdownSectionHeader)).toHaveLength(1);
+    expect(wrapper.findAllComponents(GlDropdownSectionHeader).at(0).text()).toBe('Groups');
   });
 
   describe('query fetching', () => {
@@ -297,7 +318,7 @@ describe('NewProjectUrlSelect component', () => {
     );
   });
 
-  it('tracks clicking on the dropdown', () => {
+  it('tracks clicking on the dropdown when trackLabel is provided', () => {
     wrapper = mountComponent();
 
     const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
@@ -308,6 +329,18 @@ describe('NewProjectUrlSelect component', () => {
       label: defaultProvide.trackLabel,
       property: 'project_path',
     });
+
+    unmockTracking();
+  });
+
+  it('does not track clicking on the dropdown when trackLabel is not provided', () => {
+    wrapper = mountComponent({ provide: { ...defaultProvide, trackLabel: null } });
+
+    const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+
+    findDropdown().vm.$emit('show');
+
+    expect(trackingSpy).not.toHaveBeenCalled();
 
     unmockTracking();
   });

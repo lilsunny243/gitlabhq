@@ -1,14 +1,19 @@
 import { shallowMount } from '@vue/test-utils';
-import { historyPushState } from '~/lib/utils/common_utils';
-import { mergeUrlParams } from '~/lib/utils/url_utility';
-import UrlSyncComponent from '~/vue_shared/components/url_sync.vue';
+import { historyPushState, historyReplaceState } from '~/lib/utils/common_utils';
+import { mergeUrlParams, setUrlParams } from '~/lib/utils/url_utility';
+import UrlSyncComponent, {
+  URL_SET_PARAMS_STRATEGY,
+  HISTORY_REPLACE_UPDATE_METHOD,
+} from '~/vue_shared/components/url_sync.vue';
 
 jest.mock('~/lib/utils/url_utility', () => ({
-  mergeUrlParams: jest.fn((query, url) => `urlParams: ${query} ${url}`),
+  mergeUrlParams: jest.fn((query, url) => `urlParams: ${JSON.stringify(query)} ${url}`),
+  setUrlParams: jest.fn((query, url) => `urlParams: ${JSON.stringify(query)} ${url}`),
 }));
 
 jest.mock('~/lib/utils/common_utils', () => ({
   historyPushState: jest.fn(),
+  historyReplaceState: jest.fn(),
 }));
 
 describe('url sync component', () => {
@@ -17,9 +22,12 @@ describe('url sync component', () => {
 
   const findButton = () => wrapper.find('button');
 
-  const createComponent = ({ query = mockQuery, scopedSlots, slots } = {}) => {
+  const createComponent = ({ props = {}, scopedSlots, slots } = {}) => {
     wrapper = shallowMount(UrlSyncComponent, {
-      propsData: { query },
+      propsData: {
+        query: mockQuery,
+        ...props,
+      },
       scopedSlots,
       slots,
     });
@@ -29,21 +37,34 @@ describe('url sync component', () => {
     wrapper.destroy();
   });
 
-  const expectUrlSync = (query, times, mergeUrlParamsReturnValue) => {
+  const expectUrlSyncWithMergeUrlParams = (
+    query,
+    times,
+    mergeUrlParamsReturnValue,
+    historyMethod = historyPushState,
+  ) => {
     expect(mergeUrlParams).toHaveBeenCalledTimes(times);
     expect(mergeUrlParams).toHaveBeenCalledWith(query, window.location.href, {
       spreadArrays: true,
     });
 
+    expect(historyMethod).toHaveBeenCalledTimes(times);
+    expect(historyMethod).toHaveBeenCalledWith(mergeUrlParamsReturnValue);
+  };
+
+  const expectUrlSyncWithSetUrlParams = (query, times, setUrlParamsReturnValue) => {
+    expect(setUrlParams).toHaveBeenCalledTimes(times);
+    expect(setUrlParams).toHaveBeenCalledWith(query, window.location.href, true, true, true);
+
     expect(historyPushState).toHaveBeenCalledTimes(times);
-    expect(historyPushState).toHaveBeenCalledWith(mergeUrlParamsReturnValue);
+    expect(historyPushState).toHaveBeenCalledWith(setUrlParamsReturnValue);
   };
 
   describe('with query as a props', () => {
     it('immediately syncs the query to the URL', () => {
       createComponent();
 
-      expectUrlSync(mockQuery, 1, mergeUrlParams.mock.results[0].value);
+      expectUrlSyncWithMergeUrlParams(mockQuery, 1, mergeUrlParams.mock.results[0].value);
     });
 
     describe('when the query is modified', () => {
@@ -54,8 +75,37 @@ describe('url sync component', () => {
         // using setProps to test the watcher
         await wrapper.setProps({ query: newQuery });
 
-        expectUrlSync(mockQuery, 2, mergeUrlParams.mock.results[1].value);
+        expectUrlSyncWithMergeUrlParams(mockQuery, 2, mergeUrlParams.mock.results[1].value);
       });
+    });
+  });
+
+  describe('with url-params-update-strategy equals to URL_SET_PARAMS_STRATEGY', () => {
+    it('uses setUrlParams to generate URL', () => {
+      createComponent({
+        props: {
+          urlParamsUpdateStrategy: URL_SET_PARAMS_STRATEGY,
+        },
+      });
+
+      expectUrlSyncWithSetUrlParams(mockQuery, 1, setUrlParams.mock.results[0].value);
+    });
+  });
+
+  describe('with history-update-method equals to HISTORY_REPLACE_UPDATE_METHOD', () => {
+    it('uses historyReplaceState to update the URL', () => {
+      createComponent({
+        props: {
+          historyUpdateMethod: HISTORY_REPLACE_UPDATE_METHOD,
+        },
+      });
+
+      expectUrlSyncWithMergeUrlParams(
+        mockQuery,
+        1,
+        mergeUrlParams.mock.results[0].value,
+        historyReplaceState,
+      );
     });
   });
 
@@ -67,17 +117,17 @@ describe('url sync component', () => {
     };
 
     it('renders the scoped slot', () => {
-      createComponent({ query: null, scopedSlots });
+      createComponent({ props: { query: null }, scopedSlots });
 
       expect(findButton().exists()).toBe(true);
     });
 
     it('syncs the url with the scoped slots function', () => {
-      createComponent({ query: null, scopedSlots });
+      createComponent({ props: { query: null }, scopedSlots });
 
       findButton().trigger('click');
 
-      expectUrlSync({ bar: 'baz' }, 1, mergeUrlParams.mock.results[0].value);
+      expectUrlSyncWithMergeUrlParams({ bar: 'baz' }, 1, mergeUrlParams.mock.results[0].value);
     });
   });
 
@@ -87,7 +137,7 @@ describe('url sync component', () => {
     };
 
     it('renders the default slot', () => {
-      createComponent({ query: null, slots });
+      createComponent({ props: { query: null }, slots });
 
       expect(findButton().exists()).toBe(true);
     });

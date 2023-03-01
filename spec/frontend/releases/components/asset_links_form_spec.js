@@ -73,7 +73,7 @@ describe('Release edit component', () => {
     it('calls the "addEmptyAssetLink" store method when the "Add another link" button is clicked', () => {
       expect(actions.addEmptyAssetLink).not.toHaveBeenCalled();
 
-      wrapper.find({ ref: 'addAnotherLinkButton' }).vm.$emit('click');
+      wrapper.findComponent({ ref: 'addAnotherLinkButton' }).vm.$emit('click');
 
       expect(actions.addEmptyAssetLink).toHaveBeenCalledTimes(1);
     });
@@ -92,7 +92,7 @@ describe('Release edit component', () => {
       let newUrl;
 
       beforeEach(() => {
-        input = wrapper.find({ ref: 'urlInput' }).element;
+        input = wrapper.findComponent({ ref: 'urlInput' }).element;
         linkIdToUpdate = release.assets.links[0].id;
         newUrl = 'updated url';
       });
@@ -118,7 +118,7 @@ describe('Release edit component', () => {
       it('calls the "updateAssetLinkUrl" store method when text is entered into the "URL" input field', () => {
         expectStoreMethodNotToBeCalled();
 
-        wrapper.find({ ref: 'urlInput' }).vm.$emit('change', newUrl);
+        wrapper.findComponent({ ref: 'urlInput' }).vm.$emit('change', newUrl);
 
         expectStoreMethodToBeCalled();
       });
@@ -150,7 +150,7 @@ describe('Release edit component', () => {
       let newName;
 
       beforeEach(() => {
-        input = wrapper.find({ ref: 'nameInput' }).element;
+        input = wrapper.findComponent({ ref: 'nameInput' }).element;
         linkIdToUpdate = release.assets.links[0].id;
         newName = 'updated name';
       });
@@ -176,7 +176,7 @@ describe('Release edit component', () => {
       it('calls the "updateAssetLinkName" store method when text is entered into the "Link title" input field', () => {
         expectStoreMethodNotToBeCalled();
 
-        wrapper.find({ ref: 'nameInput' }).vm.$emit('change', newName);
+        wrapper.findComponent({ ref: 'nameInput' }).vm.$emit('change', newName);
 
         expectStoreMethodToBeCalled();
       });
@@ -208,7 +208,7 @@ describe('Release edit component', () => {
 
       expect(actions.updateAssetLinkType).not.toHaveBeenCalled();
 
-      wrapper.find({ ref: 'typeSelect' }).vm.$emit('change', newType);
+      wrapper.findComponent({ ref: 'typeSelect' }).vm.$emit('change', newType);
 
       expect(actions.updateAssetLinkType).toHaveBeenCalledTimes(1);
       expect(actions.updateAssetLinkType).toHaveBeenCalledWith(expect.anything(), {
@@ -225,7 +225,7 @@ describe('Release edit component', () => {
       });
 
       it('selects the default asset type', () => {
-        const selected = wrapper.find({ ref: 'typeSelect' }).element.value;
+        const selected = wrapper.findComponent({ ref: 'typeSelect' }).element.value;
 
         expect(selected).toBe(DEFAULT_ASSET_LINK_TYPE);
       });
@@ -292,6 +292,42 @@ describe('Release edit component', () => {
     });
   });
 
+  describe('remove button state', () => {
+    describe('when there is only one link', () => {
+      beforeEach(() => {
+        factory({
+          release: {
+            ...release,
+            assets: {
+              links: release.assets.links.slice(0, 1),
+            },
+          },
+        });
+      });
+
+      it('remove asset link button should not be present', () => {
+        expect(wrapper.find('.remove-button').exists()).toBe(false);
+      });
+    });
+
+    describe('when there are multiple links', () => {
+      beforeEach(() => {
+        factory({
+          release: {
+            ...release,
+            assets: {
+              links: release.assets.links.slice(0, 2),
+            },
+          },
+        });
+      });
+
+      it('remove asset link button should be visible', () => {
+        expect(wrapper.find('.remove-button').exists()).toBe(true);
+      });
+    });
+  });
+
   describe('empty state', () => {
     describe('when the release fetched from the API has no links', () => {
       beforeEach(() => {
@@ -324,12 +360,6 @@ describe('Release edit component', () => {
 
       it('does not call the addEmptyAssetLink store method when the component is created', () => {
         expect(actions.addEmptyAssetLink).not.toHaveBeenCalled();
-      });
-
-      it('calls addEmptyAssetLink when the final link is deleted by the user', () => {
-        wrapper.find('.remove-button').vm.$emit('click');
-
-        expect(actions.addEmptyAssetLink).toHaveBeenCalledTimes(1);
       });
     });
   });

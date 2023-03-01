@@ -10,7 +10,7 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
     let(:additional_info) { {} }
 
     before do
-      @original_env_config_omniauth_auth = mock_auth_hash(provider.to_s, extern_uid, user.email, additional_info: additional_info )
+      @original_env_config_omniauth_auth = mock_auth_hash(provider.to_s, extern_uid, user.email, additional_info: additional_info)
       stub_omniauth_provider(provider, context: request)
     end
 
@@ -388,6 +388,32 @@ RSpec.describe OmniauthCallbacksController, type: :controller do
 
             expect(request.env['warden']).to be_authenticated
           end
+        end
+      end
+    end
+
+    context 'with snowplow tracking', :snowplow do
+      let(:provider) { 'google_oauth2' }
+      let(:extern_uid) { 'my-uid' }
+
+      context 'when sign_in' do
+        it 'does not track the event' do
+          post provider
+          expect_no_snowplow_event
+        end
+      end
+
+      context 'when sign_up' do
+        let(:user) { double(email: generate(:email)) }
+
+        it 'tracks the event' do
+          post provider
+
+          expect_snowplow_event(
+            category: described_class.name,
+            action: "#{provider}_sso",
+            user: User.find_by(email: user.email)
+          )
         end
       end
     end

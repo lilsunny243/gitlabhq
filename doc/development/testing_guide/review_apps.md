@@ -1,12 +1,12 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Review Apps
+# Using review apps in the development of GitLab
 
-Review Apps are deployed using the `start-review-app-pipeline` job which triggers a child pipeline containing a series of jobs to perform the various tasks needed to deploy a Review App.
+Review apps are deployed using the `start-review-app-pipeline` job which triggers a child pipeline containing a series of jobs to perform the various tasks needed to deploy a review app.
 
 ![start-review-app-pipeline job](img/review-app-parent-pipeline.png)
 
@@ -21,20 +21,25 @@ For any of the following scenarios, the `start-review-app-pipeline` job would be
 - for scheduled pipelines
 - the MR has the `pipeline:run-review-app` label set
 
-## QA runs on Review Apps
+## E2E test runs on review apps
 
-On every [pipeline](https://gitlab.com/gitlab-org/gitlab/pipelines/125315730) in the `qa` stage (which comes after the
-`review` stage), the `review-qa-smoke` and `review-qa-reliable` jobs are automatically started. The `review-qa-smoke` runs
-the QA smoke suite and the `review-qa-reliable` executes E2E tests identified as [reliable](https://about.gitlab.com/handbook/engineering/quality/quality-engineering/reliable-tests/).
+On every pipeline in the `qa` stage (which comes after the `review` stage), the `review-qa-smoke` and `review-qa-blocking` jobs are automatically started.
 
-`review-qa-*` jobs ensure that end-to-end tests for the changes in the merge request pass in a live environment. This shifts the identification of e2e failures from an environment on the path to production to the merge request, to prevent breaking features on GitLab.com or costly GitLab.com deployment blockers. `review-qa-*` failures should be investigated with counterpart SET involvement if needed to help determine the root cause of the error.
+`qa` stage consists of following jobs:
 
-You can also manually start the `review-qa-all`: it runs the full QA suite.
+- `review-qa-smoke`: small and fast subset of tests to validate core functionality of GitLab.
+- `review-qa-blocking`: subset of tests identified as [reliable](https://about.gitlab.com/handbook/engineering/quality/quality-engineering/reliable-tests/). These tests are
+  considered stable and are not allowed to fail.
+- `review-qa-non-blocking`: rest of the e2e tests that can be triggered manually.
+
+`review-qa-*` jobs ensure that end-to-end tests for the changes in the merge request pass in a live environment. This shifts the identification of e2e failures from an environment
+on the path to production to the merge request to prevent breaking features on GitLab.com or costly GitLab.com deployment blockers. If needed, `review-qa-*` failures should be
+investigated with an SET (software engineer in test) counterpart to help determine the root cause of the error.
 
 After the end-to-end test runs have finished, [Allure reports](https://github.com/allure-framework/allure2) are generated and published by
-the `allure-report-qa-smoke`, `allure-report-qa-reliable`, and `allure-report-qa-all` jobs. A comment with links to the reports are added to the merge request.
+the `e2e-test-report` job. A comment with links to the reports is added to the merge request.
 
-Errors can be found in the `gitlab-review-apps` Sentry project and [filterable by Review App URL](https://sentry.gitlab.net/gitlab/gitlab-review-apps/?query=url%3A%22https%3A%2F%2Fgitlab-review-require-ve-u92nn2.gitlab-review.app%2F%22) or [commit SHA](https://sentry.gitlab.net/gitlab/gitlab-review-apps/releases/6095b501da7/all-events/).
+Errors can be found in the `gitlab-review-apps` Sentry project and [filterable by review app URL](https://sentry.gitlab.net/gitlab/gitlab-review-apps/?query=url%3A%22https%3A%2F%2Fgitlab-review-require-ve-u92nn2.gitlab-review.app%2F%22) or [commit SHA](https://sentry.gitlab.net/gitlab/gitlab-review-apps/releases/6095b501da7/all-events/).
 
 ### Bypass failed review app deployment to merge a broken `master` fix
 
@@ -47,7 +52,7 @@ On every [pipeline](https://gitlab.com/gitlab-org/gitlab/pipelines/125315730) in
 browser performance testing using a
 [Sitespeed.io Container](../../ci/testing/browser_performance_testing.md).
 
-## Sample Data for Review Apps
+## Sample Data for review apps
 
 Upon deployment of a review app, project data is created from the [`sample-gitlab-project`](https://gitlab.com/gitlab-org/sample-data-templates/sample-gitlab-project) template project. This aims to provide projects with prepopulated resources to facilitate manual and exploratory testing.
 
@@ -55,16 +60,16 @@ The sample projects will be created in the `root` user namespace and can be acce
 
 ## How to
 
-### Redeploy Review App from a clean slate
+### Redeploy review app from a clean slate
 
-To reset Review App and redeploy from a clean slate, do the following:
+To reset review app and redeploy from a clean slate, do the following:
 
 1. Run `review-stop` job.
 1. Re-deploy by running or retrying `review-deploy` job.
 
-Doing this will remove all existing data from a previously deployed Review App.
+Doing this will remove all existing data from a previously deployed review app.
 
-### Get access to the GCP Review Apps cluster
+### Get access to the GCP review apps cluster
 
 You need to [open an access request (internal link)](https://gitlab.com/gitlab-com/access-requests/-/issues/new)
 for the `gcp-review-apps-dev` GCP group and role.
@@ -74,7 +79,7 @@ This grants you the following permissions for:
 - [Retrieving pod logs](#dig-into-a-pods-logs). Granted by [Viewer (`roles/viewer`)](https://cloud.google.com/iam/docs/understanding-roles#kubernetes-engine-roles).
 - [Running a Rails console](#run-a-rails-console). Granted by [Kubernetes Engine Developer (`roles/container.pods.exec`)](https://cloud.google.com/iam/docs/understanding-roles#kubernetes-engine-roles).
 
-### Log into my Review App
+### Log into my review app
 
 For GitLab Team Members only. If you want to sign in to the review app, review
 the GitLab handbook information for the [shared 1Password account](https://about.gitlab.com/handbook/security/#1password-for-teams).
@@ -82,26 +87,26 @@ the GitLab handbook information for the [shared 1Password account](https://about
 - The default username is `root`.
 - The password can be found in the 1Password login item named `GitLab EE Review App`.
 
-### Enable a feature flag for my Review App
+### Enable a feature flag for my review app
 
-1. Open your Review App and log in as documented above.
+1. Open your review app and sign in as documented above.
 1. Create a personal access token.
 1. Enable the feature flag using the [Feature flag API](../../api/features.md).
 
-### Find my Review App slug
+### Find my review app slug
 
 1. Open the `review-deploy` job.
 1. Look for `** Deploying review-*`.
 1. For instance for `** Deploying review-1234-abc-defg... **`,
-   your Review App slug would be `review-1234-abc-defg` in this case.
+   your review app slug would be `review-1234-abc-defg` in this case.
 
 ### Run a Rails console
 
 1. Make sure you [have access to the cluster](#get-access-to-the-gcp-review-apps-cluster) and the `container.pods.exec` permission first.
-1. [Filter Workloads by your Review App slug](https://console.cloud.google.com/kubernetes/workload?project=gitlab-review-apps). For example, `review-qa-raise-e-12chm0`.
+1. [Filter Workloads by your review app slug](https://console.cloud.google.com/kubernetes/workload?project=gitlab-review-apps). For example, `review-qa-raise-e-12chm0`.
 1. Find and open the `toolbox` Deployment. For example, `review-qa-raise-e-12chm0-toolbox`.
 1. Select the Pod in the "Managed pods" section. For example, `review-qa-raise-e-12chm0-toolbox-d5455cc8-2lsvz`.
-1. Select the `KUBECTL` dropdown, then `Exec` -> `toolbox`.
+1. Select the `KUBECTL` dropdown list, then `Exec` -> `toolbox`.
 1. Replace `-c toolbox -- ls` with `-it -- gitlab-rails console` from the
    default command or
    - Run `kubectl exec --namespace review-qa-raise-e-12chm0 review-qa-raise-e-12chm0-toolbox-d5455cc8-2lsvz -it -- gitlab-rails console` and
@@ -111,7 +116,7 @@ the GitLab handbook information for the [shared 1Password account](https://about
 ### Dig into a Pod's logs
 
 1. Make sure you [have access to the cluster](#get-access-to-the-gcp-review-apps-cluster) and the `container.pods.getLogs` permission first.
-1. [Filter Workloads by your Review App slug](https://console.cloud.google.com/kubernetes/workload?project=gitlab-review-apps). For example, `review-qa-raise-e-12chm0`.
+1. [Filter Workloads by your review app slug](https://console.cloud.google.com/kubernetes/workload?project=gitlab-review-apps). For example, `review-qa-raise-e-12chm0`.
 1. Find and open the `migrations` Deployment. For example, `review-qa-raise-e-12chm0-migrations.1`.
 1. Select the Pod in the "Managed pods" section. For example, `review-qa-raise-e-12chm0-migrations.1-nqwtx`.
 1. Select `Container logs`.
@@ -129,31 +134,28 @@ resource.labels.pod_name:"review-qa-raise-e-12chm0-migrations"
 ```mermaid
 graph TD
   A["build-qa-image, compile-production-assets<br/>(canonical default refs only)"];
+  B1[start-review-app-pipeline];
   B[review-build-cng];
-  C[review-deploy];
+  C["review-deploy<br><br>Helm deploys the review app using the Cloud<br/>Native images built by the CNG-mirror pipeline.<br><br>Cloud Native images are deployed to the `review-apps`<br>Kubernetes (GKE) cluster, in the GCP `gitlab-review-apps` project."];
   D[CNG-mirror];
-  E[review-qa-smoke, review-qa-reliable];
+  E[review-qa-smoke, review-qa-blocking, review-qa-non-blocking<br><br>gitlab-qa runs the e2e tests against the review app.];
 
-  A -->|once the `prepare` stage is done| B
-  B -.->|triggers a CNG-mirror pipeline and wait for it to be done| D
-  D -.->|polls until completed| B
-  B -->|once the `review-build-cng` job is done| C
-  C -->|once the `review-deploy` job is done| E
+  A --> B1
+  B1 --> B
+  B -.->|triggers a CNG-mirror pipeline| D
+  D -.->|depends on the multi-project pipeline| B
+  B --> C
+  C --> E
 
-subgraph "1. gitlab `prepare` stage"
+subgraph "1. gitlab-org/gitlab parent pipeline"
   A
+  B1
   end
 
-subgraph "2. gitlab `review-prepare` stage"
+subgraph "2. gitlab-org/gitlab child pipeline"
   B
-  end
-
-subgraph "3. gitlab `review` stage"
-  C["review-deploy<br><br>Helm deploys the Review App using the Cloud<br/>Native images built by the CNG-mirror pipeline.<br><br>Cloud Native images are deployed to the `review-apps`<br>Kubernetes (GKE) cluster, in the GCP `gitlab-review-apps` project."]
-  end
-
-subgraph "4. gitlab `qa` stage"
-  E[review-qa-smoke, review-qa-reliable<br><br>gitlab-qa runs the smoke and reliable suites against the Review App.]
+  C
+  E
   end
 
 subgraph "CNG-mirror pipeline"
@@ -172,7 +174,7 @@ subgraph "CNG-mirror pipeline"
    job [triggers a pipeline](https://gitlab.com/gitlab-org/build/CNG-mirror/pipelines/44364657)
    in the [`CNG-mirror`](https://gitlab.com/gitlab-org/build/CNG-mirror) project.
    - The `review-build-cng` job automatically starts only if your MR includes
-     [CI or frontend changes](../pipelines.md#changes-patterns). In other cases, the job is manual.
+     [CI or frontend changes](../pipelines/internals.md#changes-patterns). In other cases, the job is manual.
    - The [`CNG-mirror`](https://gitlab.com/gitlab-org/build/CNG-mirror/pipelines/44364657) pipeline creates the Docker images of
      each component (for example, `gitlab-rails-ee`, `gitlab-shell`, `gitaly` etc.)
      based on the commit from the [GitLab pipeline](https://gitlab.com/gitlab-org/gitlab/pipelines/125315730) and stores
@@ -180,10 +182,10 @@ subgraph "CNG-mirror pipeline"
    - We use the [`CNG-mirror`](https://gitlab.com/gitlab-org/build/CNG-mirror) project so that the `CNG`, (Cloud
      Native GitLab), project's registry is not overloaded with a lot of transient Docker images.
 1. Once `review-build-cng` is done, the [`review-deploy`](https://gitlab.com/gitlab-org/gitlab/-/jobs/467724810) job
-   deploys the Review App using [the official GitLab Helm chart](https://gitlab.com/gitlab-org/charts/gitlab/) to
+   deploys the review app using [the official GitLab Helm chart](https://gitlab.com/gitlab-org/charts/gitlab/) to
    the [`review-apps`](https://console.cloud.google.com/kubernetes/clusters/details/us-central1-b/review-apps?project=gitlab-review-apps)
    Kubernetes cluster on GCP.
-   - The actual scripts used to deploy the Review App can be found at
+   - The actual scripts used to deploy the review app can be found at
      [`scripts/review_apps/review-apps.sh`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/scripts/review_apps/review-apps.sh).
    - These scripts are basically
      [our official Auto DevOps scripts](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Auto-DevOps.gitlab-ci.yml) where the
@@ -192,11 +194,11 @@ subgraph "CNG-mirror pipeline"
    - Since we're using [the official GitLab Helm chart](https://gitlab.com/gitlab-org/charts/gitlab/), this means
      you get a dedicated environment for your branch that's very close to what
      it would look in production.
-   - Each review app is deployed to its own Kubernetes namespace. The namespace is based on the Review App slug that is
+   - Each review app is deployed to its own Kubernetes namespace. The namespace is based on the review app slug that is
      unique to each branch.
 1. Once the [`review-deploy`](https://gitlab.com/gitlab-org/gitlab/-/jobs/467724810) job succeeds, you should be able to
-   use your Review App thanks to the direct link to it from the MR widget. To log
-   into the Review App, see "Log into my Review App?" below.
+   use your review app thanks to the direct link to it from the MR widget. To log
+   into the review app, see "Log into my review app?" below.
 
 **Additional notes:**
 
@@ -213,23 +215,23 @@ subgraph "CNG-mirror pipeline"
   `#quality` channel and/or create a ~Quality ~"type::bug" issue with a link to your
   merge request.
 - The manual `review-stop` can be used to
-  stop a Review App manually, and is also started by GitLab once a merge
+  stop a review app manually, and is also started by GitLab once a merge
   request's branch is deleted after being merged.
 - The Kubernetes cluster is connected to the `gitlab` projects using the
   [GitLab Kubernetes integration](../../user/infrastructure/clusters/index.md). This basically
-  allows to have a link to the Review App directly from the merge request widget.
+  allows to have a link to the review app directly from the merge request widget.
 
-### Auto-stopping of Review Apps
+### Auto-stopping of review apps
 
-Review Apps are automatically stopped 2 days after the last deployment thanks to
+Review apps are automatically stopped 2 days after the last deployment thanks to
 the [Environment auto-stop](../../ci/environments/index.md#stop-an-environment-after-a-certain-time-period) feature.
 
-If you need your Review App to stay up for a longer time, you can
+If you need your review app to stay up for a longer time, you can
 [pin its environment](../../ci/environments/index.md#override-a-deployments-scheduled-stop-time) or retry the
 `review-deploy` job to update the "latest deployed at" time.
 
 The `review-cleanup` job that automatically runs in scheduled
-pipelines stops stale Review Apps after 5 days,
+pipelines stops stale review apps after 5 days,
 deletes their environment after 6 days, and cleans up any dangling Helm releases
 and Kubernetes resources after 7 days.
 
@@ -246,13 +248,13 @@ The Helm version used is defined in the
 [`registry.gitlab.com/gitlab-org/gitlab-build-images:gitlab-helm3.5-kubectl1.17` image](https://gitlab.com/gitlab-org/gitlab-build-images/-/blob/master/Dockerfile.gitlab-helm3.5-kubectl1.17#L6)
 used by the `review-deploy` and `review-stop` jobs.
 
-## Diagnosing unhealthy Review App releases
+## Diagnosing unhealthy review app releases
 
-If [Review App Stability](https://app.periscopedata.com/app/gitlab/496118/Engineering-Productivity-Sandbox?widget=6690556&udv=785399)
+If [review app stability](https://app.periscopedata.com/app/gitlab/496118/Engineering-Productivity-Sandbox?widget=6690556&udv=785399)
 dips this may be a signal that the `review-apps` cluster is unhealthy.
-Leading indicators may be health check failures leading to restarts or majority failure for Review App deployments.
+Leading indicators may be health check failures leading to restarts or majority failure for review app deployments.
 
-The [Review Apps Overview dashboard](https://console.cloud.google.com/monitoring/classic/dashboards/6798952013815386466?project=gitlab-review-apps&timeDomain=1d)
+The [review apps Overview dashboard](https://console.cloud.google.com/monitoring/classic/dashboards/6798952013815386466?project=gitlab-review-apps&timeDomain=1d)
 aids in identifying load spikes on the cluster, and if nodes are problematic or the entire cluster is trending towards unhealthy.
 
 See the [review apps page of the Engineering Productivity Runbook](https://gitlab.com/gitlab-org/quality/engineering-productivity/team/-/blob/main/runbook/review-apps.md) for troubleshooting review app releases.
@@ -273,7 +275,7 @@ find a way to limit it to only us.**
 
 ## Other resources
 
-- [Review Apps integration for CE/EE (presentation)](https://docs.google.com/presentation/d/1QPLr6FO4LduROU8pQIPkX1yfGvD13GEJIBOenqoKxR8/edit?usp=sharing)
+- [Review apps integration for CE/EE (presentation)](https://docs.google.com/presentation/d/1QPLr6FO4LduROU8pQIPkX1yfGvD13GEJIBOenqoKxR8/edit?usp=sharing)
 - [Stability issues](https://gitlab.com/gitlab-org/quality/team-tasks/-/issues/212)
 
 ### Helpful command line tools

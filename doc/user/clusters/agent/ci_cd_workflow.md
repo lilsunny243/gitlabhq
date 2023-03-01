@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Using GitLab CI/CD with a Kubernetes cluster **(FREE)**
@@ -58,13 +58,15 @@ Authorization configuration can take one or two minutes to propagate.
 
 ### Authorize the agent to access your projects
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/327850) in GitLab 14.4.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/327850) in GitLab 14.4.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/346566) to remove hierarchy restrictions in GitLab 15.6.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/356831) to allow authorizing projects in a user namespace in GitLab 15.7.
 
 To authorize the agent to access the GitLab project where you keep Kubernetes manifests:
 
-1. On the top bar, select **Menu > Projects** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
+1. On the top bar, select **Main menu > Projects** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
 1. Edit the `config.yaml` file. Under the `ci_access` keyword, add the `projects` attribute.
-1. For the `id`, add the path:
+1. For the `id`, add the path to the project. Do not wrap the path in quotation marks.
 
    ```yaml
    ci_access:
@@ -72,7 +74,7 @@ To authorize the agent to access the GitLab project where you keep Kubernetes ma
        - id: path/to/project
    ```
 
-   - The Kubernetes projects must be in the same group hierarchy as the project where the agent's configuration is.
+   - Authorized projects must have the same root group or user namespace as the agent's configuration project.
    - You can install additional agents into the same cluster to accommodate additional hierarchies.
    - You can authorize up to 100 projects.
 
@@ -81,11 +83,12 @@ Choose the context to run `kubectl` commands from your CI/CD scripts.
 
 ### Authorize the agent to access projects in your groups
 
-> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/5784) in GitLab 14.3.
+> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/5784) in GitLab 14.3.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/346566) to remove hierarchy restrictions in GitLab 15.6.
 
 To authorize the agent to access all of the GitLab projects in a group or subgroup:
 
-1. On the top bar, select **Menu > Projects** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
+1. On the top bar, select **Main menu > Projects** and find the project that contains the [agent configuration file](install/index.md#create-an-agent-configuration-file) (`config.yaml`).
 1. Edit the `config.yaml` file. Under the `ci_access` keyword, add the `groups` attribute.
 1. For the `id`, add the path:
 
@@ -95,7 +98,7 @@ To authorize the agent to access all of the GitLab projects in a group or subgro
        - id: path/to/group/subgroup
    ```
 
-   - The Kubernetes projects must be in the same group hierarchy as the project where the agent's configuration is.
+   - Authorized groups must have the same root group as the agent's configuration project.
    - You can install additional agents into the same cluster to accommodate additional hierarchies.
    - All of the subgroups of an authorized group also have access to the same agent (without being specified individually).
    - You can authorize up to 100 groups.
@@ -124,6 +127,30 @@ deploy:
 
 If you are not sure what your agent's context is, open a terminal and connect to your cluster.
 Run `kubectl config get-contexts`.
+
+### Environments that use Auto DevOps
+
+If Auto DevOps is enabled, you must define the CI/CD variable `KUBE_CONTEXT`.
+Set the value of `KUBE_CONTEXT` to the context of the agent you want Auto DevOps to use:
+
+```yaml
+deploy:
+  variables:
+    KUBE_CONTEXT: <path_to_agent_config_repository>:<agent_name>
+```
+
+You can assign different agents to separate Auto DevOps jobs. For instance,
+Auto DevOps can use one agent for `staging` jobs, and another agent for `production` jobs.
+To use multiple agents, define an [environment-scoped CI/CD variable](../../../ci/environments/index.md#limit-the-environment-scope-of-a-cicd-variable)
+for each agent. For example:
+
+1. Define two variables named `KUBE_CONTEXT`.
+1. For the first variable:
+   1. Set the `environment` to `staging`.
+   1. Set the value to the context of your staging agent.
+1. For the second variable:
+   1. Set the `environment` to `production`.
+   1. Set the value to the context of your production agent.
 
 ### Environments with both certificate-based and agent-based connections
 
@@ -158,7 +185,8 @@ deploy:
 
 ## Restrict project and group access by using impersonation **(PREMIUM)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/345014) in GitLab 14.5.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/345014) in GitLab 14.5.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/357934) in GitLab 15.5 to add impersonation support for environment tiers.
 
 By default, your CI/CD job inherits all the permissions from the service account used to install the
 agent in the cluster.
@@ -191,16 +219,17 @@ impersonation credentials in the following way:
   - `gitlab:ci_job` to identify all requests coming from CI jobs.
   - The list of IDs of groups the project is in.
   - The project ID.
-  - The slug of the environment this job belongs to.
+  - The slug and tier of the environment this job belongs to.
 
     Example: for a CI job in `group1/group1-1/project1` where:
 
     - Group `group1` has ID 23.
     - Group `group1/group1-1` has ID 25.
     - Project `group1/group1-1/project1` has ID 150.
-    - Job running in a prod environment.
+    - Job running in the `prod` environment, which has the `production` environment tier.
 
-  Group list would be `[gitlab:ci_job, gitlab:group:23, gitlab:group:25, gitlab:project:150, gitlab:project_env:150:prod]`.
+  Group list would be `[gitlab:ci_job, gitlab:group:23, gitlab:group_env_tier:23:production, gitlab:group:25,
+     gitlab:group_env_tier:25:production, gitlab:project:150, gitlab:project_env:150:prod, gitlab:project_env_tier:150:production]`.
 
 - `Extra` carries extra information about the request. The following properties are set on the impersonated identity:
 
@@ -213,6 +242,7 @@ impersonation credentials in the following way:
 | `agent.gitlab.com/ci_job_id`         | Contains the CI job ID.                                                      |
 | `agent.gitlab.com/username`          | Contains the username of the user the CI job is running as.                  |
 | `agent.gitlab.com/environment_slug`  | Contains the slug of the environment. Only set if running in an environment. |
+| `agent.gitlab.com/environment_tier`  | Contains the tier of the environment. Only set if running in an environment. |
 
 Example `config.yaml` to restrict access by the CI/CD job's identity:
 
@@ -257,18 +287,41 @@ The identity can be specified with the following keys:
 
 See the [official Kubernetes documentation for details](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
 
+## Restrict project and group access to specific environments **(FREE)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/343885) in GitLab 15.7.
+
+By default, if your agent is [available to a project](#authorize-the-agent), all of the project's CI/CD jobs can use that agent.
+
+To restrict access to the agent to only jobs with specific environments, add `environments` to `ci_access.projects` or `ci_access.groups`. For example:
+
+  ```yaml
+  ci_access:
+    projects:
+      - id: path/to/project-1
+      - id: path/to/project-2
+        environments:
+          - staging
+          - review/*
+    groups:
+      - id: path/to/group-1
+        environments:
+          - production
+  ```
+
+In this example:
+
+- All CI/CD jobs under `project-1` can access the agent.
+- CI/CD jobs under `project-2` with `staging` or `review/*` environments can access the agent.
+  - `*` is a wildcard, so `review/*` matches all environments under `review`.
+- CI/CD jobs for projects under `group-1` with `production` environments can access the agent.
+
 ## Related topics
 
 - [Self-paced classroom workshop](https://gitlab-for-eks.awsworkshop.io) (Uses AWS EKS, but you can use for other Kubernetes clusters)
+- [Configure Auto DevOps](../../../topics/autodevops/cloud_deployments/auto_devops_with_gke.md#configure-auto-devops)
 
 ## Troubleshooting
-
-### `kubectl` commands not supported
-
-The commands `kubectl exec`, `kubectl cp`, `kubectl attach`, `kubectl run --attach=true` and `kubectl port-forward` are not supported.
-Anything that uses these API endpoints does not work, because they use the deprecated
-SPDY protocol.
-[An issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/346248) to add support for these commands.
 
 ### Grant write permissions to `~/.kube/cache`
 

@@ -4,8 +4,13 @@ module Types
   class WorkItemType < BaseObject
     graphql_name 'WorkItem'
 
+    implements(Types::TodoableInterface)
+
     authorize :read_work_item
 
+    field :author, Types::UserType, null: true,
+                                    description: 'User that created the work item.',
+                                    alpha: { milestone: '15.9' }
     field :closed_at, Types::TimeType, null: true,
                                        description: 'Timestamp of when the work item was closed.'
     field :confidential, GraphQL::Types::Boolean, null: false,
@@ -42,5 +47,9 @@ module Types
     markdown_field :description_html, null: true
 
     expose_permissions Types::PermissionTypes::WorkItem
+
+    def web_url
+      Gitlab::UrlBuilder.build(object)
+    end
   end
 end

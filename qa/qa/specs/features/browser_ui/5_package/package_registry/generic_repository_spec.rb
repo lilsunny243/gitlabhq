@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, :reliable do
+  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, :reliable, product_group: :package_registry do
     describe 'Generic Repository' do
       include Runtime::Fixtures
 
@@ -20,7 +20,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.name = "qa-runner-#{Time.now.to_i}"
           runner.tags = ["runner-for-#{project.name}"]
           runner.executor = :docker

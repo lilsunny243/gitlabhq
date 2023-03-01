@@ -30,9 +30,9 @@ import {
   INTEGRATION_INACTIVE_PAYLOAD_TEST_ERROR,
   DELETE_INTEGRATION_ERROR,
 } from '~/alerts_settings/utils/error_messages';
-import createFlash, { FLASH_TYPES } from '~/flash';
+import { createAlert, VARIANT_SUCCESS } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_FORBIDDEN, HTTP_STATUS_UNPROCESSABLE_ENTITY } from '~/lib/utils/http_status';
 import {
   createHttpVariables,
   updateHttpVariables,
@@ -63,14 +63,14 @@ describe('AlertsSettingsWrapper', () => {
 
   const findLoader = () => wrapper.findComponent(IntegrationsList).findComponent(GlLoadingIcon);
   const findIntegrationsList = () => wrapper.findComponent(IntegrationsList);
-  const findIntegrations = () => wrapper.find(IntegrationsList).findAll('table tbody tr');
+  const findIntegrations = () => wrapper.findComponent(IntegrationsList).findAll('table tbody tr');
   const findAddIntegrationBtn = () => wrapper.findByTestId('add-integration-btn');
   const findAlertsSettingsForm = () => wrapper.findComponent(AlertsSettingsForm);
   const findAlert = () => wrapper.findComponent(GlAlert);
 
   function destroyHttpIntegration(localWrapper) {
     localWrapper
-      .find(IntegrationsList)
+      .findComponent(IntegrationsList)
       .vm.$emit('delete-integration', { id: integrationToDestroy.id });
   }
 
@@ -148,7 +148,7 @@ describe('AlertsSettingsWrapper', () => {
       expect(findIntegrations()).toHaveLength(mockIntegrations.length);
     });
 
-    it('renders `Add new integration` button when multiple integrations are supported ', () => {
+    it('renders `Add new integration` button when multiple integrations are supported', () => {
       createComponent({
         data: {
           integrations: mockIntegrations,
@@ -189,7 +189,7 @@ describe('AlertsSettingsWrapper', () => {
         data: { integrations: [] },
         loading: true,
       });
-      expect(wrapper.find(IntegrationsList).exists()).toBe(true);
+      expect(wrapper.findComponent(IntegrationsList).exists()).toBe(true);
       expect(findLoader().exists()).toBe(true);
     });
   });
@@ -321,31 +321,31 @@ describe('AlertsSettingsWrapper', () => {
       });
     });
 
-    it('shows an error alert when integration creation fails ', async () => {
+    it('shows an error alert when integration creation fails', async () => {
       jest.spyOn(wrapper.vm.$apollo, 'mutate').mockRejectedValue(ADD_INTEGRATION_ERROR);
       findAlertsSettingsForm().vm.$emit('create-new-integration', {});
 
       await waitForPromises();
 
-      expect(createFlash).toHaveBeenCalledWith({ message: ADD_INTEGRATION_ERROR });
+      expect(createAlert).toHaveBeenCalledWith({ message: ADD_INTEGRATION_ERROR });
     });
 
-    it('shows an error alert when integration token reset fails ', async () => {
+    it('shows an error alert when integration token reset fails', async () => {
       jest.spyOn(wrapper.vm.$apollo, 'mutate').mockRejectedValue(RESET_INTEGRATION_TOKEN_ERROR);
 
       findAlertsSettingsForm().vm.$emit('reset-token', {});
 
       await waitForPromises();
-      expect(createFlash).toHaveBeenCalledWith({ message: RESET_INTEGRATION_TOKEN_ERROR });
+      expect(createAlert).toHaveBeenCalledWith({ message: RESET_INTEGRATION_TOKEN_ERROR });
     });
 
-    it('shows an error alert when integration update fails ', async () => {
+    it('shows an error alert when integration update fails', async () => {
       jest.spyOn(wrapper.vm.$apollo, 'mutate').mockRejectedValue(errorMsg);
 
       findAlertsSettingsForm().vm.$emit('update-integration', {});
 
       await waitForPromises();
-      expect(createFlash).toHaveBeenCalledWith({ message: UPDATE_INTEGRATION_ERROR });
+      expect(createAlert).toHaveBeenCalledWith({ message: UPDATE_INTEGRATION_ERROR });
     });
 
     describe('Test alert failure', () => {
@@ -357,20 +357,20 @@ describe('AlertsSettingsWrapper', () => {
         mock.restore();
       });
 
-      it('shows an error alert when integration test payload is invalid ', async () => {
-        mock.onPost(/(.*)/).replyOnce(httpStatusCodes.UNPROCESSABLE_ENTITY);
+      it('shows an error alert when integration test payload is invalid', async () => {
+        mock.onPost(/(.*)/).replyOnce(HTTP_STATUS_UNPROCESSABLE_ENTITY);
         await wrapper.vm.testAlertPayload({ endpoint: '', data: '', token: '' });
-        expect(createFlash).toHaveBeenCalledWith({ message: INTEGRATION_PAYLOAD_TEST_ERROR });
-        expect(createFlash).toHaveBeenCalledTimes(1);
+        expect(createAlert).toHaveBeenCalledWith({ message: INTEGRATION_PAYLOAD_TEST_ERROR });
+        expect(createAlert).toHaveBeenCalledTimes(1);
       });
 
-      it('shows an error alert when integration is not activated ', async () => {
-        mock.onPost(/(.*)/).replyOnce(httpStatusCodes.FORBIDDEN);
+      it('shows an error alert when integration is not activated', async () => {
+        mock.onPost(/(.*)/).replyOnce(HTTP_STATUS_FORBIDDEN);
         await wrapper.vm.testAlertPayload({ endpoint: '', data: '', token: '' });
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: INTEGRATION_INACTIVE_PAYLOAD_TEST_ERROR,
         });
-        expect(createFlash).toHaveBeenCalledTimes(1);
+        expect(createAlert).toHaveBeenCalledTimes(1);
       });
     });
 
@@ -444,9 +444,9 @@ describe('AlertsSettingsWrapper', () => {
         jest.spyOn(alertsUpdateService, 'updateTestAlert').mockResolvedValueOnce({});
         findAlertsSettingsForm().vm.$emit('test-alert-payload', '');
         await waitForPromises();
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: i18n.alertSent,
-          type: FLASH_TYPES.SUCCESS,
+          variant: VARIANT_SUCCESS,
         });
       });
 
@@ -454,7 +454,7 @@ describe('AlertsSettingsWrapper', () => {
         jest.spyOn(alertsUpdateService, 'updateTestAlert').mockRejectedValueOnce({});
         findAlertsSettingsForm().vm.$emit('test-alert-payload', '');
         await waitForPromises();
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: INTEGRATION_PAYLOAD_TEST_ERROR,
         });
       });
@@ -486,7 +486,7 @@ describe('AlertsSettingsWrapper', () => {
       await destroyHttpIntegration(wrapper);
       await waitForPromises();
 
-      expect(createFlash).toHaveBeenCalledWith({ message: 'Houston, we have a problem' });
+      expect(createAlert).toHaveBeenCalledWith({ message: 'Houston, we have a problem' });
     });
 
     it('displays flash if mutation had a non-recoverable error', async () => {
@@ -497,7 +497,7 @@ describe('AlertsSettingsWrapper', () => {
       await destroyHttpIntegration(wrapper);
       await waitForPromises();
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: DELETE_INTEGRATION_ERROR,
       });
     });

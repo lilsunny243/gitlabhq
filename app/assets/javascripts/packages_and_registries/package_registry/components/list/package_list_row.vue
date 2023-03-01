@@ -2,16 +2,21 @@
 import {
   GlDropdown,
   GlDropdownItem,
+  GlFormCheckbox,
   GlIcon,
   GlSprintf,
   GlTooltipDirective,
   GlTruncate,
 } from '@gitlab/ui';
-import { s__, __ } from '~/locale';
+import { __ } from '~/locale';
 import ListItem from '~/vue_shared/components/registry/list_item.vue';
 import {
+  DELETE_PACKAGE_TEXT,
+  ERRORED_PACKAGE_TEXT,
+  ERROR_PUBLISHING,
   PACKAGE_ERROR_STATUS,
   PACKAGE_DEFAULT_STATUS,
+  WARNING_TEXT,
 } from '~/packages_and_registries/package_registry/constants';
 import { getPackageTypeLabel } from '~/packages_and_registries/package_registry/utils';
 import PackagePath from '~/packages_and_registries/shared/components/package_path.vue';
@@ -26,6 +31,7 @@ export default {
   components: {
     GlDropdown,
     GlDropdownItem,
+    GlFormCheckbox,
     GlIcon,
     GlSprintf,
     GlTruncate,
@@ -45,8 +51,16 @@ export default {
       type: Object,
       required: true,
     },
+    selected: {
+      type: Boolean,
+      default: false,
+      required: false,
+    },
   },
   computed: {
+    containsWebPathLink() {
+      return Boolean(this.packageEntity?._links?.webPath);
+    },
     packageType() {
       return getPackageTypeLabel(this.packageEntity.packageType);
     },
@@ -68,9 +82,6 @@ export default {
     nonDefaultRow() {
       return this.packageEntity.status && this.packageEntity.status !== PACKAGE_DEFAULT_STATUS;
     },
-    routerLinkEvent() {
-      return this.nonDefaultRow ? '' : 'click';
-    },
     errorPackageStyle() {
       return {
         'gl-text-red-500': this.errorStatusRow,
@@ -79,30 +90,39 @@ export default {
     },
   },
   i18n: {
-    erroredPackageText: s__('PackageRegistry|Invalid Package: failed metadata extraction'),
+    erroredPackageText: ERRORED_PACKAGE_TEXT,
     createdAt: __('Created %{timestamp}'),
-    deletePackage: s__('PackageRegistry|Delete package'),
-    errorPublishing: s__('PackageRegistry|Error publishing'),
-    warning: __('Warning'),
+    deletePackage: DELETE_PACKAGE_TEXT,
+    errorPublishing: ERROR_PUBLISHING,
+    warning: WARNING_TEXT,
     moreActions: __('More actions'),
   },
 };
 </script>
 
 <template>
-  <list-item data-qa-selector="package_row">
+  <list-item data-testid="package-row" :selected="selected" v-bind="$attrs">
+    <template #left-action>
+      <gl-form-checkbox
+        v-if="packageEntity.canDestroy"
+        class="gl-m-0"
+        :checked="selected"
+        @change="$emit('select')"
+      />
+    </template>
     <template #left-primary>
       <div class="gl-display-flex gl-align-items-center gl-mr-3 gl-min-w-0">
         <router-link
+          v-if="containsWebPathLink"
           :class="errorPackageStyle"
           class="gl-text-body gl-min-w-0"
           data-testid="details-link"
           data-qa-selector="package_link"
-          :event="routerLinkEvent"
           :to="{ name: 'details', params: { id: packageId } }"
         >
           <gl-truncate :text="packageEntity.name" />
         </router-link>
+        <gl-truncate v-else :text="packageEntity.name" />
 
         <package-tags
           v-if="showTags"
@@ -114,8 +134,16 @@ export default {
       </div>
     </template>
     <template #left-secondary>
-      <div v-if="!errorStatusRow" class="gl-display-flex" data-testid="left-secondary-infos">
-        <span>{{ packageEntity.version }}</span>
+      <div
+        v-if="!errorStatusRow"
+        class="gl-display-flex gl-align-items-center"
+        data-testid="left-secondary-infos"
+      >
+        <gl-truncate
+          class="gl-max-w-15 gl-md-max-w-26"
+          :text="packageEntity.version"
+          :with-tooltip="true"
+        />
 
         <div v-if="pipelineUser" class="gl-display-none gl-sm-display-flex gl-ml-2">
           <gl-sprintf :message="s__('PackageRegistry|published by %{author}')">
@@ -168,12 +196,9 @@ export default {
         category="tertiary"
         no-caret
       >
-        <gl-dropdown-item
-          data-testid="action-delete"
-          variant="danger"
-          @click="$emit('packageToDelete', packageEntity)"
-          >{{ $options.i18n.deletePackage }}</gl-dropdown-item
-        >
+        <gl-dropdown-item data-testid="action-delete" variant="danger" @click="$emit('delete')">{{
+          $options.i18n.deletePackage
+        }}</gl-dropdown-item>
       </gl-dropdown>
     </template>
   </list-item>

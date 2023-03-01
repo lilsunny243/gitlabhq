@@ -60,7 +60,12 @@ module Users
       namespace_storage_limit_banner_warning_threshold: 56, # EE-only
       namespace_storage_limit_banner_alert_threshold: 57, # EE-only
       namespace_storage_limit_banner_error_threshold: 58, # EE-only
-      project_quality_summary_feedback: 59       # EE-only
+      project_quality_summary_feedback: 59,       # EE-only
+      merge_request_settings_moved_callout: 60,
+      new_top_level_group_alert: 61,
+      artifacts_management_page_feedback_banner: 62,
+      vscode_web_ide: 63,
+      vscode_web_ide_callout: 64
     }
 
     validates :feature_name,

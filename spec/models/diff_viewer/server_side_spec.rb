@@ -16,14 +16,6 @@ RSpec.describe DiffViewer::ServerSide do
 
   subject { viewer_class.new(diff_file) }
 
-  describe '#prepare!' do
-    it 'loads all diff file data' do
-      expect(Blob).to receive(:lazy).at_least(:twice)
-
-      subject.prepare!
-    end
-  end
-
   describe '#render_error' do
     context 'when the diff file is stored externally' do
       before do

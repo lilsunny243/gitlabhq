@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequestDiff do
+RSpec.describe MergeRequestDiff, feature_category: :code_review_workflow do
   using RSpec::Parameterized::TableSyntax
 
   include RepoHelpers
@@ -412,7 +412,19 @@ RSpec.describe MergeRequestDiff do
     describe '#diffs_in_batch' do
       let(:diff_options) { {} }
 
+      shared_examples_for 'measuring diffs metrics' do
+        specify do
+          allow(Gitlab::Metrics).to receive(:measure).and_call_original
+          expect(Gitlab::Metrics).to receive(:measure).with(:diffs_reorder).and_call_original
+          expect(Gitlab::Metrics).to receive(:measure).with(:diffs_collection).and_call_original
+
+          diff_with_commits.diffs_in_batch(0, 10, diff_options: diff_options)
+        end
+      end
+
       shared_examples_for 'fetching full diffs' do
+        it_behaves_like 'measuring diffs metrics'
+
         it 'returns diffs from repository comparison' do
           expect_next_instance_of(Compare) do |comparison|
             expect(comparison).to receive(:diffs)
@@ -435,6 +447,13 @@ RSpec.describe MergeRequestDiff do
 
           expect(diffs.pagination_data).to eq(total_pages: nil)
         end
+
+        it 'measures diffs_comparison' do
+          allow(Gitlab::Metrics).to receive(:measure).and_call_original
+          expect(Gitlab::Metrics).to receive(:measure).with(:diffs_comparison).and_call_original
+
+          diff_with_commits.diffs_in_batch(1, 10, diff_options: diff_options)
+        end
       end
 
       context 'when no persisted files available' do
@@ -454,6 +473,8 @@ RSpec.describe MergeRequestDiff do
       end
 
       context 'when persisted files available' do
+        it_behaves_like 'measuring diffs metrics'
+
         it 'returns paginated diffs' do
           diffs = diff_with_commits.diffs_in_batch(0, 10, diff_options: diff_options)
 
@@ -466,19 +487,20 @@ RSpec.describe MergeRequestDiff do
           diff_with_commits.update!(sorted: false) # Mark as unsorted so it'll re-order
 
           # There will be 11 returned, as we have to take into account for new and old paths
-          expect(diff_with_commits.diffs_in_batch(0, 10, diff_options: diff_options).diff_paths).to eq([
-            'bar/branch-test.txt',
-            'custom-highlighting/test.gitlab-custom',
-            'encoding/iso8859.txt',
-            'files/images/wm.svg',
-            'files/js/commit.js.coffee',
-            'files/js/commit.coffee',
-            'files/lfs/lfs_object.iso',
-            'files/ruby/popen.rb',
-            'files/ruby/regex.rb',
-            'files/.DS_Store',
-            'files/whitespace'
-          ])
+          expect(diff_with_commits.diffs_in_batch(0, 10, diff_options: diff_options).diff_paths).to eq(
+            [
+              'bar/branch-test.txt',
+              'custom-highlighting/test.gitlab-custom',
+              'encoding/iso8859.txt',
+              'files/images/wm.svg',
+              'files/js/commit.js.coffee',
+              'files/js/commit.coffee',
+              'files/lfs/lfs_object.iso',
+              'files/ruby/popen.rb',
+              'files/ruby/regex.rb',
+              'files/.DS_Store',
+              'files/whitespace'
+            ])
         end
 
         context 'when diff_options include ignore_whitespace_change' do
@@ -502,6 +524,50 @@ RSpec.describe MergeRequestDiff do
             expect(diffs.diff_files.size).to eq 0
             expect(diffs.pagination_data).to eq(total_pages: nil)
           end
+        end
+      end
+    end
+
+    describe '#paginated_diffs' do
+      context 'when no persisted files available' do
+        before do
+          diff_with_commits.clean!
+        end
+
+        it 'returns a Gitlab::Diff::FileCollection::Compare' do
+          diffs = diff_with_commits.paginated_diffs(1, 10)
+
+          expect(diffs).to be_a(Gitlab::Diff::FileCollection::Compare)
+          expect(diffs.diff_files.size).to eq(10)
+        end
+      end
+
+      context 'when persisted files available' do
+        it 'returns paginated diffs' do
+          diffs = diff_with_commits.paginated_diffs(1, 10)
+
+          expect(diffs).to be_a(Gitlab::Diff::FileCollection::PaginatedMergeRequestDiff)
+          expect(diffs.diff_files.size).to eq(10)
+        end
+
+        it 'sorts diff files directory first' do
+          diff_with_commits.update!(sorted: false) # Mark as unsorted so it'll re-order
+
+          # There will be 11 returned, as we have to take into account for new and old paths
+          expect(diff_with_commits.paginated_diffs(1, 10).diff_paths).to eq(
+            [
+              'bar/branch-test.txt',
+              'custom-highlighting/test.gitlab-custom',
+              'encoding/iso8859.txt',
+              'files/images/wm.svg',
+              'files/js/commit.js.coffee',
+              'files/js/commit.coffee',
+              'files/lfs/lfs_object.iso',
+              'files/ruby/popen.rb',
+              'files/ruby/regex.rb',
+              'files/.DS_Store',
+              'files/whitespace'
+            ])
         end
       end
     end
@@ -555,29 +621,30 @@ RSpec.describe MergeRequestDiff do
         it 'sorts diff files directory first' do
           diff_with_commits.update!(sorted: false) # Mark as unsorted so it'll re-order
 
-          expect(diff_with_commits.diffs(diff_options).diff_paths).to eq([
-            'bar/branch-test.txt',
-            'custom-highlighting/test.gitlab-custom',
-            'encoding/iso8859.txt',
-            'files/images/wm.svg',
-            'files/js/commit.js.coffee',
-            'files/js/commit.coffee',
-            'files/lfs/lfs_object.iso',
-            'files/ruby/popen.rb',
-            'files/ruby/regex.rb',
-            'files/.DS_Store',
-            'files/whitespace',
-            'foo/bar/.gitkeep',
-            'with space/README.md',
-            '.DS_Store',
-            '.gitattributes',
-            '.gitignore',
-            '.gitmodules',
-            'CHANGELOG',
-            'README',
-            'gitlab-grack',
-            'gitlab-shell'
-          ])
+          expect(diff_with_commits.diffs(diff_options).diff_paths).to eq(
+            [
+              'bar/branch-test.txt',
+              'custom-highlighting/test.gitlab-custom',
+              'encoding/iso8859.txt',
+              'files/images/wm.svg',
+              'files/js/commit.js.coffee',
+              'files/js/commit.coffee',
+              'files/lfs/lfs_object.iso',
+              'files/ruby/popen.rb',
+              'files/ruby/regex.rb',
+              'files/.DS_Store',
+              'files/whitespace',
+              'foo/bar/.gitkeep',
+              'with space/README.md',
+              '.DS_Store',
+              '.gitattributes',
+              '.gitignore',
+              '.gitmodules',
+              'CHANGELOG',
+              'README',
+              'gitlab-grack',
+              'gitlab-shell'
+            ])
         end
       end
     end
@@ -661,28 +728,29 @@ RSpec.describe MergeRequestDiff do
         mr_diff = create(:merge_request).merge_request_diff
         diff_files_paths = mr_diff.merge_request_diff_files.map { |file| file.new_path.presence || file.old_path }
 
-        expect(diff_files_paths).to eq([
-          'bar/branch-test.txt',
-          'custom-highlighting/test.gitlab-custom',
-          'encoding/iso8859.txt',
-          'files/images/wm.svg',
-          'files/js/commit.coffee',
-          'files/lfs/lfs_object.iso',
-          'files/ruby/popen.rb',
-          'files/ruby/regex.rb',
-          'files/.DS_Store',
-          'files/whitespace',
-          'foo/bar/.gitkeep',
-          'with space/README.md',
-          '.DS_Store',
-          '.gitattributes',
-          '.gitignore',
-          '.gitmodules',
-          'CHANGELOG',
-          'README',
-          'gitlab-grack',
-          'gitlab-shell'
-        ])
+        expect(diff_files_paths).to eq(
+          [
+            'bar/branch-test.txt',
+            'custom-highlighting/test.gitlab-custom',
+            'encoding/iso8859.txt',
+            'files/images/wm.svg',
+            'files/js/commit.coffee',
+            'files/lfs/lfs_object.iso',
+            'files/ruby/popen.rb',
+            'files/ruby/regex.rb',
+            'files/.DS_Store',
+            'files/whitespace',
+            'foo/bar/.gitkeep',
+            'with space/README.md',
+            '.DS_Store',
+            '.gitattributes',
+            '.gitignore',
+            '.gitmodules',
+            'CHANGELOG',
+            'README',
+            'gitlab-grack',
+            'gitlab-shell'
+          ])
       end
 
       it 'expands collapsed diffs before saving' do
@@ -1093,6 +1161,19 @@ RSpec.describe MergeRequestDiff do
 
     it 'returns a non-empty CommitCollection' do
       expect(mr.merge_request_diff.commits.commits.size).to be > 0
+    end
+
+    context 'with a page' do
+      it 'returns a limited number of commits for page' do
+        expect(mr.merge_request_diff.commits(limit: 1, page: 1).map(&:sha)).to eq(
+          %w[
+            b83d6e391c22777fca1ed3012fce84f633d7fed0
+          ])
+        expect(mr.merge_request_diff.commits(limit: 1, page: 2).map(&:sha)).to eq(
+          %w[
+            498214de67004b1da3d820901307bed2a68a8ef6
+          ])
+      end
     end
   end
 

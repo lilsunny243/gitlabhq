@@ -2,20 +2,19 @@ import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import { nextTick } from 'vue';
+import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import { TEST_HOST } from 'spec/test_constants';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
 import PipelinesManualActions from '~/pipelines/components/pipelines_list/pipelines_manual_actions.vue';
 import GlCountdown from '~/vue_shared/components/gl_countdown.vue';
+import { TRACKING_CATEGORIES } from '~/pipelines/constants';
 
 jest.mock('~/flash');
-jest.mock('~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal', () => {
-  return {
-    confirmAction: jest.fn(),
-  };
-});
+jest.mock('~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal');
 
 describe('Pipelines Actions dropdown', () => {
   let wrapper;
@@ -29,9 +28,9 @@ describe('Pipelines Actions dropdown', () => {
     });
   };
 
-  const findDropdown = () => wrapper.find(GlDropdown);
-  const findAllDropdownItems = () => wrapper.findAll(GlDropdownItem);
-  const findAllCountdowns = () => wrapper.findAll(GlCountdown);
+  const findDropdown = () => wrapper.findComponent(GlDropdown);
+  const findAllDropdownItems = () => wrapper.findAllComponents(GlDropdownItem);
+  const findAllCountdowns = () => wrapper.findAllComponents(GlCountdown);
 
   beforeEach(() => {
     mock = new MockAdapter(axios);
@@ -72,7 +71,7 @@ describe('Pipelines Actions dropdown', () => {
 
     describe('on click', () => {
       it('makes a request and toggles the loading state', async () => {
-        mock.onPost(mockActions.path).reply(200);
+        mock.onPost(mockActions.path).reply(HTTP_STATUS_OK);
 
         findAllDropdownItems().at(0).vm.$emit('click');
 
@@ -84,7 +83,7 @@ describe('Pipelines Actions dropdown', () => {
       });
 
       it('makes a failed request and toggles the loading state', async () => {
-        mock.onPost(mockActions.path).reply(500);
+        mock.onPost(mockActions.path).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
         findAllDropdownItems().at(0).vm.$emit('click');
 
@@ -93,7 +92,23 @@ describe('Pipelines Actions dropdown', () => {
 
         await waitForPromises();
         expect(findDropdown().props('loading')).toBe(false);
-        expect(createFlash).toHaveBeenCalledTimes(1);
+        expect(createAlert).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('tracking', () => {
+      afterEach(() => {
+        unmockTracking();
+      });
+
+      it('tracks manual actions click', () => {
+        const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+
+        findDropdown().vm.$emit('shown');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_manual_actions', {
+          label: TRACKING_CATEGORIES.table,
+        });
       });
     });
   });
@@ -118,7 +133,7 @@ describe('Pipelines Actions dropdown', () => {
     });
 
     it('makes post request after confirming', async () => {
-      mock.onPost(scheduledJobAction.path).reply(200);
+      mock.onPost(scheduledJobAction.path).reply(HTTP_STATUS_OK);
       confirmAction.mockResolvedValueOnce(true);
 
       findAllDropdownItems().at(0).vm.$emit('click');
@@ -131,7 +146,7 @@ describe('Pipelines Actions dropdown', () => {
     });
 
     it('does not make post request if confirmation is cancelled', async () => {
-      mock.onPost(scheduledJobAction.path).reply(200);
+      mock.onPost(scheduledJobAction.path).reply(HTTP_STATUS_OK);
       confirmAction.mockResolvedValueOnce(false);
 
       findAllDropdownItems().at(0).vm.$emit('click');

@@ -1,4 +1,5 @@
 import MockAdapter from 'axios-mock-adapter';
+import { GlBadge } from '@gitlab/ui';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import { trimText } from 'helpers/text_helper';
 import waitForPromises from 'helpers/wait_for_promises';
@@ -6,7 +7,15 @@ import axios from '~/lib/utils/axios_utils';
 import extensionsContainer from '~/vue_merge_request_widget/components/extensions/container';
 import { registerExtension } from '~/vue_merge_request_widget/components/extensions';
 import codeQualityExtension from '~/vue_merge_request_widget/extensions/code_quality';
-import httpStatusCodes from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_NO_CONTENT,
+  HTTP_STATUS_OK,
+} from '~/lib/utils/http_status';
+import {
+  i18n,
+  codeQualityPrefixes,
+} from '~/vue_merge_request_widget/extensions/code_quality/constants';
 import {
   codeQualityResponseNewErrors,
   codeQualityResponseResolvedErrors,
@@ -28,6 +37,10 @@ describe('Code Quality extension', () => {
 
   const findToggleCollapsedButton = () => wrapper.findByTestId('toggle-button');
   const findAllExtensionListItems = () => wrapper.findAllByTestId('extension-list-item');
+  const isCollapsable = () => wrapper.findByTestId('toggle-button').exists();
+  const getNeutralIcon = () => wrapper.findByTestId('status-neutral-icon').exists();
+  const getAlertIcon = () => wrapper.findByTestId('status-alert-icon').exists();
+  const getSuccessIcon = () => wrapper.findByTestId('status-success-icon').exists();
 
   const createComponent = () => {
     wrapper = mountExtended(extensionsContainer, {
@@ -54,66 +67,114 @@ describe('Code Quality extension', () => {
 
   describe('summary', () => {
     it('displays loading text', () => {
-      mockApi(httpStatusCodes.OK, codeQualityResponseNewErrors);
+      mockApi(HTTP_STATUS_OK, codeQualityResponseNewErrors);
 
       createComponent();
 
-      expect(wrapper.text()).toBe('Code Quality test metrics results are being parsed');
+      expect(wrapper.text()).toBe(i18n.loading);
+    });
+
+    it('with a 204 response, continues to display loading state', async () => {
+      mockApi(HTTP_STATUS_NO_CONTENT, '');
+      createComponent();
+
+      await waitForPromises();
+
+      expect(wrapper.text()).toBe(i18n.loading);
     });
 
     it('displays failed loading text', async () => {
-      mockApi(httpStatusCodes.INTERNAL_SERVER_ERROR);
+      mockApi(HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
       createComponent();
 
       await waitForPromises();
-      expect(wrapper.text()).toBe('Code Quality failed loading results');
+
+      expect(wrapper.text()).toBe(i18n.error);
+      expect(isCollapsable()).toBe(false);
     });
 
-    it('displays quality degradation', async () => {
-      mockApi(httpStatusCodes.OK, codeQualityResponseNewErrors);
+    it('displays new Errors finding', async () => {
+      mockApi(HTTP_STATUS_OK, codeQualityResponseNewErrors);
 
       createComponent();
 
       await waitForPromises();
-
-      expect(wrapper.text()).toBe('Code Quality degraded on 2 points.');
+      expect(wrapper.text()).toBe(
+        i18n
+          .singularCopy(
+            i18n.findings(codeQualityResponseNewErrors.new_errors, codeQualityPrefixes.new),
+          )
+          .replace(/%{strong_start}/g, '')
+          .replace(/%{strong_end}/g, ''),
+      );
+      expect(isCollapsable()).toBe(true);
+      expect(getAlertIcon()).toBe(true);
     });
 
-    it('displays quality improvement', async () => {
-      mockApi(httpStatusCodes.OK, codeQualityResponseResolvedErrors);
+    it('displays resolved Errors finding', async () => {
+      mockApi(HTTP_STATUS_OK, codeQualityResponseResolvedErrors);
 
       createComponent();
 
       await waitForPromises();
-
-      expect(wrapper.text()).toBe('Code Quality improved on 2 points.');
+      expect(wrapper.text()).toBe(
+        i18n
+          .singularCopy(
+            i18n.findings(
+              codeQualityResponseResolvedErrors.resolved_errors,
+              codeQualityPrefixes.fixed,
+            ),
+          )
+          .replace(/%{strong_start}/g, '')
+          .replace(/%{strong_end}/g, ''),
+      );
+      expect(isCollapsable()).toBe(true);
+      expect(getSuccessIcon()).toBe(true);
     });
 
     it('displays quality improvement and degradation', async () => {
-      mockApi(httpStatusCodes.OK, codeQualityResponseResolvedAndNewErrors);
+      mockApi(HTTP_STATUS_OK, codeQualityResponseResolvedAndNewErrors);
 
       createComponent();
-
       await waitForPromises();
 
-      expect(wrapper.text()).toBe('Code Quality improved on 1 point and degraded on 1 point.');
+      // replacing strong tags because they will not be found in the rendered text
+      expect(wrapper.text()).toBe(
+        i18n
+          .improvementAndDegradationCopy(
+            i18n.findings(
+              codeQualityResponseResolvedAndNewErrors.resolved_errors,
+              codeQualityPrefixes.fixed,
+            ),
+            i18n.findings(
+              codeQualityResponseResolvedAndNewErrors.new_errors,
+              codeQualityPrefixes.new,
+            ),
+          )
+          .replace(/%{strong_start}/g, '')
+          .replace(/%{strong_end}/g, ''),
+      );
+      expect(isCollapsable()).toBe(true);
+      expect(getAlertIcon()).toBe(true);
     });
 
     it('displays no detected errors', async () => {
-      mockApi(httpStatusCodes.OK, codeQualityResponseNoErrors);
+      mockApi(HTTP_STATUS_OK, codeQualityResponseNoErrors);
 
       createComponent();
 
       await waitForPromises();
 
-      expect(wrapper.text()).toBe('No changes to Code Quality.');
+      expect(wrapper.text()).toBe(i18n.noChanges);
+      expect(isCollapsable()).toBe(false);
+      expect(getNeutralIcon()).toBe(true);
     });
   });
 
   describe('expanded data', () => {
     beforeEach(async () => {
-      mockApi(httpStatusCodes.OK, codeQualityResponseResolvedAndNewErrors);
+      mockApi(HTTP_STATUS_OK, codeQualityResponseResolvedAndNewErrors);
 
       createComponent();
 
@@ -138,8 +199,17 @@ describe('Code Quality extension', () => {
         "Minor - Parsing error: 'return' outside of function in index.js:12",
       );
       expect(text.resolvedError).toContain(
-        "Minor - Parsing error: 'return' outside of function in index.js:12",
+        "Minor - Parsing error: 'return' outside of function Fixed in index.js:12",
       );
+    });
+
+    it('adds fixed indicator (badge) when error is resolved', () => {
+      expect(findAllExtensionListItems().at(1).findComponent(GlBadge).exists()).toBe(true);
+      expect(findAllExtensionListItems().at(1).findComponent(GlBadge).text()).toEqual(i18n.fixed);
+    });
+
+    it('should not add fixed indicator (badge) when error is new', () => {
+      expect(findAllExtensionListItems().at(0).findComponent(GlBadge).exists()).toBe(false);
     });
   });
 });

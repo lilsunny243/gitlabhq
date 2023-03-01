@@ -9,18 +9,14 @@ RSpec.describe Gitlab::Analytics::CycleAnalytics::Median do
 
   let(:stage) do
     build(
-      :cycle_analytics_project_stage,
+      :cycle_analytics_stage,
       start_event_identifier: Gitlab::Analytics::CycleAnalytics::StageEvents::MergeRequestCreated.identifier,
       end_event_identifier: Gitlab::Analytics::CycleAnalytics::StageEvents::MergeRequestMerged.identifier,
-      project: project
+      namespace: project.reload.project_namespace
     )
   end
 
   subject { described_class.new(stage: stage, query: query).seconds }
-
-  around do |example|
-    Timecop.freeze { example.run }
-  end
 
   it 'retruns nil when no results' do
     expect(subject).to eq(nil)
@@ -30,14 +26,14 @@ RSpec.describe Gitlab::Analytics::CycleAnalytics::Median do
     merge_request1 = create(:merge_request, source_branch: '1', target_project: project, source_project: project)
     merge_request2 = create(:merge_request, source_branch: '2', target_project: project, source_project: project)
 
-    travel_to(5.minutes.from_now) do
+    travel(5.minutes) do
       merge_request1.metrics.update!(merged_at: Time.zone.now)
     end
 
-    travel_to(10.minutes.from_now) do
+    travel(10.minutes) do
       merge_request2.metrics.update!(merged_at: Time.zone.now)
     end
 
-    expect(subject).to be_within(0.5).of(7.5.minutes.seconds)
+    expect(subject).to be_within(5.seconds).of(7.5.minutes.seconds)
   end
 end

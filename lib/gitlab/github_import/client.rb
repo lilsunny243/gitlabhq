@@ -15,6 +15,7 @@ module Gitlab
     #     end
     class Client
       include ::Gitlab::Utils::StrongMemoize
+      include ::Gitlab::GithubImport::Clients::SearchRepos
 
       attr_reader :octokit
 
@@ -69,22 +70,30 @@ module Gitlab
       #
       # username - The username of the user.
       def user(username)
-        with_rate_limit { octokit.user(username) }
+        with_rate_limit { octokit.user(username).to_h }
       end
 
       def pull_request_reviews(repo_name, iid)
         each_object(:pull_request_reviews, repo_name, iid)
       end
 
+      def pull_request_review_requests(repo_name, iid)
+        with_rate_limit { octokit.pull_request_review_requests(repo_name, iid).to_h }
+      end
+
+      def repos(options = {})
+        octokit.repos(nil, options).map(&:to_h)
+      end
+
       # Returns the details of a GitHub repository.
       #
       # name - The path (in the form `owner/repository`) of the repository.
       def repository(name)
-        with_rate_limit { octokit.repo(name) }
+        with_rate_limit { octokit.repo(name).to_h }
       end
 
       def pull_request(repo_name, iid)
-        with_rate_limit { octokit.pull_request(repo_name, iid) }
+        with_rate_limit { octokit.pull_request(repo_name, iid).to_h }
       end
 
       def labels(*args)
@@ -97,6 +106,14 @@ module Gitlab
 
       def releases(*args)
         each_object(:releases, *args)
+      end
+
+      def branches(*args)
+        each_object(:branches, *args)
+      end
+
+      def branch_protection(repo_name, branch_name)
+        with_rate_limit { octokit.branch_protection(repo_name, branch_name).to_h }
       end
 
       # Fetches data from the GitHub API and yields a Page object for every page
@@ -138,7 +155,7 @@ module Gitlab
 
         each_page(method, *args) do |page|
           page.objects.each do |object|
-            yield object
+            yield object.to_h
           end
         end
       end
@@ -164,19 +181,6 @@ module Gitlab
           # raise an error in parallel mode.
           retry
         end
-      end
-
-      def search_repos_by_name(name, options = {})
-        with_retry { octokit.search_repositories(search_query(str: name, type: :name), options) }
-      end
-
-      def search_query(str:, type:, include_collaborations: true, include_orgs: true)
-        query = "#{str} in:#{type} is:public,private user:#{octokit.user.login}"
-
-        query = [query, collaborations_subquery].join(' ') if include_collaborations
-        query = [query, organizations_subquery].join(' ') if include_orgs
-
-        query
       end
 
       # Returns `true` if we're still allowed to perform API calls.
@@ -259,18 +263,6 @@ module Gitlab
       end
 
       private
-
-      def collaborations_subquery
-        each_object(:repos, nil, { affiliation: 'collaborator' })
-          .map { |repo| "repo:#{repo.full_name}" }
-          .join(' ')
-      end
-
-      def organizations_subquery
-        each_object(:organizations)
-          .map { |org| "org:#{org.login}" }
-          .join(' ')
-      end
 
       def with_retry
         Retriable.retriable(on: CLIENT_CONNECTION_ERROR, on_retry: on_retry) do

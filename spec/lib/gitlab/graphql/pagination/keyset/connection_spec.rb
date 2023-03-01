@@ -49,6 +49,31 @@ RSpec.describe Gitlab::Graphql::Pagination::Keyset::Connection do
     Gitlab::Json.parse(Base64Bp.urlsafe_decode64(cursor))
   end
 
+  before do
+    allow(GitlabSchema).to receive(:default_max_page_size).and_return(2)
+  end
+
+  it 'invokes no an extra query for the next page check' do
+    arguments[:first] = 1
+
+    subject.nodes
+
+    count = ActiveRecord::QueryRecorder.new { subject.has_next_page }.count
+    expect(count).to eq(0)
+  end
+
+  context 'when the relation is loaded' do
+    it 'invokes no extra query' do
+      allow(subject).to receive(:sliced_nodes).and_return(Project.all.to_a)
+      arguments[:first] = 1
+
+      subject.nodes
+
+      count = ActiveRecord::QueryRecorder.new { subject.has_next_page }.count
+      expect(count).to eq(0)
+    end
+  end
+
   describe "with generic keyset order support" do
     let(:nodes) { Project.all.order(Gitlab::Pagination::Keyset::Order.build([column_order_id])) }
 

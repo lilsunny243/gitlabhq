@@ -1,8 +1,8 @@
 import Visibility from 'visibilityjs';
-import createFlash, { createAlert } from '~/flash';
+import { createAlert } from '~/flash';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { historyPushState, buildUrlWithCurrentLocation } from '~/lib/utils/common_utils';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_UNAUTHORIZED } from '~/lib/utils/http_status';
 import Poll from '~/lib/utils/poll';
 import { __ } from '~/locale';
 import { validateParams } from '~/pipelines/utils';
@@ -55,7 +55,6 @@ export default {
     eventHub.$on('retryPipeline', this.postAction);
     eventHub.$on('clickedDropdown', this.updateTable);
     eventHub.$on('updateTable', this.updateTable);
-    eventHub.$on('refreshPipelinesTable', this.fetchPipelines);
     eventHub.$on('runMergeRequestPipeline', this.runMergeRequestPipeline);
   },
   beforeDestroy() {
@@ -63,7 +62,6 @@ export default {
     eventHub.$off('retryPipeline', this.postAction);
     eventHub.$off('clickedDropdown', this.updateTable);
     eventHub.$off('updateTable', this.updateTable);
-    eventHub.$off('refreshPipelinesTable', this.fetchPipelines);
     eventHub.$off('runMergeRequestPipeline', this.runMergeRequestPipeline);
   },
   destroyed() {
@@ -172,7 +170,7 @@ export default {
         .postAction(endpoint)
         .then(() => this.updateTable())
         .catch(() =>
-          createFlash({
+          createAlert({
             message: __('An error occurred while making the request.'),
           }),
         );
@@ -198,7 +196,7 @@ export default {
           this.updateTable();
         })
         .catch((e) => {
-          const unauthorized = e.response.status === httpStatusCodes.UNAUTHORIZED;
+          const unauthorized = e.response.status === HTTP_STATUS_UNAUTHORIZED;
           let errorMessage = __(
             'An error occurred while trying to run a new pipeline for this merge request.',
           );

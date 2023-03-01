@@ -50,6 +50,7 @@ describe('~/environments/components/environments_app.vue', () => {
         defaultBranchName: 'main',
         helpPagePath: '/help',
         projectId: '1',
+        projectPath: '/1',
         ...provide,
       },
       apolloProvider,
@@ -70,7 +71,7 @@ describe('~/environments/components/environments_app.vue', () => {
       previousPage: 1,
       __typename: 'LocalPageInfo',
     },
-    location = '?scope=available&page=2',
+    location = '?scope=available&page=2&search=prod',
   }) => {
     setWindowLocation(location);
     environmentAppMock.mockReturnValue(environmentsApp);
@@ -103,7 +104,7 @@ describe('~/environments/components/environments_app.vue', () => {
     await createWrapperWithMocked({
       environmentsApp: resolvedEnvironmentsApp,
       folder: resolvedFolder,
-      location: '?scope=bad&page=2',
+      location: '?scope=bad&page=2&search=prod',
     });
 
     expect(environmentAppMock).toHaveBeenCalledWith(
@@ -192,6 +193,36 @@ describe('~/environments/components/environments_app.vue', () => {
 
     const button = wrapper.findByRole('button', { name: s__('Environments|Enable review app') });
     expect(button.exists()).toBe(false);
+  });
+
+  it('should not show a button to clean up environments if the user has no permissions', async () => {
+    await createWrapperWithMocked({
+      environmentsApp: {
+        ...resolvedEnvironmentsApp,
+        canStopStaleEnvironments: false,
+      },
+      folder: resolvedFolder,
+    });
+
+    const button = wrapper.findByRole('button', {
+      name: s__('Environments|Clean up environments'),
+    });
+    expect(button.exists()).toBe(false);
+  });
+
+  it('should show a button to clean up environments if the user has permissions', async () => {
+    await createWrapperWithMocked({
+      environmentsApp: {
+        ...resolvedEnvironmentsApp,
+        canStopStaleEnvironments: true,
+      },
+      folder: resolvedFolder,
+    });
+
+    const button = wrapper.findByRole('button', {
+      name: s__('Environments|Clean up environments'),
+    });
+    expect(button.exists()).toBe(true);
   });
 
   describe('tabs', () => {
@@ -349,7 +380,54 @@ describe('~/environments/components/environments_app.vue', () => {
       next.trigger('click');
 
       await nextTick();
-      expect(window.location.search).toBe('?scope=available&page=3');
+      expect(window.location.search).toBe('?scope=available&page=3&search=prod');
+    });
+  });
+
+  describe('search', () => {
+    let searchBox;
+
+    const waitForDebounce = async () => {
+      await nextTick();
+      jest.runOnlyPendingTimers();
+    };
+
+    beforeEach(async () => {
+      await createWrapperWithMocked({
+        environmentsApp: resolvedEnvironmentsApp,
+        folder: resolvedFolder,
+      });
+      searchBox = wrapper.findByRole('searchbox', {
+        name: s__('Environments|Search by environment name'),
+      });
+    });
+
+    it('should sync the query params to the new search', async () => {
+      searchBox.setValue('hello');
+
+      await waitForDebounce();
+
+      expect(window.location.search).toBe('?scope=available&page=1&search=hello');
+    });
+
+    it('should query for the entered parameter', async () => {
+      const search = 'hello';
+
+      searchBox.setValue(search);
+
+      await waitForDebounce();
+      await waitForPromises();
+
+      expect(environmentAppMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ search }),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('should sync search term from query params on load', async () => {
+      expect(searchBox.element.value).toBe('prod');
     });
   });
 });

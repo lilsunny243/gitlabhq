@@ -10,6 +10,7 @@ FactoryBot.define do
     confirmed_at { Time.now }
     confirmation_token { nil }
     can_create_group { true }
+    color_scheme_id { 1 }
 
     trait :admin do
       admin { true }
@@ -25,6 +26,10 @@ FactoryBot.define do
 
     trait :blocked do
       after(:build) { |user, _| user.block! }
+    end
+
+    trait :locked do
+      after(:build) { |user, _| user.lock_access! }
     end
 
     trait :disallowed_password do
@@ -53,6 +58,10 @@ FactoryBot.define do
 
     trait :project_bot do
       user_type { :project_bot }
+    end
+
+    trait :service_account do
+      user_type { :service_account }
     end
 
     trait :migration_bot do
@@ -175,6 +184,10 @@ FactoryBot.define do
         transient do
           provider { 'ldapmain' }
         end
+      end
+
+      trait :unconfirmed do
+        confirmed_at { nil }
       end
     end
 

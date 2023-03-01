@@ -56,10 +56,13 @@ RSpec.describe RemoveExpiredMembersWorker do
           expect(Member.find_by(user_id: expired_project_bot.id)).to be_nil
         end
 
-        it 'deletes expired project bot' do
+        it 'initiates project bot removal' do
           worker.perform
 
-          expect(User.exists?(expired_project_bot.id)).to be(false)
+          expect(
+            Users::GhostUserMigration.where(user: expired_project_bot,
+                                            initiator_user: nil)
+          ).to be_exists
         end
       end
 

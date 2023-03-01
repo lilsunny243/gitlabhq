@@ -1,10 +1,10 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Atlassian Bamboo integration **(FREE)**
+# Atlassian Bamboo **(FREE)**
 
 You can automatically trigger builds in Atlassian Bamboo when you push changes
 to your project in GitLab.
@@ -36,7 +36,7 @@ integration in GitLab.
 
 ## Configure GitLab
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Atlassian Bamboo**.
 1. Ensure the **Active** checkbox is selected.
@@ -63,7 +63,7 @@ Bamboo. For example, `https://bamboo.example.com/browse/PROJ-PLAN`.
 
 ## Update Bamboo build status in GitLab
 
-You can use a script that uses the [commit status API](../../../api/commits.md#post-the-build-status-to-a-commit)
+You can use a script that uses the [commit status API](../../../api/commits.md#set-the-pipeline-status-of-a-commit)
 and Bamboo build variables to:
 
 - Update the commit with the build status.
@@ -71,7 +71,7 @@ and Bamboo build variables to:
 
 For example:
 
-1. Create an [access token](../../../api/index.md#personalprojectgroup-access-tokens) in GitLab with `:api` permissions.
+1. Create an [access token](../../../api/rest/index.md#personalprojectgroup-access-tokens) in GitLab with `:api` permissions.
 1. Save the token as a `$GITLAB_TOKEN` variable in Bamboo.
 1. Add the following script as a final task to the Bamboo plan's jobs:
 

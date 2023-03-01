@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: "GitLab administrator: enable and disable GitLab features deployed behind feature flags"
 ---
 
@@ -27,8 +27,9 @@ Features behind flags can be gradually rolled out, typically:
 1. The feature flag is removed.
 
 These features can be enabled and disabled to allow or prevent users from using
-them. It can be done by GitLab administrators with access to GitLab Rails
-console.
+them. It can be done by GitLab administrators with access to the
+[Rails console](#how-to-enable-and-disable-features-behind-flags) or the
+[Feature flags API](../api/features.md).
 
 When you disable a feature flag, the feature is hidden from users and all of the functionality is turned off.
 For example, data is not recorded and services do not run.
@@ -44,8 +45,7 @@ Features that are disabled by default may change or be removed without notice in
 
 Data corruption, stability degradation, performance degradation, or security issues might occur if
 you enable a feature that's disabled by default. Problems caused by using a default
-disabled feature aren't covered by GitLab support, unless you were directed by GitLab
-to enable the feature.
+disabled feature aren't covered by GitLab Support.
 
 Security issues found in features that are disabled by default are patched in regular releases
 and do not follow our regular [maintenance policy](../policy/maintenance.md#security-releases)
@@ -117,10 +117,10 @@ Some feature flags can be enabled or disabled on a per project basis:
 Feature.enable(:<feature flag>, Project.find(<project id>))
 ```
 
-For example, to enable the [`:product_analytics`](../operations/product_analytics.md) feature flag for project `1234`:
+For example, to enable the `:my_awesome_feature` feature flag for project `1234`:
 
 ```ruby
-Feature.enable(:product_analytics, Project.find(1234))
+Feature.enable(:my_awesome_feature, Project.find(1234))
 ```
 
 `Feature.enable` and `Feature.disable` always return `true`, even if the application doesn't use the flag:

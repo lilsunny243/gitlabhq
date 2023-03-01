@@ -1,10 +1,16 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Snowplow
+
+## Monitoring
+
+This page covers dashboards and alerts coming from a number of internal tools.
+
+For a brief video overview of the tools used to monitor Snowplow usage, please check out [this internal video](https://www.youtube.com/watch?v=NxPS0aKa_oU) (you must be logged into GitLab Unfiltered to view).
 
 ## Good events drop
 
@@ -29,7 +35,7 @@ Drop occurring at application layer can be symptom of some issue, but it might b
 or even a result of a public holiday in some regions of the world with a larger user-base. To verify if there is an underlying problem to solve, you can check following things:
 
 1. Check `about.gitlab.com` website traffic on [Google Analytics](https://analytics.google.com/analytics/web/) to verify if some public holiday might impact overall use of GitLab system
-   1. You may require to open an access request for Google Analytics access first eg: [access request internal issue](https://gitlab.com/gitlab-com/team-member-epics/access-requests/-/issues/1772)
+   1. You may require to open an access request for Google Analytics access first, for example: [access request internal issue](https://gitlab.com/gitlab-com/team-member-epics/access-requests/-/issues/1772)
 1. Plot `select date(dvce_created_tstamp) , event , count(*) from legacy.snowplow_unnested_events_90 where dvce_created_tstamp > '2021-06-15' and dvce_created_tstamp < '2021-07-10' group by 1 , 2 order by 1 , 2` in SiSense to see what type of events was responsible for drop
 1. Plot `select date(dvce_created_tstamp) ,se_category , count(*) from legacy.snowplow_unnested_events_90 where dvce_created_tstamp > '2021-06-15' and dvce_created_tstamp < '2021-07-31' and event = 'struct' group by  1 , 2 order by  1, 2` what events recorded the biggest drops in suspected category
 1. Check if there was any MR merged that might cause reduction in reported events, pay an attention to ~"product intelligence" and ~"growth experiment" labeled MRs
@@ -68,7 +74,7 @@ Enrichers are not scalling well for the amount of events we receive.
 
 See the [dashboard](https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=SnowPlow).
 
-Could we get assistance in order to fix the delay?
+Could we get assistance to fix the delay?
 
 Thank you!
 ```

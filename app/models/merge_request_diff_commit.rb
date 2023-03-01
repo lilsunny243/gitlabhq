@@ -35,7 +35,7 @@ class MergeRequestDiffCommit < ApplicationRecord
   sha_attribute :sha
   alias_attribute :id, :sha
 
-  serialize :trailers, Serializers::Json # rubocop:disable Cop/ActiveRecordSerialize
+  attribute :trailers, :ind_jsonb
   validates :trailers, json_schema: { filename: 'git_trailers' }
 
   scope :with_users, -> { preload(:commit_author, :committer) }
@@ -70,7 +70,7 @@ class MergeRequestDiffCommit < ApplicationRecord
         sha: Gitlab::Database::ShaAttribute.serialize(sha), # rubocop:disable Cop/ActiveRecordSerialize
         authored_date: Gitlab::Database.sanitize_timestamp(commit_hash[:authored_date]),
         committed_date: Gitlab::Database.sanitize_timestamp(commit_hash[:committed_date]),
-        trailers: commit_hash.fetch(:trailers, {}).to_json
+        trailers: Gitlab::Json.dump(commit_hash.fetch(:trailers, {}))
       )
     end
 
@@ -80,7 +80,7 @@ class MergeRequestDiffCommit < ApplicationRecord
   def self.prepare_commits_for_bulk_insert(commits)
     user_tuples = Set.new
     hashes = commits.map do |commit|
-      hash = commit.to_hash.except(:parent_ids)
+      hash = commit.to_hash.except(:parent_ids, :referenced_by)
 
       TRIM_USER_KEYS.each do |key|
         hash[key] = MergeRequest::DiffCommitUser.prepare(hash[key])

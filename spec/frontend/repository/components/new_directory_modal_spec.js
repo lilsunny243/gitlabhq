@@ -4,8 +4,8 @@ import { nextTick } from 'vue';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import waitForPromises from 'helpers/wait_for_promises';
-import createFlash from '~/flash';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { createAlert } from '~/flash';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { visitUrl } from '~/lib/utils/url_utility';
 import NewDirectoryModal from '~/repository/components/new_directory_modal.vue';
 
@@ -107,7 +107,7 @@ describe('NewDirectoryModal', () => {
       ${findMrToggle}      | ${'true'}                     | ${true}     | ${'new-target-branch'}       | ${'master'}                    | ${true}
       ${findMrToggle}      | ${'true'}                     | ${true}     | ${'master'}                  | ${'master'}                    | ${true}
     `(
-      'has the correct form fields ',
+      'has the correct form fields',
       ({ component, defaultValue, canPushCode, targetBranch, originalBranch, exist }) => {
         createComponent({
           canPushCode,
@@ -149,7 +149,7 @@ describe('NewDirectoryModal', () => {
           originalBranch,
           createNewMr,
         } = defaultFormValue;
-        mock.onPost(initialProps.path).reply(httpStatusCodes.OK, {});
+        mock.onPost(initialProps.path).reply(HTTP_STATUS_OK, {});
         await fillForm();
         await submitForm();
 
@@ -161,7 +161,7 @@ describe('NewDirectoryModal', () => {
       });
 
       it('does not submit "create_merge_request" formData if createNewMr is not checked', async () => {
-        mock.onPost(initialProps.path).reply(httpStatusCodes.OK, {});
+        mock.onPost(initialProps.path).reply(HTTP_STATUS_OK, {});
         await fillForm({ createNewMr: false });
         await submitForm();
         expect(mock.history.post[0].data.get('create_merge_request')).toBeNull();
@@ -169,7 +169,7 @@ describe('NewDirectoryModal', () => {
 
       it('redirects to the new directory', async () => {
         const response = { filePath: 'new-dir-path' };
-        mock.onPost(initialProps.path).reply(httpStatusCodes.OK, response);
+        mock.onPost(initialProps.path).reply(HTTP_STATUS_OK, response);
 
         await fillForm({ dirName: 'foo', branchName: 'master', commitMessage: 'foo' });
         await submitForm();
@@ -194,7 +194,7 @@ describe('NewDirectoryModal', () => {
         await fillForm({ dirName: 'foo', branchName: 'master', commitMessage: 'foo' });
         await submitForm();
 
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: NewDirectoryModal.i18n.ERROR_MESSAGE,
         });
       });

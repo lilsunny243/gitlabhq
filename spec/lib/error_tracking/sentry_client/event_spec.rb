@@ -32,6 +32,7 @@ RSpec.describe ErrorTracking::SentryClient do
     subject { client.issue_latest_event(issue_id: issue_id) }
 
     it_behaves_like 'calls sentry api'
+    it_behaves_like 'Sentry API response size limit'
 
     it 'has correct return type' do
       expect(subject).to be_a(Gitlab::ErrorTracking::ErrorEvent)
@@ -50,7 +51,7 @@ RSpec.describe ErrorTracking::SentryClient do
       end
     end
 
-    context 'error object created from sentry response' do
+    context 'with error object created from sentry response' do
       it_behaves_like 'assigns error tracking event correctly'
 
       it 'parses the stack trace' do
@@ -58,7 +59,7 @@ RSpec.describe ErrorTracking::SentryClient do
         expect(subject.stack_trace_entries).not_to be_empty
       end
 
-      context 'error without stack trace' do
+      context 'with error without stack trace' do
         before do
           sample_response['entries'] = []
           stub_sentry_request(sentry_request_url, body: sample_response)
@@ -68,6 +69,14 @@ RSpec.describe ErrorTracking::SentryClient do
 
         it 'returns an empty array for stack_trace_entries' do
           expect(subject.stack_trace_entries).to eq []
+        end
+      end
+    end
+
+    it_behaves_like 'non-numeric input handling in Sentry response', 'issue_id' do
+      let(:sentry_api_response) do
+        sample_response.tap do |event|
+          event[:groupID] = id_input
         end
       end
     end

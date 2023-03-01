@@ -10,6 +10,10 @@
 class EventCreateService
   IllegalActionError = Class.new(StandardError)
 
+  DEGIGN_EVENT_LABEL = 'usage_activity_by_stage_monthly.create.action_monthly_active_users_design_management'
+  MR_EVENT_LABEL = 'usage_activity_by_stage_monthly.create.merge_requests_users'
+  MR_EVENT_PROPERTY = 'merge_requests_users'
+
   def open_issue(issue, current_user)
     create_record_event(issue, current_user, :created)
   end
@@ -25,18 +29,26 @@ class EventCreateService
   def open_mr(merge_request, current_user)
     create_record_event(merge_request, current_user, :created).tap do
       track_event(event_action: :created, event_target: MergeRequest, author_id: current_user.id)
-      track_snowplow_event(merge_request, current_user,
-                           Gitlab::UsageDataCounters::TrackUniqueEvents::MERGE_REQUEST_ACTION,
-                           :create, 'merge_requests_users')
+      track_snowplow_event(
+        action: :created,
+        project: merge_request.project,
+        user: current_user,
+        label: MR_EVENT_LABEL,
+        property: MR_EVENT_PROPERTY
+      )
     end
   end
 
   def close_mr(merge_request, current_user)
     create_record_event(merge_request, current_user, :closed).tap do
       track_event(event_action: :closed, event_target: MergeRequest, author_id: current_user.id)
-      track_snowplow_event(merge_request, current_user,
-                           Gitlab::UsageDataCounters::TrackUniqueEvents::MERGE_REQUEST_ACTION,
-                           :close, 'merge_requests_users')
+      track_snowplow_event(
+        action: :closed,
+        project: merge_request.project,
+        user: current_user,
+        label: MR_EVENT_LABEL,
+        property: MR_EVENT_PROPERTY
+      )
     end
   end
 
@@ -47,9 +59,13 @@ class EventCreateService
   def merge_mr(merge_request, current_user)
     create_record_event(merge_request, current_user, :merged).tap do
       track_event(event_action: :merged, event_target: MergeRequest, author_id: current_user.id)
-      track_snowplow_event(merge_request, current_user,
-                           Gitlab::UsageDataCounters::TrackUniqueEvents::MERGE_REQUEST_ACTION,
-                           :merge, 'merge_requests_users')
+      track_snowplow_event(
+        action: :merged,
+        project: merge_request.project,
+        user: current_user,
+        label: MR_EVENT_LABEL,
+        property: MR_EVENT_PROPERTY
+      )
     end
   end
 
@@ -73,9 +89,13 @@ class EventCreateService
     create_record_event(note, current_user, :commented).tap do
       if note.is_a?(DiffNote) && note.for_merge_request?
         track_event(event_action: :commented, event_target: MergeRequest, author_id: current_user.id)
-        track_snowplow_event(note, current_user,
-                             Gitlab::UsageDataCounters::TrackUniqueEvents::MERGE_REQUEST_ACTION,
-                             :comment, 'merge_requests_users')
+        track_snowplow_event(
+          action: :commented,
+          project: note.project,
+          user: current_user,
+          label: MR_EVENT_LABEL,
+          property: MR_EVENT_PROPERTY
+        )
       end
     end
   end
@@ -108,17 +128,10 @@ class EventCreateService
     records = create.zip([:created].cycle) + update.zip([:updated].cycle)
     return [] if records.empty?
 
-    if create.any?
-      track_snowplow_event(create.first, current_user,
-                           Gitlab::UsageDataCounters::TrackUniqueEvents::DESIGN_ACTION,
-                           :create, 'design_users')
-    end
+    event_meta = { user: current_user, label: DEGIGN_EVENT_LABEL, property: Gitlab::UsageDataCounters::TrackUniqueEvents::DESIGN_ACTION }
+    track_snowplow_event(action: :create, project: create.first.project, **event_meta) if create.any?
 
-    if update.any?
-      track_snowplow_event(update.first, current_user,
-                           Gitlab::UsageDataCounters::TrackUniqueEvents::DESIGN_ACTION,
-                           :update, 'design_users')
-    end
+    track_snowplow_event(action: :update, project: update.first.project, **event_meta) if update.any?
 
     create_record_events(records, current_user)
   end
@@ -126,9 +139,13 @@ class EventCreateService
   def destroy_designs(designs, current_user)
     return [] unless designs.present?
 
-    track_snowplow_event(designs.first, current_user,
-                         Gitlab::UsageDataCounters::TrackUniqueEvents::DESIGN_ACTION,
-                         :destroy, 'design_users')
+    track_snowplow_event(
+      action: :destroy,
+      project: designs.first.project,
+      user: current_user,
+      label: DEGIGN_EVENT_LABEL,
+      property: Gitlab::UsageDataCounters::TrackUniqueEvents::DESIGN_ACTION
+    )
     create_record_events(designs.zip([:destroyed].cycle), current_user)
   end
 
@@ -212,14 +229,21 @@ class EventCreateService
     track_event(event_action: :pushed, event_target: Project, author_id: current_user.id)
 
     namespace = project.namespace
-    if Feature.enabled?(:route_hll_to_snowplow, namespace)
-      Gitlab::Tracking.event(self.class.to_s, 'action_active_users_project_repo', namespace: namespace, user: current_user, project: project)
-    end
+    Gitlab::Tracking.event(
+      self.class.to_s,
+      :push,
+      label: 'usage_activity_by_stage_monthly.create.action_monthly_active_users_project_repo',
+      namespace: namespace,
+      user: current_user,
+      project: project,
+      property: 'project_action',
+      context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: 'project_action').to_context]
+    )
 
     Users::LastPushEventService.new(current_user)
       .cache_last_push_event(event)
 
-    Users::ActivityService.new(current_user).execute
+    Users::ActivityService.new(author: current_user, namespace: namespace, project: project).execute
   end
 
   def create_event(resource_parent, current_user, status, attributes = {})
@@ -249,21 +273,20 @@ class EventCreateService
     { resource_parent_attr => resource_parent.id }
   end
 
-  def track_event(**params)
-    Gitlab::UsageDataCounters::TrackUniqueEvents.track_event(**params)
+  def track_event(...)
+    Gitlab::UsageDataCounters::TrackUniqueEvents.track_event(...)
   end
 
-  def track_snowplow_event(record, current_user, category, action, label)
-    return unless Feature.enabled?(:route_hll_to_snowplow_phase2)
-
-    project = record.project
+  def track_snowplow_event(action:, project:, user:, label:, property:)
     Gitlab::Tracking.event(
-      category.to_s,
+      self.class.to_s,
       action.to_s,
       label: label,
-      project: project,
       namespace: project.namespace,
-      user: current_user
+      user: user,
+      project: project,
+      property: property.to_s,
+      context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: property.to_s).to_context]
     )
   end
 end

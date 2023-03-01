@@ -29,9 +29,27 @@ tests = [
   },
 
   {
-    explanation: 'Some EE extensions have specs placement that do not follow the recommendation: https://docs.gitlab.com/ee/development/ee_features.html#testing-ee-features-based-on-ce-features. `tff` should still find these misplaced specs.',
-    source: 'ee/app/models/ee/project.rb',
-    expected: ['ee/spec/models/project_spec.rb', 'spec/models/project_spec.rb']
+    explanation: 'EE lib should map to respective spec.',
+    source: 'ee/lib/world.rb',
+    expected: ['ee/spec/lib/world_spec.rb']
+  },
+
+  {
+    explanation: 'https://gitlab.com/gitlab-org/gitlab/-/issues/368628',
+    source: 'lib/gitlab/usage_data_counters/foo.rb',
+    expected: ['spec/lib/gitlab/usage_data_spec.rb']
+  },
+
+  {
+    explanation: 'https://gitlab.com/gitlab-org/quality/engineering-productivity/master-broken-incidents/-/issues/54#note_1160811638',
+    source: 'lib/gitlab/ci/config/base.rb',
+    expected: ['spec/lib/gitlab/ci/yaml_processor_spec.rb']
+  },
+
+  {
+    explanation: 'https://gitlab.com/gitlab-org/quality/engineering-productivity/master-broken-incidents/-/issues/54#note_1160811638',
+    source: 'ee/lib/gitlab/ci/config/base.rb',
+    expected: ['spec/lib/gitlab/ci/yaml_processor_spec.rb', 'ee/spec/lib/gitlab/ci/yaml_processor_spec.rb']
   },
 
   {
@@ -44,6 +62,42 @@ tests = [
     explanation: 'Tooling should map to respective spec',
     source: 'tooling/lib/tooling/helm3_client.rb',
     expected: ['spec/tooling/lib/tooling/helm3_client_spec.rb']
+  },
+
+  {
+    explanation: 'Initializers should map to respective spec',
+    source: 'config/initializers/action_mailer_hooks.rb',
+    expected: ['spec/initializers/action_mailer_hooks_spec.rb']
+  },
+
+  {
+    explanation: 'DB structure should map to schema spec',
+    source: 'db/structure.sql',
+    expected: ['spec/db/schema_spec.rb']
+  },
+
+  {
+    explanation: 'Migration should map to its non-timestamped spec',
+    source: 'db/migrate/20221014034338_populate_releases_access_level_from_repository.rb',
+    expected: ['spec/migrations/populate_releases_access_level_from_repository_spec.rb']
+  },
+
+  {
+    explanation: 'Migration should map to its timestamped spec',
+    source: 'db/post_migrate/20210915022415_cleanup_bigint_conversion_for_ci_builds.rb',
+    expected: ['spec/migrations/20210915022415_cleanup_bigint_conversion_for_ci_builds_spec.rb']
+  },
+
+  {
+    explanation: 'FOSS views should map to respective spec',
+    source: 'app/views/admin/dashboard/index.html.haml',
+    expected: ['spec/views/admin/dashboard/index.html.haml_spec.rb']
+  },
+
+  {
+    explanation: 'EE views should map to respective spec',
+    source: 'ee/app/views/subscriptions/new.html.haml',
+    expected: ['ee/spec/views/subscriptions/new.html.haml_spec.rb']
   },
 
   {
@@ -67,49 +121,13 @@ tests = [
   {
     explanation: 'FOSS factory should map to factories spec',
     source: 'spec/factories/users.rb',
-    expected: ['spec/models/factories_spec.rb']
+    expected: ['ee/spec/models/factories_spec.rb']
   },
 
   {
     explanation: 'EE factory should map to factories spec',
     source: 'ee/spec/factories/users.rb',
-    expected: ['spec/models/factories_spec.rb']
-  },
-
-  {
-    explanation: 'Initializers should map to respective spec',
-    source: 'config/initializers/action_mailer_hooks.rb',
-    expected: ['spec/initializers/action_mailer_hooks_spec.rb']
-  },
-
-  {
-    explanation: 'FOSS views should map to respective spec',
-    source: 'app/views/admin/dashboard/index.html.haml',
-    expected: ['spec/views/admin/dashboard/index.html.haml_spec.rb']
-  },
-
-  {
-    explanation: 'EE views should map to respective spec',
-    source: 'ee/app/views/subscriptions/new.html.haml',
-    expected: ['ee/spec/views/subscriptions/new.html.haml_spec.rb']
-  },
-
-  {
-    explanation: 'DB structure should map to schema spec',
-    source: 'db/structure.sql',
-    expected: ['spec/db/schema_spec.rb']
-  },
-
-  {
-    explanation: 'Migration should map to its non-timestamped spec',
-    source: 'db/migrate/20210818220234_add_default_project_approval_rules_vuln_allowed.rb',
-    expected: ['spec/migrations/add_default_project_approval_rules_vuln_allowed_spec.rb']
-  },
-
-  {
-    explanation: 'Migration should map to its timestamped spec',
-    source: 'db/post_migrate/20210915022415_cleanup_bigint_conversion_for_ci_builds.rb',
-    expected: ['spec/migrations/20210915022415_cleanup_bigint_conversion_for_ci_builds_spec.rb']
+    expected: ['ee/spec/models/factories_spec.rb']
   },
 
   {
@@ -119,8 +137,20 @@ tests = [
   },
 
   {
-    explanation: 'Spec for every sidekiq worker',
+    explanation: 'The documentation index page is used in this haml_lint spec',
+    source: 'doc/index.md',
+    expected: ['spec/haml_lint/linter/documentation_links_spec.rb']
+  },
+
+  {
+    explanation: 'Spec for FOSS sidekiq worker',
     source: 'app/workers/new_worker.rb',
+    expected: ['spec/workers/every_sidekiq_worker_spec.rb']
+  },
+
+  {
+    explanation: 'Spec for EE sidekiq worker',
+    source: 'ee/app/workers/new_worker.rb',
     expected: ['spec/workers/every_sidekiq_worker_spec.rb']
   },
 
@@ -128,6 +158,44 @@ tests = [
     explanation: 'Known events',
     source: 'lib/gitlab/usage_data_counters/known_events/common.yml',
     expected: ['spec/lib/gitlab/usage_data_counters/hll_redis_counter_spec.rb', 'spec/lib/gitlab/usage_data_spec.rb']
+  },
+
+  {
+    explanation: 'FOSS mailer previews',
+    source: 'app/mailers/previews/foo.rb',
+    expected: ['spec/mailers/previews_spec.rb']
+  },
+
+  {
+    explanation: 'EE mailer previews',
+    source: 'ee/app/mailers/previews/foo.rb',
+    expected: ['spec/mailers/previews_spec.rb']
+  },
+
+  {
+    explanation: 'EE mailer extension previews',
+    source: 'ee/app/mailers/previews/license_mailer_preview.rb',
+    expected: ['spec/mailers/previews_spec.rb']
+  },
+
+  {
+    explanation: 'GLFM spec and config files for CE and EE should map to respective markdown snapshot specs',
+    source: 'glfm_specification/foo',
+    expected: ['spec/requests/api/markdown_snapshot_spec.rb', 'ee/spec/requests/api/markdown_snapshot_spec.rb']
+  },
+
+  {
+    explanation: 'https://gitlab.com/gitlab-org/quality/engineering-productivity/master-broken-incidents/-/issues/287#note_1192008962',
+    # Note: The metrics seem to be changed every year or so, so this test will fail once a year or so.
+    #       You will need to change the metric below for another metric present in the project.
+    source: 'ee/config/metrics/counts_all/20221114065035_delete_merge_request.yml',
+    expected: ['ee/spec/config/metrics/every_metric_definition_spec.rb']
+  },
+
+  {
+    explanation: 'https://gitlab.com/gitlab-org/quality/engineering-productivity/master-broken-incidents/-/issues/287#note_1192008962',
+    source: 'ee/lib/ee/gitlab/usage_data_counters/known_events/common.yml',
+    expected: ['ee/spec/config/metrics/every_metric_definition_spec.rb']
   }
 ]
 

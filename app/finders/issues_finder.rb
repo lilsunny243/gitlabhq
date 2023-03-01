@@ -29,6 +29,8 @@
 #     issue_types: array of strings (one of WorkItems::Type.base_types)
 #
 class IssuesFinder < IssuableFinder
+  extend ::Gitlab::Utils::Override
+
   CONFIDENTIAL_ACCESS_LEVEL = Gitlab::Access::REPORTER
 
   def self.scalar_params
@@ -47,7 +49,7 @@ class IssuesFinder < IssuableFinder
 
   # rubocop: disable CodeReuse/ActiveRecord
   def with_confidentiality_access_check
-    return model_class.all if params.user_can_see_all_issues?
+    return model_class.all if params.user_can_see_all_issuables?
 
     # Only admins can see hidden issues, so for non-admins, we filter out any hidden issues
     issues = model_class.without_hidden
@@ -60,10 +62,10 @@ class IssuesFinder < IssuableFinder
     # count of issues assigned to the user for the header bar.
     return issues.all if current_user && assignee_filter.includes_user?(current_user)
 
-    return issues.where('issues.confidential IS NOT TRUE') if params.user_cannot_see_confidential_issues?
+    return issues.public_only if params.user_cannot_see_confidential_issues?
 
     issues.where('
-      issues.confidential IS NOT TRUE
+      issues.confidential = FALSE
       OR (issues.confidential = TRUE
         AND (issues.author_id = :user_id
           OR EXISTS (SELECT TRUE FROM issue_assignees WHERE user_id = :user_id AND issue_id = issues.id)
@@ -94,6 +96,16 @@ class IssuesFinder < IssuableFinder
   def filter_negated_items(items)
     issues = super
     by_negated_issue_types(issues)
+  end
+
+  override :filter_by_full_text_search
+  def filter_by_full_text_search(items)
+    # This project condition is used as a hint to PG about the partitions that need searching
+    # because the search data is partitioned by project.
+    # In certain cases, like the recent items search, the query plan is much better without this condition.
+    return super if params[:skip_full_text_search_project_condition].present?
+
+    super.with_projects_matching_search_data
   end
 
   def by_confidential(items)

@@ -5,35 +5,15 @@ module Gitlab
     module RedisInterceptor
       APDEX_EXCLUDE = %w[brpop blpop brpoplpush bzpopmin bzpopmax xread xreadgroup].freeze
 
-      class MysteryRedisDurationError < StandardError
-        attr_reader :backtrace
-
-        def initialize(backtrace)
-          @backtrace = backtrace
+      def call(command)
+        instrument_call([command]) do
+          super
         end
       end
 
-      def call(*args, &block)
-        start = Gitlab::Metrics::System.monotonic_time # must come first so that 'start' is always defined
-        instrumentation_class.instance_count_request
-        instrumentation_class.redis_cluster_validate!(args.first)
-
-        super(*args, &block)
-      rescue ::Redis::BaseError => ex
-        instrumentation_class.instance_count_exception(ex)
-        raise ex
-      ensure
-        duration = Gitlab::Metrics::System.monotonic_time - start
-
-        unless APDEX_EXCLUDE.include?(command_from_args(args))
-          instrumentation_class.instance_observe_duration(duration)
-        end
-
-        if ::RequestStore.active?
-          # These metrics measure total Redis usage per Rails request / job.
-          instrumentation_class.increment_request_count
-          instrumentation_class.add_duration(duration)
-          instrumentation_class.add_call_details(duration, args)
+      def call_pipeline(pipeline)
+        instrument_call(pipeline.commands) do
+          super
         end
       end
 
@@ -50,6 +30,39 @@ module Gitlab
 
       private
 
+      def instrument_call(commands)
+        start = Gitlab::Metrics::System.monotonic_time # must come first so that 'start' is always defined
+        instrumentation_class.instance_count_request(commands.size)
+
+        if !instrumentation_class.redis_cluster_validate!(commands) && ::RequestStore.active?
+          instrumentation_class.increment_cross_slot_request_count
+        end
+
+        yield
+      rescue ::Redis::BaseError => ex
+        if ex.message.start_with?('MOVED', 'ASK')
+          instrumentation_class.instance_count_cluster_redirection(ex)
+        else
+          instrumentation_class.instance_count_exception(ex)
+        end
+
+        instrumentation_class.log_exception(ex)
+        raise ex
+      ensure
+        duration = Gitlab::Metrics::System.monotonic_time - start
+
+        unless exclude_from_apdex?(commands)
+          commands.each { instrumentation_class.instance_observe_duration(duration / commands.size) }
+        end
+
+        if ::RequestStore.active?
+          # These metrics measure total Redis usage per Rails request / job.
+          instrumentation_class.increment_request_count(commands.size)
+          instrumentation_class.add_duration(duration)
+          instrumentation_class.add_call_details(duration, commands)
+        end
+      end
+
       def measure_write_size(command)
         size = 0
 
@@ -58,13 +71,11 @@ module Gitlab
         # This count is an approximation that omits the Redis protocol overhead
         # of type prefixes, length prefixes and line endings.
         command.each do |x|
-          size += begin
-            if x.is_a? Array
-              x.inject(0) { |sum, y| sum + y.to_s.bytesize }
-            else
-              x.to_s.bytesize
-            end
-          end
+          size += if x.is_a? Array
+                    x.inject(0) { |sum, y| sum + y.to_s.bytesize }
+                  else
+                    x.to_s.bytesize
+                  end
         end
 
         instrumentation_class.increment_write_bytes(size)
@@ -97,10 +108,8 @@ module Gitlab
         @options[:instrumentation_class] # rubocop:disable Gitlab/ModuleWithInstanceVariables
       end
 
-      def command_from_args(args)
-        command = args[0]
-        command = command[0] if command.is_a?(Array)
-        command.to_s.downcase
+      def exclude_from_apdex?(commands)
+        commands.any? { |command| APDEX_EXCLUDE.include?(command.first.to_s.downcase) }
       end
     end
   end

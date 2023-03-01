@@ -10,7 +10,8 @@ import {
   GlTabs,
   GlSprintf,
 } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_SUCCESS, VARIANT_WARNING } from '~/flash';
+import { TYPENAME_PACKAGES_PACKAGE } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { numberToHumanSize } from '~/lib/utils/number_utils';
 import { objectToQuery } from '~/lib/utils/url_utility';
@@ -22,8 +23,8 @@ import InstallationCommands from '~/packages_and_registries/package_registry/com
 import PackageFiles from '~/packages_and_registries/package_registry/components/details/package_files.vue';
 import PackageHistory from '~/packages_and_registries/package_registry/components/details/package_history.vue';
 import PackageTitle from '~/packages_and_registries/package_registry/components/details/package_title.vue';
-import VersionRow from '~/packages_and_registries/package_registry/components/details/version_row.vue';
-import DeletePackage from '~/packages_and_registries/package_registry/components/functional/delete_package.vue';
+import PackageVersionsList from '~/packages_and_registries/package_registry/components/details/package_versions_list.vue';
+import DeletePackages from '~/packages_and_registries/package_registry/components/functional/delete_packages.vue';
 import {
   PACKAGE_TYPE_NUGET,
   PACKAGE_TYPE_COMPOSER,
@@ -44,6 +45,11 @@ import {
   DELETE_PACKAGE_FILES_ERROR_MESSAGE,
   DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
   DOWNLOAD_PACKAGE_ASSET_TRACKING_ACTION,
+  DELETE_MODAL_TITLE,
+  DELETE_MODAL_CONTENT,
+  DELETE_ALL_PACKAGE_FILES_MODAL_CONTENT,
+  DELETE_LAST_PACKAGE_FILE_MODAL_CONTENT,
+  GRAPHQL_PAGE_SIZE,
 } from '~/packages_and_registries/package_registry/constants';
 
 import destroyPackageFilesMutation from '~/packages_and_registries/package_registry/graphql/mutations/destroy_package_files.mutation.graphql';
@@ -61,13 +67,13 @@ export default {
     GlTabs,
     GlSprintf,
     PackageTitle,
-    VersionRow,
     DependencyRow,
     PackageHistory,
     AdditionalMetadata,
     InstallationCommands,
     PackageFiles,
-    DeletePackage,
+    DeletePackages,
+    PackageVersionsList,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -86,8 +92,10 @@ export default {
   },
   data() {
     return {
+      deletePackageModalContent: DELETE_MODAL_CONTENT,
       filesToDelete: [],
       mutationLoading: false,
+      versionsMutationLoading: false,
       packageEntity: {},
     };
   },
@@ -101,7 +109,7 @@ export default {
         return data.package || {};
       },
       error(error) {
-        createFlash({
+        createAlert({
           message: FETCH_PACKAGE_DETAILS_ERROR_MESSAGE,
           captureError: true,
           error,
@@ -126,7 +134,8 @@ export default {
     },
     queryVariables() {
       return {
-        id: convertToGraphQLId('Packages::Package', this.packageId),
+        id: convertToGraphQLId(TYPENAME_PACKAGES_PACKAGE, this.packageId),
+        first: GRAPHQL_PAGE_SIZE,
       };
     },
     packageFiles() {
@@ -137,6 +146,9 @@ export default {
     },
     isLoading() {
       return this.$apollo.queries.packageEntity.loading;
+    },
+    isVersionsLoading() {
+      return this.isLoading || this.versionsMutationLoading;
     },
     packageFilesLoading() {
       return this.isLoading || this.mutationLoading;
@@ -149,8 +161,8 @@ export default {
         category: packageTypeToTrackCategory(this.packageType),
       };
     },
-    hasVersions() {
-      return this.packageEntity.versions?.nodes?.length > 0;
+    versionPageInfo() {
+      return this.packageEntity?.versions?.pageInfo ?? {};
     },
     packageDependencies() {
       return this.packageEntity.dependencyLinks?.nodes || [];
@@ -169,6 +181,14 @@ export default {
         PACKAGE_TYPE_NUGET,
         PACKAGE_TYPE_PYPI,
       ].includes(this.packageType);
+    },
+    refetchQueriesData() {
+      return [
+        {
+          query: getPackageDetails,
+          variables: this.queryVariables,
+        },
+      ];
     },
   },
   methods: {
@@ -195,30 +215,23 @@ export default {
             ids,
           },
           awaitRefetchQueries: true,
-          refetchQueries: [
-            {
-              query: getPackageDetails,
-              variables: this.queryVariables,
-            },
-          ],
+          refetchQueries: this.refetchQueriesData,
         });
         if (data?.destroyPackageFiles?.errors[0]) {
           throw data.destroyPackageFiles.errors[0];
         }
-        createFlash({
-          message:
-            ids.length === 1
-              ? DELETE_PACKAGE_FILE_SUCCESS_MESSAGE
-              : DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
-          type: 'success',
+        createAlert({
+          message: this.isLastItem(ids)
+            ? DELETE_PACKAGE_FILE_SUCCESS_MESSAGE
+            : DELETE_PACKAGE_FILES_SUCCESS_MESSAGE,
+          variant: VARIANT_SUCCESS,
         });
       } catch (error) {
-        createFlash({
-          message:
-            ids.length === 1
-              ? DELETE_PACKAGE_FILE_ERROR_MESSAGE
-              : DELETE_PACKAGE_FILES_ERROR_MESSAGE,
-          type: 'warning',
+        createAlert({
+          message: this.isLastItem(ids)
+            ? DELETE_PACKAGE_FILE_ERROR_MESSAGE
+            : DELETE_PACKAGE_FILES_ERROR_MESSAGE,
+          variant: VARIANT_WARNING,
           captureError: true,
           error,
         });
@@ -231,18 +244,26 @@ export default {
         files.length === this.packageFiles.length &&
         !this.packageEntity.packageFiles?.pageInfo?.hasNextPage
       ) {
+        if (this.isLastItem(files)) {
+          this.deletePackageModalContent = DELETE_LAST_PACKAGE_FILE_MODAL_CONTENT;
+        } else {
+          this.deletePackageModalContent = DELETE_ALL_PACKAGE_FILES_MODAL_CONTENT;
+        }
         this.$refs.deleteModal.show();
       } else {
         this.filesToDelete = files;
-        if (files.length === 1) {
+        if (this.isLastItem(files)) {
           this.$refs.deleteFileModal.show();
         } else if (files.length > 1) {
           this.$refs.deleteFilesModal.show();
         }
       }
     },
+    isLastItem(items) {
+      return items.length === 1;
+    },
     confirmFilesDelete() {
-      if (this.filesToDelete.length === 1) {
+      if (this.isLastItem(this.filesToDelete)) {
         this.track(DELETE_PACKAGE_FILE_TRACKING_ACTION);
       } else {
         this.track(DELETE_PACKAGE_FILES_TRACKING_ACTION);
@@ -250,20 +271,49 @@ export default {
       this.deletePackageFiles(this.filesToDelete.map((file) => file.id));
       this.filesToDelete = [];
     },
+    resetDeleteModalContent() {
+      this.deletePackageModalContent = DELETE_MODAL_CONTENT;
+    },
+    updateQuery(_, { fetchMoreResult }) {
+      return fetchMoreResult;
+    },
+    fetchPreviousVersionsPage() {
+      const variables = {
+        ...this.queryVariables,
+        first: null,
+        last: GRAPHQL_PAGE_SIZE,
+        before: this.versionPageInfo?.startCursor,
+      };
+      this.$apollo.queries.packageEntity.fetchMore({
+        variables,
+        updateQuery: this.updateQuery,
+      });
+    },
+    fetchNextVersionsPage() {
+      const variables = {
+        ...this.queryVariables,
+        first: GRAPHQL_PAGE_SIZE,
+        last: null,
+        after: this.versionPageInfo?.endCursor,
+      };
+
+      this.$apollo.queries.packageEntity.fetchMore({
+        variables,
+        updateQuery: this.updateQuery,
+      });
+    },
   },
   i18n: {
-    deleteModalTitle: s__(`PackageRegistry|Delete Package Version`),
-    deleteModalContent: s__(
-      `PackageRegistry|You are about to delete version %{version} of %{name}. Are you sure?`,
-    ),
-    deleteFileModalTitle: s__(`PackageRegistry|Delete Package File`),
+    DELETE_MODAL_TITLE,
+    deleteFileModalTitle: s__(`PackageRegistry|Delete package asset`),
     deleteFileModalContent: s__(
       `PackageRegistry|You are about to delete %{filename}. This is a destructive action that may render your package unusable. Are you sure?`,
     ),
+    otherVersionsTabTitle: s__('PackageRegistry|Other versions'),
   },
   modal: {
     packageDeletePrimaryAction: {
-      text: __('Delete'),
+      text: s__('PackageRegistry|Permanently delete'),
       attributes: [
         { variant: 'danger' },
         { category: 'primary' },
@@ -292,7 +342,7 @@ export default {
     :description="s__('PackageRegistry|There was a problem fetching the details for this package.')"
     :svg-path="emptyListIllustration"
   />
-  <div v-else-if="!isLoading" class="packages-app">
+  <div v-else-if="projectName" class="packages-app">
     <package-title :package-entity="packageEntity">
       <template #delete-button>
         <gl-button
@@ -335,7 +385,9 @@ export default {
       <gl-tab v-if="showDependencies">
         <template #title>
           <span>{{ __('Dependencies') }}</span>
-          <gl-badge size="sm">{{ packageDependencies.length }}</gl-badge>
+          <gl-badge size="sm" data-testid="dependencies-badge">{{
+            packageDependencies.length
+          }}</gl-badge>
         </template>
 
         <template v-if="packageDependencies.length > 0">
@@ -347,22 +399,46 @@ export default {
         </p>
       </gl-tab>
 
-      <gl-tab :title="__('Other versions')" title-item-class="js-versions-tab">
-        <template v-if="hasVersions">
-          <version-row v-for="v in packageEntity.versions.nodes" :key="v.id" :package-entity="v" />
+      <gl-tab title-item-class="js-versions-tab" lazy>
+        <template #title>
+          <span>{{ $options.i18n.otherVersionsTabTitle }}</span>
+          <gl-badge size="sm" class="gl-tab-counter-badge" data-testid="other-versions-badge">{{
+            packageEntity.versions.count
+          }}</gl-badge>
         </template>
 
-        <p v-else class="gl-mt-3" data-testid="no-versions-message">
-          {{ s__('PackageRegistry|There are no other versions of this package.') }}
-        </p>
+        <delete-packages
+          :refetch-queries="refetchQueriesData"
+          show-success-alert
+          @start="versionsMutationLoading = true"
+          @end="versionsMutationLoading = false"
+        >
+          <template #default="{ deletePackages }">
+            <package-versions-list
+              :can-destroy="packageEntity.canDestroy"
+              :is-loading="isVersionsLoading"
+              :page-info="versionPageInfo"
+              :versions="packageEntity.versions.nodes"
+              @delete="deletePackages"
+              @prev-page="fetchPreviousVersionsPage"
+              @next-page="fetchNextVersionsPage"
+            >
+              <template #empty-state>
+                <p class="gl-mt-3" data-testid="no-versions-message">
+                  {{ s__('PackageRegistry|There are no other versions of this package.') }}
+                </p>
+              </template>
+            </package-versions-list>
+          </template>
+        </delete-packages>
       </gl-tab>
     </gl-tabs>
 
-    <delete-package
+    <delete-packages
       @start="track($options.trackingActions.DELETE_PACKAGE_TRACKING_ACTION)"
       @end="navigateToListWithSuccessModal"
     >
-      <template #default="{ deletePackage }">
+      <template #default="{ deletePackages }">
         <gl-modal
           ref="deleteModal"
           size="sm"
@@ -370,11 +446,12 @@ export default {
           data-testid="delete-modal"
           :action-primary="$options.modal.packageDeletePrimaryAction"
           :action-cancel="$options.modal.cancelAction"
-          @primary="deletePackage(packageEntity)"
+          @primary="deletePackages([packageEntity])"
+          @hidden="resetDeleteModalContent"
           @canceled="track($options.trackingActions.CANCEL_DELETE_PACKAGE)"
         >
-          <template #modal-title>{{ $options.i18n.deleteModalTitle }}</template>
-          <gl-sprintf :message="$options.i18n.deleteModalContent">
+          <template #modal-title>{{ $options.i18n.DELETE_MODAL_TITLE }}</template>
+          <gl-sprintf :message="deletePackageModalContent">
             <template #version>
               <strong>{{ packageEntity.version }}</strong>
             </template>
@@ -385,7 +462,7 @@ export default {
           </gl-sprintf>
         </gl-modal>
       </template>
-    </delete-package>
+    </delete-packages>
 
     <gl-modal
       ref="deleteFileModal"
@@ -398,7 +475,7 @@ export default {
       @canceled="track($options.trackingActions.CANCEL_DELETE_PACKAGE_FILE)"
     >
       <template #modal-title>{{ $options.i18n.deleteFileModalTitle }}</template>
-      <gl-sprintf v-if="filesToDelete.length === 1" :message="$options.i18n.deleteFileModalContent">
+      <gl-sprintf v-if="isLastItem(filesToDelete)" :message="$options.i18n.deleteFileModalContent">
         <template #filename>
           <strong>{{ filesToDelete[0].fileName }}</strong>
         </template>

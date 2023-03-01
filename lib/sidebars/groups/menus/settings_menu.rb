@@ -15,10 +15,15 @@ module Sidebars
             add_item(ci_cd_menu_item)
             add_item(applications_menu_item)
             add_item(packages_and_registries_menu_item)
+            add_item(usage_quotas_menu_item)
             return true
           elsif Gitlab.ee? && can?(context.current_user, :change_push_rules, context.group)
             # Push Rules are the only group setting that can also be edited by maintainers.
             # Create an empty sub-menu here and EE adds Repository menu item (with only Push Rules).
+            return true
+          elsif Gitlab.ee? && can?(context.current_user, :read_billing, context.group)
+            # Billing is the only group setting that is visible to auditors.
+            # Create an empty sub-menu here and EE adds Settings menu item (with only Billing).
             return true
           end
 
@@ -111,13 +116,29 @@ module Sidebars
           )
         end
 
+        def usage_quotas_menu_item
+          return ::Sidebars::NilMenuItem.new(item_id: :usage_quotas) unless usage_quotas_menu_enabled?
+
+          ::Sidebars::MenuItem.new(
+            title: s_('UsageQuota|Usage Quotas'),
+            link: group_usage_quotas_path(context.group),
+            active_routes: { path: 'usage_quotas#index' },
+            item_id: :usage_quotas
+          )
+        end
+
+        # overriden in ee/lib/ee/sidebars/groups/menus/settings_menu.rb
+        def usage_quotas_menu_enabled?
+          context.group.usage_quotas_enabled?
+        end
+
         def packages_and_registries_menu_item
           unless context.group.packages_feature_enabled?
             return ::Sidebars::NilMenuItem.new(item_id: :packages_and_registries)
           end
 
           ::Sidebars::MenuItem.new(
-            title: _('Packages & Registries'),
+            title: _('Packages and registries'),
             link: group_settings_packages_and_registries_path(context.group),
             active_routes: { controller: :packages_and_registries },
             item_id: :packages_and_registries

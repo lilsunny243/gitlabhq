@@ -20,7 +20,12 @@ const MERGEREQUESTS_ALIAS = 'mergerequests';
 const LABELS_ALIAS = 'labels';
 const SNIPPETS_ALIAS = 'snippets';
 const CONTACTS_ALIAS = 'contacts';
+
 export const AT_WHO_ACTIVE_CLASS = 'at-who-active';
+export const CONTACT_STATE_ACTIVE = 'active';
+export const CONTACTS_ADD_COMMAND = '/add_contacts';
+export const CONTACTS_REMOVE_COMMAND = '/remove_contacts';
+
 /**
  * Escapes user input before we pass it to at.js, which
  * renders it as HTML in the autocomplete dropdown.
@@ -34,8 +39,18 @@ export const AT_WHO_ACTIVE_CLASS = 'at-who-active';
  * @param string user input
  * @return {string} escaped user input
  */
-function escape(string) {
-  return lodashEscape(string).replace(/\$/g, '&dollar;');
+export function escape(string) {
+  // To prevent double (or multiple) enconding attack
+  // Decode the user input repeatedly prior to escaping the final decoded string.
+  let encodedString = string;
+  let decodedString = decodeURIComponent(encodedString);
+
+  while (decodedString !== encodedString) {
+    encodedString = decodeURIComponent(decodedString);
+    decodedString = decodeURIComponent(encodedString);
+  }
+
+  return lodashEscape(decodedString.replace(/\$/g, '&dollar;'));
 }
 
 export function showAndHideHelper($input, alias = '') {
@@ -101,6 +116,7 @@ export const defaultAutocompleteConfig = {
   issues: true,
   mergeRequests: true,
   epics: true,
+  iterations: true,
   milestones: true,
   labels: true,
   snippets: true,
@@ -203,6 +219,10 @@ class GfmAutoComplete {
           } else {
             [[referencePrefix]] = value.params;
             if (/^[@%~]/.test(referencePrefix)) {
+              tpl += '<%- referencePrefix %>';
+            } else if (/^[*]/.test(referencePrefix)) {
+              // EE-ONLY
+              referencePrefix = '*iteration:';
               tpl += '<%- referencePrefix %>';
             }
           }
@@ -533,7 +553,12 @@ class GfmAutoComplete {
   setupLabels($input) {
     const instance = this;
     const fetchData = this.fetchData.bind(this);
-    const LABEL_COMMAND = { LABEL: '/label', UNLABEL: '/unlabel', RELABEL: '/relabel' };
+    const LABEL_COMMAND = {
+      LABEL: '/label',
+      LABELS: '/labels',
+      UNLABEL: '/unlabel',
+      RELABEL: '/relabel',
+    };
     let command = '';
 
     $input.atwho({
@@ -565,13 +590,9 @@ class GfmAutoComplete {
         matcher(flag, subtext) {
           const subtextNodes = subtext.split(/\n+/g).pop().split(GfmAutoComplete.regexSubtext);
 
-          // Check if ~ is followed by '/label', '/relabel' or '/unlabel' commands.
+          // Check if ~ is followed by '/label', '/labels', '/relabel' or '/unlabel' commands.
           command = subtextNodes.find((node) => {
-            if (
-              node === LABEL_COMMAND.LABEL ||
-              node === LABEL_COMMAND.RELABEL ||
-              node === LABEL_COMMAND.UNLABEL
-            ) {
+            if (Object.values(LABEL_COMMAND).includes(node)) {
               return node;
             }
             return null;
@@ -616,7 +637,7 @@ class GfmAutoComplete {
 
           // The `LABEL_COMMAND.RELABEL` is intentionally skipped
           // because we want to return all the labels (unfiltered) for that command.
-          if (command === LABEL_COMMAND.LABEL) {
+          if (command === LABEL_COMMAND.LABEL || command === LABEL_COMMAND.LABELS) {
             // Return labels with set: undefined.
             return data.filter((label) => !label.set);
           } else if (command === LABEL_COMMAND.UNLABEL) {
@@ -666,6 +687,9 @@ class GfmAutoComplete {
   }
 
   setupContacts($input) {
+    const fetchData = this.fetchData.bind(this);
+    let command = '';
+
     $input.atwho({
       at: '[contact:',
       suffix: ']',
@@ -694,8 +718,43 @@ class GfmAutoComplete {
               firstName: m.first_name,
               lastName: m.last_name,
               search: `${m.email}`,
+              state: m.state,
+              set: m.set,
             };
           });
+        },
+        matcher(flag, subtext) {
+          const subtextNodes = subtext.split(/\n+/g).pop().split(GfmAutoComplete.regexSubtext);
+
+          command = subtextNodes.find((node) => {
+            if (node === CONTACTS_ADD_COMMAND || node === CONTACTS_REMOVE_COMMAND) {
+              return node;
+            }
+            return null;
+          });
+
+          const match = GfmAutoComplete.defaultMatcher(flag, subtext, this.app.controllers);
+          return match?.length ? match[1] : null;
+        },
+        filter(query, data, searchKey) {
+          if (GfmAutoComplete.isLoading(data)) {
+            fetchData(this.$inputor, this.at);
+            return data;
+          }
+
+          if (data === GfmAutoComplete.defaultLoadingData) {
+            return $.fn.atwho.default.callbacks.filter(query, data, searchKey);
+          }
+
+          if (command === CONTACTS_ADD_COMMAND) {
+            // Return contacts that are active and not already on the issue
+            return data.filter((contact) => contact.state === CONTACT_STATE_ACTIVE && !contact.set);
+          } else if (command === CONTACTS_REMOVE_COMMAND) {
+            // Return contacts already on the issue
+            return data.filter((contact) => contact.set);
+          }
+
+          return data;
         },
       },
     });
@@ -839,7 +898,8 @@ class GfmAutoComplete {
     const atSymbolsWithBar = Object.keys(controllers)
       .join('|')
       .replace(/[$]/, '\\$&')
-      .replace(/([[\]:])/g, '\\$1');
+      .replace(/([[\]:])/g, '\\$1')
+      .replace(/([*])/g, '\\$1');
 
     const atSymbolsWithoutBar = Object.keys(controllers).join('');
     const targetSubtext = subtext.split(GfmAutoComplete.regexSubtext).pop();
@@ -868,6 +928,7 @@ GfmAutoComplete.atTypeMap = {
   '#': 'issues',
   '!': 'mergeRequests',
   '&': 'epics',
+  '*iteration:': 'iterations',
   '~': 'labels',
   '%': 'milestones',
   '/': 'commands',
@@ -953,7 +1014,7 @@ GfmAutoComplete.Issues = {
     return value.reference || '${atwho-at}${id}';
   },
   templateFunction({ id, title, reference }) {
-    return `<li><small>${reference || id}</small> ${escape(title)}</li>`;
+    return `<li><small>${escape(reference || id)}</small> ${escape(title)}</li>`;
   },
 };
 // Milestones

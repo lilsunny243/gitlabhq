@@ -30,6 +30,12 @@ module Mutations
         argument :start_and_due_date_widget, ::Types::WorkItems::Widgets::StartAndDueDateUpdateInputType,
                  required: false,
                  description: 'Input for start and due date widget.'
+        argument :labels_widget, ::Types::WorkItems::Widgets::LabelsUpdateInputType,
+                 required: false,
+                 description: 'Input for labels widget.'
+        argument :milestone_widget, ::Types::WorkItems::Widgets::MilestoneInputType,
+                 required: false,
+                 description: 'Input for milestone widget.'
       end
     end
   end

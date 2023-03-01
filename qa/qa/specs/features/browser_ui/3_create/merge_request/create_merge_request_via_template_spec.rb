@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', :reliable do
+  RSpec.describe 'Create', :reliable, product_group: :code_review do
     describe 'Merge request custom templates' do
       let(:template_name) { 'custom_merge_request_template' }
       let(:template_content) { 'This is a custom merge request template test' }
@@ -20,12 +20,13 @@ module QA
         Resource::Repository::Commit.fabricate_via_api! do |commit|
           commit.project = template_project
           commit.commit_message = 'Add custom merge request template'
-          commit.add_files([
-            {
-              file_path: ".gitlab/merge_request_templates/#{template_name}.md",
-              content: template_content
-            }
-          ])
+          commit.add_files(
+            [
+              {
+                file_path: ".gitlab/merge_request_templates/#{template_name}.md",
+                content: template_content
+              }
+            ])
         end
       end
 

@@ -18,12 +18,16 @@ const PERSISTENT_USER_CALLOUTS = [
   '.js-project-usage-limitations-callout',
   '.js-namespace-storage-alert',
   '.js-web-hook-disabled-callout',
+  '.js-merge-request-settings-callout',
+  '.js-ultimate-feature-removal-banner',
+  '.js-geo-enable-hashed-storage-callout',
+  '.js-geo-migrate-hashed-storage-callout',
 ];
 
 const initCallouts = () => {
-  PERSISTENT_USER_CALLOUTS.forEach((calloutContainer) =>
-    PersistentUserCallout.factory(document.querySelector(calloutContainer)),
-  );
+  document
+    .querySelectorAll(PERSISTENT_USER_CALLOUTS)
+    .forEach((calloutContainer) => PersistentUserCallout.factory(calloutContainer));
 };
 
 export default initCallouts;

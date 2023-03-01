@@ -6,19 +6,28 @@ require 'spec_helper'
 # NOTE: ONLY user related metrics to be added to the aggregates - otherwise add it to the exception list
 RSpec.describe 'Code review events' do
   it 'the aggregated metrics contain all the code review metrics' do
-    path = Rails.root.join('config/metrics/aggregates/code_review.yml')
-    aggregated_events = YAML.safe_load(File.read(path), aliases: true)&.map(&:with_indifferent_access)
+    user_related_events = %w[i_code_review_create_mr i_code_review_mr_diffs i_code_review_mr_with_invalid_approvers i_code_review_mr_single_file_diffs i_code_review_total_suggestions_applied i_code_review_total_suggestions_added i_code_review_create_note_in_ipynb_diff i_code_review_create_note_in_ipynb_diff_mr i_code_review_create_note_in_ipynb_diff_commit]
 
-    code_review_aggregated_events = aggregated_events
-      .map { |event| event['events'] }
-      .flatten
-      .uniq
+    all_code_review_events = Gitlab::Usage::MetricDefinition.all.flat_map do |definition|
+      next [] unless definition.attributes[:key_path].include?('.code_review.') &&
+        definition.attributes[:status] == 'active' &&
+        definition.attributes[:instrumentation_class] != 'AggregatedMetric'
 
-    code_review_events = Gitlab::UsageDataCounters::HLLRedisCounter.events_for_category("code_review")
+      definition.attributes.dig(:options, :events)
+    end.uniq.compact
 
-    exceptions = %w[i_code_review_mr_diffs i_code_review_mr_with_invalid_approvers i_code_review_mr_single_file_diffs i_code_review_total_suggestions_applied i_code_review_total_suggestions_added i_code_review_create_note_in_ipynb_diff i_code_review_create_note_in_ipynb_diff_mr i_code_review_create_note_in_ipynb_diff_commit]
-    code_review_aggregated_events += exceptions
+    code_review_aggregated_events = Gitlab::Usage::MetricDefinition.all.flat_map do |definition|
+      next [] unless code_review_aggregated_metric?(definition.attributes)
 
-    expect(code_review_events - code_review_aggregated_events).to be_empty
+      definition.attributes.dig(:options, :events)
+    end.uniq
+
+    expect(all_code_review_events - (code_review_aggregated_events + user_related_events)).to be_empty
+  end
+
+  def code_review_aggregated_metric?(attributes)
+    return false unless attributes[:product_group] == 'code_review' && attributes[:status] == 'active'
+
+    attributes[:instrumentation_class] == 'AggregatedMetric'
   end
 end

@@ -7,12 +7,13 @@ module Banzai
         FilterArray[
           Filter::AsciiDocSanitizationFilter,
           Filter::AssetProxyFilter,
-          Filter::SyntaxHighlightFilter,
           Filter::ExternalLinkFilter,
           Filter::PlantumlFilter,
           Filter::ColorFilter,
           Filter::ImageLazyLoadFilter,
           Filter::ImageLinkFilter,
+          Filter::WikiLinkFilter,
+          Filter::SyntaxHighlightFilter, # this filter should remain next to last
           Filter::AsciiDocPostProcessingFilter
         ]
       end

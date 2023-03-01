@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Get started with GitLab GraphQL API **(FREE)**
@@ -16,8 +16,9 @@ the API itself.
 
 The examples documented here can be run using:
 
-- The command line.
-- GraphiQL.
+- [Command line](#command-line).
+- [GraphiQL](#graphiql).
+- [Rails console](#rails-console).
 
 ### Command line
 
@@ -73,6 +74,28 @@ NOTE:
 If you are running GitLab 12.0, enable the `graphql`
 [feature flag](../features.md#set-or-create-a-feature).
 
+### Rails console **(FREE SELF)**
+
+GraphQL queries can be run in a [Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session). For example, to search projects:
+
+```ruby
+current_user = User.find_by_id(1)
+query = <<~EOQ
+query securityGetProjects($search: String!) {
+  projects(search: $search) {
+    nodes {
+      path
+    }
+  }
+}
+EOQ
+
+variables = { "search": "gitlab" }
+
+result = GitlabSchema.execute(query, variables: variables, context: { current_user: current_user })
+result.to_h
+```
+
 ## Queries and mutations
 
 The GitLab GraphQL API can be used to perform:
@@ -88,7 +111,7 @@ which is an object identifier in the format of `"gid://gitlab/Issue/123"`.
 [GitLab GraphQL Schema](reference/index.md) outlines which objects and fields are
 available for clients to query and their corresponding data types.
 
-Example: Get only the names of all the projects the currently logged in user can
+Example: Get only the names of all the projects the currently authenticated user can
 access (up to a limit) in the group `gitlab-org`.
 
 ```graphql
@@ -150,8 +173,8 @@ More about queries:
 
 Authorization uses the same engine as the GitLab application (and GitLab.com).
 If you've signed in to GitLab and use GraphiQL, all queries are performed as
-you, the signed in user. For more information, read the
-[GitLab API documentation](../index.md#authentication).
+you, the authenticated user. For more information, read the
+[GitLab API documentation](../rest/index.md#authentication).
 
 ### Mutations
 

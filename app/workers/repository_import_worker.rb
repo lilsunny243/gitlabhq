@@ -18,9 +18,8 @@ class RepositoryImportWorker # rubocop:disable Scalability/IdempotentWorker
   sidekiq_options memory_killer_max_memory_growth_kb: ENV.fetch('MEMORY_KILLER_REPOSITORY_IMPORT_WORKER_MAX_MEMORY_GROWTH_KB', 300_000).to_i
 
   def perform(project_id)
-    @project = Project.find(project_id)
-
-    return unless start_import
+    @project = Project.find_by_id(project_id)
+    return if project.nil? || !start_import?
 
     Gitlab::Metrics.add_event(:import_repository)
 
@@ -33,18 +32,16 @@ class RepositoryImportWorker # rubocop:disable Scalability/IdempotentWorker
 
     if result[:status] == :error
       fail_import(result[:message])
-
-      raise result[:message]
+    else
+      project.after_import
     end
-
-    project.after_import
   end
 
   private
 
   attr_reader :project
 
-  def start_import
+  def start_import?
     return true if start(project.import_state)
 
     Gitlab::Import::Logger.info(

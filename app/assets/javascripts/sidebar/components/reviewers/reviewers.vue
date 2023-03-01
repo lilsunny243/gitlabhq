@@ -1,6 +1,7 @@
 <script>
 // NOTE! For the first iteration, we are simply copying the implementation of Assignees
 // It will soon be overhauled in Issue https://gitlab.com/gitlab-org/gitlab/-/issues/233736
+import { TYPE_ISSUE } from '~/issues/constants';
 import CollapsedReviewerList from './collapsed_reviewer_list.vue';
 import UncollapsedReviewerList from './uncollapsed_reviewer_list.vue';
 
@@ -28,7 +29,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: 'issue',
+      default: TYPE_ISSUE,
     },
   },
   computed: {
@@ -58,11 +59,21 @@ export default {
     <collapsed-reviewer-list :users="sortedReviewers" :issuable-type="issuableType" />
 
     <div class="value hide-collapsed">
-      <template v-if="hasNoUsers">
-        <span class="no-value">
-          {{ __('None') }}
-        </span>
-      </template>
+      <span v-if="hasNoUsers" class="no-value" data-testid="no-value">
+        {{ __('None') }}
+        <template v-if="editable">
+          -
+          <button
+            type="button"
+            class="gl-button btn-link gl-reset-color!"
+            data-testid="assign-yourself"
+            data-qa-selector="assign_yourself_button"
+            @click="assignSelf"
+          >
+            {{ __('assign yourself') }}
+          </button>
+        </template>
+      </span>
 
       <uncollapsed-reviewer-list
         v-else

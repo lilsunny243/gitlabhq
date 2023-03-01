@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 description: Read through the GitLab installation methods.
 type: index
@@ -51,9 +51,24 @@ Known issues are gathered from within GitLab and from customer reported issues. 
 
 See the [GitLab AWS known issues list](https://gitlab.com/gitlab-com/alliances/aws/public-tracker/-/issues?label_name%5B%5D=AWS+Known+Issue) for a complete list.
 
-## Official GitLab releases as AMIs
+## Provision a single GitLab instance on AWS
+
+If you want to provision a single GitLab instance on AWS, you have two options:
+
+- The marketplace subscription
+- The official GitLab AMIs
+
+### Marketplace subscription
+
+GitLab provides a 5 user subscription as an AWS Marketplace subscription to help teams of all sizes to get started with an Ultimate licensed instance in record time. The Marketplace subscription can be easily upgraded to any GitLab licensing via an AWS Marketplace Private Offer, with the convenience of continued AWS billing. No migration is necessary to obtain a larger, non-time based license from GitLab. Per-minute licensing is automatically removed when you accept the private offer.
+
+For a tutorial on provisioning a GitLab Instance via a Marketplace Subscription, [use this tutorial](https://gitlab.awsworkshop.io/040_partner_setup.html). The tutorial links to the [GitLab Ultimate Marketplace Listing](https://aws.amazon.com/marketplace/pp/prodview-g6ktjmpuc33zk), but you can also use the [GitLab Premium Marketplace Listing](https://aws.amazon.com/marketplace/pp/prodview-amk6tacbois2k) to provision an instance.
+
+### Official GitLab releases as AMIs
 
 GitLab produces Amazon Machine Images (AMI) during the regular release process. The AMIs can be used for single instance GitLab installation or, by configuring `/etc/gitlab/gitlab.rb`, can be specialized for specific GitLab service roles (for example a Gitaly server). Older releases remain available and can be used to migrate an older GitLab server to AWS.
+
+Initial licensing can either be the Free Enterprise License (EE) or the open source Community Edition (CE). The Enterprise Edition provides the easiest path forward to a licensed version if the need arises.
 
 Currently the Amazon AMI uses the Amazon prepared Ubuntu AMI (x86 and ARM are available) as its starting point.
 
@@ -65,14 +80,14 @@ Instances running on Community Edition (CE) require a migration to Enterprise Ed
 NOTE:
 Because any given GitLab upgrade might involve data disk updates or database schema upgrades, swapping out the AMI is not sufficient for taking upgrades.
 
-1. Log in to the AWS Web Console, so that clicking the links in the following step take you directly to the AMI list.
+1. Log in to the AWS Web Console, so that selecting the links in the following step take you directly to the AMI list.
 1. Pick the edition you want:
 
    - [GitLab Enterprise Edition](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Images:visibility=public-images;ownerAlias=782774275127;search=GitLab%20EE;sort=desc:name): If you want to unlock the enterprise features, a license is needed.
    - [GitLab Community Edition](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Images:visibility=public-images;ownerAlias=782774275127;search=GitLab%20CE;sort=desc:name): The open source version of GitLab.
-   - [GitLab Premium or Ultimate Marketplace (Prelicensed)](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Images:visibility=public-images;source=Marketplace;search=GitLab%20EE;sort=desc:name): 5 user license built into per-minute billing.
+   - [GitLab Premium or Ultimate Marketplace (pre-licensed)](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Images:visibility=public-images;source=Marketplace;search=GitLab%20EE;sort=desc:name): 5 user license built into per-minute billing.
 
-1. AMI IDs are unique per region, so after you've loaded one of the above, select the desired target region in the upper right of the console to see the appropriate AMIs.
+1. AMI IDs are unique per region. After you've loaded any of these editions, in the upper-right corner, select the desired target region of the console to see the appropriate AMIs.
 1. After the console is loaded, you can add additional search criteria to narrow further. For instance, type `13.` to find only 13.x versions.
 1. To launch an EC2 Machine with one of the listed AMIs, check the box at the start of the relevant row, and select **Launch** near the top of left of the page.
 
@@ -104,7 +119,7 @@ Implementation patterns enable platform-specific terminology, best practice arch
 
 ### Platform as a Service (PaaS) specification and usage
 
-Platform as a Service options are a huge portion of the value provided by Cloud Platforms as they simplify operational complexity and reduce the SRE and security skilling required to operate advanced, highly available technology services. Implementation patterns can be prequalified against the partner PaaS options.
+Platform as a Service options are a huge portion of the value provided by Cloud Platforms as they simplify operational complexity and reduce the SRE and security skilling required to operate advanced, highly available technology services. Implementation patterns can be pre-qualified against the partner PaaS options.
 
 - Implementation patterns help implementers understand what PaaS options are known to work and how to choose between PaaS solutions when a single platform has more than one PaaS option for the same GitLab role.
 - For instance, where reference architectures do not have a specific recommendation on what technology is leveraged for GitLab outbound email services or what the sizing should be - a Reference Implementation may advise using a cloud providers Email as a Service (PaaS) and possibly even with specific settings.

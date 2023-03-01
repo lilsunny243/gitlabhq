@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ProjectImportState, type: :model do
+RSpec.describe ProjectImportState, type: :model, feature_category: :importers do
   let_it_be(:correlation_id) { 'cid' }
   let_it_be(:import_state, refind: true) { create(:import_state, correlation_id_value: correlation_id) }
 
@@ -14,25 +14,46 @@ RSpec.describe ProjectImportState, type: :model do
 
   describe 'validations' do
     it { is_expected.to validate_presence_of(:project) }
+
+    describe 'checksums attribute' do
+      let(:import_state) { build(:import_state, checksums: checksums) }
+
+      before do
+        import_state.validate
+      end
+
+      context 'when the checksums attribute has invalid fields' do
+        let(:checksums) { { fetched: { issue: :foo, note: 20 } } }
+
+        it 'adds errors' do
+          expect(import_state.errors.details.keys).to include(:checksums)
+        end
+      end
+
+      context 'when the checksums attribute has valid fields' do
+        let(:checksums) { { fetched: { issue: 8, note: 2 }, imported: { issue: 3, note: 2 } } }
+
+        it 'does not add errors' do
+          expect(import_state.errors.details.keys).not_to include(:checksums)
+        end
+      end
+    end
   end
 
   describe 'Project import job' do
-    let_it_be(:import_state) { create(:import_state, import_url: generate(:url)) }
-    let_it_be(:project) { import_state.project }
+    let_it_be(:project) { create(:project) }
+
+    let(:import_state) { create(:import_state, import_url: generate(:url), project: project) }
+    let(:jid) { '551d3ceac5f67a116719ce41' }
 
     before do
-      allow_any_instance_of(Gitlab::GitalyClient::RepositoryService).to receive(:import_repository)
-        .with(project.import_url, http_authorization_header: '', mirror: false).and_return(true)
-
       # Works around https://github.com/rspec/rspec-mocks/issues/910
       allow(Project).to receive(:find).with(project.id).and_return(project)
-      expect(project).to receive(:after_import).and_call_original
+      allow(project).to receive(:add_import_job).and_return(jid)
     end
 
     it 'imports a project', :sidekiq_might_not_need_inline do
-      expect(RepositoryImportWorker).to receive(:perform_async).and_call_original
-
-      expect { import_state.schedule }.to change { import_state.status }.from('none').to('finished')
+      expect { import_state.schedule }.to change { import_state.status }.from('none').to('scheduled')
     end
 
     it 'records job and correlation IDs', :sidekiq_might_not_need_inline do
@@ -40,7 +61,8 @@ RSpec.describe ProjectImportState, type: :model do
 
       import_state.schedule
 
-      expect(import_state.jid).to be_an_instance_of(String)
+      expect(project).to have_received(:add_import_job)
+      expect(import_state.jid).to eq(jid)
       expect(import_state.correlation_id).to eq(correlation_id)
     end
   end
@@ -199,6 +221,37 @@ RSpec.describe ProjectImportState, type: :model do
           project.reload
         end.to change { project.import_data }
           .from(import_data).to(nil)
+      end
+    end
+
+    context 'state transition: started: [:finished, :canceled, :failed]' do
+      using RSpec::Parameterized::TableSyntax
+
+      let_it_be_with_reload(:project) { create(:project) }
+
+      where(
+        :import_type,
+        :import_status,
+        :transition,
+        :expected_checksums
+      ) do
+        'github'         | :started   | :finish  | { 'fetched' => {}, 'imported' => {} }
+        'github'         | :started   | :cancel  | { 'fetched' => {}, 'imported' => {} }
+        'github'         | :started   | :fail_op | { 'fetched' => {}, 'imported' => {} }
+        'github'         | :scheduled | :cancel  | {}
+        'gitlab_project' | :started   | :cancel  | {}
+      end
+
+      with_them do
+        before do
+          create(:import_state, status: import_status, import_type: import_type, project: project)
+        end
+
+        it 'updates (or does not update) checksums' do
+          project.import_state.send(transition)
+
+          expect(project.import_state.checksums).to eq(expected_checksums)
+        end
       end
     end
   end

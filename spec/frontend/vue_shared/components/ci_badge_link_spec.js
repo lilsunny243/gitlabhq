@@ -1,6 +1,11 @@
+import { GlLink } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
-import CiBadge from '~/vue_shared/components/ci_badge_link.vue';
+import CiBadgeLink from '~/vue_shared/components/ci_badge_link.vue';
 import CiIcon from '~/vue_shared/components/ci_icon.vue';
+
+jest.mock('~/lib/utils/url_utility', () => ({
+  visitUrl: jest.fn(),
+}));
 
 describe('CI Badge Link Component', () => {
   let wrapper;
@@ -74,12 +79,11 @@ describe('CI Badge Link Component', () => {
   const findIcon = () => wrapper.findComponent(CiIcon);
 
   const createComponent = (propsData) => {
-    wrapper = shallowMount(CiBadge, { propsData });
+    wrapper = shallowMount(CiBadgeLink, { propsData });
   };
 
   afterEach(() => {
     wrapper.destroy();
-    wrapper = null;
   });
 
   it.each(Object.keys(statuses))('should render badge for status: %s', (status) => {
@@ -96,5 +100,13 @@ describe('CI Badge Link Component', () => {
     createComponent({ status: statuses.canceled, showText: false });
 
     expect(wrapper.text()).toBe('');
+  });
+
+  it('should emit ciStatusBadgeClick event', async () => {
+    createComponent({ status: statuses.success });
+
+    await wrapper.findComponent(GlLink).vm.$emit('click');
+
+    expect(wrapper.emitted('ciStatusBadgeClick')).toEqual([[]]);
   });
 });

@@ -1,10 +1,10 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Push Options **(FREE)**
+# Push options **(FREE)**
 
 GitLab supports using client-side [Git push options](https://git-scm.com/docs/git-push#Documentation/git-push.txt--oltoptiongt)
 to perform various actions at the same time as pushing changes. Additionally, [Push Rules](repository/push_rules.md) offer server-side control and enforcement options.
@@ -36,7 +36,7 @@ You can use push options to skip a CI/CD pipeline, or pass CI/CD variables.
 | Push option                    | Description                                                                                 | Introduced in version |
 | ------------------------------ | ------------------------------------------------------------------------------------------- |---------------------- |
 | `ci.skip`                      | Do not create a CI pipeline for the latest push. Only skips branch pipelines and not [merge request pipelines](../../ci/pipelines/merge_request_pipelines.md). | [11.7](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/15643) |
-| `ci.variable="<name>=<value>"` | Provide [CI/CD variables](../../ci/variables/index.md) to be used in a CI pipeline, if one is created due to the push. | [12.6](https://gitlab.com/gitlab-org/gitlab/-/issues/27983) |
+| `ci.variable="<name>=<value>"` | Provide [CI/CD variables](../../ci/variables/index.md) to be used in a CI pipeline, if one is created due to the push. Only passes variables to branch pipelines and not [merge request pipelines](../../ci/pipelines/merge_request_pipelines.md). | [12.6](https://gitlab.com/gitlab-org/gitlab/-/issues/27983) |
 
 An example of using `ci.skip`:
 
@@ -61,14 +61,14 @@ time as pushing changes:
 | `merge_request.target=<branch_name>`         | Set the target of the merge request to a particular branch or upstream project, such as: `git push -o merge_request.target=project_path/branch`                                                     | [11.10](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/26752) |
 | `merge_request.merge_when_pipeline_succeeds` | Set the merge request to [merge when its pipeline succeeds](merge_requests/merge_when_pipeline_succeeds.md).    | [11.10](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/26752) |
 | `merge_request.remove_source_branch`         | Set the merge request to remove the source branch when it's merged.                                             | [12.2](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/64320)          |
-| `merge_request.title="<title>"`              | Set the title of the merge request. Ex: `git push -o merge_request.title="The title I want"`.                   | [12.2](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/64320)          |
-| `merge_request.description="<description>"`  | Set the description of the merge request. Ex: `git push -o merge_request.description="The description I want"`. | [12.2](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/64320)          |
-| `merge_request.draft`                        | Mark the merge request as a draft. Ex: `git push -o merge_request.draft`.                                      | [15.0](https://gitlab.com/gitlab-org/gitlab/-/issues/296673)          |
-| `merge_request.milestone="<milestone>"`      | Set the milestone of the merge request. Ex: `git push -o merge_request.milestone="3.0"`.                        | [14.1](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/63960)       |
+| `merge_request.title="<title>"`              | Set the title of the merge request. For example: `git push -o merge_request.title="The title I want"`.                   | [12.2](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/64320)          |
+| `merge_request.description="<description>"`  | Set the description of the merge request. For example: `git push -o merge_request.description="The description I want"`. | [12.2](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/64320)          |
+| `merge_request.draft`                        | Mark the merge request as a draft. For example: `git push -o merge_request.draft`.                                      | [15.0](https://gitlab.com/gitlab-org/gitlab/-/issues/296673)          |
+| `merge_request.milestone="<milestone>"`      | Set the milestone of the merge request. For example: `git push -o merge_request.milestone="3.0"`.                        | [14.1](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/63960)       |
 | `merge_request.label="<label>"`              | Add labels to the merge request. If the label does not exist, it is created. For example, for two labels: `git push -o merge_request.label="label1" -o merge_request.label="label2"`. | [12.3](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/31831) |
 | `merge_request.unlabel="<label>"`            | Remove labels from the merge request. For example, for two labels: `git push -o merge_request.unlabel="label1" -o merge_request.unlabel="label2"`. | [12.3](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/31831) |
-| `merge_request.assign="<user>"`              | Assign users to the merge request. Accepts username or user ID. For example, for two users: `git push -o merge_request.assign="user1" -o merge_request.assign="user2"`. | [13.10](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/25904) |
-| `merge_request.unassign="<user>"`            | Remove assigned users from the merge request. Accepts username or user ID.For example, for two users: `git push -o merge_request.unassign="user1" -o merge_request.unassign="user2"`. | [13.10](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/25904) |
+| `merge_request.assign="<user>"`              | Assign users to the merge request. Accepts username or user ID. For example, for two users: `git push -o merge_request.assign="user1" -o merge_request.assign="user2"`. | [13.10](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/25904), support for usernames added in [15.5](https://gitlab.com/gitlab-org/gitlab/-/issues/344276) |
+| `merge_request.unassign="<user>"`            | Remove assigned users from the merge request. Accepts username or user ID.For example, for two users: `git push -o merge_request.unassign="user1" -o merge_request.unassign="user2"`. | [13.10](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/25904), support for usernames added in [15.5](https://gitlab.com/gitlab-org/gitlab/-/issues/344276) |
 
 If you use a push option that requires text with spaces in it, you need to enclose it
 in quotes (`"`). You can omit the quotes if there are no spaces. Some examples:
@@ -115,13 +115,3 @@ pipeline succeeds:
 ```shell
 git mwps origin <local-branch-name>
 ```
-
-## Troubleshooting
-
-## Push options for merge request assignment ignored
-
-When you push a branch to GitLab, you can use push options to assign to (`merge_request.assign="<USERNAME>"`)
-or unassign from (`merge_request.unassign="<USERNAME>"`) a user. If GitLab creates
-the merge request successfully, but fails to assign or unassign the merge request
-correctly, you can use the user ID instead. For more information, read the issue
-[Push option `merge_request.(un)assign` seems to be ignored](https://gitlab.com/gitlab-org/gitlab/-/issues/325169).

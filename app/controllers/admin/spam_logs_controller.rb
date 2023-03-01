@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 class Admin::SpamLogsController < Admin::ApplicationController
-  feature_category :not_owned # rubocop:todo Gitlab/AvoidFeatureCategoryNotOwned
+  feature_category :instance_resiliency
 
   # rubocop: disable CodeReuse/ActiveRecord
   def index
-    @spam_logs = SpamLog.order(id: :desc).page(params[:page])
+    @spam_logs = SpamLog.includes(:user).order(id: :desc).page(params[:page]).without_count
   end
   # rubocop: enable CodeReuse/ActiveRecord
 
@@ -15,8 +15,8 @@ class Admin::SpamLogsController < Admin::ApplicationController
     if params[:remove_user]
       spam_log.remove_user(deleted_by: current_user)
       redirect_to admin_spam_logs_path,
-                  status: :found,
-                  notice: _('User %{username} was successfully removed.') % { username: spam_log.user.username }
+        status: :found,
+        notice: format(_('User %{username} was successfully removed.'), username: spam_log.user.username)
     else
       spam_log.destroy
       head :ok

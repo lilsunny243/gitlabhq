@@ -41,21 +41,6 @@ module Gitlab
           size
         end
 
-        def _raw_config
-          return @_raw_config if defined?(@_raw_config)
-
-          @_raw_config =
-            begin
-              if filename = config_file_name
-                ERB.new(File.read(filename)).result.freeze
-              else
-                false
-              end
-            rescue Errno::ENOENT
-              false
-            end
-        end
-
         def config_file_path(filename)
           path = File.join(rails_root, 'config', filename)
           return path if File.file?(path)
@@ -67,10 +52,6 @@ module Gitlab
           File.expand_path('../../..', __dir__)
         end
 
-        def config_fallback?
-          config_file_name == config_fallback&.config_file_name
-        end
-
         def config_file_name
           [
             # Instance specific config sources:
@@ -78,17 +59,16 @@ module Gitlab
             config_file_path("redis.#{store_name.underscore}.yml"),
 
             # The current Redis instance may have been split off from another one
-            # (e.g. TraceChunks was split off from SharedState). There are
-            # installations out there where the lowest priority config source
-            # (resque.yml) contains bogus values. In those cases, config_file_name
-            # should resolve to the instance we originated from (the
-            # "config_fallback") rather than resque.yml.
+            # (e.g. TraceChunks was split off from SharedState).
             config_fallback&.config_file_name,
 
             # Global config sources:
-            ENV['GITLAB_REDIS_CONFIG_FILE'],
-            config_file_path('resque.yml')
+            ENV['GITLAB_REDIS_CONFIG_FILE']
           ].compact.first
+        end
+
+        def redis_yml_path
+          File.join(rails_root, 'config/redis.yml')
         end
 
         def store_name
@@ -144,10 +124,19 @@ module Gitlab
 
       def redis_store_options
         config = raw_config_hash
+        config[:instrumentation_class] ||= self.class.instrumentation_class
+
+        if config[:cluster].present?
+          config[:db] = 0 # Redis Cluster only supports db 0
+          config
+        else
+          parse_redis_url(config)
+        end
+      end
+
+      def parse_redis_url(config)
         redis_url = config.delete(:url)
         redis_uri = URI.parse(redis_url)
-
-        config[:instrumentation_class] ||= self.class.instrumentation_class
 
         if redis_uri.scheme == 'unix'
           # Redis::Store does not handle Unix sockets well, so let's do it for them
@@ -178,7 +167,7 @@ module Gitlab
             { url: '' }
           end
 
-        if config_hash[:url].blank?
+        if config_hash[:url].blank? && config_hash[:cluster].blank?
           config_hash[:url] = legacy_fallback_urls[self.class.store_name] || legacy_fallback_urls[self.class.config_fallback.store_name]
         end
 
@@ -203,16 +192,26 @@ module Gitlab
       end
 
       def fetch_config
-        return false unless self.class._raw_config
+        redis_yml = read_yaml(self.class.redis_yml_path).fetch(@rails_env, {})
+        instance_config_yml = read_yaml(self.class.config_file_name)[@rails_env]
+        resque_yml = read_yaml(self.class.config_file_path('resque.yml'))[@rails_env]
 
-        yaml = YAML.safe_load(self.class._raw_config, aliases: true)
+        [
+          redis_yml[self.class.store_name.underscore],
+          # There are installations out there where the lowest priority config source (resque.yml) contains bogus
+          # values. In those cases, the configuration should be read for the instance we originated from (the
+          # "config_fallback"), either from its specific config file or from redis.yml, before falling back to
+          # resque.yml.
+          instance_config_yml,
+          self.class.config_fallback && redis_yml[self.class.config_fallback.store_name.underscore],
+          resque_yml
+        ].compact.first
+      end
 
-        # If the file has content but it's invalid YAML, `load` returns false
-        if yaml
-          yaml.fetch(@rails_env, false)
-        else
-          false
-        end
+      def read_yaml(path)
+        YAML.safe_load(ERB.new(File.read(path.to_s)).result, aliases: true) || {}
+      rescue Errno::ENOENT
+        {}
       end
     end
   end

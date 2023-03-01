@@ -2,11 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Update a work item' do
+RSpec.describe 'Update a work item', feature_category: :team_planning do
   include GraphqlHelpers
 
-  let_it_be(:project) { create(:project) }
+  let_it_be(:group) { create(:group) }
+  let_it_be(:project) { create(:project, group: group) }
   let_it_be(:developer) { create(:user).tap { |user| project.add_developer(user) } }
+  let_it_be(:reporter) { create(:user).tap { |user| project.add_reporter(user) } }
+  let_it_be(:guest) { create(:user).tap { |user| project.add_guest(user) } }
   let_it_be(:work_item, refind: true) { create(:work_item, project: project) }
 
   let(:work_item_event) { 'CLOSE' }
@@ -124,7 +127,9 @@ RSpec.describe 'Update a work item' do
       let(:fields) do
         <<~FIELDS
         workItem {
+          title
           description
+          state
           widgets {
             type
             ... on WorkItemWidgetDescription {
@@ -144,7 +149,133 @@ RSpec.describe 'Update a work item' do
       end
     end
 
-    context 'with due and start date widget input' do
+    context 'with labels widget input' do
+      shared_examples 'mutation updating work item labels' do
+        it 'updates labels' do
+          expect do
+            post_graphql_mutation(mutation, current_user: current_user)
+            work_item.reload
+          end.to change { work_item.labels.count }.to(expected_labels.count)
+
+          expect(work_item.labels).to match_array(expected_labels)
+          expect(mutation_response['workItem']['widgets']).to include(
+            'labels' => {
+              'nodes' => match_array(expected_labels.map { |l| { 'id' => l.to_gid.to_s } })
+            },
+            'type' => 'LABELS'
+          )
+        end
+      end
+
+      let_it_be(:existing_label) { create(:label, project: project) }
+      let_it_be(:label1) { create(:label, project: project) }
+      let_it_be(:label2) { create(:label, project: project) }
+
+      let(:fields) do
+        <<~FIELDS
+          workItem {
+            widgets {
+              type
+              ... on WorkItemWidgetLabels {
+                labels {
+                  nodes { id }
+                }
+              }
+              ... on WorkItemWidgetDescription {
+                description
+              }
+            }
+          }
+          errors
+        FIELDS
+      end
+
+      let(:input) do
+        { 'labelsWidget' => { 'addLabelIds' => add_label_ids, 'removeLabelIds' => remove_label_ids } }
+      end
+
+      let(:add_label_ids) { [] }
+      let(:remove_label_ids) { [] }
+
+      before_all do
+        work_item.update!(labels: [existing_label])
+      end
+
+      context 'when only removing labels' do
+        let(:remove_label_ids) { [existing_label.to_gid.to_s] }
+        let(:expected_labels) { [] }
+
+        it_behaves_like 'mutation updating work item labels'
+
+        context 'with quick action' do
+          let(:input) { { 'descriptionWidget' => { 'description' => "/remove_label ~\"#{existing_label.name}\"" } } }
+
+          it_behaves_like 'mutation updating work item labels'
+        end
+      end
+
+      context 'when only adding labels' do
+        let(:add_label_ids) { [label1.to_gid.to_s, label2.to_gid.to_s] }
+        let(:expected_labels) { [label1, label2, existing_label] }
+
+        it_behaves_like 'mutation updating work item labels'
+
+        context 'with quick action' do
+          let(:input) do
+            { 'descriptionWidget' => { 'description' => "/labels ~\"#{label1.name}\" ~\"#{label2.name}\"" } }
+          end
+
+          it_behaves_like 'mutation updating work item labels'
+        end
+      end
+
+      context 'when adding and removing labels' do
+        let(:remove_label_ids) { [existing_label.to_gid.to_s] }
+        let(:add_label_ids) { [label1.to_gid.to_s, label2.to_gid.to_s] }
+        let(:expected_labels) { [label1, label2] }
+
+        it_behaves_like 'mutation updating work item labels'
+
+        context 'with quick action' do
+          let(:input) do
+            { 'descriptionWidget' => { 'description' =>
+                  "/label ~\"#{label1.name}\" ~\"#{label2.name}\"\n/remove_label ~\"#{existing_label.name}\"" } }
+          end
+
+          it_behaves_like 'mutation updating work item labels'
+        end
+      end
+
+      context 'when the work item type does not support labels widget' do
+        let_it_be(:work_item) { create(:work_item, :task, project: project) }
+
+        let(:input) { { 'descriptionWidget' => { 'description' => "Updating labels.\n/labels ~\"#{label1.name}\"" } } }
+
+        before do
+          WorkItems::Type.default_by_type(:task).widget_definitions
+            .find_by_widget_type(:labels).update!(disabled: true)
+        end
+
+        it 'ignores the quick action' do
+          expect do
+            post_graphql_mutation(mutation, current_user: current_user)
+            work_item.reload
+          end.not_to change(work_item.labels, :count)
+
+          expect(work_item.labels).to be_empty
+          expect(mutation_response['workItem']['widgets']).to include(
+            'description' => "Updating labels.",
+            'type' => 'DESCRIPTION'
+          )
+          expect(mutation_response['workItem']['widgets']).not_to include(
+            'labels',
+            'type' => 'LABELS'
+          )
+        end
+      end
+    end
+
+    context 'with due and start date widget input', :freeze_time do
       let(:start_date) { Date.today }
       let(:due_date) { 1.week.from_now.to_date }
       let(:fields) do
@@ -155,6 +286,9 @@ RSpec.describe 'Update a work item' do
               ... on WorkItemWidgetStartAndDueDate {
                 startDate
                 dueDate
+              }
+              ... on WorkItemWidgetDescription {
+                description
               }
             }
           }
@@ -182,6 +316,81 @@ RSpec.describe 'Update a work item' do
             'type' => 'START_AND_DUE_DATE'
           }
         )
+      end
+
+      context 'when using quick action' do
+        let(:due_date) { Date.today }
+
+        context 'when removing due date' do
+          let(:input) { { 'descriptionWidget' => { 'description' => "/remove_due_date" } } }
+
+          before do
+            work_item.update!(due_date: due_date)
+          end
+
+          it 'updates start and due date' do
+            expect do
+              post_graphql_mutation(mutation, current_user: current_user)
+              work_item.reload
+            end.to not_change(work_item, :start_date).and(
+              change(work_item, :due_date).from(due_date).to(nil)
+            )
+
+            expect(response).to have_gitlab_http_status(:success)
+            expect(mutation_response['workItem']['widgets']).to include({
+              'startDate' => nil,
+              'dueDate' => nil,
+              'type' => 'START_AND_DUE_DATE'
+            })
+          end
+        end
+
+        context 'when setting due date' do
+          let(:input) { { 'descriptionWidget' => { 'description' => "/due today" } } }
+
+          it 'updates due date' do
+            expect do
+              post_graphql_mutation(mutation, current_user: current_user)
+              work_item.reload
+            end.to not_change(work_item, :start_date).and(
+              change(work_item, :due_date).from(nil).to(due_date)
+            )
+
+            expect(response).to have_gitlab_http_status(:success)
+            expect(mutation_response['workItem']['widgets']).to include({
+              'startDate' => nil,
+              'dueDate' => Date.today.to_s,
+              'type' => 'START_AND_DUE_DATE'
+            })
+          end
+        end
+
+        context 'when the work item type does not support start and due date widget' do
+          let_it_be(:work_item) { create(:work_item, :task, project: project) }
+
+          let(:input) { { 'descriptionWidget' => { 'description' => "Updating due date.\n/due today" } } }
+
+          before do
+            WorkItems::Type.default_by_type(:task).widget_definitions
+              .find_by_widget_type(:start_and_due_date).update!(disabled: true)
+          end
+
+          it 'ignores the quick action' do
+            expect do
+              post_graphql_mutation(mutation, current_user: current_user)
+              work_item.reload
+            end.not_to change(work_item, :due_date)
+
+            expect(mutation_response['workItem']['widgets']).to include(
+              'description' => "Updating due date.",
+              'type' => 'DESCRIPTION'
+            )
+            expect(mutation_response['workItem']['widgets']).not_to include({
+              'dueDate' => nil,
+              'type' => 'START_AND_DUE_DATE'
+            })
+          end
+        end
       end
 
       context 'when provided input is invalid' do
@@ -264,7 +473,7 @@ RSpec.describe 'Update a work item' do
         let_it_be(:invalid_parent) { create(:work_item, :task, project: project) }
 
         context 'when parent work item type is invalid' do
-          let(:error) { "#{work_item.to_reference} cannot be added: only Issue and Incident can be parent of Task." }
+          let(:error) { "#{work_item.to_reference} cannot be added: is not allowed to add this type of parent" }
           let(:input) do
             { 'hierarchyWidget' => { 'parentId' => invalid_parent.to_global_id.to_s }, 'title' => 'new title' }
           end
@@ -375,7 +584,7 @@ RSpec.describe 'Update a work item' do
 
         let(:input) { { 'hierarchyWidget' => { 'childrenIds' => children_ids } } }
         let(:error) do
-          "#{invalid_child.to_reference} cannot be added: only Task can be assigned as a child in hierarchy."
+          "#{invalid_child.to_reference} cannot be added: is not allowed to add this type of parent"
         end
 
         context 'when child work item type is invalid' do
@@ -414,10 +623,10 @@ RSpec.describe 'Update a work item' do
             expect(response).to have_gitlab_http_status(:success)
             expect(widgets_response).to include(
               {
-                'children' => { 'edges' => [
+                'children' => { 'edges' => match_array([
                   { 'node' => { 'id' => valid_child2.to_global_id.to_s } },
                   { 'node' => { 'id' => valid_child1.to_global_id.to_s } }
-                ] },
+                ]) },
                 'parent' => nil,
                 'type' => 'HIERARCHY'
               }
@@ -440,6 +649,9 @@ RSpec.describe 'Update a work item' do
                   username
                 }
               }
+            }
+            ... on WorkItemWidgetDescription {
+              description
             }
           }
         }
@@ -469,10 +681,170 @@ RSpec.describe 'Update a work item' do
           }
         )
       end
+
+      context 'when using quick action' do
+        context 'when assigning a user' do
+          let(:input) { { 'descriptionWidget' => { 'description' => "/assign @#{developer.username}" } } }
+
+          it 'updates the work item assignee' do
+            expect do
+              post_graphql_mutation(mutation, current_user: current_user)
+              work_item.reload
+            end.to change(work_item, :assignee_ids).from([]).to([developer.id])
+
+            expect(response).to have_gitlab_http_status(:success)
+            expect(mutation_response['workItem']['widgets']).to include(
+              {
+                'type' => 'ASSIGNEES',
+                'assignees' => {
+                  'nodes' => [
+                    { 'id' => developer.to_global_id.to_s, 'username' => developer.username }
+                  ]
+                }
+              }
+            )
+          end
+        end
+
+        context 'when unassigning a user' do
+          let(:input) { { 'descriptionWidget' => { 'description' => "/unassign @#{developer.username}" } } }
+
+          before do
+            work_item.update!(assignee_ids: [developer.id])
+          end
+
+          it 'updates the work item assignee' do
+            expect do
+              post_graphql_mutation(mutation, current_user: current_user)
+              work_item.reload
+            end.to change(work_item, :assignee_ids).from([developer.id]).to([])
+
+            expect(response).to have_gitlab_http_status(:success)
+            expect(mutation_response['workItem']['widgets']).to include(
+              'type' => 'ASSIGNEES',
+              'assignees' => {
+                'nodes' => []
+              }
+            )
+          end
+        end
+      end
+
+      context 'when the work item type does not support the assignees widget' do
+        let_it_be(:work_item) { create(:work_item, :task, project: project) }
+
+        let(:input) do
+          { 'descriptionWidget' => { 'description' => "Updating assignee.\n/assign @#{developer.username}" } }
+        end
+
+        before do
+          WorkItems::Type.default_by_type(:task).widget_definitions
+            .find_by_widget_type(:assignees).update!(disabled: true)
+        end
+
+        it 'ignores the quick action' do
+          expect do
+            post_graphql_mutation(mutation, current_user: current_user)
+            work_item.reload
+          end.not_to change(work_item, :assignee_ids)
+
+          expect(mutation_response['workItem']['widgets']).to include({
+            'description' => "Updating assignee.",
+            'type' => 'DESCRIPTION'
+          }
+                                                                     )
+          expect(mutation_response['workItem']['widgets']).not_to include({ 'type' => 'ASSIGNEES' })
+        end
+      end
+    end
+
+    context 'when updating milestone' do
+      let_it_be(:project_milestone) { create(:milestone, project: project) }
+      let_it_be(:group_milestone) { create(:milestone, project: project) }
+
+      let(:input) { { 'milestoneWidget' => { 'milestoneId' => new_milestone&.to_global_id&.to_s } } }
+
+      let(:fields) do
+        <<~FIELDS
+        workItem {
+          widgets {
+            type
+            ... on WorkItemWidgetMilestone {
+              milestone {
+                id
+              }
+            }
+          }
+        }
+        errors
+        FIELDS
+      end
+
+      shared_examples "work item's milestone is updated" do
+        it "updates the work item's milestone" do
+          expect do
+            post_graphql_mutation(mutation, current_user: current_user)
+
+            work_item.reload
+          end.to change(work_item, :milestone).from(old_milestone).to(new_milestone)
+
+          expect(response).to have_gitlab_http_status(:success)
+        end
+      end
+
+      shared_examples "work item's milestone is not updated" do
+        it "ignores the update request" do
+          expect do
+            post_graphql_mutation(mutation, current_user: current_user)
+
+            work_item.reload
+          end.to not_change(work_item, :milestone)
+
+          expect(response).to have_gitlab_http_status(:success)
+        end
+      end
+
+      context 'when user cannot set work item metadata' do
+        let(:current_user) { guest }
+        let(:old_milestone) { nil }
+
+        it_behaves_like "work item's milestone is not updated" do
+          let(:new_milestone) { project_milestone }
+        end
+      end
+
+      context 'when user can set work item metadata' do
+        let(:current_user) { reporter }
+
+        context 'when assigning a project milestone' do
+          it_behaves_like "work item's milestone is updated" do
+            let(:old_milestone) { nil }
+            let(:new_milestone) { project_milestone }
+          end
+        end
+
+        context 'when assigning a group milestone' do
+          it_behaves_like "work item's milestone is updated" do
+            let(:old_milestone) { nil }
+            let(:new_milestone) { group_milestone }
+          end
+        end
+
+        context "when unsetting the work item's milestone" do
+          it_behaves_like "work item's milestone is updated" do
+            let(:old_milestone) { group_milestone }
+            let(:new_milestone) { nil }
+
+            before do
+              work_item.update!(milestone: old_milestone)
+            end
+          end
+        end
+      end
     end
 
     context 'when unsupported widget input is sent' do
-      let_it_be(:test_case) { create(:work_item_type, :default, :test_case, name: 'some_test_case_name') }
+      let_it_be(:test_case) { create(:work_item_type, :default, :test_case) }
       let_it_be(:work_item) { create(:work_item, work_item_type: test_case, project: project) }
 
       let(:input) do
@@ -482,22 +854,7 @@ RSpec.describe 'Update a work item' do
       end
 
       it_behaves_like 'a mutation that returns top-level errors',
-        errors: ["Following widget keys are not supported by some_test_case_name type: [:hierarchy_widget]"]
-    end
-
-    context 'when the work_items feature flag is disabled' do
-      before do
-        stub_feature_flags(work_items: false)
-      end
-
-      it 'does not update the work item and returns and error' do
-        expect do
-          post_graphql_mutation(mutation, current_user: current_user)
-          work_item.reload
-        end.to not_change(work_item, :title)
-
-        expect(mutation_response['errors']).to contain_exactly('`work_items` feature flag disabled for this project')
-      end
+        errors: ["Following widget keys are not supported by Test Case type: [:hierarchy_widget]"]
     end
   end
 end

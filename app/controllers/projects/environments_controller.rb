@@ -5,15 +5,19 @@ class Projects::EnvironmentsController < Projects::ApplicationController
   # into app/controllers/projects/metrics_dashboard_controller.rb
   # See https://gitlab.com/gitlab-org/gitlab/-/issues/226002 for more details.
 
+  MIN_SEARCH_LENGTH = 3
+
   include MetricsDashboard
+  include ProductAnalyticsTracking
 
   layout 'project'
 
   before_action only: [:metrics, :additional_metrics, :metrics_dashboard] do
     authorize_metrics_dashboard!
+  end
 
-    push_frontend_feature_flag(:prometheus_computed_alerts)
-    push_frontend_feature_flag(:disable_metric_dashboard_refresh_rate)
+  before_action only: [:show] do
+    push_frontend_feature_flag(:environment_details_vue, @project)
   end
 
   before_action :authorize_read_environment!, except: [:metrics, :additional_metrics, :metrics_dashboard, :metrics_redirect]
@@ -26,6 +30,9 @@ class Projects::EnvironmentsController < Projects::ApplicationController
   before_action :expire_etag_cache, only: [:index], unless: -> { request.format.json? }
   after_action :expire_etag_cache, only: [:cancel_auto_stop]
 
+  track_event :index, :folder, :show, :new, :edit, :create, :update, :stop, :cancel_auto_stop, :terminal,
+    name: 'users_visiting_environments_pages'
+
   feature_category :continuous_delivery
   urgency :low
 
@@ -35,15 +42,14 @@ class Projects::EnvironmentsController < Projects::ApplicationController
     respond_to do |format|
       format.html
       format.json do
-        @environments = project.environments
-          .with_state(params[:scope] || :available)
+        @environments = search_environments.with_state(params[:scope] || :available)
+        environments_count_by_state = search_environments.count_by_state
 
         Gitlab::PollingInterval.set_header(response, interval: 3_000)
-        environments_count_by_state = project.environments.count_by_state
-
         render json: {
           environments: serialize_environments(request, response, params[:nested]),
           review_app: serialize_review_app,
+          can_stop_stale_environments: can?(current_user, :stop_environment, @project),
           available_count: environments_count_by_state[:available],
           stopped_count: environments_count_by_state[:stopped]
         }
@@ -59,7 +65,8 @@ class Projects::EnvironmentsController < Projects::ApplicationController
     respond_to do |format|
       format.html
       format.json do
-        folder_environments = project.environments.where(environment_type: params[:id])
+        folder_environments = search_environments(type: params[:id])
+
         @environments = folder_environments.with_state(params[:scope] || :available)
           .order(:name)
 
@@ -169,7 +176,7 @@ class Projects::EnvironmentsController < Projects::ApplicationController
   def metrics
     respond_to do |format|
       format.html do
-        redirect_to project_metrics_dashboard_path(project, environment: environment )
+        redirect_to project_metrics_dashboard_path(project, environment: environment)
       end
       format.json do
         # Currently, this acts as a hint to load the metrics details into the cache
@@ -236,6 +243,12 @@ class Projects::EnvironmentsController < Projects::ApplicationController
     @environment ||= project.environments.find(params[:id])
   end
 
+  def search_environments(type: nil)
+    search = params[:search] if params[:search] && params[:search].length >= MIN_SEARCH_LENGTH
+
+    @search_environments ||= Environments::EnvironmentsFinder.new(project, current_user, type: type, search: search).execute
+  end
+
   def metrics_params
     params.require([:start, :end])
   end
@@ -274,6 +287,16 @@ class Projects::EnvironmentsController < Projects::ApplicationController
 
   def authorize_update_environment!
     access_denied! unless can?(current_user, :update_environment, environment)
+  end
+
+  def append_info_to_payload(payload)
+    super
+
+    return unless Feature.enabled?(:environments_search_logging) && params[:search].present?
+
+    # Merging to :metadata will ensure these are logged as top level keys
+    payload[:metadata] ||= {}
+    payload[:metadata]['meta.environment.search'] = params[:search]
   end
 end
 

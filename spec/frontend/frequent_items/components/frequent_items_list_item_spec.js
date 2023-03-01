@@ -1,7 +1,7 @@
-import { GlButton } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
-import Vue from 'vue';
+import { GlIcon } from '@gitlab/ui';
+import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { trimText } from 'helpers/text_helper';
 import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import frequentItemsListItemComponent from '~/frequent_items/components/frequent_items_list_item.vue';
@@ -12,22 +12,30 @@ import { mockProject } from '../mock_data';
 Vue.use(Vuex);
 
 describe('FrequentItemsListItemComponent', () => {
+  const TEST_VUEX_MODULE = 'frequentProjects';
   let wrapper;
   let trackingSpy;
   let store;
 
-  const findTitle = () => wrapper.find({ ref: 'frequentItemsItemTitle' });
+  const findTitle = () => wrapper.findByTestId('frequent-items-item-title');
   const findAvatar = () => wrapper.findComponent(ProjectAvatar);
-  const findAllTitles = () => wrapper.findAll({ ref: 'frequentItemsItemTitle' });
-  const findNamespace = () => wrapper.find({ ref: 'frequentItemsItemNamespace' });
-  const findAllButtons = () => wrapper.findAllComponents(GlButton);
-  const findAllNamespace = () => wrapper.findAll({ ref: 'frequentItemsItemNamespace' });
+  const findAllTitles = () => wrapper.findAllByTestId('frequent-items-item-title');
+  const findNamespace = () => wrapper.findByTestId('frequent-items-item-namespace');
+  const findAllFrequentItems = () => wrapper.findAllByTestId('frequent-item-link');
+  const findAllNamespace = () => wrapper.findAllByTestId('frequent-items-item-namespace');
   const findAllAvatars = () => wrapper.findAllComponents(ProjectAvatar);
   const findAllMetadataContainers = () =>
-    wrapper.findAll({ ref: 'frequentItemsItemMetadataContainer' });
+    wrapper.findAllByTestId('frequent-items-item-metadata-container');
+  const findRemoveButton = () => wrapper.findByTestId('item-remove');
+
+  const toggleItemsListEditablity = async () => {
+    store.dispatch(`${TEST_VUEX_MODULE}/toggleItemsListEditablity`);
+
+    await nextTick();
+  };
 
   const createComponent = (props = {}) => {
-    wrapper = shallowMount(frequentItemsListItemComponent, {
+    wrapper = shallowMountExtended(frequentItemsListItemComponent, {
       store,
       propsData: {
         itemId: mockProject.id,
@@ -38,7 +46,7 @@ describe('FrequentItemsListItemComponent', () => {
         ...props,
       },
       provide: {
-        vuexModule: 'frequentProjects',
+        vuexModule: TEST_VUEX_MODULE,
       },
     });
   };
@@ -102,7 +110,7 @@ describe('FrequentItemsListItemComponent', () => {
 
     it.each`
       name                    | selector                     | expected
-      ${'button'}             | ${findAllButtons}            | ${1}
+      ${'list item'}          | ${findAllFrequentItems}      | ${1}
       ${'avatar container'}   | ${findAllAvatars}            | ${1}
       ${'metadata container'} | ${findAllMetadataContainers} | ${1}
       ${'title'}              | ${findAllTitles}             | ${1}
@@ -111,13 +119,43 @@ describe('FrequentItemsListItemComponent', () => {
       expect(selector()).toHaveLength(expected);
     });
 
+    it('renders remove button within item when `isItemsListEditable` is true', async () => {
+      await toggleItemsListEditablity();
+
+      const removeButton = findRemoveButton();
+      expect(removeButton.exists()).toBe(true);
+      expect(removeButton.attributes('title')).toBe('Remove');
+      expect(removeButton.findComponent(GlIcon).props('name')).toBe('close');
+    });
+
+    it('dispatches action `removeFrequentItem` when remove button is clicked', async () => {
+      await toggleItemsListEditablity();
+
+      jest.spyOn(store, 'dispatch');
+
+      const removeButton = findRemoveButton();
+      removeButton.vm.$emit(
+        'click',
+        { stopPropagation: jest.fn(), preventDefault: jest.fn() },
+        mockProject.id,
+      );
+
+      await nextTick();
+
+      expect(store.dispatch).toHaveBeenCalledWith(
+        `${TEST_VUEX_MODULE}/removeFrequentItem`,
+        mockProject.id,
+      );
+    });
+
     it('tracks when item link is clicked', () => {
-      const link = wrapper.findComponent(GlButton);
+      const link = wrapper.findByTestId('frequent-item-link');
 
       link.vm.$emit('click');
 
       expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_link', {
-        label: 'projects_dropdown_frequent_items_list_item_git_lab_community_edition',
+        label: 'projects_dropdown_frequent_items_list_item',
+        property: 'navigation_top',
       });
     });
   });

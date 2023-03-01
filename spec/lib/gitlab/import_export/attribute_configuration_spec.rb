@@ -9,7 +9,7 @@ require 'spec_helper'
 # to be included as part of the export, or blacklist them using the import_export.yml configuration file.
 # Likewise, new models added to import_export.yml, will need to be added with their correspondent attributes
 # to this spec.
-RSpec.describe 'Import/Export attribute configuration' do
+RSpec.describe 'Import/Export attribute configuration', feature_category: :importers do
   include ConfigurationHelper
 
   let(:safe_attributes_file) { 'spec/lib/gitlab/import_export/safe_model_attributes.yml' }
@@ -18,7 +18,7 @@ RSpec.describe 'Import/Export attribute configuration' do
   it 'has no new columns' do
     relation_names_for(:project).each do |relation_name|
       relation_class = relation_class_for_name(relation_name)
-      relation_attributes = relation_class.new.attributes.keys - relation_class.encrypted_attributes.keys.map(&:to_s)
+      relation_attributes = relation_class.new.attributes.keys - relation_class.attr_encrypted_attributes.keys.map(&:to_s)
 
       current_attributes = parsed_attributes(relation_name, relation_attributes)
       safe_attributes = safe_model_attributes[relation_class.to_s].dup || []

@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create a Pages website from a template **(FREE)**
@@ -25,6 +25,11 @@ configured to generate a Pages site.
 
 When the pipeline is finished, go to **Settings > Pages** to find the link to
 your Pages website.
+If this path is not visible, select **Deployments > Pages**.
+[This location is part of an experiment](../index.md#menu-position-test).
 
 For every change pushed to your repository, GitLab CI/CD runs a new pipeline
 that immediately publishes your changes to the Pages site.
+
+To view the HTML and other assets that were created for the site,
+[download the job artifacts](../../../../ci/pipelines/job_artifacts.md#download-job-artifacts).

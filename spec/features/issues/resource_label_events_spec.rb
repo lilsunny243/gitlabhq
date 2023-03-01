@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'List issue resource label events', :js do
+RSpec.describe 'List issue resource label events', :js, feature_category: :team_planning do
   let(:user)     { create(:user) }
   let(:project)  { create(:project, :public) }
   let(:issue)    { create(:issue, project: project, author: user) }
@@ -21,13 +21,7 @@ RSpec.describe 'List issue resource label events', :js do
     it 'shows both notes and resource label events' do
       page.within('#notes') do
         expect(find("#note_#{note.id}")).to have_content 'some note'
-        expect(find("#note_#{event.discussion_id}")).to have_content 'added foo label'
-      end
-    end
-
-    it 'shows the user status on the system note for the label' do
-      page.within("#note_#{event.discussion_id}") do
-        expect(page).to show_user_status user_status
+        expect(find("#note_#{event.reload.discussion_id}")).to have_content 'added foo label'
       end
     end
   end

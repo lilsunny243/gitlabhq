@@ -74,50 +74,6 @@ module BlobHelper
                     ref)
   end
 
-  def modify_file_button(project = @project, ref = @ref, path = @path, blob:, label:, action:, btn_class:, modal_type:)
-    return unless current_user
-    return unless blob
-
-    common_classes = "btn gl-button btn-default btn-#{btn_class}"
-    base_button = button_tag(label, class: "#{common_classes} disabled", disabled: true)
-
-    if !on_top_of_branch?(project, ref)
-      modify_file_button_tooltip(base_button, _("You can only %{action} files when you are on a branch") % { action: action })
-    elsif blob.stored_externally?
-      modify_file_button_tooltip(base_button, _("It is not possible to %{action} files that are stored in LFS using the web interface") % { action: action })
-    elsif can_modify_blob?(blob, project, ref)
-      button_tag label, class: "#{common_classes}", 'data-target' => "#modal-#{modal_type}-blob", 'data-toggle' => 'modal'
-    elsif can?(current_user, :fork_project, project) && can?(current_user, :create_merge_request_in, project)
-      edit_fork_button_tag(common_classes, project, label, edit_modify_file_fork_params(action), action)
-    end
-  end
-
-  def replace_blob_link(project = @project, ref = @ref, path = @path, blob:)
-    modify_file_button(
-      project,
-      ref,
-      path,
-      blob: blob,
-      label: _("Replace"),
-      action: "replace",
-      btn_class: "default",
-      modal_type: "upload"
-    )
-  end
-
-  def delete_blob_link(project = @project, ref = @ref, path = @path, blob:)
-    modify_file_button(
-      project,
-      ref,
-      path,
-      blob: blob,
-      label: _("Delete"),
-      action: "delete",
-      btn_class: "default",
-      modal_type: "remove"
-    )
-  end
-
   def can_modify_blob?(blob, project = @project, ref = @ref)
     !blob.stored_externally? && can_edit_tree?(project, ref)
   end
@@ -157,7 +113,7 @@ module BlobHelper
   end
 
   def parent_dir_raw_path
-    blob_raw_path.rpartition("/").first + "/"
+    "#{blob_raw_path.rpartition('/').first}/"
   end
 
   # SVGs can contain malicious JavaScript; only include whitelisted
@@ -339,7 +295,7 @@ module BlobHelper
   end
 
   def edit_link_tag(link_text, edit_path, common_classes)
-    link_to link_text, edit_path, class: "#{common_classes}"
+    link_to link_text, edit_path, class: common_classes
   end
 
   def edit_button_tag(blob, common_classes, text, edit_path, project, ref)
@@ -371,13 +327,5 @@ module BlobHelper
   def editing_ci_config?
     @path.to_s.end_with?(Ci::Pipeline::CONFIG_EXTENSION) ||
       @path.to_s == @project.ci_config_path_or_default
-  end
-
-  private
-
-  def modify_file_button_tooltip(button, tooltip_message)
-    # Disabled buttons with tooltips should have the tooltip attached
-    # to a wrapper element https://bootstrap-vue.org/docs/components/tooltip#disabled-elements
-    content_tag(:span, button, class: 'btn-group has-tooltip', title: tooltip_message, data: { container: 'body' })
   end
 end

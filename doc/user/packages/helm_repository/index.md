@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Helm charts in the Package Registry **(FREE)**
@@ -30,7 +30,7 @@ Read more in the Helm documentation about these topics:
 
 To authenticate to the Helm repository, you need either:
 
-- A [personal access token](../../../api/index.md#personalprojectgroup-access-tokens) with the scope set to `api`.
+- A [personal access token](../../../api/rest/index.md#personalprojectgroup-access-tokens) with the scope set to `api`.
 - A [deploy token](../../project/deploy_tokens/index.md) with the scope set to `read_package_registry`, `write_package_registry`, or both.
 - A [CI/CD job token](../../../ci/jobs/ci_job_token.md).
 
@@ -54,7 +54,7 @@ Once built, a chart can be uploaded to the desired channel with `curl` or `helm 
   - `<username>`: the GitLab username or the deploy token username.
   - `<access_token>`: the personal access token or the deploy token.
   - `<project_id>`: the project ID (like `42`) or the
-    [URL-encoded](../../../api/index.md#namespaced-path-encoding) path of the project (like `group%2Fproject`).
+    [URL-encoded](../../../api/rest/index.md#namespaced-path-encoding) path of the project (like `group%2Fproject`).
   - `<channel>`: the name of the channel (like `stable`).
 
 - With the [`helm cm-push`](https://github.com/chartmuseum/helm-push/#readme) plugin:
@@ -72,7 +72,7 @@ Once built, a chart can be uploaded to the desired channel with `curl` or `helm 
 ### Release channels
 
 You can publish Helm charts to channels in GitLab. Channels are a method you can use to differentiate Helm chart repositories.
-For example, you can use `stable` and `devel` as channels to allow users to add the `stable` repo while `devel` charts are isolated.
+For example, you can use `stable` and `devel` as channels to allow users to add the `stable` repository while `devel` charts are isolated.
 
 ## Use CI/CD to publish a Helm package
 
@@ -100,7 +100,7 @@ upload:
 ## Install a package
 
 NOTE:
-When requesting a package, GitLab considers only the 300 most recent packages created.
+When requesting a package, GitLab considers only the 1000 most recent packages created.
 For each package, only the most recent package file is returned.
 
 To install the latest version of a chart, use the following command:
@@ -133,6 +133,8 @@ Check the [Sidekiq log](../../../administration/logs/index.md#sidekiqlog)
 for any related errors. If you see `Validation failed: Version is invalid`, it means that the
 version in your `Chart.yaml` file does not follow [Helm Chart versioning specifications](https://helm.sh/docs/topics/charts/#charts-and-versioning).
 To fix the error, use the correct version syntax and upload the chart again.
+
+Support for providing better error messages for package processing errors in the UI is proposed in issue [330515](https://gitlab.com/gitlab-org/gitlab/-/issues/330515).
 
 ### `helm push` results in an error
 

@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe "Admin > Admin sees background migrations" do
+RSpec.describe "Admin > Admin sees background migrations", feature_category: :database do
+  include ListboxHelpers
+
   let_it_be(:admin) { create(:admin) }
   let(:job_class) { Gitlab::BackgroundMigration::CopyColumnUsingBackgroundMigrationJob }
 
@@ -90,11 +92,11 @@ RSpec.describe "Admin > Admin sees background migrations" do
       expect(page).not_to have_content('Paused')
       expect(page).to have_content('Active')
 
-      click_button('Pause')
+      click_on('Pause')
       expect(page).not_to have_content('Active')
       expect(page).to have_content('Paused')
 
-      click_button('Resume')
+      click_on('Resume')
       expect(page).not_to have_content('Paused')
       expect(page).to have_content('Active')
     end
@@ -121,7 +123,7 @@ RSpec.describe "Admin > Admin sees background migrations" do
         tab = find_link 'Failed'
         tab.click
 
-        expect(page).to have_selector("[method='post'][action='/admin/background_migrations/#{failed_migration.id}/retry?database=main']")
+        expect(page).to have_selector("[data-method='post'][href='/admin/background_migrations/#{failed_migration.id}/retry?database=main']")
       end
     end
 
@@ -142,7 +144,7 @@ RSpec.describe "Admin > Admin sees background migrations" do
         expect(page).to have_content('0.00%')
         expect(page).to have_content(failed_migration.status_name.to_s)
 
-        click_button('Retry')
+        click_on('Retry')
         expect(page).not_to have_content(failed_migration.job_class_name)
         expect(page).not_to have_content(failed_migration.table_name)
         expect(page).not_to have_content('0.00%')
@@ -170,7 +172,7 @@ RSpec.describe "Admin > Admin sees background migrations" do
   end
 
   it 'can change tabs and retain database param' do
-    skip_if_multiple_databases_not_setup
+    skip_if_multiple_databases_not_setup(:ci)
 
     visit admin_background_migrations_path(database: 'ci')
 
@@ -204,52 +206,37 @@ RSpec.describe "Admin > Admin sees background migrations" do
       it 'does not render the database listbox' do
         visit admin_background_migrations_path
 
-        expect(page).not_to have_selector('[data-testid="database-listbox"]')
+        expect(page).not_to have_button('main')
       end
     end
 
     context 'when multi database is enabled' do
       before do
-        skip_if_multiple_databases_not_setup
+        skip_if_multiple_databases_not_setup(:ci)
 
         allow(Gitlab::Database).to receive(:db_config_names).and_return(%w[main ci])
       end
 
-      it 'does render the database listbox' do
+      it 'renders the database listbox' do
         visit admin_background_migrations_path
 
-        expect(page).to have_selector('[data-testid="database-listbox"]')
-      end
-
-      it 'defaults to main when no parameter is passed' do
-        visit admin_background_migrations_path
-
-        listbox = page.find('[data-testid="database-listbox"]')
-
-        expect(listbox).to have_text('main')
+        expect(page).to have_button('main')
       end
 
       it 'shows correct database when a parameter is passed' do
         visit admin_background_migrations_path(database: 'ci')
 
-        listbox = page.find('[data-testid="database-listbox"]')
-
-        expect(listbox).to have_text('ci')
+        expect(page).to have_button('ci')
       end
 
       it 'updates the path to correct database when clicking on listbox option' do
         visit admin_background_migrations_path
 
-        listbox = page.find('[data-testid="database-listbox"]')
-        expect(listbox).to have_text('main')
-
-        listbox.find('button').click
-        listbox.find('li', text: 'ci').click
-        wait_for_requests
+        click_button 'main'
+        select_listbox_item('ci')
 
         expect(page).to have_current_path(admin_background_migrations_path(database: 'ci'))
-        listbox = page.find('[data-testid="database-listbox"]')
-        expect(listbox).to have_text('ci')
+        expect(page).to have_button('ci')
       end
     end
   end

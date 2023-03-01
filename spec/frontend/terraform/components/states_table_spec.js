@@ -127,14 +127,14 @@ describe('StatesTable', () => {
         propsData,
         provide: { projectPath: 'path/to/project' },
         directives: {
-          GlTooltip: createMockDirective(),
+          GlTooltip: createMockDirective('gl-tooltip'),
         },
       }),
     );
     await nextTick();
   };
 
-  const findActions = () => wrapper.findAll(StateActions);
+  const findActions = () => wrapper.findAllComponents(StateActions);
 
   beforeEach(() => {
     return createComponent();
@@ -160,8 +160,8 @@ describe('StatesTable', () => {
       const state = states.at(lineNumber);
 
       expect(state.text()).toContain(name);
-      expect(state.find(GlBadge).exists()).toBe(hasBadge);
-      expect(state.find(GlLoadingIcon).exists()).toBe(loading);
+      expect(state.findComponent(GlBadge).exists()).toBe(hasBadge);
+      expect(state.findComponent(GlLoadingIcon).exists()).toBe(loading);
 
       if (hasBadge) {
         const badge = wrapper.findByTestId(`state-badge-${name}`);
@@ -198,7 +198,7 @@ describe('StatesTable', () => {
       const states = wrapper.findAll('[data-testid="terraform-states-table-pipeline"]');
       const state = states.at(lineNumber);
 
-      expect(state.find(GlTooltip).exists()).toBe(toolTipAdded);
+      expect(state.findComponent(GlTooltip).exists()).toBe(toolTipAdded);
       expect(state.text()).toMatchInterpolatedText(pipelineText);
     },
   );

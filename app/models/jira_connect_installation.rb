@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class JiraConnectInstallation < ApplicationRecord
+  include Gitlab::Routing
+
   attr_encrypted :shared_secret,
                  mode: :per_attribute_iv,
                  algorithm: 'aes-256-gcm',
@@ -21,7 +23,38 @@ class JiraConnectInstallation < ApplicationRecord
       })
   }
 
+  scope :direct_installations, -> { joins(:subscriptions) }
+  scope :proxy_installations, -> { where.not(instance_url: nil) }
+
   def client
     Atlassian::JiraConnect::Client.new(base_url, shared_secret)
+  end
+
+  def oauth_authorization_url
+    return Gitlab.config.gitlab.url if instance_url.blank?
+
+    instance_url
+  end
+
+  def audience_url
+    return unless proxy?
+
+    Gitlab::Utils.append_path(instance_url, jira_connect_base_path)
+  end
+
+  def audience_installed_event_url
+    return unless proxy?
+
+    Gitlab::Utils.append_path(instance_url, jira_connect_events_installed_path)
+  end
+
+  def audience_uninstalled_event_url
+    return unless proxy?
+
+    Gitlab::Utils.append_path(instance_url, jira_connect_events_uninstalled_path)
+  end
+
+  def proxy?
+    instance_url.present?
   end
 end

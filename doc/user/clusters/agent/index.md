@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Connecting a Kubernetes cluster with GitLab
@@ -12,6 +12,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/3834) in GitLab 13.11, the GitLab agent became available on GitLab.com.
 > - [Moved](https://gitlab.com/groups/gitlab-org/-/epics/6290) from GitLab Premium to GitLab Free in 14.5.
 > - [Renamed](https://gitlab.com/groups/gitlab-org/-/epics/7167) from "GitLab Kubernetes Agent" to "GitLab agent for Kubernetes" in GitLab 14.6.
+> - Flux [recommended](https://gitlab.com/gitlab-org/gitlab/-/issues/357947#note_1253489000) as GitOps solution in GitLab 15.10.
 
 You can connect your Kubernetes cluster with GitLab to deploy, manage,
 and monitor your cloud-native solutions.
@@ -33,20 +34,7 @@ You can choose from two primary workflows. The GitOps workflow is recommended.
 
 ### GitOps workflow
 
-In a [**GitOps** workflow](gitops.md):
-
-- You keep your Kubernetes manifests in GitLab.
-- You install a GitLab agent in your cluster.
-- Any time you update your manifests, the agent updates the cluster.
-- The cluster automatically cleans up unexpected changes. It uses
-  [server-side applies](https://kubernetes.io/docs/reference/using-api/server-side-apply/)
-  to fix any configuration inconsistencies that third parties introduce.
-
-This workflow is fully driven with Git and is considered **pull-based**,
-because the cluster is pulling updates from your GitLab repository.
-
-GitLab recommends this workflow. We are actively investing in this workflow
-so we can provide a first-class experience.
+You should use Flux for GitOps. To get started, see the GitLab [Flux documentation](../../../user/clusters/agent/gitops/flux.md).
 
 ### GitLab CI/CD workflow
 
@@ -69,13 +57,14 @@ This workflow has a weaker security model and is not recommended for production 
 GitLab supports the following Kubernetes versions. You can upgrade your
 Kubernetes version to a supported version at any time:
 
-- 1.24 (support ends on September 22, 2023 or when 1.27 becomes supported)
+- 1.25 (support ends on October 22, 2023 or when 1.28 becomes supported)
+- 1.24 (support ends on July 22, 2023 or when 1.27 becomes supported)
 - 1.23 (support ends on February 22, 2023 or when 1.26 becomes supported)
-- 1.22 (support ends on October 22, 2022)
-- 1.21 (support ends on August 22, 2022)
 
 GitLab aims to support a new minor Kubernetes version three months after its initial release. GitLab supports at least three production-ready Kubernetes minor
 versions at any given time.
+
+When installing the agent, use a Helm version compatible with your Kubernetes version. Other versions of Helm might not work. For a list of compatible versions, see the [Helm version support policy](https://helm.sh/docs/topics/version_skew/).
 
 Support for deprecated APIs can be removed from the GitLab codebase when we drop support for the Kubernetes version that only supports the deprecated API.
 
@@ -91,7 +80,7 @@ Read about how to [migrate to the agent for Kubernetes](../../infrastructure/clu
 - [GitOps examples and learning materials](gitops.md#related-topics)
 - [GitLab CI/CD workflow](ci_cd_workflow.md)
 - [Install the agent](install/index.md)
-- [Work with the agent](repository.md)
+- [Work with the agent](work_with_agent.md)
 - [Troubleshooting](troubleshooting.md)
 - [Guided explorations for a production ready GitOps setup](https://gitlab.com/groups/guided-explorations/gl-k8s-agent/gitops/-/wikis/home#gitlab-agent-for-kubernetes-gitops-working-examples)
 - [CI/CD for Kubernetes examples and learning materials](ci_cd_workflow.md#related-topics)

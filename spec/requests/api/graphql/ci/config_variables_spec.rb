@@ -2,27 +2,28 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Query.project(fullPath).ciConfigVariables(sha)' do
+RSpec.describe 'Query.project(fullPath).ciConfigVariables(sha)', feature_category: :pipeline_composition do
   include GraphqlHelpers
   include ReactiveCachingHelpers
 
-  let_it_be(:project) { create(:project, :repository, :public) }
-  let_it_be(:user) { create(:user) }
   let_it_be(:content) do
     File.read(Rails.root.join('spec/support/gitlab_stubs/gitlab_ci.yml'))
   end
 
-  let(:sha) { project.commit.sha }
+  let_it_be(:project) { create(:project, :custom_repo, :public, files: { '.gitlab-ci.yml' => content }) }
+  let_it_be(:user) { create(:user) }
 
   let(:service) { Ci::ListConfigVariablesService.new(project, user) }
+  let(:ref) { project.default_branch }
 
   let(:query) do
     %(
       query {
         project(fullPath: "#{project.full_path}") {
-          ciConfigVariables(sha: "#{sha}") {
+          ciConfigVariables(sha: "#{ref}") {
             key
             value
+            valueOptions
             description
           }
         }
@@ -33,7 +34,6 @@ RSpec.describe 'Query.project(fullPath).ciConfigVariables(sha)' do
   context 'when the user has the correct permissions' do
     before do
       project.add_maintainer(user)
-      stub_ci_pipeline_yaml_file(content)
       allow(Ci::ListConfigVariablesService)
         .to receive(:new)
         .and_return(service)
@@ -45,17 +45,30 @@ RSpec.describe 'Query.project(fullPath).ciConfigVariables(sha)' do
       end
 
       it 'returns the CI variables for the config' do
+        expect(service)
+          .to receive(:execute)
+          .with(ref)
+          .and_call_original
+
         post_graphql(query, current_user: user)
 
         expect(graphql_data.dig('project', 'ciConfigVariables')).to contain_exactly(
           {
+            'key' => 'KEY_VALUE_VAR',
+            'value' => 'value x',
+            'valueOptions' => nil,
+            'description' => 'value of KEY_VALUE_VAR'
+          },
+          {
             'key' => 'DB_NAME',
             'value' => 'postgres',
+            'valueOptions' => nil,
             'description' => nil
           },
           {
             'key' => 'ENVIRONMENT_VAR',
             'value' => 'env var value',
+            'valueOptions' => ['env var value', 'env var value2'],
             'description' => 'env var description'
           }
         )
@@ -63,8 +76,6 @@ RSpec.describe 'Query.project(fullPath).ciConfigVariables(sha)' do
     end
 
     context 'when the cache is empty' do
-      let(:sha) { 'main' }
-
       it 'returns nothing' do
         post_graphql(query, current_user: user)
 
@@ -76,7 +87,6 @@ RSpec.describe 'Query.project(fullPath).ciConfigVariables(sha)' do
   context 'when the user is not authorized' do
     before do
       project.add_guest(user)
-      stub_ci_pipeline_yaml_file(content)
       allow(Ci::ListConfigVariablesService)
         .to receive(:new)
         .and_return(service)

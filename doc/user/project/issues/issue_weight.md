@@ -2,7 +2,7 @@
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/issue_weight.html'
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Issue weight **(PREMIUM)**
@@ -36,7 +36,7 @@ When you change the weight of an issue, the new value overwrites the previous va
 
 ### When you create an issue
 
-To set the issue weight when you [create an issue](managing_issues.md#create-an-issue), enter a
+To set the issue weight when you [create an issue](create_issues.md), enter a
 number under **Weight**.
 
 ### From an existing issue

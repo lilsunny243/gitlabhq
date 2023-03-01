@@ -1,5 +1,4 @@
 <script>
-import { mapState } from 'vuex';
 import { stateFilterData } from '../constants/state_filter_data';
 import RadioFilter from './radio_filter.vue';
 
@@ -8,19 +7,13 @@ export default {
   components: {
     RadioFilter,
   },
-  computed: {
-    ...mapState(['query']),
-    showDropdown() {
-      return Object.values(stateFilterData.scopes).includes(this.query.scope);
-    },
-  },
   stateFilterData,
 };
 </script>
 
 <template>
-  <div v-if="showDropdown">
-    <radio-filter :filter-data="$options.stateFilterData" />
-    <hr class="gl-my-5 gl-border-gray-100" />
+  <div>
+    <radio-filter class="gl-px-5" :filter-data="$options.stateFilterData" />
+    <hr class="gl-my-5 gl-mx-5 gl-border-gray-100" />
   </div>
 </template>

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Plan', :orchestrated, :smtp, :reliable do
+  RSpec.describe 'Plan', :orchestrated, :smtp, :reliable, product_group: :project_management do
     describe 'Email Notification' do
       include Support::API
 
@@ -45,7 +45,7 @@ module QA
           mailhog_data = JSON.parse(mailhog_response.body)
           total = mailhog_data.dig('total')
           subjects = mailhog_data.dig('items')
-            .map(&method(:mailhog_item_subject))
+            .map { |item| mailhog_item_subject(item) }
 
           Runtime::Logger.debug(%Q[Total number of emails: #{total}])
           Runtime::Logger.debug(%Q[Subjects:\n#{subjects.join("\n")}])

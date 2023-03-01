@@ -2,26 +2,24 @@
 
 module WorkItems
   class CreateService < Issues::CreateService
-    include ::Services::ReturnServiceResponses
     include WidgetableService
 
-    def initialize(project:, current_user: nil, params: {}, spam_params:, widget_params: {})
+    def initialize(container:, spam_params:, current_user: nil, params: {}, widget_params: {})
       super(
-        project: project,
+        container: container,
         current_user: current_user,
         params: params,
         spam_params: spam_params,
-        build_service: ::WorkItems::BuildService.new(project: project, current_user: current_user, params: params)
+        build_service: ::WorkItems::BuildService.new(container: container, current_user: current_user, params: params)
       )
       @widget_params = widget_params
     end
 
     def execute
-      unless @current_user.can?(:create_work_item, @project)
-        return error(_('Operation not allowed'), :forbidden)
-      end
+      result = super
+      return result if result.error?
 
-      work_item = super
+      work_item = result[:issue]
 
       if work_item.valid?
         success(payload(work_item))
@@ -30,6 +28,13 @@ module WorkItems
       end
     rescue ::WorkItems::Widgets::BaseService::WidgetError => e
       error(e.message, :unprocessable_entity)
+    end
+
+    def before_create(work_item)
+      execute_widgets(work_item: work_item, callback: :before_create_callback,
+                      widget_params: @widget_params)
+
+      super
     end
 
     def transaction_create(work_item)
@@ -42,6 +47,10 @@ module WorkItems
     end
 
     private
+
+    def authorization_action
+      :create_work_item
+    end
 
     def payload(work_item)
       { work_item: work_item }

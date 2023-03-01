@@ -1,6 +1,7 @@
 const IS_EE = require('./config/helpers/is_ee_env');
 const isESLint = require('./config/helpers/is_eslint');
 const IS_JH = require('./config/helpers/is_jh_env');
+const { TEST_HOST } = require('./spec/frontend/__helpers__/test_constants');
 
 module.exports = (path, options = {}) => {
   const {
@@ -25,7 +26,7 @@ module.exports = (path, options = {}) => {
     ]);
   }
 
-  const glob = `${path}/**/*_spec.js`;
+  const glob = `${path}/**/*@([._])spec.js`;
   let testMatch = [`<rootDir>/${glob}`];
   if (IS_EE) {
     testMatch.push(`<rootDir>/ee/${glob}`);
@@ -43,6 +44,11 @@ module.exports = (path, options = {}) => {
   const TEST_FIXTURES_PATTERN = 'test_fixtures(/.*)$';
 
   const moduleNameMapper = {
+    // temporary alias until we replace all `flash` imports for `alert`
+    // https://gitlab.com/gitlab-org/gitlab/-/merge_requests/109449
+    '^~/flash$': '<rootDir>/app/assets/javascripts/alert',
+    '^~(/.*)\\?(worker|raw)$': '<rootDir>/app/assets/javascripts$1',
+    '^(.*)\\?(worker|raw)$': '$1',
     '^~(/.*)$': '<rootDir>/app/assets/javascripts$1',
     '^ee_component(/.*)$':
       '<rootDir>/app/assets/javascripts/vue_shared/components/empty_component.js',
@@ -57,12 +63,14 @@ module.exports = (path, options = {}) => {
     [TEST_FIXTURES_PATTERN]: '<rootDir>/tmp/tests/frontend/fixtures$1',
     '^test_fixtures_static(/.*)$': '<rootDir>/spec/frontend/fixtures/static$1',
     '\\.(jpg|jpeg|png|svg|css)$': '<rootDir>/spec/frontend/__mocks__/file_mock.js',
+    '\\.svg\\?url$': '<rootDir>/spec/frontend/__mocks__/file_mock.js',
     '^public(/.*)$': '<rootDir>/public$1',
     'emojis(/.*).json': '<rootDir>/fixtures/emojis$1.json',
     '^spec/test_constants$': '<rootDir>/spec/frontend/__helpers__/test_constants',
     '^jest/(.*)$': '<rootDir>/spec/frontend/$1',
     '^ee_else_ce_jest/(.*)$': '<rootDir>/spec/frontend/$1',
     '^jquery$': '<rootDir>/node_modules/jquery/dist/jquery.slim.js',
+    '^@sentry/browser$': '<rootDir>/app/assets/javascripts/sentry/sentry_browser_wrapper.js',
     ...extModuleNameMapper,
   };
 
@@ -144,6 +152,8 @@ module.exports = (path, options = {}) => {
     'three',
     'monaco-editor',
     'monaco-yaml',
+    'monaco-marker-data-provider',
+    'monaco-worker-manager',
     'fast-mersenne-twister',
     'prosemirror-markdown',
     'marked',
@@ -151,13 +161,14 @@ module.exports = (path, options = {}) => {
     'dateformat',
     'lowlight',
     'vscode-languageserver-types',
+    'yaml',
     ...gfmParserDependencies,
   ];
 
   return {
     clearMocks: true,
     testMatch,
-    moduleFileExtensions: ['js', 'json', 'vue', 'gql', 'graphql', 'yaml'],
+    moduleFileExtensions: ['js', 'json', 'vue', 'gql', 'graphql', 'yaml', 'yml'],
     moduleNameMapper,
     collectCoverageFrom,
     coverageDirectory: coverageDirectory(),
@@ -172,20 +183,25 @@ module.exports = (path, options = {}) => {
     restoreMocks: true,
     slowTestThreshold: process.env.CI ? 6000 : 500,
     transform: {
-      '^.+\\.(gql|graphql)$': 'jest-transform-graphql',
+      '^.+\\.(gql|graphql)$': './spec/frontend/__helpers__/graphql_transformer.js',
       '^.+_worker\\.js$': './spec/frontend/__helpers__/web_worker_transformer.js',
       '^.+\\.js$': 'babel-jest',
       '^.+\\.vue$': '@vue/vue2-jest',
       'spec/frontend/editor/schema/ci/yaml_tests/.+\\.(yml|yaml)$':
         './spec/frontend/__helpers__/yaml_transformer.js',
-      '^.+\\.(md|zip|png|yml|yaml)$': 'jest-raw-loader',
+      '^.+\\.(md|zip|png|yml|yaml)$': './spec/frontend/__helpers__/raw_transformer.js',
     },
     transformIgnorePatterns: [`node_modules/(?!(${transformIgnoreNodeModules.join('|')}))`],
-    timers: 'legacy',
+    fakeTimers: {
+      enableGlobally: true,
+      doNotFake: ['nextTick', 'setImmediate'],
+      legacyFakeTimers: true,
+    },
     testEnvironment: '<rootDir>/spec/frontend/environment.js',
     testEnvironmentOptions: {
       IS_EE,
       IS_JH,
+      url: TEST_HOST,
     },
     testRunner: 'jest-jasmine2',
   };

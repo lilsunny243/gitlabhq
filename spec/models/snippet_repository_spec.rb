@@ -38,8 +38,11 @@ RSpec.describe SnippetRepository do
     let(:update_file) { { previous_path: 'README', file_path: 'README', content: 'bar' } }
     let(:data) { [new_file, move_file, update_file] }
 
+    let_it_be(:unnamed_snippet) { { file_path: '', content: 'dummy', action: :create } }
+    let_it_be(:named_snippet) { { file_path: 'fee.txt', content: 'bar', action: :create } }
+
     it 'returns nil when files argument is empty' do
-      expect(snippet.repository).not_to receive(:multi_action)
+      expect(snippet.repository).not_to receive(:commit_files)
 
       operation = snippet_repository.multi_files_action(user, [], **commit_opts)
 
@@ -47,7 +50,7 @@ RSpec.describe SnippetRepository do
     end
 
     it 'returns nil when files argument is nil' do
-      expect(snippet.repository).not_to receive(:multi_action)
+      expect(snippet.repository).not_to receive(:commit_files)
 
       operation = snippet_repository.multi_files_action(user, nil, **commit_opts)
 
@@ -119,7 +122,7 @@ RSpec.describe SnippetRepository do
       end
 
       it 'infers the commit action based on the parameters if not present' do
-        expect(repo).to receive(:multi_action).with(user, hash_including(actions: result))
+        expect(repo).to receive(:commit_files).with(user, hash_including(actions: result))
 
         snippet_repository.multi_files_action(user, data, **commit_opts)
       end
@@ -131,7 +134,7 @@ RSpec.describe SnippetRepository do
 
           specify do
             expect(repo).to(
-              receive(:multi_action).with(
+              receive(:commit_files).with(
                 user,
                 hash_including(actions: array_including(hash_including(action: expected_action)))))
 
@@ -209,9 +212,6 @@ RSpec.describe SnippetRepository do
         expect(ls_files).to include(*filenames)
       end
     end
-
-    let_it_be(:named_snippet) { { file_path: 'fee.txt', content: 'bar', action: :create } }
-    let_it_be(:unnamed_snippet) { { file_path: '', content: 'dummy', action: :create } }
 
     context 'when existing file has a default name' do
       let(:default_name) { 'snippetfile1.txt' }

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ContainerRepository, :aggregate_failures do
+RSpec.describe ContainerRepository, :aggregate_failures, feature_category: :container_registry do
   using RSpec::Parameterized::TableSyntax
 
   let(:group) { create(:group, name: 'group') }
@@ -17,12 +17,15 @@ RSpec.describe ContainerRepository, :aggregate_failures do
                                    api_url: 'http://registry.gitlab',
                                    host_port: 'registry.gitlab')
 
-    stub_request(:get, 'http://registry.gitlab/v2/group/test/my_image/tags/list')
+    stub_request(:get, "http://registry.gitlab/v2/group/test/my_image/tags/list?n=#{::ContainerRegistry::Client::DEFAULT_TAGS_PAGE_SIZE}")
       .with(headers: { 'Accept' => ContainerRegistry::Client::ACCEPTED_TYPES.join(', ') })
       .to_return(
         status: 200,
         body: Gitlab::Json.dump(tags: ['test_tag']),
         headers: { 'Content-Type' => 'application/json' })
+
+    # for the user callback: namespace_move_dir_allowed
+    allow(ContainerRegistry::GitlabApiClient).to receive(:one_project_with_container_registry_tag).and_return(nil)
   end
 
   it_behaves_like 'having unique enum values'
@@ -871,6 +874,50 @@ RSpec.describe ContainerRepository, :aggregate_failures do
     end
   end
 
+  describe '#set_delete_ongoing_status', :freeze_time do
+    let_it_be(:repository) { create(:container_repository) }
+
+    subject { repository.set_delete_ongoing_status }
+
+    it 'updates deletion status attributes' do
+      expect { subject }.to change(repository, :status).from(nil).to('delete_ongoing')
+                              .and change(repository, :delete_started_at).from(nil).to(Time.zone.now)
+                              .and change(repository, :status_updated_at).from(nil).to(Time.zone.now)
+    end
+  end
+
+  describe '#set_delete_scheduled_status', :freeze_time do
+    let_it_be(:repository) { create(:container_repository, :status_delete_ongoing, delete_started_at: 3.minutes.ago) }
+
+    subject { repository.set_delete_scheduled_status }
+
+    it 'updates delete attributes' do
+      expect { subject }.to change(repository, :status).from('delete_ongoing').to('delete_scheduled')
+                              .and change(repository, :delete_started_at).to(nil)
+                              .and change(repository, :status_updated_at).to(Time.zone.now)
+    end
+  end
+
+  describe '#status_updated_at', :freeze_time do
+    let_it_be_with_reload(:repository) { create(:container_repository) }
+
+    %i[delete_scheduled delete_ongoing delete_failed].each do |status|
+      context "when status is updated to #{status}" do
+        it 'updates status_changed_at' do
+          expect { repository.update!(status: status) }.to change(repository, :status_updated_at).from(nil).to(Time.zone.now)
+        end
+      end
+    end
+
+    context 'when status is not changed' do
+      it 'does not update status_changed_at' do
+        repository.name = 'different-image'
+
+        expect { repository.save! }.not_to change(repository, :status_updated_at)
+      end
+    end
+  end
+
   context 'registry migration' do
     before do
       allow(repository.gitlab_api_client).to receive(:supports_gitlab_api?).and_return(true)
@@ -1274,6 +1321,16 @@ RSpec.describe ContainerRepository, :aggregate_failures do
     it { is_expected.to contain_exactly(repository1, repository3) }
   end
 
+  describe '.with_stale_delete_at' do
+    let_it_be(:repository1) { create(:container_repository, delete_started_at: 1.day.ago) }
+    let_it_be(:repository2) { create(:container_repository, delete_started_at: 25.minutes.ago) }
+    let_it_be(:repository3) { create(:container_repository, delete_started_at: 1.week.ago) }
+
+    subject { described_class.with_stale_delete_at(27.minutes.ago) }
+
+    it { is_expected.to contain_exactly(repository1, repository3) }
+  end
+
   describe '.waiting_for_cleanup' do
     let_it_be(:repository_cleanup_scheduled) { create(:container_repository, :cleanup_scheduled) }
     let_it_be(:repository_cleanup_unfinished) { create(:container_repository, :cleanup_unfinished) }
@@ -1600,7 +1657,7 @@ RSpec.describe ContainerRepository, :aggregate_failures do
         stub_application_setting(container_registry_import_target_plan: valid_container_repository.migration_plan)
       end
 
-      it 'works' do
+      it 'returns valid container repositories' do
         expect(subject).to contain_exactly(valid_container_repository, valid_container_repository2)
       end
     end

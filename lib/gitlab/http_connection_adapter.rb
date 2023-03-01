@@ -44,7 +44,8 @@ module Gitlab
       Gitlab::UrlBlocker.validate!(url, allow_local_network: allow_local_requests?,
                                         allow_localhost: allow_local_requests?,
                                         allow_object_storage: allow_object_storage?,
-                                        dns_rebind_protection: dns_rebind_protection?)
+                                        dns_rebind_protection: dns_rebind_protection?,
+                                        schemes: %w[http https])
     rescue Gitlab::UrlBlocker::BlockedUrlError => e
       raise Gitlab::HTTP::BlockedUrlError, "URL '#{url}' is blocked: #{e.message}"
     end
@@ -58,8 +59,6 @@ module Gitlab
     end
 
     def dns_rebind_protection?
-      return false if Gitlab.http_proxy_env?
-
       Gitlab::CurrentSettings.dns_rebinding_protection_enabled?
     end
 

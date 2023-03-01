@@ -13,10 +13,11 @@ class CommitCollection
   # container - The object the commits belong to.
   # commits - The Commit instances to store.
   # ref - The name of the ref (e.g. "master").
-  def initialize(container, commits, ref = nil)
+  def initialize(container, commits, ref = nil, page: nil, per_page: nil, count: nil)
     @container = container
     @commits = commits
     @ref = ref
+    @pagination = Gitlab::PaginationDelegate.new(page: page, per_page: per_page, count: count)
   end
 
   def each(&block)
@@ -24,7 +25,7 @@ class CommitCollection
   end
 
   def committers
-    emails = without_merge_commits.map(&:committer_email).uniq
+    emails = without_merge_commits.filter_map(&:committer_email).uniq
 
     User.by_any_email(emails)
   end
@@ -112,5 +113,26 @@ class CommitCollection
   # rubocop:disable GitlabSecurity/PublicSend
   def method_missing(message, *args, &block)
     commits.public_send(message, *args, &block)
+  end
+
+  def next_page
+    @pagination.next_page
+  end
+
+  def load_tags
+    oids = commits.map(&:id)
+    references = repository.list_refs([Gitlab::Git::TAG_REF_PREFIX], pointing_at_oids: oids, peel_tags: true)
+    oid_to_references = references.group_by { |reference| reference.peeled_target.presence || reference.target }
+
+    return self if oid_to_references.empty?
+
+    commits.each do |commit|
+      grouped_references = oid_to_references[commit.id]
+      next unless grouped_references
+
+      commit.referenced_by = grouped_references.map(&:name)
+    end
+
+    self
   end
 end

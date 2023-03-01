@@ -2,10 +2,16 @@
 
 require 'spec_helper'
 
-RSpec.describe Member do
+RSpec.describe Member, feature_category: :subgroups do
   include ExclusiveLeaseHelpers
 
   using RSpec::Parameterized::TableSyntax
+
+  describe 'default values' do
+    subject(:member) { build(:project_member) }
+
+    it { expect(member.notification_level).to eq(NotificationSetting.levels[:global]) }
+  end
 
   describe 'Associations' do
     it { is_expected.to belong_to(:user) }
@@ -169,30 +175,90 @@ RSpec.describe Member do
     end
 
     context 'member role access level' do
-      let_it_be(:member) { create(:group_member, access_level: Gitlab::Access::DEVELOPER) }
+      let_it_be_with_reload(:member) { create(:group_member, access_level: Gitlab::Access::DEVELOPER) }
 
-      context 'no member role is associated' do
+      context 'when no member role is associated' do
         it 'is valid' do
           expect(member).to be_valid
         end
       end
 
-      context 'member role is associated' do
-        let_it_be(:member_role) do
-          create(:member_role, members: [member])
+      context 'when member role is associated' do
+        let!(:member_role) do
+          create(
+            :member_role,
+            members: [member],
+            base_access_level: Gitlab::Access::DEVELOPER,
+            namespace: member.member_namespace
+          )
         end
 
-        context 'member role matches access level' do
+        context 'when member role matches access level' do
           it 'is valid' do
             expect(member).to be_valid
           end
         end
 
-        context 'member role does not match access level' do
+        context 'when member role does not match access level' do
           it 'is invalid' do
             member_role.base_access_level = Gitlab::Access::MAINTAINER
 
             expect(member).not_to be_valid
+          end
+        end
+
+        context 'when access_level is changed' do
+          it 'is invalid' do
+            member.access_level = Gitlab::Access::MAINTAINER
+
+            expect(member).not_to be_valid
+            expect(member.errors[:access_level]).to include(
+              _("cannot be changed since member is associated with a custom role")
+            )
+          end
+        end
+      end
+    end
+
+    context 'member role namespace' do
+      let_it_be_with_reload(:member) { create(:group_member) }
+
+      context 'when no member role is associated' do
+        it 'is valid' do
+          expect(member).to be_valid
+        end
+      end
+
+      context 'when member role is associated' do
+        let_it_be(:member_role) do
+          create(:member_role, members: [member], namespace: member.group, base_access_level: member.access_level)
+        end
+
+        context 'when member#member_namespace is a group within hierarchy of member_role#namespace' do
+          it 'is valid' do
+            member.member_namespace = create(:group, parent: member_role.namespace)
+
+            expect(member).to be_valid
+          end
+        end
+
+        context 'when member#member_namespace is a project within hierarchy of member_role#namespace' do
+          it 'is valid' do
+            project = create(:project, group: member_role.namespace)
+            member.member_namespace = Namespace.find(project.parent_id)
+
+            expect(member).to be_valid
+          end
+        end
+
+        context 'when member#member_namespace is outside hierarchy of member_role#namespace' do
+          it 'is invalid' do
+            member.member_namespace = create(:group)
+
+            expect(member).not_to be_valid
+            expect(member.errors[:member_namespace]).to include(
+              _("must be in same hierarchy as custom role's namespace")
+            )
           end
         end
       end
@@ -202,7 +268,7 @@ RSpec.describe Member do
   describe 'Scopes & finders' do
     let_it_be(:project) { create(:project, :public) }
     let_it_be(:group) { create(:group) }
-    let_it_be(:blocked_pending_approval_user) { create(:user, :blocked_pending_approval ) }
+    let_it_be(:blocked_pending_approval_user) { create(:user, :blocked_pending_approval) }
     let_it_be(:blocked_pending_approval_project_member) { create(:project_member, :invited, :developer, project: project, invite_email: blocked_pending_approval_user.email) }
     let_it_be(:awaiting_group_member) { create(:group_member, :awaiting, group: group) }
     let_it_be(:awaiting_project_member) { create(:project_member, :awaiting, project: project) }
@@ -231,13 +297,13 @@ RSpec.describe Member do
 
       accepted_invite_user = build(:user, state: :active)
       @accepted_invite_member = create(:project_member, :invited, :developer, project: project)
-                                      .tap { |u| u.accept_invite!(accepted_invite_user) }
+        .tap { |u| u.accept_invite!(accepted_invite_user) }
 
       requested_user = create(:user).tap { |u| project.request_access(u) }
       @requested_member = project.requesters.find_by(user_id: requested_user.id)
 
       accepted_request_user = create(:user).tap { |u| project.request_access(u) }
-      @accepted_request_member = project.requesters.find_by(user_id: accepted_request_user.id).tap { |m| m.accept_request }
+      @accepted_request_member = project.requesters.find_by(user_id: accepted_request_user.id).tap { |m| m.accept_request(@owner_user) }
       @member_with_minimal_access = create(:group_member, :minimal_access, source: group)
     end
 
@@ -595,14 +661,14 @@ RSpec.describe Member do
       subject { described_class.authorizable.to_a }
 
       it 'includes the member who has an associated user record,'\
-       'but also having an invite_token' do
-        member = create(:project_member,
-                        :developer,
-                        :invited,
-                        user: create(:user))
+        'but also having an invite_token' do
+          member = create(:project_member,
+                          :developer,
+                          :invited,
+                          user: create(:user))
 
-        expect(subject).to include(member)
-      end
+          expect(subject).to include(member)
+        end
 
       it { is_expected.to include @owner }
       it { is_expected.to include @maintainer }
@@ -711,18 +777,25 @@ RSpec.describe Member do
   describe '#accept_request' do
     let(:member) { create(:project_member, requested_at: Time.current.utc) }
 
-    it { expect(member.accept_request).to be_truthy }
+    it { expect(member.accept_request(@owner_user)).to be_truthy }
+    it { expect(member.accept_request(nil)).to be_truthy }
 
     it 'clears requested_at' do
-      member.accept_request
+      member.accept_request(@owner_user)
 
       expect(member.requested_at).to be_nil
+    end
+
+    it 'saves the approving user' do
+      member.accept_request(@owner_user)
+
+      expect(member.created_by).to eq(@owner_user)
     end
 
     it 'calls #after_accept_request' do
       expect(member).to receive(:after_accept_request)
 
-      member.accept_request
+      member.accept_request(@owner_user)
     end
   end
 
@@ -733,9 +806,29 @@ RSpec.describe Member do
   end
 
   describe '#request?' do
-    subject { create(:project_member, requested_at: Time.current.utc) }
+    shared_examples 'calls notification service and todo service' do
+      subject { create(source_type, requested_at: Time.current.utc) }
 
-    it { is_expected.to be_request }
+      specify do
+        expect_next_instance_of(NotificationService) do |instance|
+          expect(instance).to receive(:new_access_request)
+        end
+
+        expect_next_instance_of(TodoService) do |instance|
+          expect(instance).to receive(:create_member_access_request_todos)
+        end
+
+        is_expected.to be_request
+      end
+    end
+
+    context 'when requests for project and group are raised' do
+      %i[project_member group_member].each do |source_type|
+        it_behaves_like 'calls notification service and todo service' do
+          let_it_be(:source_type) { source_type }
+        end
+      end
+    end
   end
 
   describe '#pending?' do
@@ -798,38 +891,12 @@ RSpec.describe Member do
         expect(user.authorized_projects).not_to include(project)
       end
 
-      it 'successfully completes a blocking refresh', :delete do
-        expect(member).to receive(:refresh_member_authorized_projects).with(blocking: true).and_call_original
+      it 'successfully completes a refresh', :delete, :sidekiq_inline do
+        expect(member).to receive(:refresh_member_authorized_projects).and_call_original
 
         member.accept_invite!(user)
 
         expect(user.authorized_projects.reload).to include(project)
-      end
-
-      it 'successfully completes a non-blocking refresh', :delete, :sidekiq_inline do
-        member.blocking_refresh = false
-
-        expect(member).to receive(:refresh_member_authorized_projects).with(blocking: false).and_call_original
-
-        member.accept_invite!(user)
-
-        expect(user.authorized_projects.reload).to include(project)
-      end
-
-      context 'when the feature flag is disabled' do
-        before do
-          stub_feature_flags(allow_non_blocking_member_refresh: false)
-        end
-
-        it 'successfully completes a blocking refresh', :delete, :sidekiq_inline do
-          member.blocking_refresh = false
-
-          expect(member).to receive(:refresh_member_authorized_projects).with(blocking: true).and_call_original
-
-          member.accept_invite!(user)
-
-          expect(user.authorized_projects.reload).to include(project)
-        end
       end
     end
 
@@ -880,7 +947,8 @@ RSpec.describe Member do
   end
 
   describe 'generate invite token on create' do
-    let!(:member) { build(:project_member, invite_email: "user@example.com") }
+    let(:project) { create(:project) }
+    let!(:member) { build(:project_member, invite_email: "user@example.com", project: project) }
 
     it 'sets the invite token' do
       expect { member.save! }.to change { member.invite_token }.to(kind_of(String))

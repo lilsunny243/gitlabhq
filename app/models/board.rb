@@ -6,8 +6,8 @@ class Board < ApplicationRecord
   belongs_to :group
   belongs_to :project
 
-  has_many :lists, -> { ordered }, dependent: :delete_all # rubocop:disable Cop/ActiveRecordDependent
-  has_many :destroyable_lists, -> { destroyable.ordered }, class_name: "List"
+  has_many :lists, -> { ordered }, dependent: :delete_all, inverse_of: :board # rubocop:disable Cop/ActiveRecordDependent
+  has_many :destroyable_lists, -> { destroyable.ordered }, class_name: "List", inverse_of: :board
 
   validates :name, presence: true
   validates :project, presence: true, if: :project_needed?
@@ -18,7 +18,7 @@ class Board < ApplicationRecord
   # Sort by case-insensitive name, then ascending ids. This ensures that we will always
   # get the same list/first board no matter how many other boards are named the same
   scope :order_by_name_asc, -> { order(arel_table[:name].lower.asc).order(id: :asc) }
-  scope :first_board, -> { where(id: self.order_by_name_asc.limit(1).select(:id)) }
+  scope :first_board, -> { where(id: order_by_name_asc.limit(1).select(:id)) }
 
   def project_needed?
     !group

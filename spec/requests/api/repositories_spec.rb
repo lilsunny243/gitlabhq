@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'mime/types'
 
-RSpec.describe API::Repositories do
+RSpec.describe API::Repositories, feature_category: :source_code_management do
   include RepoHelpers
   include WorkhorseHelpers
   include ProjectForksHelper
@@ -236,7 +236,6 @@ RSpec.describe API::Repositories do
         get api(route, current_user)
 
         expect(response.headers["Cache-Control"]).to eq("max-age=0, private, must-revalidate, no-store, no-cache")
-        expect(response.headers["Pragma"]).to eq("no-cache")
         expect(response.headers["Expires"]).to eq("Fri, 01 Jan 1990 00:00:00 GMT")
       end
 
@@ -300,7 +299,7 @@ RSpec.describe API::Repositories do
         type, params = workhorse_send_data
 
         expect(type).to eq('git-archive')
-        expect(params['ArchivePath']).to match(/#{project.path}\-[^\.]+\.tar.gz/)
+        expect(params['ArchivePath']).to match(/#{project.path}-[^.]+\.tar.gz/)
         expect(response.parsed_body).to be_empty
       end
 
@@ -312,7 +311,7 @@ RSpec.describe API::Repositories do
         type, params = workhorse_send_data
 
         expect(type).to eq('git-archive')
-        expect(params['ArchivePath']).to match(/#{project.path}\-[^\.]+\.zip/)
+        expect(params['ArchivePath']).to match(/#{project.path}-[^.]+\.zip/)
       end
 
       it 'returns the repository archive archive.tar.bz2' do
@@ -323,7 +322,7 @@ RSpec.describe API::Repositories do
         type, params = workhorse_send_data
 
         expect(type).to eq('git-archive')
-        expect(params['ArchivePath']).to match(/#{project.path}\-[^\.]+\.tar.bz2/)
+        expect(params['ArchivePath']).to match(/#{project.path}-[^.]+\.tar.bz2/)
       end
 
       context 'when sha does not exist' do
@@ -342,7 +341,7 @@ RSpec.describe API::Repositories do
         type, params = workhorse_send_data
 
         expect(type).to eq('git-archive')
-        expect(params['ArchivePath']).to match(/#{project.path}\-[^\.]+\-#{path}\.tar.gz/)
+        expect(params['ArchivePath']).to match(/#{project.path}-[^.]+-#{path}\.tar.gz/)
       end
 
       it 'rate limits user when thresholds hit' do
@@ -353,15 +352,9 @@ RSpec.describe API::Repositories do
         expect(response).to have_gitlab_http_status(:too_many_requests)
       end
 
-      context "when hotlinking detection is enabled" do
-        before do
-          stub_feature_flags(repository_archive_hotlinking_interception: true)
-        end
-
-        it_behaves_like "hotlink interceptor" do
-          let(:http_request) do
-            get api(route, current_user), headers: headers
-          end
+      it_behaves_like "hotlink interceptor" do
+        let(:http_request) do
+          get api(route, current_user), headers: headers
         end
       end
     end

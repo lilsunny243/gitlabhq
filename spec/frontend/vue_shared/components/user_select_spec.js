@@ -10,7 +10,7 @@ import searchUsersQueryOnMR from '~/graphql_shared/queries/users_search_with_mr_
 import { IssuableType } from '~/issues/constants';
 import { DEFAULT_DEBOUNCE_AND_THROTTLE_MS } from '~/lib/utils/constants';
 import SidebarParticipant from '~/sidebar/components/assignees/sidebar_participant.vue';
-import getIssueParticipantsQuery from '~/vue_shared/components/sidebar/queries/get_issue_participants.query.graphql';
+import getIssueParticipantsQuery from '~/sidebar/queries/get_issue_participants.query.graphql';
 import UserSelect from '~/vue_shared/components/user_select/user_select.vue';
 import {
   searchResponse,
@@ -283,6 +283,20 @@ describe('User select dropdown', () => {
       findUnassignLink().trigger('click');
 
       expect(wrapper.emitted('input')).toEqual([[[]]]);
+    });
+
+    it('hides the dropdown after clicking on `Unassigned`', async () => {
+      createComponent({
+        props: {
+          value: [assignee],
+        },
+      });
+      wrapper.vm.$refs.dropdown.hide = jest.fn();
+      await waitForPromises();
+
+      findUnassignLink().trigger('click');
+
+      expect(wrapper.vm.$refs.dropdown.hide).toHaveBeenCalledTimes(1);
     });
 
     it('emits an empty array after unselecting the only selected assignee', async () => {

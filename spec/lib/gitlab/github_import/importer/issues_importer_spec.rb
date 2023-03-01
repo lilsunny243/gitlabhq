@@ -2,27 +2,26 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::Importer::IssuesImporter do
+RSpec.describe Gitlab::GithubImport::Importer::IssuesImporter, feature_category: :importers do
   let(:project) { double(:project, id: 4, import_source: 'foo/bar') }
   let(:client) { double(:client) }
   let(:created_at) { Time.new(2017, 1, 1, 12, 00) }
   let(:updated_at) { Time.new(2017, 1, 1, 12, 15) }
 
   let(:github_issue) do
-    double(
-      :response,
+    {
       number: 42,
       title: 'My Issue',
       body: 'This is my issue',
-      milestone: double(:milestone, number: 4),
+      milestone: { number: 4 },
       state: 'open',
-      assignees: [double(:user, id: 4, login: 'alice')],
-      labels: [double(:label, name: 'bug')],
-      user: double(:user, id: 4, login: 'alice'),
+      assignees: [{ id: 4, login: 'alice' }],
+      labels: [{ name: 'bug' }],
+      user: { id: 4, login: 'alice' },
       created_at: created_at,
       updated_at: updated_at,
       pull_request: false
-    )
+    }
   end
 
   describe '#parallel?' do
@@ -83,7 +82,7 @@ RSpec.describe Gitlab::GithubImport::Importer::IssuesImporter do
     end
   end
 
-  describe '#parallel_import' do
+  describe '#parallel_import', :clean_gitlab_redis_cache do
     it 'imports each issue in parallel' do
       importer = described_class.new(project, client)
 
@@ -91,9 +90,9 @@ RSpec.describe Gitlab::GithubImport::Importer::IssuesImporter do
         .to receive(:each_object_to_import)
         .and_yield(github_issue)
 
-      expect(Gitlab::GithubImport::ImportIssueWorker).to receive(:bulk_perform_in).with(1.second, [
-          [project.id, an_instance_of(Hash), an_instance_of(String)]
-        ], batch_size: 1000, batch_delay: 1.minute)
+      expect(Gitlab::GithubImport::ImportIssueWorker)
+        .to receive(:perform_in)
+        .with(1.second, project.id, an_instance_of(Hash), an_instance_of(String))
 
       waiter = importer.parallel_import
 
@@ -108,6 +107,26 @@ RSpec.describe Gitlab::GithubImport::Importer::IssuesImporter do
 
       expect(importer.id_for_already_imported_cache(github_issue))
         .to eq(42)
+    end
+  end
+
+  describe '#increment_object_counter?' do
+    let(:importer) { described_class.new(project, client) }
+
+    context 'when issue is a pull request' do
+      let(:github_issue) { { pull_request: { url: 'some_url' } } }
+
+      it 'returns false' do
+        expect(importer).not_to be_increment_object_counter(github_issue)
+      end
+    end
+
+    context 'when issue is a regular issue' do
+      let(:github_issue) { {} }
+
+      it 'returns true' do
+        expect(importer).to be_increment_object_counter(github_issue)
+      end
     end
   end
 end

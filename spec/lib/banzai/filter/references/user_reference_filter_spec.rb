@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Filter::References::UserReferenceFilter do
+RSpec.describe Banzai::Filter::References::UserReferenceFilter, feature_category: :team_planning do
   include FilterSpecHelper
 
   def get_reference(user)
@@ -42,11 +42,11 @@ RSpec.describe Banzai::Filter::References::UserReferenceFilter do
   context 'mentioning @all' do
     let(:reference) { User.reference_prefix + 'all' }
 
-    it_behaves_like 'a reference containing an element node'
-
     before do
       project.add_developer(project.creator)
     end
+
+    it_behaves_like 'a reference containing an element node'
 
     it 'supports a special @all mention' do
       project.add_developer(user)
@@ -209,7 +209,7 @@ RSpec.describe Banzai::Filter::References::UserReferenceFilter do
     let(:reference3) { group.to_reference }
 
     it 'does not have N+1 per multiple user references', :use_sql_query_cache do
-      markdown = "#{reference}"
+      markdown = reference.to_s
 
       control_count = ActiveRecord::QueryRecorder.new(skip_cached: false) do
         reference_filter(markdown)

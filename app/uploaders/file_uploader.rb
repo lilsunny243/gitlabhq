@@ -14,17 +14,18 @@ class FileUploader < GitlabUploader
   include ObjectStorage::Concern
   prepend ObjectStorage::Extension::RecordsUploads
 
-  MARKDOWN_PATTERN = %r{\!?\[.*?\]\(/uploads/(?<secret>[0-9a-f]{32})/(?<file>.*?)\)}.freeze
+  # This pattern is vulnerable to malicious inputs, so use Gitlab::UntrustedRegexp
+  # to place bounds on execution time
+  MARKDOWN_PATTERN = Gitlab::UntrustedRegexp.new(
+    '!?\[.*?\]\(/uploads/(?P<secret>[0-9a-f]{32})/(?P<file>.*?)\)'
+  )
+
   DYNAMIC_PATH_PATTERN = %r{.*(?<secret>\b(\h{10}|\h{32}))\/(?<identifier>.*)}.freeze
   VALID_SECRET_PATTERN = %r{\A\h{10,32}\z}.freeze
 
   InvalidSecret = Class.new(StandardError)
 
   after :remove, :prune_store_dir
-
-  # FileUploader do not run in a model transaction, so we can simply
-  # enqueue a job after the :store hook.
-  after :store, :schedule_background_upload
 
   def self.root
     File.join(options.storage_path, 'uploads')

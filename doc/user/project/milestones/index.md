@@ -2,7 +2,7 @@
 type: index, reference
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Milestones **(FREE)**
@@ -37,8 +37,8 @@ For information about project and group milestones API, see:
 
 To view the milestone list:
 
-1. On the top bar, select **Menu > Projects** and find your project or
-   **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Projects** and find your project or
+   **Main menu > Groups** and find your group.
 1. Select **Issues > Milestones**.
 
 In a project, GitLab displays milestones that belong to the project.
@@ -48,8 +48,7 @@ In a group, GitLab displays milestones that belong to the group and all projects
 
 If a project has issue tracking
 [turned off](../settings/index.md#configure-project-visibility-features-and-permissions),
-you can get to the milestones page
-by going to its URL.
+to get to the milestones page, enter its URL.
 
 To do so:
 
@@ -66,7 +65,7 @@ Improving this experience is tracked in issue [339009](https://gitlab.com/gitlab
 You can view all the milestones you have access to in the entire GitLab namespace.
 You might not see some milestones because they're in projects or groups you're not a member of.
 
-To do so, on the top bar select **Menu > Milestones**.
+To do so, on the top bar select **Main menu > Milestones**.
 
 ### View milestone details
 
@@ -119,7 +118,7 @@ Prerequisites:
 
 To create a milestone:
 
-1. On the top bar, select **Menu > Projects** and find your project or **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Projects** and find your project or **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Issues > Milestones**.
 1. Select **New milestone**.
 1. Enter the title.
@@ -138,7 +137,7 @@ Prerequisites:
 
 To edit a milestone:
 
-1. On the top bar, select **Menu > Projects** and find your project or **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Projects** and find your project or **Main menu > Groups** and find your group.
 1. Select a milestone's title.
 1. Select **Edit**.
 1. Edit the title, start date, due date, or description.
@@ -154,7 +153,7 @@ Prerequisites:
 
 To edit a milestone:
 
-1. On the top bar, select **Menu > Projects** and find your project or **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Projects** and find your project or **Main menu > Groups** and find your group.
 1. Select a milestone's title.
 1. Select **Delete**.
 1. Select **Delete milestone**.
@@ -179,9 +178,10 @@ Prerequisites:
 
 To promote a project milestone:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Issues > Milestones**.
 1. Either:
-   - Select **Promote to Group Milestone** (**{level-up}**).
+   - Select **Promote to Group Milestone** (**{level-up}**) next to the milestone you want to promote.
    - Select the milestone title, and then select **Promote**.
 1. Select **Promote Milestone**.
 
@@ -237,6 +237,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

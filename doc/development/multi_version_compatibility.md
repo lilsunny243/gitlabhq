@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Backwards compatibility across updates
@@ -112,7 +112,7 @@ During an update, there will be [two different versions of GitLab running in dif
 
 Yes! We have specific instructions for [zero-downtime updates](../update/index.md#upgrading-without-downtime) because it allows us to ignore some permutations of compatibility. This is why we don't worry about Rails code making DB calls to an old PostgreSQL database schema.
 
-## I've identified a potential backwards compatibility problem, what can I do about it?
+## You've identified a potential backwards compatibility problem, what can you do about it?
 
 ### Coordinate
 
@@ -258,7 +258,7 @@ For more information, see [the relevant issue](https://gitlab.com/gitlab-org/git
 
 We bumped the Markdown cache version and found a bug when a user edited a description or comment which was generated from a different Markdown
 cache version. The cached HTML wasn't generated properly after saving. In most cases, this wouldn't have happened because users would have
-viewed the Markdown before clicking **Edit** and that would mean the Markdown cache is refreshed. But because we run mixed versions, this is
+viewed the Markdown before selecting **Edit** and that would mean the Markdown cache is refreshed. But because we run mixed versions, this is
 more likely to happen. Another user on a different version could view the same page and refresh the cache to the other version behind the scenes.
 
 For more information, see [the relevant issue](https://gitlab.com/gitlab-org/gitlab/-/issues/208255).

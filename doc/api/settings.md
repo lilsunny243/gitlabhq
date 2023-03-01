@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Application settings API **(FREE SELF)**
@@ -36,6 +36,7 @@ Example response:
   "signup_enabled" : true,
   "id" : 1,
   "default_branch_protection" : 2,
+  "default_preferred_language" : "en",
   "restricted_visibility_levels" : [],
   "password_authentication_enabled_for_web" : true,
   "after_sign_out_path" : null,
@@ -89,6 +90,7 @@ Example response:
   "asset_proxy_url": "https://assets.example.com",
   "asset_proxy_whitelist": ["example.com", "*.example.com", "your-instance.com"],
   "asset_proxy_allowlist": ["example.com", "*.example.com", "your-instance.com"],
+  "maven_package_requests_forwarding": true,
   "npm_package_requests_forwarding": true,
   "pypi_package_requests_forwarding": true,
   "snippet_size_limit": 52428800,
@@ -103,22 +105,27 @@ Example response:
   "floc_enabled": false,
   "external_pipeline_validation_service_timeout": null,
   "external_pipeline_validation_service_token": null,
-  "external_pipeline_validation_service_url": null
+  "external_pipeline_validation_service_url": null,
+  "jira_connect_application_key": null,
+  "jira_connect_proxy_url": null
 }
 ```
 
 Users on [GitLab Premium or Ultimate](https://about.gitlab.com/pricing/) may also see
-the `file_template_project_id`, `delayed_project_deletion`, `delayed_group_deletion`, `deletion_adjourned_period`, or the `geo_node_allowed_ips` parameters:
+the `group_owners_can_manage_default_branch_protection`, `file_template_project_id`, `delayed_project_deletion`,
+`delayed_group_deletion`, `deletion_adjourned_period`, `disable_personal_access_tokens`, or the `geo_node_allowed_ips` parameters:
 
 ```json
 {
   "id" : 1,
   "signup_enabled" : true,
+  "group_owners_can_manage_default_branch_protection" : true,
   "file_template_project_id": 1,
   "geo_node_allowed_ips": "0.0.0.0/0, ::/0",
   "delayed_project_deletion": false,
   "delayed_group_deletion": false,
   "deletion_adjourned_period": 7,
+  "disable_personal_access_tokens": false,
   ...
 }
 ```
@@ -142,6 +149,7 @@ Example response:
 {
   "id": 1,
   "default_projects_limit": 100000,
+  "default_preferred_language": "en",
   "signup_enabled": false,
   "password_authentication_enabled_for_web": true,
   "gravatar_enabled": true,
@@ -201,6 +209,7 @@ Example response:
   "allow_local_requests_from_hooks_and_services": true,
   "allow_local_requests_from_web_hooks_and_services": true,
   "allow_local_requests_from_system_hooks": false,
+  "maven_package_requests_forwarding": true,
   "npm_package_requests_forwarding": true,
   "pypi_package_requests_forwarding": true,
   "snippet_size_limit": 52428800,
@@ -214,19 +223,26 @@ Example response:
   "admin_mode": false,
   "external_pipeline_validation_service_timeout": null,
   "external_pipeline_validation_service_token": null,
-  "external_pipeline_validation_service_url": null
+  "external_pipeline_validation_service_url": null,
+  "can_create_group": false,
+  "jira_connect_application_key": "123",
+  "jira_connect_proxy_url": "http://gitlab.example.com",
+  "user_defaults_to_private_profile": true,
+  "projects_api_rate_limit_unauthenticated": 400
 }
 ```
 
 Users on [GitLab Premium or Ultimate](https://about.gitlab.com/pricing/) may also see
 these parameters:
 
+- `group_owners_can_manage_default_branch_protection`
 - `file_template_project_id`
 - `geo_node_allowed_ips`
 - `geo_status_timeout`
 - `delayed_project_deletion`
 - `delayed_group_deletion`
 - `deletion_adjourned_period`
+- `disable_personal_access_tokens`
 
 Example responses: **(PREMIUM SELF)**
 
@@ -236,6 +252,8 @@ Example responses: **(PREMIUM SELF)**
 ```
 
 ## List of settings that can be accessed via API calls
+
+> Fields `housekeeping_full_repack_period`, `housekeeping_gc_period`, and `housekeeping_incremental_repack_period` [deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106963) in GitLab 15.8. Use `housekeeping_optimize_repository_period` instead.
 
 In general, all settings are optional. Certain settings though, if enabled,
 require other settings to be set to function properly. These requirements are
@@ -254,6 +272,7 @@ listed in the descriptions of the relevant settings.
 | `allow_local_requests_from_hooks_and_services` | boolean    | no                                   | (Deprecated: Use `allow_local_requests_from_web_hooks_and_services` instead) Allow requests to the local network from hooks and services. |
 | `allow_local_requests_from_system_hooks` | boolean          | no                                   | Allow requests to the local network from system hooks. |
 | `allow_local_requests_from_web_hooks_and_services` | boolean | no                                  | Allow requests to the local network from web hooks and services. |
+| `allow_runner_registration_token`        | boolean          | no                                   | Allow using a registration token to create a runner. Defaults to `true`. |
 | `archive_builds_in_human_readable`       | string           | no                                   | Set the duration for which the jobs are considered as old and expired. After that time passes, the jobs are archived and no longer able to be retried. Make it empty to never expire jobs. It has to be no less than 1 day, for example: <code>15 days</code>, <code>1 month</code>, <code>2 years</code>. |
 | `asset_proxy_enabled`                    | boolean          | no                                   | (**If enabled, requires:** `asset_proxy_url`) Enable proxying of assets. GitLab restart is required to apply changes. |
 | `asset_proxy_secret_key`                 | string           | no                                   | Shared secret with the asset proxy server. GitLab restart is required to apply changes. |
@@ -264,6 +283,8 @@ listed in the descriptions of the relevant settings.
 | `auto_devops_domain`                     | string           | no                                   | Specify a domain to use by default for every project's Auto Review Apps and Auto Deploy stages. |
 | `auto_devops_enabled`                    | boolean          | no                                   | Enable Auto DevOps for projects by default. It automatically builds, tests, and deploys applications based on a predefined CI/CD configuration. |
 | `automatic_purchased_storage_allocation` | boolean          | no                                   | Enabling this permits automatic allocation of purchased storage in a namespace. |
+| `bulk_import_enabled`                    | boolean          | no                                   | Enable migrating GitLab groups by direct transfer. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/383268) in GitLab 15.8. Requires [`bulk_import_projects` feature flag](../user/group/import/index.md#migrate-groups-by-direct-transfer-recommended) to also migrate projects. Setting also [available](../user/admin_area/settings/visibility_and_access_controls.md#enable-migration-of-groups-and-projects-by-direct-transfer) in the Admin Area. |
+| `can_create_group` | boolean | no | Indicates whether users can create top-level groups. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/367754) in GitLab 15.5. Defaults to `true`. |
 | `check_namespace_plan` **(PREMIUM)**     | boolean          | no                                   | Enabling this makes only licensed EE features available to projects if the project namespace's plan includes the feature or if the project is public. |
 | `commit_email_hostname`                  | string           | no                                   | Custom hostname (for private commit emails). |
 | `container_expiration_policies_enable_historic_entries`  | boolean | no                            | Enable [cleanup policies](../user/packages/container_registry/reduce_container_registry_storage.md#enable-the-cleanup-policy) for all projects. |
@@ -280,22 +301,25 @@ listed in the descriptions of the relevant settings.
 | `default_branch_protection`              | integer          | no                                   | Determine if developers can push to the default branch. Can take: `0` _(not protected, both users with the Developer role or Maintainer role can push new commits and force push)_, `1` _(partially protected, users with the Developer role or Maintainer role can push new commits, but cannot force push)_ or `2` _(fully protected, users with the Developer or Maintainer role cannot push new commits, but users with the Developer or Maintainer role can; no one can force push)_ as a parameter. Default is `2`. |
 | `default_ci_config_path`                  | string           | no                                   | Default CI/CD configuration file and path for new projects (`.gitlab-ci.yml` if not set). |
 | `default_group_visibility`               | string           | no                                   | What visibility level new groups receive. Can take `private`, `internal` and `public` as a parameter. Default is `private`. |
+| `default_preferred_language`             | string           | no                                   | Default preferred language for users who are not logged in. |
 | `default_project_creation`               | integer          | no                                   | Default project creation protection. Can take: `0` _(No one)_, `1` _(Maintainers)_ or `2` _(Developers + Maintainers)_|
 | `default_project_visibility`             | string           | no                                   | What visibility level new projects receive. Can take `private`, `internal` and `public` as a parameter. Default is `private`. |
 | `default_projects_limit`                 | integer          | no                                   | Project limit per user. Default is `100000`. |
 | `default_snippet_visibility`             | string           | no                                   | What visibility level new snippets receive. Can take `private`, `internal` and `public` as a parameter. Default is `private`. |
+| `default_syntax_highlighting_theme`      | integer          | no                                   | Default syntax highlighting theme for users who are not signed in. See [IDs of available themes](https://gitlab.com/gitlab-org/gitlab/blob/master/lib/gitlab/themes.rb#L16).
 | `delayed_project_deletion` **(PREMIUM SELF)** | boolean     | no                                   | Enable delayed project deletion by default in new groups. Default is `false`. [From GitLab 15.1](https://gitlab.com/gitlab-org/gitlab/-/issues/352960), can only be enabled when `delayed_group_deletion` is true. |
 | `delayed_group_deletion` **(PREMIUM SELF)**   | boolean     | no                                   | Enable delayed group deletion. Default is `true`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/352959) in GitLab 15.0. [From GitLab 15.1](https://gitlab.com/gitlab-org/gitlab/-/issues/352960), disables and locks the group-level setting for delayed protect deletion when set to `false`.  |
-| `delete_inactive_projects`               | boolean          | no                                   | Enable inactive project deletion feature. Default is `false`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0 (with feature flag `inactive_projects_deletion`, disabled by default). |
 | `deletion_adjourned_period` **(PREMIUM SELF)** | integer    | no                                   | The number of days to wait before deleting a project or group that is marked for deletion. Value must be between `1` and `90`. Defaults to `7`. [From GitLab 15.1](https://gitlab.com/gitlab-org/gitlab/-/issues/352960), a hook on `deletion_adjourned_period` sets the period to `1` on every update, and sets both `delayed_project_deletion` and `delayed_group_deletion` to `false` if the period is `0`. |
 | `diff_max_patch_bytes`                   | integer          | no                                   | Maximum [diff patch size](../user/admin_area/diff_limits.md), in bytes. |
 | `diff_max_files`                         | integer          | no                                   | Maximum [files in a diff](../user/admin_area/diff_limits.md). |
 | `diff_max_lines`                         | integer          | no                                   | Maximum [lines in a diff](../user/admin_area/diff_limits.md). |
+| `disable_admin_oauth_scopes`             | boolean          | no                                   | Stops administrators from connecting their GitLab accounts to non-trusted OAuth 2.0 applications that have the `api`, `read_api`, `read_repository`, `write_repository`, `read_registry`, `write_registry`, or `sudo` scopes. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/375043) in GitLab 15.6. |
 | `disable_feed_token`                     | boolean          | no                                   | Disable display of RSS/Atom and calendar feed tokens. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/231493) in GitLab 13.7. |
+| `disable_personal_access_token` **(PREMIUM SELF)** | boolean | no                                  | Disable personal access tokens. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/384201) in GitLab 15.7. |
 | `disabled_oauth_sign_in_sources`         | array of strings | no                                   | Disabled OAuth sign-in sources. |
 | `dns_rebinding_protection_enabled`       | boolean          | no                                   | Enforce DNS rebinding attack protection. |
 | `domain_denylist_enabled`                | boolean          | no                                   | (**If enabled, requires:** `domain_denylist`) Allows blocking sign-ups from emails from specific domains. |
-| `domain_denylist`                        | array of strings | no                                   | Users with email addresses that match these domains **cannot** sign up. Wildcards allowed. Use separate lines for multiple entries. Ex: `domain.com`, `*.domain.com`. |
+| `domain_denylist`                        | array of strings | no                                   | Users with email addresses that match these domains **cannot** sign up. Wildcards allowed. Use separate lines for multiple entries. For example: `domain.com`, `*.domain.com`. |
 | `domain_allowlist`                       | array of strings | no                                   | Force people to use only corporate emails for sign-up. Default is `null`, meaning there is no restriction. |
 | `dsa_key_restriction`                    | integer          | no                                   | The minimum allowed bit length of an uploaded DSA key. Default is `0` (no restriction). `-1` disables DSA keys. |
 | `ecdsa_key_restriction`                  | integer          | no                                   | The minimum allowed curve size (in bits) of an uploaded ECDSA key. Default is `0` (no restriction). `-1` disables ECDSA keys. |
@@ -324,6 +348,7 @@ listed in the descriptions of the relevant settings.
 | `elasticsearch_password` **(PREMIUM)**   | string           | no                                   | The password of your Elasticsearch instance. |
 | `email_additional_text` **(PREMIUM)**    | string           | no                                   | Additional text added to the bottom of every email for legal/auditing/compliance reasons. |
 | `email_author_in_body`                   | boolean          | no                                   | Some email servers do not support overriding the email sender name. Enable this option to include the name of the author of the issue, merge request or comment in the email body instead. |
+| `email_confirmation_setting`             | string           | no                                   | Specifies whether users must confirm their email before sign in. Possible values are `off`, `soft`, and `hard`. |
 | `enabled_git_access_protocol`            | string           | no                                   | Enabled protocols for Git access. Allowed values are: `ssh`, `http`, and `nil` to allow both protocols. |
 | `enforce_namespace_storage_limit`        | boolean          | no                                   | Enabling this permits enforcement of namespace storage limits. |
 | `enforce_terms`                          | boolean          | no                                   | (**If enabled, requires:** `terms`) Enforce application ToS to all users. |
@@ -348,24 +373,23 @@ listed in the descriptions of the relevant settings.
 | `grafana_enabled`                        | boolean          | no                                   | Enable Grafana. |
 | `grafana_url`                            | string           | no                                   | Grafana URL. |
 | `gravatar_enabled`                       | boolean          | no                                   | Enable Gravatar. |
+| `group_owners_can_manage_default_branch_protection` **(PREMIUM SELF)** | boolean | no                                 | Prevent overrides of default branch protection. |
 | `hashed_storage_enabled`                 | boolean          | no                                   | Create new projects using hashed storage paths: Enable immutable, hash-based paths and repository names to store repositories on disk. This prevents repositories from having to be moved or renamed when the Project URL changes and may improve disk I/O performance. (Always enabled in GitLab versions 13.0 and later, configuration is scheduled for removal in 14.0) |
 | `help_page_hide_commercial_content`      | boolean          | no                                   | Hide marketing-related entries from help. |
-| `help_page_support_url`                  | string           | no                                   | Alternate support URL for help page and help dropdown. |
+| `help_page_support_url`                  | string           | no                                   | Alternate support URL for help page and help dropdown list. |
 | `help_page_text`                         | string           | no                                   | Custom text displayed on the help page. |
 | `help_text` **(PREMIUM)**                | string           | no                                   | GitLab server administrator information. |
 | `hide_third_party_offers`                | boolean          | no                                   | Do not display offers from third parties in GitLab. |
 | `home_page_url`                          | string           | no                                   | Redirect to this URL when not logged in. |
-| `housekeeping_bitmaps_enabled`           | boolean          | no                                   | Git pack file bitmap creation is always enabled and cannot be changed via API and UI. This API field is deprecated and always returns `true`. |
-| `housekeeping_enabled`                   | boolean          | no                                   | (**If enabled, requires:** `housekeeping_bitmaps_enabled`, `housekeeping_full_repack_period`, `housekeeping_gc_period`, and `housekeeping_incremental_repack_period`) Enable or disable Git housekeeping. |
-| `housekeeping_full_repack_period`        | integer          | required by: `housekeeping_enabled`  | Number of Git pushes after which an incremental `git repack` is run. |
-| `housekeeping_gc_period`                 | integer          | required by: `housekeeping_enabled`  | Number of Git pushes after which `git gc` is run. |
-| `housekeeping_incremental_repack_period` | integer          | required by: `housekeeping_enabled`  | Number of Git pushes after which an incremental `git repack` is run. |
+| `housekeeping_bitmaps_enabled`           | boolean          | no                                   | Deprecated. Git pack file bitmap creation is always enabled and cannot be changed via API and UI. Always returns `true`. |
+| `housekeeping_enabled`                   | boolean          | no                                   | Enable or disable Git housekeeping. Requires additional fields to be set. For more information, see [Housekeeping fields](#housekeeping-fields). |
+| `housekeeping_full_repack_period`        | integer          | no                                   | Deprecated. Number of Git pushes after which an incremental `git repack` is run. Use `housekeeping_optimize_repository_period` instead. For more information, see [Housekeeping fields](#housekeeping-fields). |
+| `housekeeping_gc_period`                 | integer          | no                                   | Deprecated. Number of Git pushes after which `git gc` is run. Use `housekeeping_optimize_repository_period` instead. For more information, see [Housekeeping fields](#housekeeping-fields). |
+| `housekeeping_incremental_repack_period` | integer          | no                                   | Deprecated. Number of Git pushes after which an incremental `git repack` is run. Use `housekeeping_optimize_repository_period` instead. For more information, see [Housekeeping fields](#housekeeping-fields).|
+| `housekeeping_optimize_repository_period`| integer          | no                                   | Number of Git pushes after which an incremental `git repack` is run. |
 | `html_emails_enabled`                    | boolean          | no                                   | Enable HTML emails. |
 | `import_sources`                         | array of strings | no                                   | Sources to allow project import from, possible values: `github`, `bitbucket`, `bitbucket_server`, `gitlab`, `fogbugz`, `git`, `gitlab_project`, `gitea`, `manifest`, and `phabricator`. |
 | `in_product_marketing_emails_enabled`    | boolean          | no                                   | Enable [in-product marketing emails](../user/profile/notifications.md#global-notification-settings). Enabled by default. |
-| `inactive_projects_delete_after_months`  | integer          | no                                   | If `delete_inactive_projects` is `true`, the time (in months) to wait before deleting inactive projects. Default is `2`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0. |
-| `inactive_projects_min_size_mb`          | integer          | no                                   | If `delete_inactive_projects` is `true`, the minimum repository size for projects to be checked for inactivity. Default is `0`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0. |
-| `inactive_projects_send_warning_email_after_months` | integer | no                                 | If `delete_inactive_projects` is `true`, sets the time (in months) to wait before emailing maintainers that the project is scheduled be deleted because it is inactive. Default is `1`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0. |
 | `invisible_captcha_enabled`              | boolean          | no                                   | Enable Invisible CAPTCHA spam detection during sign-up. Disabled by default. |
 | `issues_create_limit`                    | integer          | no                                   | Max number of issue creation requests per minute per user. Disabled by default.|
 | `keep_latest_artifact`                   | boolean          | no                                   | Prevent the deletion of the artifacts from the most recent successful jobs, regardless of the expiry time. Enabled by default. |
@@ -381,15 +405,18 @@ listed in the descriptions of the relevant settings.
 | `max_pages_size`                         | integer          | no                                   | Maximum size of pages repositories in MB. |
 | `max_personal_access_token_lifetime` **(ULTIMATE SELF)** | integer | no                                   | Maximum allowable lifetime for access tokens in days. |
 | `max_ssh_key_lifetime` **(ULTIMATE SELF)** | integer        | no                                   | Maximum allowable lifetime for SSH keys in days. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/1007) in GitLab 14.6. |
+| `max_terraform_state_size_bytes`         | integer | no                                         | Maximum size in bytes of the [Terraform state](../administration/terraform_state.md) files. Set this to 0 for unlimited file size. |
 | `metrics_method_call_threshold`          | integer          | no                                   | A method call is only tracked when it takes longer than the given amount of milliseconds. |
 | `max_number_of_repository_downloads` **(ULTIMATE SELF)**                             | integer          | no | Maximum number of unique repositories a user can download in the specified time period before they are banned. Default: 0, Maximum: 10,000 repositories. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87980) in GitLab 15.1. |
 | `max_number_of_repository_downloads_within_time_period` **(ULTIMATE SELF)**          | integer          | no | Reporting time period (in seconds). Default: 0, Maximum: 864000 seconds (10 days). [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87980) in GitLab 15.1. |
 | `git_rate_limit_users_allowlist` **(ULTIMATE SELF)**          | array of strings          | no                                   | List of usernames excluded from Git anti-abuse rate limits. Default: `[]`, Maximum: 100 usernames. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/90815) in GitLab 15.2. |
+| `git_rate_limit_users_alertlist` **(ULTIMATE SELF)**          | array of integers         | no     | List of user IDs that are emailed when the Git abuse rate limit is exceeded. Default: `[]`, Maximum: 100 user IDs. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/110201) in GitLab 15.9. |
 | `auto_ban_user_on_excessive_projects_download` **(ULTIMATE SELF)**          | boolean          | no                                   | When enabled, users will get automatically banned from the application when they download more than the maximum number of unique projects in the time period specified by `max_number_of_repository_downloads` and `max_number_of_repository_downloads_within_time_period` respectively. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/94153) in GitLab 15.4 |
 | `mirror_available`                       | boolean          | no                                   | Allow repository mirroring to configured by project Maintainers. If disabled, only Administrators can configure repository mirroring. |
 | `mirror_capacity_threshold` **(PREMIUM)** | integer          | no                                   | Minimum capacity to be available before scheduling more mirrors preemptively. |
 | `mirror_max_capacity` **(PREMIUM)**      | integer          | no                                   | Maximum number of mirrors that can be synchronizing at the same time. |
 | `mirror_max_delay` **(PREMIUM)**         | integer          | no                                   | Maximum time (in minutes) between updates that a mirror can have when scheduled to synchronize. |
+| `maven_package_requests_forwarding` **(PREMIUM)** | boolean   | no                                   | Use repo.maven.apache.org as a default remote repository when the package is not found in the GitLab Package Registry for Maven. |
 | `npm_package_requests_forwarding` **(PREMIUM)** | boolean   | no                                   | Use npmjs.org as a default remote repository when the package is not found in the GitLab Package Registry for npm. |
 | `pypi_package_requests_forwarding` **(PREMIUM)** | boolean  | no                                   | Use pypi.org as a default remote repository when the package is not found in the GitLab Package Registry for PyPI. |
 | `outbound_local_requests_whitelist`      | array of strings | no                                   | Define a list of trusted domains or IP addresses to which local requests are allowed when local requests for hooks and services are disabled.
@@ -409,6 +436,7 @@ listed in the descriptions of the relevant settings.
 | `plantuml_url`                           | string           | required by: `plantuml_enabled`      | The PlantUML instance URL for integration. |
 | `polling_interval_multiplier`            | decimal          | no                                   | Interval multiplier used by endpoints that perform polling. Set to `0` to disable polling. |
 | `project_export_enabled`                 | boolean          | no                                   | Enable project export. |
+| `projects_api_rate_limit_unauthenticated`      | integer          | no                                   | [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/112283) in GitLab 15.10. Max number of requests per 10 minutes per IP address for unauthenticated requests to the [list all projects API](projects.md#list-all-projects). Default: 400. To disable throttling set to 0.|
 | `prometheus_metrics_enabled`             | boolean          | no                                   | Enable Prometheus metrics. |
 | `protected_ci_variables`                 | boolean          | no                                   | CI/CD variables are protected by default. |
 | `push_event_activities_limit`            | integer          | no                                   | Number of changes (branches or tags) in a single push to determine whether individual push events or bulk push events are created. [Bulk push events are created](../user/admin_area/settings/push_event_activities_limit.md) if it surpasses that value. |
@@ -430,13 +458,12 @@ listed in the descriptions of the relevant settings.
 | `require_two_factor_authentication`      | boolean          | no                                   | (**If enabled, requires:** `two_factor_grace_period`) Require all users to set up Two-factor authentication. |
 | `restricted_visibility_levels`           | array of strings | no                                   | Selected levels cannot be used by non-Administrator users for groups, projects or snippets. Can take `private`, `internal` and `public` as a parameter. Default is `null` which means there is no restriction. |
 | `rsa_key_restriction`                    | integer          | no                                   | The minimum allowed bit length of an uploaded RSA key. Default is `0` (no restriction). `-1` disables RSA keys. |
-| `send_user_confirmation_email`            | boolean          | no                                   | Send confirmation email on sign-up. |
 | `session_expire_delay`                   | integer          | no                                   | Session duration in minutes. GitLab restart is required to apply changes. |
 | `shared_runners_enabled`                 | boolean          | no                                   | (**If enabled, requires:** `shared_runners_text` and `shared_runners_minutes`) Enable shared runners for new projects. |
 | `shared_runners_minutes` **(PREMIUM)**   | integer          | required by: `shared_runners_enabled` | Set the maximum number of CI/CD minutes that a group can use on shared runners per month. |
 | `shared_runners_text`                    | string           | required by: `shared_runners_enabled` | Shared runners text. |
 | `sidekiq_job_limiter_mode` | string | no | `track` or `compress`. Sets the behavior for [Sidekiq job size limits](../user/admin_area/settings/sidekiq_job_limits.md). Default: 'compress'. |
-| `sidekiq_job_limiter_compression_threshold_bytes` | integer | no | The threshold in bytes at which Sidekiq jobs are compressed before being stored in Redis. Default: 100 000 bytes (100KB). |
+| `sidekiq_job_limiter_compression_threshold_bytes` | integer | no | The threshold in bytes at which Sidekiq jobs are compressed before being stored in Redis. Default: 100,000 bytes (100 KB). |
 | `sidekiq_job_limiter_limit_bytes` | integer | no | The threshold in bytes at which Sidekiq jobs are rejected. Default: 0 bytes (doesn't reject any job). |
 | `sign_in_text`                           | string           | no                                   | Text on the login page. |
 | `signin_enabled`                         | string           | no                                   | (Deprecated: Use `password_authentication_enabled_for_web` instead) Flag indicating if password authentication is enabled for the web interface. |
@@ -446,7 +473,7 @@ listed in the descriptions of the relevant settings.
 | `slack_app_secret` **(PREMIUM)**         | string           | required by: `slack_app_enabled`     | The app secret of the Slack-app. |
 | `slack_app_signing_secret` **(PREMIUM)** | string           | no                                   | The signing secret of the Slack-app. |
 | `slack_app_verification_token` **(PREMIUM)** | string       | required by: `slack_app_enabled`     | The verification token of the Slack-app. |
-| `snippet_size_limit`                     | integer          | no                                   | Max snippet content size in **bytes**. Default: 52428800 Bytes (50MB).|
+| `snippet_size_limit`                     | integer          | no                                   | Max snippet content size in **bytes**. Default: 52428800 Bytes (50 MB).|
 | `snowplow_app_id`                        | string           | no                                   | The Snowplow site name / application ID. (for example, `gitlab`) |
 | `snowplow_collector_hostname`            | string           | required by: `snowplow_enabled`      | The Snowplow collector hostname. (for example, `snowplow.trx.gitlab.net`) |
 | `snowplow_cookie_domain`                 | string           | no                                   | The Snowplow cookie domain. (for example, `.gitlab.com`) |
@@ -490,12 +517,47 @@ listed in the descriptions of the relevant settings.
 | `user_deactivation_emails_enabled`       | boolean          | no                                   | Send an email to users upon account deactivation. |
 | `user_default_external`                  | boolean          | no                                   | Newly registered users are external by default. |
 | `user_default_internal_regex`            | string           | no                                   | Specify an email address regex pattern to identify default internal users. |
+| `user_defaults_to_private_profile` | boolean | no | Newly created users have private profile by default. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/231301) in GitLab 15.8. Defaults to `false`. |
 | `user_oauth_applications`                | boolean          | no                                   | Allow users to register any application to use GitLab as an OAuth provider. |
 | `user_show_add_ssh_key_message`          | boolean          | no                                   | When set to `false` disable the `You won't be able to pull or push project code via SSH` warning shown to users with no uploaded SSH key. |
 | `version_check_enabled`                  | boolean          | no                                   | Let GitLab inform you when an update is available. |
 | `whats_new_variant`                      | string           | no                                   | What's new variant, possible values: `all_tiers`, `current_tier`, and `disabled`. |
-| `web_ide_clientside_preview_enabled`     | boolean          | no                                   | Live Preview (allow live previews of JavaScript projects in the Web IDE using CodeSandbox Live Preview). |
 | `wiki_page_max_content_bytes`            | integer          | no                                   | Maximum wiki page content size in **bytes**. Default: 52428800 Bytes (50 MB). The minimum value is 1024 bytes. |
+| `jira_connect_application_key`           | String           | no                                   | Application ID of the OAuth application that should be used to authenticate with the GitLab for Jira Cloud app |
+| `jira_connect_proxy_url`                 | String           | no                                   | URL of the GitLab instance that should be used as a proxy for the GitLab for Jira Cloud app |
+
+### Configure inactive project deletion
+
+You can configure inactive projects deletion or turn it off.
+
+| Attribute                                | Type             | Required                             | Description |
+|------------------------------------------|------------------|:------------------------------------:|-------------|
+| `delete_inactive_projects`               | boolean          | no                                   | Enable [inactive project deletion](../administration/inactive_project_deletion.md). Default is `false`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational without feature flag](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/96803) in GitLab 15.4. |
+| `inactive_projects_delete_after_months`  | integer          | no                                   | If `delete_inactive_projects` is `true`, the time (in months) to wait before deleting inactive projects. Default is `2`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0. |
+| `inactive_projects_min_size_mb`          | integer          | no                                   | If `delete_inactive_projects` is `true`, the minimum repository size for projects to be checked for inactivity. Default is `0`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0. |
+| `inactive_projects_send_warning_email_after_months` | integer | no                                 | If `delete_inactive_projects` is `true`, sets the time (in months) to wait before emailing maintainers that the project is scheduled be deleted because it is inactive. Default is `1`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/84519) in GitLab 14.10. [Became operational](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85689) in GitLab 15.0. |
+
+## Housekeeping fields
+
+::Tabs
+
+:::TabTitle 15.8 and later
+
+If the `housekeeping_optimize_repository_period`
+field is set to an integer, housekeeping operations are performed after the number
+of Git pushes you specify.
+
+:::TabTitle 15.7 and earlier
+
+The `housekeeping_enabled` field enables or disables
+Git housekeeping. To function properly, this field requires `housekeeping_optimize_repository_period`
+to be set, or _all_ of these values to be set:
+
+- `housekeeping_bitmaps_enabled`
+- `housekeeping_full_repack_period`
+- `housekeeping_gc_period`
+
+::EndTabs
 
 ### Package Registry: Package file size limits
 

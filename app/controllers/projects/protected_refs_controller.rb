@@ -4,7 +4,6 @@ class Projects::ProtectedRefsController < Projects::ApplicationController
   include RepositorySettingsRedirect
 
   # Authorize
-  before_action :require_non_empty_project
   before_action :authorize_admin_project!
   before_action :load_protected_ref, only: [:show, :update, :destroy]
 
@@ -23,7 +22,10 @@ class Projects::ProtectedRefsController < Projects::ApplicationController
       flash[:alert] = protected_ref.errors.full_messages.join(', ').html_safe
     end
 
-    redirect_to_repository_settings(@project, anchor: params[:update_section])
+    respond_to do |format|
+      format.html { redirect_to_repository_settings(@project, anchor: params[:update_section]) }
+      format.json { head :ok }
+    end
   end
 
   def show

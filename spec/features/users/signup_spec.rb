@@ -44,7 +44,7 @@ RSpec.shared_examples 'Signup name validation' do |field, max_length, label|
   end
 end
 
-RSpec.describe 'Signup' do
+RSpec.describe 'Signup', feature_category: :user_profile do
   include TermsHelper
 
   let(:new_user) { build_stubbed(:user) }
@@ -66,6 +66,7 @@ RSpec.describe 'Signup' do
   flag_values = [true, false]
   flag_values.each do |val|
     before do
+      stub_feature_flags(arkose_labs_signup_challenge: false)
       stub_feature_flags(restyle_login_page: val)
       stub_application_setting(require_admin_approval_after_user_signup: false)
     end
@@ -196,12 +197,13 @@ RSpec.describe 'Signup' do
     context 'with no errors' do
       context 'when sending confirmation email' do
         before do
-          stub_application_setting(send_user_confirmation_email: true)
+          stub_application_setting_enum('email_confirmation_setting', 'hard')
         end
 
         context 'when soft email confirmation is not enabled' do
           before do
             stub_feature_flags(soft_email_confirmation: false)
+            stub_feature_flags(identity_verification: false)
           end
 
           it 'creates the user account and sends a confirmation email, and pre-fills email address after confirming' do
@@ -237,7 +239,7 @@ RSpec.describe 'Signup' do
 
       context "when not sending confirmation email" do
         before do
-          stub_application_setting(send_user_confirmation_email: false)
+          stub_application_setting_enum('email_confirmation_setting', 'off')
         end
 
         it 'creates the user account and goes to dashboard' do
@@ -280,7 +282,7 @@ RSpec.describe 'Signup' do
         expect(page).to have_content("Email has already been taken")
       end
 
-      it 'does not redisplay the password' do
+      it 'redisplays all fields except password' do
         create(:user, email: new_user.email)
         visit new_user_registration_path
 
@@ -289,6 +291,11 @@ RSpec.describe 'Signup' do
 
         expect(page).to have_current_path user_registration_path, ignore_query: true
         expect(page.body).not_to match(/#{new_user.password}/)
+
+        expect(find_field('First name').value).to eq(new_user.first_name)
+        expect(find_field('Last name').value).to eq(new_user.last_name)
+        expect(find_field('Username').value).to eq(new_user.username)
+        expect(find_field('Email').value).to eq(new_user.email)
       end
     end
 
@@ -347,7 +354,6 @@ RSpec.describe 'Signup' do
     end
 
     it 'redirects to step 2 of the signup process, sets the role and redirects back' do
-      stub_feature_flags(about_your_company_registration_flow: false)
       visit new_user_registration_path
 
       fill_in_signup_form
@@ -378,7 +384,7 @@ RSpec.describe 'Signup' do
       expect(page.body).not_to match(/#{new_user.password}/)
     end
 
-    context 'with invalid email', :saas, :js do
+    context 'with invalid email', :js do
       it_behaves_like 'user email validation' do
         let(:path) { new_user_registration_path }
       end

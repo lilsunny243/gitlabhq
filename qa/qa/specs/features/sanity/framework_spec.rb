@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Framework sanity checks', :orchestrated, :framework do
+  RSpec.describe 'Framework sanity', :orchestrated, :framework do
     describe 'Passing orchestrated example' do
       it 'succeeds' do
         Runtime::Browser.visit(:gitlab, Page::Main::Login)
 
-        expect(page).to have_text('A complete DevOps platform')
+        expect(page).to have_text('GitLab')
       end
     end
 

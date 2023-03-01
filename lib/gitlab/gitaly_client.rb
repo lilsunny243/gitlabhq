@@ -37,9 +37,8 @@ module Gitlab
         @stubs[storage] ||= {}
         @stubs[storage][name] ||= begin
           klass = stub_class(name)
-          addr = stub_address(storage)
-          creds = stub_creds(storage)
-          klass.new(addr, creds, interceptors: interceptors, channel_args: channel_args)
+          channel = create_channel(storage)
+          klass.new(channel.target, nil, interceptors: interceptors, channel_override: channel)
         end
       end
     end
@@ -52,11 +51,29 @@ module Gitlab
     private_class_method :interceptors
 
     def self.channel_args
-      # These values match the go Gitaly client
-      # https://gitlab.com/gitlab-org/gitaly/-/blob/bf9f52bc/client/dial.go#L78
       {
+        # These keepalive values match the go Gitaly client
+        # https://gitlab.com/gitlab-org/gitaly/-/blob/bf9f52bc/client/dial.go#L78
         'grpc.keepalive_time_ms': 20000,
-        'grpc.keepalive_permit_without_calls': 1
+        'grpc.keepalive_permit_without_calls': 1,
+        # Enable client-side automatic retry. After enabled, gRPC requests will be retried when there are connectivity
+        # problems with the target host. Only transparent failures, which mean requests fail before leaving clients, are
+        # eligible. Other cases are configurable via retry policy in service config (below). In theory, we can auto-retry
+        # read-only RPCs. Gitaly defines a custom field in service proto. Unfortunately, gRPC ruby doesn't support
+        # descriptor reflection.
+        # For more information please visit https://github.com/grpc/proposal/blob/master/A6-client-retries.md
+        'grpc.enable_retries': 1,
+        # Service config is a mechanism for grpc to control the behavior of gRPC client. It defines the client-side
+        # balancing strategy and retry policy. The config receives a raw JSON string. The format is defined here:
+        # https://github.com/grpc/grpc-proto/blob/master/grpc/service_config/service_config.proto
+        'grpc.service_config': {
+          # By default, gRPC uses pick_first strategy. This strategy establishes one single connection to the first
+          # target returned by the name resolver. We would like to use round_robin load-balancing strategy so that
+          # grpc creates multiple subchannels to all targets retrurned by the resolver. Requests are distributed to
+          # those subchannels in a round-robin fashion.
+          # More about client-side load-balancing: https://gitlab.com/groups/gitlab-org/-/epics/8971#note_1207008162
+          "loadBalancingConfig": [{ "round_robin": {} }]
+        }.to_json
       }
     end
     private_class_method :channel_args
@@ -81,9 +98,20 @@ module Gitlab
       address(storage).sub(%r{^tcp://|^tls://}, '')
     end
 
+    # Cache gRPC servers by storage. All the client stubs in the same process can share the underlying connection to the
+    # same host thanks to HTTP2 framing protocol that gRPC is built on top. This method is not thread-safe. It is
+    # intended to be a part of `stub`, method behind a mutex protection.
+    def self.create_channel(storage)
+      @channels ||= {}
+      @channels[storage] ||= GRPC::ClientStub.setup_channel(
+        nil, stub_address(storage), stub_creds(storage), channel_args
+      )
+    end
+
     def self.clear_stubs!
       MUTEX.synchronize do
         @stubs = nil
+        @channels = nil
       end
     end
 
@@ -100,8 +128,8 @@ module Gitlab
         raise "storage #{storage.inspect} is missing a gitaly_address"
       end
 
-      unless %w(tcp unix tls).include?(URI(address).scheme)
-        raise "Unsupported Gitaly address: #{address.inspect} does not use URL scheme 'tcp' or 'unix' or 'tls'"
+      unless %w(tcp unix tls dns).include?(URI(address).scheme)
+        raise "Unsupported Gitaly address: #{address.inspect} does not use URL scheme 'tcp' or 'unix' or 'tls' or 'dns'"
       end
 
       address
@@ -204,8 +232,9 @@ module Gitlab
       metadata['x-gitlab-correlation-id'] = Labkit::Correlation::CorrelationId.current_id if Labkit::Correlation::CorrelationId.current_id
       metadata['gitaly-session-id'] = session_id
       metadata['username'] = context_data['meta.user'] if context_data&.fetch('meta.user', nil)
+      metadata['user_id'] = context_data['meta.user_id'].to_s if context_data&.fetch('meta.user_id', nil)
       metadata['remote_ip'] = context_data['meta.remote_ip'] if context_data&.fetch('meta.remote_ip', nil)
-      metadata.merge!(Feature::Gitaly.server_feature_flags)
+      metadata.merge!(Feature::Gitaly.server_feature_flags(**feature_flag_actors))
       metadata.merge!(route_to_primary)
 
       deadline_info = request_deadline(timeout)
@@ -293,7 +322,7 @@ module Gitlab
       # check if the limit is being exceeded while testing in those environments
       # In that case we can use a feature flag to indicate that we do want to
       # enforce request limits.
-      return true if Feature::Gitaly.enabled?('enforce_requests_limits')
+      return true if Feature::Gitaly.enabled_for_any?(:gitaly_enforce_requests_limits)
 
       !Rails.env.production?
     end
@@ -502,5 +531,24 @@ module Gitlab
     end
 
     private_class_method :max_stacks
+
+    def self.with_feature_flag_actors(repository: nil, user: nil, project: nil, group: nil, &block)
+      feature_flag_actors[:repository] = repository
+      feature_flag_actors[:user] = user
+      feature_flag_actors[:project] = project
+      feature_flag_actors[:group] = group
+
+      yield
+    ensure
+      feature_flag_actors.clear
+    end
+
+    def self.feature_flag_actors
+      if Gitlab::SafeRequestStore.active?
+        Gitlab::SafeRequestStore[:gitaly_feature_flag_actors] ||= {}
+      else
+        Thread.current[:gitaly_feature_flag_actors] ||= {}
+      end
+    end
   end
 end

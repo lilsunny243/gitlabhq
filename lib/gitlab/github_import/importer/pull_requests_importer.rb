@@ -19,7 +19,7 @@ module Gitlab
         end
 
         def id_for_already_imported_cache(pr)
-          pr.number
+          pr[:number]
         end
 
         def object_type
@@ -38,7 +38,7 @@ module Gitlab
           # deliberate. If we were to update this column after the fetch we may
           # miss out on changes pushed during the fetch or between the fetch and
           # updating the timestamp.
-          project.touch(:last_repository_updated_at) # rubocop: disable Rails/SkipsModelValidations
+          project.touch(:last_repository_updated_at)
 
           project.repository.fetch_remote(project.import_url, refmap: Gitlab::GithubImport.refmap, forced: true)
 
@@ -55,11 +55,11 @@ module Gitlab
         def update_repository?(pr)
           last_update = project.last_repository_updated_at || project.created_at
 
-          return false if pr.updated_at < last_update
+          return false if pr[:updated_at] < last_update
 
           # PRs may be updated without there actually being new commits, thus we
           # check to make sure we only re-fetch if truly necessary.
-          !(commit_exists?(pr.head.sha) && commit_exists?(pr.base.sha))
+          !(commit_exists?(pr.dig(:head, :sha)) && commit_exists?(pr.dig(:base, :sha)))
         end
 
         def commit_exists?(sha)

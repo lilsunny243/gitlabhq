@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Maintenance Rake tasks **(FREE SELF)**
@@ -234,8 +234,11 @@ sudo -u git -H bundle exec rake cache:clear RAILS_ENV=production
 Sometimes during version upgrades you might end up with some wrong CSS or
 missing some icons. In that case, try to precompile the assets again.
 
-This only applies to source installations and does not apply to
-Omnibus packages.
+This Rake task only applies to source installations. [Read more](../../update/package/index.md#missing-asset-files)
+about troubleshooting this problem when running the Omnibus GitLab package.
+The guidance for Omnibus GitLab might be applicable for Kubernetes and Docker Omnibus
+deployments of GitLab, though in general, container-based installations
+don't have issues with missing assets.
 
 **Source Installation**
 
@@ -301,13 +304,19 @@ sudo gitlab-rake gitlab:exclusive_lease:clear[project_housekeeping:4]
 
 ## Display status of database migrations
 
-See the [upgrade documentation](../../update/index.md#checking-for-background-migrations-before-upgrading)
+See the [background migrations documentation](../../update/background_migrations.md)
 for how to check that migrations are complete when upgrading GitLab.
 
 To check the status of specific migrations, you can use the following Rake task:
 
 ```shell
 sudo gitlab-rake db:migrate:status
+```
+
+To check the [tracking database on a Geo secondary site](../geo/setup/external_database.md#configure-the-tracking-database), you can use the following Rake task:
+
+```shell
+sudo gitlab-rake db:migrate:status:geo
 ```
 
 This outputs a table with a `Status` of `up` or `down` for
@@ -326,14 +335,20 @@ database: gitlabhq_production
 Database migrations can be stuck in an incomplete state, with a `down`
 status in the output of the `sudo gitlab-rake db:migrate:status` command.
 
-To complete these migrations, use the following Rake task:
+1. To complete these migrations, use the following Rake task:
 
-```shell
-sudo gitlab-rake db:migrate
-```
+   ```shell
+   sudo gitlab-rake db:migrate
+   ```
 
-After the command completes, run `sudo gitlab-rake db:migrate:status` to check if all
-migrations are completed (have an `up` status).
+1. After the command completes, run `sudo gitlab-rake db:migrate:status` to check if all migrations are completed (have an `up` status).
+
+1. Hot reload `puma` and `sidekiq` services:
+
+   ```shell
+   sudo gitlab-ctl hup puma
+   sudo gitlab-ctl restart sidekiq
+   ```
 
 ## Rebuild database indexes
 
@@ -362,7 +377,7 @@ The following index types are not supported:
 
 Optionally, this Rake task sends annotations to a Grafana (4.6 or later) endpoint. Use the following custom environment variables to enable annotations:
 
-1. `GRAFANA_API_URL` - Grafana's base URL, for example `http://some-host:3000`.
+1. `GRAFANA_API_URL` - The base URL for Grafana, for example `http://some-host:3000`.
 1. `GRAFANA_API_KEY` - Grafana API key with at least `Editor role`.
 
 You can also [enable reindexing as a regular cron job](https://docs.gitlab.com/omnibus/settings/database.html#automatic-database-reindexing).

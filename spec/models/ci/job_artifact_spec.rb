@@ -2,12 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::JobArtifact do
+RSpec.describe Ci::JobArtifact, feature_category: :build_artifacts do
   let(:artifact) { create(:ci_job_artifact, :archive) }
 
   describe "Associations" do
     it { is_expected.to belong_to(:project) }
     it { is_expected.to belong_to(:job) }
+    it { is_expected.to validate_presence_of(:job) }
+    it { is_expected.to validate_presence_of(:partition_id) }
   end
 
   it { is_expected.to respond_to(:file) }
@@ -23,6 +25,29 @@ RSpec.describe Ci::JobArtifact do
     let_it_be(:job, reload: true) { create(:ci_build) }
 
     subject { build(:ci_job_artifact, :archive, job: job, size: 107464) }
+  end
+
+  describe 'after_create_commit callback' do
+    it 'logs the job artifact create' do
+      artifact = build(:ci_job_artifact, file_type: 3, size: 8888, file_format: 2, locked: 1)
+
+      expect(Gitlab::Ci::Artifacts::Logger).to receive(:log_created) do |record|
+        expect(record.size).to eq(artifact.size)
+        expect(record.file_type).to eq(artifact.file_type)
+        expect(record.file_format).to eq(artifact.file_format)
+        expect(record.locked).to eq(artifact.locked)
+      end
+
+      artifact.save!
+    end
+  end
+
+  describe 'after_destroy_commit callback' do
+    it 'logs the job artifact destroy' do
+      expect(Gitlab::Ci::Artifacts::Logger).to receive(:log_deleted).with(artifact, :log_destroy)
+
+      artifact.destroy!
+    end
   end
 
   describe '.not_expired' do
@@ -128,6 +153,38 @@ RSpec.describe Ci::JobArtifact do
         let!(:artifact) { create(:ci_job_artifact, :archive) }
 
         it { is_expected.to be_empty }
+      end
+    end
+  end
+
+  describe 'artifacts_public?' do
+    subject { artifact.public_access? }
+
+    context 'when job artifact created by default' do
+      let!(:artifact) { create(:ci_job_artifact) }
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when job artifact created as public' do
+      let!(:artifact) { create(:ci_job_artifact, :public) }
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when job artifact created as private' do
+      let!(:artifact) { build(:ci_job_artifact, :private) }
+
+      it { is_expected.to be_falsey }
+
+      context 'and the non_public_artifacts feature flag is disabled' do
+        let!(:artifact) { build(:ci_job_artifact, :private) }
+
+        before do
+          stub_feature_flags(non_public_artifacts: false)
+        end
+
+        it { is_expected.to be_truthy }
       end
     end
   end
@@ -351,50 +408,6 @@ RSpec.describe Ci::JobArtifact do
       artifact2 = create(:ci_job_artifact)
 
       expect(described_class.ordered_by_id).to eq([artifact1, artifact2])
-    end
-  end
-
-  describe 'callbacks' do
-    describe '#schedule_background_upload' do
-      subject { create(:ci_job_artifact, :archive) }
-
-      context 'when object storage is disabled' do
-        before do
-          stub_artifacts_object_storage(enabled: false)
-        end
-
-        it 'does not schedule the migration' do
-          expect(ObjectStorage::BackgroundMoveWorker).not_to receive(:perform_async)
-
-          subject
-        end
-      end
-
-      context 'when object storage is enabled' do
-        context 'when background upload is enabled' do
-          before do
-            stub_artifacts_object_storage(background_upload: true)
-          end
-
-          it 'schedules the model for migration' do
-            expect(ObjectStorage::BackgroundMoveWorker).to receive(:perform_async).with('JobArtifactUploader', described_class.name, :file, kind_of(Numeric))
-
-            subject
-          end
-        end
-
-        context 'when background upload is disabled' do
-          before do
-            stub_artifacts_object_storage(background_upload: false)
-          end
-
-          it 'schedules the model for migration' do
-            expect(ObjectStorage::BackgroundMoveWorker).not_to receive(:perform_async)
-
-            subject
-          end
-        end
-      end
     end
   end
 
@@ -732,8 +745,8 @@ RSpec.describe Ci::JobArtifact do
       end
 
       it 'updates project statistics' do
-        expect(ProjectStatistics).to receive(:increment_statistic).once
-              .with(project, :build_artifacts_size, -job_artifact.file.size)
+        expect(ProjectStatistics).to receive(:bulk_increment_statistic).once
+          .with(project, :build_artifacts_size, [have_attributes(amount: -job_artifact.file.size)])
 
         pipeline.destroy!
       end
@@ -757,5 +770,33 @@ RSpec.describe Ci::JobArtifact do
       let!(:parent) { create(:project) }
       let!(:model) { create(:ci_job_artifact, project: parent) }
     end
+  end
+
+  describe 'partitioning' do
+    let(:job) { build(:ci_build, partition_id: 123) }
+    let(:artifact) { build(:ci_job_artifact, job: job, partition_id: nil) }
+
+    it 'copies the partition_id from job' do
+      expect { artifact.valid? }.to change(artifact, :partition_id).from(nil).to(123)
+    end
+
+    context 'when the job is missing' do
+      let(:artifact) do
+        build(:ci_job_artifact,
+          project: build_stubbed(:project),
+          job: nil,
+          partition_id: nil)
+      end
+
+      it 'does not change the partition_id value' do
+        expect { artifact.valid? }.not_to change(artifact, :partition_id)
+      end
+    end
+  end
+
+  describe '#filename' do
+    subject { artifact.filename }
+
+    it { is_expected.to eq(artifact.file.filename) }
   end
 end

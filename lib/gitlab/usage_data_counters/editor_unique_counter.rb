@@ -7,7 +7,6 @@ module Gitlab
       EDIT_BY_SFE = 'g_edit_by_sfe'
       EDIT_BY_WEB_IDE = 'g_edit_by_web_ide'
       EDIT_CATEGORY = 'ide_edit'
-      EDIT_BY_LIVE_PREVIEW = 'g_edit_by_live_preview'
 
       class << self
         def track_web_ide_edit_action(author:, time: Time.zone.now, project:)
@@ -34,31 +33,23 @@ module Gitlab
           count_unique(EDIT_BY_SNIPPET_EDITOR, date_from, date_to)
         end
 
-        def count_edit_using_editor(date_from:, date_to:)
-          events = Gitlab::UsageDataCounters::HLLRedisCounter.events_for_category(EDIT_CATEGORY)
-          count_unique(events, date_from, date_to)
-        end
-
-        def track_live_preview_edit_action(author:, time: Time.zone.now, project:)
-          track_unique_action(EDIT_BY_LIVE_PREVIEW, author, time, project)
-        end
-
         private
 
-        def track_unique_action(action, author, time, project = nil)
+        def track_unique_action(event_name, author, time, project = nil)
           return unless author
 
-          if Feature.enabled?(:route_hll_to_snowplow_phase2)
-            Gitlab::Tracking.event(
-              'ide_edit',
-              action.to_s,
-              project: project,
-              namespace: project&.namespace,
-              user: author
-            )
-          end
+          Gitlab::Tracking.event(
+            name,
+            'ide_edit',
+            property: event_name.to_s,
+            project: project,
+            namespace: project&.namespace,
+            user: author,
+            label: 'usage_activity_by_stage_monthly.create.action_monthly_active_users_ide_edit',
+            context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: event_name).to_context]
+          )
 
-          Gitlab::UsageDataCounters::HLLRedisCounter.track_event(action, values: author.id, time: time)
+          Gitlab::UsageDataCounters::HLLRedisCounter.track_event(event_name, values: author.id, time: time)
         end
 
         def count_unique(actions, date_from, date_to)

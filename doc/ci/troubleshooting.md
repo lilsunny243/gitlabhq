@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Authoring
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -40,18 +40,8 @@ is at:
 https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/editor/schema/ci.json.
 ```
 
-The schema rules for custom YAML tags like `!reference` will not work until the
-custom tags are set in the editor settings. For example, in VS Code, you can set
-`vscode-yaml` to parse `customTags`:
-
-```json
-"yaml.customTags": [
-   "!reference sequence"
-]
-```
-
 To see the full list of custom tags covered by the CI/CD schema, check the
-latest version of the schema, linked above.
+latest version of the schema.
 
 ### Verify syntax with CI Lint tool
 
@@ -70,7 +60,7 @@ pipeline, and what their values are. A lot of pipeline configuration is dependen
 on variables, and verifying them is one of the fastest ways to find the source of
 a problem.
 
-[Export the full list of variables](variables/index.md#list-all-environment-variables)
+[Export the full list of variables](variables/index.md#list-all-variables)
 available in each problematic job. Check if the variables you expect are present,
 and check if their values are what you expect.
 
@@ -89,9 +79,9 @@ if you are using that type:
 
 - [Multi-project pipelines](pipelines/downstream_pipelines.md#multi-project-pipelines): Have your pipeline trigger
   a pipeline in a different project.
-- [Parent/child pipelines](pipelines/parent_child_pipelines.md): Have your main pipeline trigger
+- [Parent/child pipelines](pipelines/downstream_pipelines.md#parent-child-pipelines): Have your main pipeline trigger
   and run separate pipelines in the same project. You can also
-  [dynamically generate the child pipeline's configuration](pipelines/parent_child_pipelines.md#dynamic-child-pipelines)
+  [dynamically generate the child pipeline's configuration](pipelines/downstream_pipelines.md#dynamic-child-pipelines)
   at runtime.
 - [Merge request pipelines](pipelines/merge_request_pipelines.md): Run a pipeline
   in the context of a merge request.
@@ -105,7 +95,7 @@ if you are using that type:
 
 Troubleshooting guides are available for some CI/CD features and related topics:
 
-- [Container Registry](../user/packages/container_registry/index.md#troubleshooting-the-gitlab-container-registry)
+- [Container Registry](../user/packages/container_registry/troubleshoot_container_registry.md)
 - [GitLab Runner](https://docs.gitlab.com/runner/faq/)
 - [Merge Trains](pipelines/merge_trains.md#troubleshooting)
 - [Docker Build](docker/using_docker_build.md#troubleshooting)
@@ -170,6 +160,14 @@ a branch pipeline instead.
 
 It's also possible that your [`workflow: rules`](yaml/index.md#workflow) configuration
 blocked the pipeline, or allowed the wrong pipeline type.
+
+### Pipeline with many jobs fails to start
+
+A Pipeline that has more jobs than the instance's defined [CI/CD limits](../user/admin_area/settings/continuous_integration.md#set-cicd-limits)
+fails to start.
+
+To reduce the number of jobs in your pipeline, you can split your `.gitlab-ci.yml`
+configuration using [parent-child pipelines](../ci/pipelines/pipeline_architectures.md#parent-child-pipelines).
 
 ### A job runs unexpectedly
 
@@ -251,7 +249,7 @@ The merge request status widget shows the **Merge** button and whether or not a 
 request is ready to merge. If the merge request can't be merged, the reason for this
 is displayed.
 
-If the pipeline is still running, the **Merge** button is replaced with the
+If the pipeline is still running, **Merge** is replaced with the
 **Merge when pipeline succeeds** button.
 
 If [**Merge Trains**](pipelines/merge_trains.md)
@@ -259,7 +257,7 @@ are enabled, the button is either **Add to merge train** or **Add to merge train
 
 #### "A CI/CD pipeline must run and be successful before merge" message
 
-This message is shown if the [Pipelines must succeed](../user/project/merge_requests/merge_when_pipeline_succeeds.md#only-allow-merge-requests-to-be-merged-if-the-pipeline-succeeds)
+This message is shown if the [Pipelines must succeed](../user/project/merge_requests/merge_when_pipeline_succeeds.md#require-a-successful-pipeline-for-merge)
 setting is enabled in the project and a pipeline has not yet run successfully.
 This also applies if the pipeline has not been created yet, or if you are waiting
 for an external CI service. If you don't use pipelines for your project, then you
@@ -274,14 +272,14 @@ has failed or been canceled.
 
 If a merge request pipeline or merged result pipeline was canceled or failed, you can:
 
-- Re-run the entire pipeline by clicking **Run pipeline** in the pipeline tab in the merge request.
+- Re-run the entire pipeline by selecting **Run pipeline** in the pipeline tab in the merge request.
 - [Retry only the jobs that failed](pipelines/index.md#view-pipelines). If you re-run the entire pipeline, this is not necessary.
 - Push a new commit to fix the failure.
 
 If the merge train pipeline has failed, you can:
 
 - Check the failure and determine if you can use the [`/merge` quick action](../user/project/quick_actions.md) to immediately add the merge request to the train again.
-- Re-run the entire pipeline by clicking **Run pipeline** in the pipeline tab in the merge request, then add the merge request to the train again.
+- Re-run the entire pipeline by selecting **Run pipeline** in the pipeline tab in the merge request, then add the merge request to the train again.
 - Push a commit to fix the failure, then add the merge request to the train again.
 
 If the merge train pipeline was canceled before the merge request was merged, without a failure, you can:
@@ -316,7 +314,7 @@ To reduce the configuration size, you can:
   [merged YAML](pipeline_editor/index.md#view-expanded-configuration) tab. Look for
   duplicated configuration that can be removed or simplified.
 - Move long or repeated `script` sections into standalone scripts in the project.
-- Use [parent and child pipelines](pipelines/parent_child_pipelines.md) to move some
+- Use [parent and child pipelines](pipelines/downstream_pipelines.md#parent-child-pipelines) to move some
   work to jobs in an independent child pipeline.
 
 On a self-managed instance, you can [increase the size limits](../administration/instance_limits.md#maximum-size-and-depth-of-cicd-configuration-yaml-files).
@@ -325,6 +323,13 @@ On a self-managed instance, you can [increase the size limits](../administration
 
 A [loop of included configuration files](pipeline_editor/index.md#configuration-validation-currently-not-available-message)
 can cause a `500` error when editing the `.gitlab-ci.yml` file with the [web editor](../user/project/repository/web_editor.md).
+
+### A CI/CD job does not use newer configuration when run again
+
+The configuration for a pipeline is only fetched when the pipeline is created.
+When you rerun a job, uses the same configuration each time. If you update configuration files,
+including separate files added with [`include`](yaml/index.md#include), you must
+start a new pipeline to use the new configuration.
 
 ## Pipeline warnings
 
@@ -343,7 +348,7 @@ To [prevent duplicate pipelines](jobs/job_control.md#avoid-duplicate-pipelines),
 [`workflow: rules`](yaml/index.md#workflow) or rewrite your rules to control
 which pipelines can run.
 
-### Console workaround if job using resource_group gets stuck **(FREE SELF)**
+### Console workaround if job using `resource_group` gets stuck **(FREE SELF)**
 
 ```ruby
 # find resource group by name
@@ -388,6 +393,77 @@ This flag reduces system resource usage on the `jobs/request` endpoint.
 
 When enabled, jobs created in the last hour can run in projects which are out of quota.
 Earlier jobs are already canceled by a periodic background worker (`StuckCiJobsWorker`).
+
+## CI/CD troubleshooting rails console commands
+
+The following commands are run in the [rails console](../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+WARNING:
+Any command that changes data directly could be damaging if not run correctly, or under the right conditions.  
+We highly recommend running them in a test environment with a backup of the instance ready to be restored, just in case.
+
+### Cancel stuck pending pipelines
+
+```ruby
+project = Project.find_by_full_path('<project_path>')
+Ci::Pipeline.where(project_id: project.id).where(status: 'pending').count
+Ci::Pipeline.where(project_id: project.id).where(status: 'pending').each {|p| p.cancel if p.stuck?}
+Ci::Pipeline.where(project_id: project.id).where(status: 'pending').count
+```
+
+### Try merge request integration
+
+```ruby
+project = Project.find_by_full_path('<project_path>')
+mr = project.merge_requests.find_by(iid: <merge_request_iid>)
+mr.project.try(:ci_integration)
+```
+
+### Validate the `.gitlab-ci.yml` file
+
+```ruby
+project = Project.find_by_full_path('<project_path>')
+content = p.repository.gitlab_ci_yml_for(project.repository.root_ref_sha)
+Gitlab::Ci::Lint.new(project: project,  current_user: User.first).validate(content)
+```
+
+### Disable AutoDevOps on Existing Projects
+
+```ruby
+Project.all.each do |p|
+  p.auto_devops_attributes={"enabled"=>"0"}
+  p.save
+end
+```
+
+### Obtain runners registration token
+
+```ruby
+Gitlab::CurrentSettings.current_application_settings.runners_registration_token
+```
+
+### Seed runners registration token
+
+```ruby
+appSetting = Gitlab::CurrentSettings.current_application_settings
+appSetting.set_runners_registration_token('<new-runners-registration-token>')
+appSetting.save!
+```
+
+### Run pipeline schedules manually
+
+You can run pipeline schedules manually through the Rails console to reveal any errors that are usually not visible.
+
+```ruby
+# schedule_id can be obtained from Edit Pipeline Schedule page
+schedule = Ci::PipelineSchedule.find_by(id: <schedule_id>)
+
+# Select the user that you want to run the schedule for
+user = User.find_by_username('<username>')
+
+# Run the schedule
+ps = Ci::CreatePipelineService.new(schedule.project, user, ref: schedule.ref).execute!(:schedule, ignore_skip_ci: true, save_on_errors: false, schedule: schedule)
+```
 
 ## How to get help
 

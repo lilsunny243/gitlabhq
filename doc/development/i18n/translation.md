@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Translating GitLab
@@ -75,6 +75,7 @@ The level of formality used in software varies by language:
 | -------- | --------- | ------- |
 | French   | formal    | `vous` for `you` |
 | German   | informal  | `du` for `you` |
+| Spanish   | informal  | `tú` for `you` |
 
 Refer to other translated strings and notes in the glossary to assist you in determining a suitable
 level of formality.

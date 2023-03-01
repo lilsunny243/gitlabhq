@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -12,7 +12,7 @@ type: howto
 NOTE:
 This is the final step in setting up a **secondary** Geo site. Stages of the
 setup process must be completed in the documented order.
-If not, [complete all prior stages](../setup/index.md#using-omnibus-gitlab) before procceed.
+If not, [complete all prior stages](../setup/index.md#using-omnibus-gitlab) before proceeding.
 
 Make sure you [set up the database replication](../setup/database.md), and [configured fast lookup of authorized SSH keys](../../operations/fast_ssh_key_lookup.md) in **both primary and secondary sites**.
 
@@ -104,7 +104,7 @@ keys must be manually replicated to the **secondary** site.
 1. Make a backup of any existing SSH host keys:
 
    ```shell
-   find /etc/ssh -iname ssh_host_* -exec cp {} {}.backup.`date +%F` \;
+   find /etc/ssh -iname 'ssh_host_*' -exec cp {} {}.backup.`date +%F` \;
    ```
 
 1. Copy OpenSSH host keys from the **primary** site:
@@ -202,18 +202,19 @@ keys must be manually replicated to the **secondary** site.
    ```
 
 1. Navigate to the Primary Node GitLab Instance:
-   1. On the top bar, select **Menu > Admin**.
+   1. On the top bar, select **Main menu > Admin**.
    1. On the left sidebar, select **Geo > Sites**.
    1. Select **Add site**.
-   ![Add secondary site](img/adding_a_secondary_v13_3.png)
-   1. Fill in **Name** with the `gitlab_rails['geo_node_name']` in
-   `/etc/gitlab/gitlab.rb`. These values must always match *exactly*, character
+   ![Add secondary site](img/adding_a_secondary_v15_8.png)
+   1. In **Name**, enter the value for `gitlab_rails['geo_node_name']` in
+   `/etc/gitlab/gitlab.rb`. These values must always match **exactly**, character
    for character.
-   1. Fill in **URL** with the `external_url` in `/etc/gitlab/gitlab.rb`. These
+   1. In **External URL**, enter the value for `external_url` in `/etc/gitlab/gitlab.rb`. These
    values must always match, but it doesn't matter if one ends with a `/` and
    the other doesn't.
-   1. (Optional) Choose which groups or storage shards should be replicated by the
-   **secondary** site. Leave blank to replicate all. Read more in
+   1. Optional. In **Internal URL (optional)**, enter an internal URL for the primary site.
+   1. Optional. Select which groups or storage shards should be replicated by the
+   **secondary** site. Leave blank to replicate all. For more information, see
    [selective synchronization](#selective-synchronization).
    1. Select **Save changes** to add the **secondary** site.
 1. SSH into **each Rails, and Sidekiq node on your secondary** site and restart the services:
@@ -239,8 +240,9 @@ keys must be manually replicated to the **secondary** site.
 
    If any of the checks fail, check the [troubleshooting documentation](troubleshooting.md).
 
-Once added to the Geo administration page and restarted, the **secondary** site automatically starts
-replicating missing data from the **primary** site in a process known as **backfill**.
+After the **secondary** site is added to the Geo administration page and restarted,
+the site automatically starts replicating missing data from the **primary** site
+in a process known as **backfill**.
 Meanwhile, the **primary** site starts to notify each **secondary** site of any changes, so
 that the **secondary** site can act on those notifications immediately.
 
@@ -263,7 +265,7 @@ Install the correct certificate based on your certificate type:
 - **Multi-domain certificate** that includes both primary and secondary site domains: Install the certificate at `/etc/gitlab/ssl` on all **Rails, Sidekiq, and Gitaly** nodes in the **secondary** site.
 - **Single-domain certificate** where the certificates are specific to each Geo site domain: Generate a valid certificate for your **secondary** site's domain and install it at `/etc/gitlab/ssl` per [these instructions](https://docs.gitlab.com/omnibus/settings/ssl.html#install-custom-public-certificates) on all **Rails, Sidekiq, and Gitaly** nodes in the **secondary** site.
 
-#### Connecting to external services that use customer certificates
+#### Connecting to external services that use custom certificates
 
 A copy of the self-signed certificate for the external service needs to be added to the trust store on all the **primary** site's nodes that require access to the service.
 
@@ -309,7 +311,7 @@ method to be enabled. This is enabled by default, but if converting an existing 
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Visibility and access controls**.
 1. Ensure "Enabled Git access protocols" is set to either "Both SSH and HTTP(S)" or "Only HTTP(S)".
@@ -319,7 +321,7 @@ On the **primary** site:
 You can sign in to the **secondary** site with the same credentials you used with
 the **primary** site. After you sign in:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Verify that it's correctly identified as a **secondary** Geo site, and that
    Geo is enabled.
@@ -365,7 +367,10 @@ former is ideal for replicating data belonging to a subset of users, while the
 latter is more suited to progressively rolling out Geo to a large GitLab
 instance.
 
-It is important to note that selective synchronization:
+NOTE:
+Geo's synchronization logic is outlined in the [documentation](../index.md). Both the solution and the documentation is subject to change from time to time. You must independently determine your legal obligations in regard to privacy and cybersecurity laws, and applicable trade control law on an ongoing basis.
+
+Selective synchronization:
 
 1. Does not restrict permissions from **secondary** sites.
 1. Does not hide project metadata from **secondary** sites.

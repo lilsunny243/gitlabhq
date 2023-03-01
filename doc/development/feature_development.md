@@ -1,7 +1,7 @@
 ---
 stage: none
 group: Development
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 ---
 
 # Feature development
@@ -19,10 +19,10 @@ Consult these topics for information on contributing to specific GitLab features
 
 ### General
 
-- [Directory structure](directory_structure.md)
+- [Software design guides](software_design.md)
 - [GitLab EventStore](event_store.md) to publish/subscribe to domain events
 - [GitLab utilities](utilities.md)
-- [Newlines style guide](newlines_styleguide.md)
+- [Newlines style guide](backend/ruby_style_guide.md#newlines-style-guide)
 - [Logging](logging.md)
 - [Dealing with email/mailers](emails.md)
 - [Kubernetes integration guidelines](kubernetes.md)
@@ -54,7 +54,7 @@ Consult these topics for information on contributing to specific GitLab features
 ### Debugging
 
 - [Pry debugging](pry_debugging.md)
-- [Sidekiq debugging](../administration/troubleshooting/sidekiq.md)
+- [Sidekiq debugging](../administration/sidekiq/sidekiq_troubleshooting.md)
 
 ### Git specifics
 
@@ -79,9 +79,9 @@ Consult these topics for information on contributing to specific GitLab features
   - [Adding a new Redis instance](redis/new_redis_instance.md)
 - [Sidekiq guidelines](sidekiq/index.md) for working with Sidekiq workers
 - [Working with Gitaly](gitaly.md)
-- [Elasticsearch integration docs](elasticsearch.md)
+- [Advanced Search integration docs](advanced_search.md)
 - [Working with merge request diffs](diffs.md)
-- [Approval Rules](approval_rules.md)
+- [Approval Rules](merge_request_concepts/approval_rules.md)
 - [Repository mirroring](repository_mirroring.md)
 - [Uploads development guide](uploads/index.md)
 - [Auto DevOps development guide](auto_devops.md)
@@ -108,12 +108,13 @@ Consult these topics for information on contributing to specific GitLab features
 - [Performance guidelines](performance.md) for writing code, benchmarks, and
   certain patterns to avoid.
 - [Caching guidelines](caching.md) for using caching in Rails under a GitLab environment.
-- [Merge request performance guidelines](merge_request_performance_guidelines.md)
+- [Merge request performance guidelines](merge_request_concepts/performance.md)
   for ensuring merge requests do not negatively impact GitLab performance
 - [Profiling](profiling.md) a URL or tracking down N+1 queries using Bullet.
 - [Cached queries guidelines](cached_queries.md), for tracking down N+1 queries
   masked by query caching, memory profiling and why should we avoid cached
   queries.
+- [JSON guidelines](json.md) for how to handle JSON in a performant manner.
 
 ## Database guides
 
@@ -126,7 +127,12 @@ See [database guidelines](database/index.md).
 - [Security Scanners](integrations/secure.md)
 - [Secure Partner Integration](integrations/secure_partner_integration.md)
 - [How to run Jenkins in development environment](integrations/jenkins.md)
-- [How to run local `Codesandbox` integration for Web IDE Live Preview](integrations/codesandbox.md)
+
+The following integration guides are internal. Some integrations require access to administrative accounts of third-party services and are available only for GitLab team members to contribute to:
+
+- [Jira app development](https://gitlab.com/gitlab-org/manage/integrations/team/-/blob/main/integrations/jira.md)
+- [Slack app development](https://gitlab.com/gitlab-org/manage/integrations/team/-/blob/main/integrations/slack.md)
+- [ZenTao development](https://gitlab.com/gitlab-org/manage/integrations/team/-/blob/main/integrations/zentao.md)
 
 ## Testing guides
 
@@ -190,9 +196,11 @@ See [database guidelines](database/index.md).
 - [Preventing transient bugs](transient/prevention-patterns.md)
 - [GitLab Application SLIs](application_slis/index.md)
 - [Spam protection and CAPTCHA development guide](spam_protection_and_captcha/index.md)
+- [RuboCop development guide](rubocop_development_guide.md)
 
 ## Other GitLab Development Kit (GDK) guides
 
 - [Run full Auto DevOps cycle in a GDK instance](https://gitlab.com/gitlab-org/gitlab-development-kit/blob/main/doc/howto/auto_devops.md)
 - [Using GitLab Runner with the GDK](https://gitlab.com/gitlab-org/gitlab-development-kit/blob/main/doc/howto/runner.md)
 - [Using the Web IDE terminal with the GDK](https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/doc/howto/web_ide_terminal_gdk_setup.md)
+- [Gitpod configuration internals page](gitpod_internals.md)

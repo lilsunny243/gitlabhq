@@ -2,14 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Group Repository settings' do
+RSpec.describe 'Group Repository settings', :js, feature_category: :source_code_management do
   include WaitForRequests
 
-  let(:user) { create(:user) }
-  let(:group) { create(:group) }
+  let_it_be(:user) { create(:user) }
+  let_it_be(:group, reload: true) { create(:group) }
+
+  before_all do
+    group.add_owner(user)
+  end
 
   before do
-    group.add_owner(user)
     sign_in(user)
   end
 

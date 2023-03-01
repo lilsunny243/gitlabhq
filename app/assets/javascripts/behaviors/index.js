@@ -1,6 +1,5 @@
 import $ from 'jquery';
 import './autosize';
-import './markdown/render_gfm';
 import initCollapseSidebarOnWindowResize from './collapse_sidebar_on_window_resize';
 import initCopyToClipboard from './copy_to_clipboard';
 import installGlEmojiElement from './gl_emoji';
@@ -8,7 +7,6 @@ import { loadStartupCSS } from './load_startup_css';
 import initCopyAsGFM from './markdown/copy_as_gfm';
 import './quick_submit';
 import './requires_input';
-import initSelect2Dropdowns from './select2';
 import initPageShortcuts from './shortcuts';
 import './toggler_behavior';
 import './preview_markdown';
@@ -22,7 +20,6 @@ initCopyToClipboard();
 
 initPageShortcuts();
 initCollapseSidebarOnWindowResize();
-initSelect2Dropdowns();
 
 window.requestIdleCallback(
   () => {

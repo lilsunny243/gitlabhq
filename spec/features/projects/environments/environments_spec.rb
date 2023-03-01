@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Environments page', :js do
+RSpec.describe 'Environments page', :js, feature_category: :projects do
   include Spec::Support::Helpers::ModalHelpers
 
   let(:project) { create(:project) }
@@ -336,6 +336,11 @@ RSpec.describe 'Environments page', :js do
             accept_gl_confirm do
               find(action_link_selector).click
             end
+
+            # Wait for UI to transition to ensure we an GraphQL request has been made
+            within(actions_button_selector) { find('.gl-spinner') }
+            within(actions_button_selector) { find('[data-testid="play-icon"]') }
+
             wait_for_requests
           end
 

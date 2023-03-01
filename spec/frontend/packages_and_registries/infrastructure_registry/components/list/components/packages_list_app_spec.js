@@ -3,17 +3,15 @@ import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import Vuex from 'vuex';
 import setWindowLocation from 'helpers/set_window_location_helper';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_INFO } from '~/flash';
 import * as commonUtils from '~/lib/utils/common_utils';
 import PackageListApp from '~/packages_and_registries/infrastructure_registry/list/components/packages_list_app.vue';
 import { DELETE_PACKAGE_SUCCESS_MESSAGE } from '~/packages_and_registries/infrastructure_registry/list/constants';
-import {
-  SHOW_DELETE_SUCCESS_ALERT,
-  FILTERED_SEARCH_TERM,
-} from '~/packages_and_registries/shared/constants';
+import { SHOW_DELETE_SUCCESS_ALERT } from '~/packages_and_registries/shared/constants';
 
 import * as packageUtils from '~/packages_and_registries/shared/utils';
 import InfrastructureSearch from '~/packages_and_registries/infrastructure_registry/list/components/infrastructure_search.vue';
+import { FILTERED_SEARCH_TERM } from '~/vue_shared/components/filtered_search_bar/constants';
 
 jest.mock('~/lib/utils/common_utils');
 jest.mock('~/flash');
@@ -31,9 +29,9 @@ describe('packages_list_app', () => {
   const GlLoadingIcon = { name: 'gl-loading-icon', template: '<div>loading</div>' };
 
   const emptyListHelpUrl = 'helpUrl';
-  const findEmptyState = () => wrapper.find(GlEmptyState);
-  const findListComponent = () => wrapper.find(PackageList);
-  const findInfrastructureSearch = () => wrapper.find(InfrastructureSearch);
+  const findEmptyState = () => wrapper.findComponent(GlEmptyState);
+  const findListComponent = () => wrapper.findComponent(PackageList);
+  const findInfrastructureSearch = () => wrapper.findComponent(InfrastructureSearch);
 
   const createStore = ({ filter = [], packageCount = 0 } = {}) => {
     store = new Vuex.Store({
@@ -151,7 +149,7 @@ describe('packages_list_app', () => {
 
   describe('empty state', () => {
     it('generate the correct empty list link', () => {
-      const link = findListComponent().find(GlLink);
+      const link = findListComponent().findComponent(GlLink);
 
       expect(link.attributes('href')).toBe(emptyListHelpUrl);
       expect(link.text()).toBe('publish and share your packages');
@@ -222,9 +220,9 @@ describe('packages_list_app', () => {
     it(`creates a flash if the query string contains ${SHOW_DELETE_SUCCESS_ALERT}`, () => {
       mountComponent();
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: DELETE_PACKAGE_SUCCESS_MESSAGE,
-        type: 'notice',
+        variant: VARIANT_INFO,
       });
     });
 
@@ -238,7 +236,7 @@ describe('packages_list_app', () => {
       setWindowLocation('?');
       mountComponent();
 
-      expect(createFlash).not.toHaveBeenCalled();
+      expect(createAlert).not.toHaveBeenCalled();
       expect(commonUtils.historyReplaceState).not.toHaveBeenCalled();
     });
   });

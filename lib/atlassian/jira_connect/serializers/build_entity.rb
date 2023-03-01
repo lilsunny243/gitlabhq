@@ -22,14 +22,13 @@ module Atlassian
         expose :references
 
         def issue_keys
-          # extract Jira issue keys from either the source branch/ref or the
-          # merge request title.
-          @issue_keys ||= begin
-            pipeline.all_merge_requests.flat_map do |mr|
-              src = "#{mr.source_branch} #{mr.title} #{mr.description}"
-              JiraIssueKeyExtractor.new(src).issue_keys
-            end.uniq
-          end
+          commit_message_issue_keys = JiraIssueKeyExtractor.new(pipeline.git_commit_message).issue_keys
+
+          # extract Jira issue keys from either the source branch/ref or the merge request title.
+          @issue_keys ||= commit_message_issue_keys + pipeline.all_merge_requests.flat_map do |mr|
+            src = "#{mr.source_branch} #{mr.title} #{mr.description}"
+            JiraIssueKeyExtractor.new(src).issue_keys
+          end.uniq
         end
 
         private

@@ -217,11 +217,7 @@ module Gitlab
 
         def build_new_user(skip_confirmation: true)
           user_params = user_attributes.merge(skip_confirmation: skip_confirmation)
-          new_user = Users::AuthorizedBuildService.new(nil, user_params).execute
-
-          persist_accepted_terms_if_required(new_user)
-
-          new_user
+          Users::AuthorizedBuildService.new(nil, user_params).execute
         end
 
         def user_attributes
@@ -237,7 +233,7 @@ module Gitlab
           email ||= auth_hash.email
 
           valid_username = ::Namespace.clean_path(username)
-          valid_username = Uniquify.new.string(valid_username) { |s| !NamespacePathValidator.valid_path?(s) }
+          valid_username = Gitlab::Utils::Uniquify.new.string(valid_username) { |s| !NamespacePathValidator.valid_path?(s) }
 
           {
             name: name.strip.presence || valid_username,
@@ -247,15 +243,6 @@ module Gitlab
             password_confirmation: auth_hash.password,
             password_automatically_set: true
           }
-        end
-
-        def persist_accepted_terms_if_required(new_user)
-          if Feature.enabled?(:update_oauth_registration_flow) &&
-            Gitlab::CurrentSettings.current_application_settings.enforce_terms?
-
-            terms = ApplicationSetting::Term.latest
-            Users::RespondToTermsService.new(new_user, terms).execute(accepted: true)
-          end
         end
 
         def sync_profile_from_provider?
@@ -271,9 +258,9 @@ module Gitlab
           metadata = gl_user.build_user_synced_attributes_metadata
 
           if sync_profile_from_provider?
-            UserSyncedAttributesMetadata::SYNCABLE_ATTRIBUTES.each do |key|
+            UserSyncedAttributesMetadata.syncable_attributes.each do |key|
               if auth_hash.has_attribute?(key) && gl_user.sync_attribute?(key)
-                gl_user[key] = auth_hash.public_send(key) # rubocop:disable GitlabSecurity/PublicSend
+                gl_user.public_send("#{key}=".to_sym, auth_hash.public_send(key)) # rubocop:disable GitlabSecurity/PublicSend
                 metadata.set_attribute_synced(key, true)
               else
                 metadata.set_attribute_synced(key, false)

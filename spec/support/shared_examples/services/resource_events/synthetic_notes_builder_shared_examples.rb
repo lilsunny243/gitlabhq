@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
 RSpec.shared_examples 'filters by paginated notes' do |event_type|
-  let(:event) { create(event_type) } # rubocop:disable Rails/SaveBang
+  let(:event) { create(event_type, issue: create(:issue)) }
 
   before do
     create(event_type, issue: event.issue)
   end
 
   it 'only returns given notes' do
-    paginated_notes = { event_type.to_s.pluralize => [double(id: event.id)] }
+    paginated_notes = { event_type.to_s.pluralize => [double(ids: [event.id])] }
     notes = described_class.new(event.issue, user, paginated_notes: paginated_notes).execute
 
     expect(notes.size).to eq(1)

@@ -1,10 +1,19 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Plan', :smoke do
+  RSpec.describe 'Plan', :smoke, product_group: :project_management do
     describe 'Issue creation' do
-      let(:project) { Resource::Project.fabricate_via_api! }
-      let(:closed_issue) { Resource::Issue.fabricate_via_api! { |issue| issue.project = project } }
+      let(:project) do
+        Resource::Project.fabricate_via_api_unless_fips! do |project|
+          project.name = "project-create-issue-#{SecureRandom.hex(8)}"
+          project.personal_namespace = Runtime::User.username
+          project.description = nil
+        end
+      end
+
+      let(:closed_issue) do
+        Resource::Issue.fabricate_via_api_unless_fips! { |issue| issue.project = project }
+      end
 
       before do
         Flow::Login.sign_in
@@ -51,11 +60,11 @@ module QA
       context 'when using attachments in comments', :object_storage do
         let(:png_file_name) { 'testfile.png' }
         let(:file_to_attach) do
-          File.absolute_path(File.join('qa', 'fixtures', 'designs', png_file_name))
+          File.join(Runtime::Path.fixtures_path, 'designs', png_file_name)
         end
 
         before do
-          Resource::Issue.fabricate_via_api! { |issue| issue.project = project }.visit!
+          Resource::Issue.fabricate_via_api_unless_fips! { |issue| issue.project = project }.visit!
         end
 
         # The following example is excluded from running in `review-qa-smoke` job
@@ -64,7 +73,7 @@ module QA
         it(
           'comments on an issue with an attachment',
           testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347946',
-          except: { job: 'review-qa-smoke' }
+          except: { job: 'review-qa-*' }
         ) do
           Page::Project::Issue::Show.perform do |show|
             show.comment('See attached image for scale', attachment: file_to_attach)

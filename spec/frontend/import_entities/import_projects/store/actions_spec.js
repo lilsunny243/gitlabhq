@@ -1,8 +1,8 @@
 import MockAdapter from 'axios-mock-adapter';
 import { TEST_HOST } from 'helpers/test_constants';
 import testAction from 'helpers/vuex_action_helper';
-import createFlash from '~/flash';
-import { STATUSES } from '~/import_entities/constants';
+import { createAlert } from '~/flash';
+import { STATUSES, PROVIDERS } from '~/import_entities/constants';
 import actionsFactory from '~/import_entities/import_projects/store/actions';
 import { getImportTarget } from '~/import_entities/import_projects/store/getters';
 import {
@@ -13,15 +13,19 @@ import {
   RECEIVE_IMPORT_SUCCESS,
   RECEIVE_IMPORT_ERROR,
   RECEIVE_JOBS_SUCCESS,
-  REQUEST_NAMESPACES,
-  RECEIVE_NAMESPACES_SUCCESS,
-  RECEIVE_NAMESPACES_ERROR,
+  CANCEL_IMPORT_SUCCESS,
   SET_PAGE,
   SET_FILTER,
+  SET_PAGE_CURSORS,
 } from '~/import_entities/import_projects/store/mutation_types';
 import state from '~/import_entities/import_projects/store/state';
 import axios from '~/lib/utils/axios_utils';
 import { convertObjectPropsToCamelCase } from '~/lib/utils/common_utils';
+import {
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_OK,
+  HTTP_STATUS_TOO_MANY_REQUESTS,
+} from '~/lib/utils/http_status';
 
 jest.mock('~/flash');
 
@@ -30,7 +34,7 @@ const endpoints = {
   reposPath: MOCK_ENDPOINT,
   importPath: MOCK_ENDPOINT,
   jobsPath: MOCK_ENDPOINT,
-  namespacesPath: MOCK_ENDPOINT,
+  cancelPath: MOCK_ENDPOINT,
 };
 
 const {
@@ -39,8 +43,8 @@ const {
   importAll,
   fetchRepos,
   fetchImport,
+  cancelImport,
   fetchJobs,
-  fetchNamespaces,
   setFilter,
 } = actionsFactory({
   endpoints,
@@ -59,14 +63,17 @@ describe('import_projects store actions', () => {
       ...state(),
       defaultTargetNamespace,
       repositories: [
-        { importSource: { id: importRepoId, sanitizedName }, importStatus: STATUSES.NONE },
+        {
+          importSource: { id: importRepoId, sanitizedName },
+          importedProject: { importStatus: STATUSES.NONE },
+        },
         {
           importSource: { id: otherImportRepoId, sanitizedName: 's2' },
-          importStatus: STATUSES.NONE,
+          importedProject: { importStatus: STATUSES.NONE },
         },
         {
           importSource: { id: 3, sanitizedName: 's3', incompatible: true },
-          importStatus: STATUSES.NONE,
+          importedProject: { importStatus: STATUSES.NONE },
         },
       ],
       provider: 'provider',
@@ -77,7 +84,11 @@ describe('import_projects store actions', () => {
 
   describe('fetchRepos', () => {
     let mock;
-    const payload = { imported_projects: [{}], provider_repos: [{}] };
+    const payload = {
+      imported_projects: [{}],
+      provider_repos: [{}],
+      page_info: { startCursor: 'start', endCursor: 'end', hasNextPage: true },
+    };
 
     beforeEach(() => {
       mock = new MockAdapter(axios);
@@ -85,27 +96,57 @@ describe('import_projects store actions', () => {
 
     afterEach(() => mock.restore());
 
-    it('commits REQUEST_REPOS, SET_PAGE, RECEIVE_REPOS_SUCCESS mutations on a successful request', () => {
-      mock.onGet(MOCK_ENDPOINT).reply(200, payload);
+    describe('with a successful request', () => {
+      it('commits REQUEST_REPOS, SET_PAGE, RECEIVE_REPOS_SUCCESS mutations', () => {
+        mock.onGet(MOCK_ENDPOINT).reply(HTTP_STATUS_OK, payload);
 
-      return testAction(
-        fetchRepos,
-        null,
-        localState,
-        [
-          { type: REQUEST_REPOS },
-          { type: SET_PAGE, payload: 1 },
-          {
-            type: RECEIVE_REPOS_SUCCESS,
-            payload: convertObjectPropsToCamelCase(payload, { deep: true }),
-          },
-        ],
-        [],
-      );
+        return testAction(
+          fetchRepos,
+          null,
+          localState,
+          [
+            { type: REQUEST_REPOS },
+            { type: SET_PAGE, payload: 1 },
+            {
+              type: RECEIVE_REPOS_SUCCESS,
+              payload: convertObjectPropsToCamelCase(payload, { deep: true }),
+            },
+          ],
+          [],
+        );
+      });
+
+      describe('when provider is GITHUB_PROVIDER', () => {
+        beforeEach(() => {
+          localState.provider = PROVIDERS.GITHUB;
+        });
+
+        it('commits SET_PAGE_CURSORS instead of SET_PAGE', () => {
+          mock.onGet(MOCK_ENDPOINT).reply(HTTP_STATUS_OK, payload);
+
+          return testAction(
+            fetchRepos,
+            null,
+            localState,
+            [
+              { type: REQUEST_REPOS },
+              {
+                type: SET_PAGE_CURSORS,
+                payload: { startCursor: 'start', endCursor: 'end', hasNextPage: true },
+              },
+              {
+                type: RECEIVE_REPOS_SUCCESS,
+                payload: convertObjectPropsToCamelCase(payload, { deep: true }),
+              },
+            ],
+            [],
+          );
+        });
+      });
     });
 
     it('commits REQUEST_REPOS, RECEIVE_REPOS_ERROR mutations on an unsuccessful request', () => {
-      mock.onGet(MOCK_ENDPOINT).reply(500);
+      mock.onGet(MOCK_ENDPOINT).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
       return testAction(
         fetchRepos,
@@ -116,22 +157,56 @@ describe('import_projects store actions', () => {
       );
     });
 
-    it('includes page in url query params', async () => {
-      let requestedUrl;
-      mock.onGet().reply((config) => {
-        requestedUrl = config.url;
-        return [200, payload];
+    describe('with pagination params', () => {
+      it('includes page in url query params', async () => {
+        let requestedUrl;
+        mock.onGet().reply((config) => {
+          requestedUrl = config.url;
+          return [HTTP_STATUS_OK, payload];
+        });
+
+        const localStateWithPage = { ...localState, pageInfo: { page: 2 } };
+
+        await testAction(
+          fetchRepos,
+          null,
+          localStateWithPage,
+          expect.any(Array),
+          expect.any(Array),
+        );
+
+        expect(requestedUrl).toBe(`${MOCK_ENDPOINT}?page=${localStateWithPage.pageInfo.page + 1}`);
       });
 
-      const localStateWithPage = { ...localState, pageInfo: { page: 2 } };
+      describe('when provider is "github"', () => {
+        beforeEach(() => {
+          localState.provider = PROVIDERS.GITHUB;
+        });
 
-      await testAction(fetchRepos, null, localStateWithPage, expect.any(Array), expect.any(Array));
+        it('includes cursor in url query params', async () => {
+          let requestedUrl;
+          mock.onGet().reply((config) => {
+            requestedUrl = config.url;
+            return [HTTP_STATUS_OK, payload];
+          });
 
-      expect(requestedUrl).toBe(`${MOCK_ENDPOINT}?page=${localStateWithPage.pageInfo.page + 1}`);
+          const localStateWithPage = { ...localState, pageInfo: { endCursor: 'endTest' } };
+
+          await testAction(
+            fetchRepos,
+            null,
+            localStateWithPage,
+            expect.any(Array),
+            expect.any(Array),
+          );
+
+          expect(requestedUrl).toBe(`${MOCK_ENDPOINT}?after=endTest`);
+        });
+      });
     });
 
     it('correctly keeps current page on an unsuccessful request', () => {
-      mock.onGet(MOCK_ENDPOINT).reply(500);
+      mock.onGet(MOCK_ENDPOINT).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
       const CURRENT_PAGE = 5;
 
       return testAction(
@@ -145,7 +220,7 @@ describe('import_projects store actions', () => {
 
     describe('when rate limited', () => {
       it('commits RECEIVE_REPOS_ERROR and shows rate limited error message', async () => {
-        mock.onGet(`${TEST_HOST}/endpoint.json?filter=filter`).reply(429);
+        mock.onGet(`${TEST_HOST}/endpoint.json?filter=filter`).reply(HTTP_STATUS_TOO_MANY_REQUESTS);
 
         await testAction(
           fetchRepos,
@@ -155,7 +230,7 @@ describe('import_projects store actions', () => {
           [],
         );
 
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: 'Provider rate limit exceeded. Try again later',
         });
       });
@@ -163,7 +238,7 @@ describe('import_projects store actions', () => {
 
     describe('when filtered', () => {
       it('fetches repos with filter applied', () => {
-        mock.onGet(`${TEST_HOST}/endpoint.json?filter=filter`).reply(200, payload);
+        mock.onGet(`${TEST_HOST}/endpoint.json?filter=filter`).reply(HTTP_STATUS_OK, payload);
 
         return testAction(
           fetchRepos,
@@ -194,11 +269,11 @@ describe('import_projects store actions', () => {
 
     it('commits REQUEST_IMPORT and REQUEST_IMPORT_SUCCESS mutations on a successful request', () => {
       const importedProject = { name: 'imported/project' };
-      mock.onPost(MOCK_ENDPOINT).reply(200, importedProject);
+      mock.onPost(MOCK_ENDPOINT).reply(HTTP_STATUS_OK, importedProject);
 
       return testAction(
         fetchImport,
-        importRepoId,
+        { repoId: importRepoId, optionalStages: {} },
         localState,
         [
           {
@@ -218,11 +293,11 @@ describe('import_projects store actions', () => {
     });
 
     it('commits REQUEST_IMPORT and RECEIVE_IMPORT_ERROR and shows generic error message on an unsuccessful request', async () => {
-      mock.onPost(MOCK_ENDPOINT).reply(500);
+      mock.onPost(MOCK_ENDPOINT).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
       await testAction(
         fetchImport,
-        importRepoId,
+        { repoId: importRepoId, optionalStages: {} },
         localState,
         [
           {
@@ -234,18 +309,20 @@ describe('import_projects store actions', () => {
         [],
       );
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: 'Importing the project failed',
       });
     });
 
     it('commits REQUEST_IMPORT and RECEIVE_IMPORT_ERROR and shows detailed error message on an unsuccessful request with errors fields in response', async () => {
       const ERROR_MESSAGE = 'dummy';
-      mock.onPost(MOCK_ENDPOINT).reply(500, { errors: ERROR_MESSAGE });
+      mock
+        .onPost(MOCK_ENDPOINT)
+        .reply(HTTP_STATUS_INTERNAL_SERVER_ERROR, { errors: ERROR_MESSAGE });
 
       await testAction(
         fetchImport,
-        importRepoId,
+        { repoId: importRepoId, optionalStages: {} },
         localState,
         [
           {
@@ -257,7 +334,7 @@ describe('import_projects store actions', () => {
         [],
       );
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: `Importing the project failed: ${ERROR_MESSAGE}`,
       });
     });
@@ -279,7 +356,7 @@ describe('import_projects store actions', () => {
     afterEach(() => mock.restore());
 
     it('commits RECEIVE_JOBS_SUCCESS mutation on a successful request', async () => {
-      mock.onGet(MOCK_ENDPOINT).reply(200, updatedProjects);
+      mock.onGet(MOCK_ENDPOINT).reply(HTTP_STATUS_OK, updatedProjects);
 
       await testAction(
         fetchJobs,
@@ -301,7 +378,9 @@ describe('import_projects store actions', () => {
       });
 
       it('fetches realtime changes with filter applied', () => {
-        mock.onGet(`${TEST_HOST}/endpoint.json?filter=filter`).reply(200, updatedProjects);
+        mock
+          .onGet(`${TEST_HOST}/endpoint.json?filter=filter`)
+          .reply(HTTP_STATUS_OK, updatedProjects);
 
         return testAction(
           fetchJobs,
@@ -319,61 +398,24 @@ describe('import_projects store actions', () => {
     });
   });
 
-  describe('fetchNamespaces', () => {
-    let mock;
-    const namespaces = [{ full_name: 'test/ns1' }, { full_name: 'test_ns2' }];
-
-    beforeEach(() => {
-      mock = new MockAdapter(axios);
-    });
-
-    afterEach(() => mock.restore());
-
-    it('commits REQUEST_NAMESPACES and RECEIVE_NAMESPACES_SUCCESS on success', async () => {
-      mock.onGet(MOCK_ENDPOINT).reply(200, namespaces);
-
-      await testAction(
-        fetchNamespaces,
-        null,
-        localState,
-        [
-          { type: REQUEST_NAMESPACES },
-          {
-            type: RECEIVE_NAMESPACES_SUCCESS,
-            payload: convertObjectPropsToCamelCase(namespaces, { deep: true }),
-          },
-        ],
-        [],
-      );
-    });
-
-    it('commits REQUEST_NAMESPACES and RECEIVE_NAMESPACES_ERROR and shows generic error message on an unsuccessful request', async () => {
-      mock.onGet(MOCK_ENDPOINT).reply(500);
-
-      await testAction(
-        fetchNamespaces,
-        null,
-        localState,
-        [{ type: REQUEST_NAMESPACES }, { type: RECEIVE_NAMESPACES_ERROR }],
-        [],
-      );
-
-      expect(createFlash).toHaveBeenCalledWith({
-        message: 'Requesting namespaces failed',
-      });
-    });
-  });
-
   describe('importAll', () => {
     it('dispatches multiple fetchImport actions', async () => {
+      const OPTIONAL_STAGES = { stage1: true, stage2: false };
+
       await testAction(
         importAll,
-        null,
+        { optionalStages: OPTIONAL_STAGES },
         localState,
         [],
         [
-          { type: 'fetchImport', payload: importRepoId },
-          { type: 'fetchImport', payload: otherImportRepoId },
+          {
+            type: 'fetchImport',
+            payload: { repoId: importRepoId, optionalStages: OPTIONAL_STAGES },
+          },
+          {
+            type: 'fetchImport',
+            payload: { repoId: otherImportRepoId, optionalStages: OPTIONAL_STAGES },
+          },
         ],
       );
     });
@@ -388,6 +430,55 @@ describe('import_projects store actions', () => {
         [{ type: SET_FILTER, payload: 'filteredRepo' }],
         [{ type: 'fetchRepos' }],
       );
+    });
+  });
+
+  describe('cancelImport', () => {
+    let mock;
+    beforeEach(() => {
+      mock = new MockAdapter(axios);
+    });
+
+    afterEach(() => mock.restore());
+
+    it('commits CANCEL_IMPORT_SUCCESS on success', async () => {
+      mock.onPost(MOCK_ENDPOINT).reply(HTTP_STATUS_OK);
+
+      await testAction(
+        cancelImport,
+        { repoId: importRepoId },
+        localState,
+        [
+          {
+            type: CANCEL_IMPORT_SUCCESS,
+            payload: { repoId: 1 },
+          },
+        ],
+        [],
+      );
+    });
+
+    it('shows generic error message on an unsuccessful request', async () => {
+      mock.onPost(MOCK_ENDPOINT).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+      await testAction(cancelImport, { repoId: importRepoId }, localState, [], []);
+
+      expect(createAlert).toHaveBeenCalledWith({
+        message: 'Cancelling project import failed',
+      });
+    });
+
+    it('shows detailed error message on an unsuccessful request with errors fields in response', async () => {
+      const ERROR_MESSAGE = 'dummy';
+      mock
+        .onPost(MOCK_ENDPOINT)
+        .reply(HTTP_STATUS_INTERNAL_SERVER_ERROR, { errors: ERROR_MESSAGE });
+
+      await testAction(cancelImport, { repoId: importRepoId }, localState, [], []);
+
+      expect(createAlert).toHaveBeenCalledWith({
+        message: `Cancelling project import failed: ${ERROR_MESSAGE}`,
+      });
     });
   });
 });

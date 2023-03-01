@@ -1,10 +1,18 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Documentation deployments
+
+## Deployment environments
+
+The [GitLab documentation site](https://docs.gitlab.com/) is a static site hosted by [GitLab Pages](../../../user/project/pages/index.md). The deployment is done by the [Pages deploy job](#pages-deploy-job).
+
+The website hosts documentation only for the [currently supported](../../../policy/maintenance.md) GitLab versions. Documentation for older versions is built and uploaded as Docker images to be downloaded from [GitLab Docs archives](https://docs.gitlab.com/archives/).
+
+## Parts of release process
 
 The documentation [release process](https://gitlab.com/gitlab-org/gitlab-docs/-/blob/main/doc/releases.md)
 involves:
@@ -24,10 +32,8 @@ For general information on using Docker with CI/CD pipelines, see [Docker integr
 
 ## Stable branches
 
-Stable branches for documentation include the relevant stable branches of all the projects required to publish the entire
-documentation suite. For example, the stable version of documentation for version `14.4` includes:
+Pipelines for stable branches in the documentation project pull the relevant stable branches of included projects. For example, the documentation for stable version `14.4` is built from the [`14.4`](https://gitlab.com/gitlab-org/gitlab-docs/-/tree/14.4) branch of the `gitlab-docs` project, which then includes:
 
-- The [`14.4`](https://gitlab.com/gitlab-org/gitlab-docs/-/tree/14.4) branch of the `gitlab-docs` project.
 - The [`14-4-stable-ee`](https://gitlab.com/gitlab-org/gitlab/-/tree/14-4-stable-ee) branch of the `gitlab` project.
 - The [`14-4-stable`](https://gitlab.com/gitlab-org/gitlab-runner/-/tree/14-4-stable) branch of the `gitlab-runner` project.
 - The [`14-4-stable`](https://gitlab.com/gitlab-org/omnibus-gitlab/-/tree/14-4-stable) branch of the `omnibus-gitlab` project.
@@ -117,7 +123,7 @@ graph TD
   G--"Latest `gitlab-docs:latest` image<br>pushed up"-->H
 ```
 
-## Documentation Pages deployment
+## Pages deploy job
 
 [GitLab Docs](https://docs.gitlab.com) is a [Pages site](../../../user/project/pages/index.md) and documentation updates
 for it must be deployed to become available.
@@ -144,14 +150,14 @@ graph LR
 
 ### Manually deploy to production
 
-GitLab Docs is deployed to production whenever the `Build docs.gitlab.com every 4 hours` scheduled pipeline runs. By
-default, this pipeline runs every four hours.
+GitLab Docs is deployed to production whenever the `Build docs.gitlab.com every hour` scheduled pipeline runs. By
+default, this pipeline runs every hour.
 
 Maintainers can [manually](../../../ci/pipelines/schedules.md#run-manually) run this pipeline to force a deployment to
 production:
 
 1. Go to the [scheduled pipelines](https://gitlab.com/gitlab-org/gitlab-docs/-/pipeline_schedules) for `gitlab-docs`.
-1. Next to `Build docs.gitlab.com every 4 hours`, select **Play** (**{play}**).
+1. Next to `Build docs.gitlab.com every hour`, select **Play** (**{play}**).
 
 The updated documentation is available in production after the `pages` and `pages:deploy` jobs
 complete in the new pipeline.
@@ -161,30 +167,5 @@ If you do not have the Maintainer role to perform this task, ask for help in the
 
 ## Docker files
 
-The [`dockerfiles` directory](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/dockerfiles/) contains all needed
-Dockerfiles to build and deploy <https://docs.gitlab.com>. It is heavily inspired by Docker's
-[Dockerfile](https://github.com/docker/docker.github.io/blob/06ed03db13895bfe867761b6fc2ad40acf6026dd/Dockerfile).
-
-| Dockerfile                                                                                                                 | Docker image                  | Description                                                                                                                                                                                                                                                                           |
-|:---------------------------------------------------------------------------------------------------------------------------|:------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [`bootstrap.Dockerfile`](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/dockerfiles/bootstrap.Dockerfile)             | `gitlab-docs:bootstrap`       | Contains all the dependencies that are needed to build the website. If the gems are updated and `Gemfile{,.lock}` changes, the image must be rebuilt.                                                                                                                                 |
-| [`builder.onbuild.Dockerfile`](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/dockerfiles/builder.onbuild.Dockerfile) | `gitlab-docs:builder-onbuild` | Base image to build the docs website. It uses `ONBUILD` to perform all steps and depends on `gitlab-docs:bootstrap`.                                                                                                                                                                  |
-| [`nginx.onbuild.Dockerfile`](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/dockerfiles/nginx.onbuild.Dockerfile)     | `gitlab-docs:nginx-onbuild`   | Base image to use for building documentation archives. It uses `ONBUILD` to perform all required steps to copy the archive, and relies upon its parent `Dockerfile.builder.onbuild` that is invoked when building single documentation archives (see the `Dockerfile` of each branch) |
-| [`archives.Dockerfile`](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/dockerfiles/archives.Dockerfile)               | `gitlab-docs:archives`        | Contains all the versions of the website in one archive. It copies all generated HTML files from every version in one location.                                                                                                                                                       |
-
-### How to build the images
-
-Although build images are built automatically via GitLab CI/CD, you can build and tag all tooling images locally:
-
-1. Make sure you have [Docker installed](https://docs.docker.com/install/).
-1. Make sure you're in the `dockerfiles/` directory of the `gitlab-docs` repository.
-1. Build the images:
-
-   ```shell
-   docker build -t registry.gitlab.com/gitlab-org/gitlab-docs:bootstrap -f Dockerfile.bootstrap ../
-   docker build -t registry.gitlab.com/gitlab-org/gitlab-docs:builder-onbuild -f Dockerfile.builder.onbuild ../
-   docker build -t registry.gitlab.com/gitlab-org/gitlab-docs:nginx-onbuild -f Dockerfile.nginx.onbuild ../
-   ```
-
-For each image, there's a manual job under the `images` stage in
-[`.gitlab-ci.yml`](https://gitlab.com/gitlab-org/gitlab-docs/blob/main/.gitlab-ci.yml) which can be invoked at any time.
+The [`dockerfiles` directory](https://gitlab.com/gitlab-org/gitlab-docs/-/tree/main/dockerfiles) contains Dockerfiles needed
+to build, test, and deploy <https://docs.gitlab.com>.

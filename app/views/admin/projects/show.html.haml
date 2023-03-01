@@ -2,13 +2,11 @@
 - add_to_breadcrumbs _("Projects"), admin_projects_path
 - breadcrumb_title @project.full_name
 - page_title @project.full_name, _("Projects")
-- @content_class = "admin-projects"
 - current_user_is_group_owner = @group && @group.has_owner?(current_user)
 
 %h1.page-title.gl-font-size-h-display
   = _('Project: %{name}') % { name: @project.full_name }
-  = link_to edit_project_path(@project), class: "btn btn-default gl-button float-right" do
-    = sprite_icon('pencil', css_class: 'gl-icon gl-mr-2')
+  = render Pajamas::ButtonComponent.new(href: edit_project_path(@project), icon: 'pencil', button_options: { class: 'gl-float-right' }) do
     = _('Edit')
 %hr
 - if @project.last_repository_check_failed?
@@ -137,25 +135,22 @@
       - c.header do
         = s_('ProjectSettings|Transfer project')
       - c.body do
-        = form_for @project, url: transfer_admin_project_path(@project), method: :put do |f|
+        = gitlab_ui_form_for @project, url: transfer_admin_project_path(@project), method: :put do |f|
           .form-group.row
             .col-sm-3.col-form-label
               = f.label :new_namespace_id, _("Namespace")
             .col-sm-9
-              - placeholder = _('Search for Namespace')
-              %button.dropdown-menu-toggle.btn.btn-default.btn-md.gl-button.js-namespace-select{ data: { field_name: 'new_namespace_id', placeholder: placeholder }, type: 'button' }
-                %span.gl-new-dropdown-button-text
-                  = placeholder
+              .js-namespace-select{ data: { field_name: 'new_namespace_id', toggle_text_placeholder: _('Search for Namespace') } }
 
           .form-group.row
             .offset-sm-3.col-sm-9
-              = f.submit _('Transfer'), class: 'gl-button btn btn-confirm'
+              = f.submit _('Transfer'), pajamas_button: true
 
     = render Pajamas::CardComponent.new(card_options: { class: 'gl-mb-5 repository-check' }) do |c|
       - c.header do
         = _("Repository check")
       - c.body do
-        = form_for @project, url: repository_check_admin_project_path(@project), method: :post do |f|
+        = gitlab_ui_form_for @project, url: repository_check_admin_project_path(@project), method: :post do |f|
           .form-group
             - if @project.last_repository_check_at.nil?
               = _("This repository has never been checked.")
@@ -169,7 +164,7 @@
             = link_to sprite_icon('question-o'), help_page_path('administration/repository_checks')
 
           .form-group
-            = f.submit _('Trigger repository check'), class: 'gl-button btn btn-confirm'
+            = f.submit _('Trigger repository check'), pajamas_button: true
 
   .col-md-6
     - if @group

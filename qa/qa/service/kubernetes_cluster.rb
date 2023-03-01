@@ -20,12 +20,6 @@ module QA
         @provider.validate_dependencies
         @provider.setup
 
-        @api_url = fetch_api_url
-
-        credentials = @provider.filter_credentials(fetch_credentials)
-        @ca_certificate = Base64.decode64(credentials.dig('data', 'ca.crt'))
-        @token = Base64.decode64(credentials.dig('data', 'token'))
-
         self
       end
 
@@ -41,12 +35,12 @@ module QA
         cluster_name
       end
 
-      def install_ingress
-        @provider.install_ingress
+      def install_kubernetes_agent(agent_token)
+        @provider.install_kubernetes_agent(agent_token)
       end
 
       def create_secret(secret, secret_name)
-        shell("kubectl create secret generic #{secret_name} --from-literal=token='#{secret}'")
+        shell("kubectl create secret generic #{secret_name} --from-literal=token='#{secret}'", mask_secrets: [secret])
       end
 
       def apply_manifest(manifest)
@@ -71,16 +65,6 @@ module QA
                   role: frontend
         YAML
         shell('kubectl apply -f -', stdin_data: network_policy)
-      end
-
-      def fetch_external_ip_for_ingress
-        install_ingress
-
-        # need to wait since the ingress-nginx service has an initial delay set of 10 seconds
-        sleep 12
-        ingress_ip = `kubectl get svc --all-namespaces --no-headers=true -l  app.kubernetes.io/name=ingress-nginx -o custom-columns=:'status.loadBalancer.ingress[0].ip' | grep -v 'none'`
-        QA::Runtime::Logger.debug "Has ingress address set to: #{ingress_ip}"
-        ingress_ip
       end
 
       private

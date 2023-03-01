@@ -5,7 +5,7 @@ import FilteredSearchSpecHelper from 'helpers/filtered_search_spec_helper';
 import { TEST_HOST } from 'helpers/test_constants';
 import DropdownUtils from '~/filtered_search/dropdown_utils';
 import VisualTokenValue from '~/filtered_search/visual_token_value';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import AjaxCache from '~/lib/utils/ajax_cache';
 import UsersCache from '~/lib/utils/users_cache';
 
@@ -61,7 +61,7 @@ describe('Filtered Search Visual Tokens', () => {
       };
 
       await subject.updateUserTokenAppearance(tokenValueContainer, tokenValueElement, tokenValue);
-      expect(createFlash.mock.calls.length).toBe(0);
+      expect(createAlert).toHaveBeenCalledTimes(0);
     });
 
     it('does nothing if user cannot be found', async () => {
@@ -79,7 +79,7 @@ describe('Filtered Search Visual Tokens', () => {
     it('replaces author token with avatar and display name', async () => {
       const dummyUser = {
         name: 'Important Person',
-        avatar_url: 'https://host.invalid/mypics/avatar.png',
+        avatar_url: `${TEST_HOST}/mypics/avatar.png`,
       };
       const { subject, tokenValueContainer, tokenValueElement } = findElements(authorToken);
       const tokenValue = tokenValueElement.innerText;

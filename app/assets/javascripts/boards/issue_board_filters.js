@@ -1,11 +1,10 @@
 import groupBoardMembers from '~/boards/graphql/group_board_members.query.graphql';
 import projectBoardMembers from '~/boards/graphql/project_board_members.query.graphql';
-import { BoardType } from './constants';
+import groupBoardMilestonesQuery from './graphql/group_board_milestones.query.graphql';
+import projectBoardMilestonesQuery from './graphql/project_board_milestones.query.graphql';
 import boardLabels from './graphql/board_labels.query.graphql';
 
-export default function issueBoardFilters(apollo, fullPath, boardType) {
-  const isGroupBoard = boardType === BoardType.group;
-  const isProjectBoard = boardType === BoardType.project;
+export default function issueBoardFilters(apollo, fullPath, isGroupBoard) {
   const transformLabels = ({ data }) => {
     return isGroupBoard ? data.group?.labels.nodes || [] : data.project?.labels.nodes || [];
   };
@@ -14,13 +13,13 @@ export default function issueBoardFilters(apollo, fullPath, boardType) {
     return isGroupBoard ? groupBoardMembers : projectBoardMembers;
   };
 
-  const fetchAuthors = (authorsSearchTerm) => {
+  const fetchUsers = (usersSearchTerm) => {
     return apollo
       .query({
         query: boardAssigneesQuery(),
         variables: {
           fullPath,
-          search: authorsSearchTerm,
+          search: usersSearchTerm,
         },
       })
       .then(({ data }) => data.workspace?.assignees.nodes.map(({ user }) => user));
@@ -34,14 +33,33 @@ export default function issueBoardFilters(apollo, fullPath, boardType) {
           fullPath,
           searchTerm: labelSearchTerm,
           isGroup: isGroupBoard,
-          isProject: isProjectBoard,
+          isProject: !isGroupBoard,
         },
       })
       .then(transformLabels);
   };
 
+  const fetchMilestones = (searchTerm) => {
+    const variables = {
+      fullPath,
+      searchTerm,
+    };
+
+    const query = isGroupBoard ? groupBoardMilestonesQuery : projectBoardMilestonesQuery;
+
+    return apollo
+      .query({
+        query,
+        variables,
+      })
+      .then(({ data }) => {
+        return data.workspace?.milestones.nodes;
+      });
+  };
+
   return {
     fetchLabels,
-    fetchAuthors,
+    fetchUsers,
+    fetchMilestones,
   };
 }

@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Security
@@ -88,7 +88,7 @@ readability.
 
 If you need to output raw HTML, you should sanitize it.
 
-If you are using Vue, you can use the[`v-safe-html` directive](https://gitlab-org.gitlab.io/gitlab-ui/?path=/story/directives-safe-html-directive--default) from GitLab UI.
+If you are using Vue, you can use the[`v-safe-html` directive](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/vue_shared/directives/safe_html.js).
 
 For other use cases, wrap a preconfigured version of [`dompurify`](https://www.npmjs.com/package/dompurify)
 that also allows the icons to be rendered:

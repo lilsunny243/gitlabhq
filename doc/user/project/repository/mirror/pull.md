@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
@@ -61,13 +61,18 @@ Prerequisite:
   with the `repo` scope. If 2FA is enabled, this personal access
   token serves as your GitHub password.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Enter the **Git repository URL**. Include the username
-   in the URL, if required: `https://MYUSERNAME@github.com/GROUPNAME/PROJECTNAME.git`
+   in the URL, if required: `https://MYUSERNAME@gitlab.com/GROUPNAME/PROJECTNAME.git`
+
+   NOTE:
+   To mirror the `gitlab` repository, use `git@gitlab.com:gitlab-org/gitlab.git`
+   or `https://gitlab.com/gitlab-org/gitlab.git`.
+
 1. In **Mirror direction**, select **Pull**.
-1. In **Authentication method**, select your authentication method. To learn more, read
+1. In **Authentication method**, select your authentication method. For more information, see
    [Authentication methods for mirrors](index.md#authentication-methods-for-mirrors).
 1. Select any of the options you need:
    - [**Overwrite diverged branches**](#overwrite-diverged-branches)

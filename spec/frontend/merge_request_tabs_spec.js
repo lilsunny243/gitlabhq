@@ -5,6 +5,7 @@ import initMrPage from 'helpers/init_vue_mr_page_helper';
 import { stubPerformanceWebAPI } from 'helpers/performance';
 import axios from '~/lib/utils/axios_utils';
 import MergeRequestTabs from '~/merge_request_tabs';
+import Diff from '~/diff';
 import '~/lib/utils/common_utils';
 import '~/lib/utils/url_utility';
 
@@ -303,6 +304,7 @@ describe('MergeRequestTabs', () => {
     const tabContent = document.createElement('div');
 
     beforeEach(() => {
+      $.fn.renderGFM = jest.fn();
       jest.spyOn(mainContent, 'getBoundingClientRect').mockReturnValue({ top: 10 });
       jest.spyOn(tabContent, 'getBoundingClientRect').mockReturnValue({ top: 100 });
       jest.spyOn(window, 'scrollTo').mockImplementation(() => {});
@@ -333,7 +335,7 @@ describe('MergeRequestTabs', () => {
       ${'show'}    | ${false} | ${'shows'}
       ${'diffs'}   | ${true}  | ${'hides'}
       ${'commits'} | ${true}  | ${'hides'}
-    `('it $hidesText expand button on $tab tab', ({ tab, hides }) => {
+    `('$hidesText expand button on $tab tab', ({ tab, hides }) => {
       window.gon = { features: { movedMrSidebar: true } };
 
       const expandButton = document.createElement('div');
@@ -385,6 +387,75 @@ describe('MergeRequestTabs', () => {
         jest.advanceTimersByTime(250);
 
         expect(window.scrollTo.mock.calls[0][0]).toEqual({ top: 0, left: 0, behavior: 'auto' });
+      });
+    });
+  });
+
+  describe('tabs <-> diff interactions', () => {
+    beforeEach(() => {
+      jest.spyOn(testContext.class, 'loadDiff').mockImplementation(() => {});
+    });
+
+    describe('switchViewType', () => {
+      it('marks the class as having not loaded diffs already', () => {
+        testContext.class.diffsLoaded = true;
+
+        testContext.class.switchViewType({});
+
+        expect(testContext.class.diffsLoaded).toBe(false);
+      });
+
+      it('reloads the diffs', () => {
+        testContext.class.switchViewType({ source: 'a new url' });
+
+        expect(testContext.class.loadDiff).toHaveBeenCalledWith({
+          endpoint: 'a new url',
+          strip: false,
+        });
+      });
+    });
+
+    describe('createDiff', () => {
+      it("creates a Diff if there isn't one", () => {
+        expect(testContext.class.diffsClass).toBe(null);
+
+        testContext.class.createDiff();
+
+        expect(testContext.class.diffsClass).toBeInstanceOf(Diff);
+      });
+
+      it("doesn't create a Diff if one already exists", () => {
+        testContext.class.diffsClass = 'truthy';
+
+        testContext.class.createDiff();
+
+        expect(testContext.class.diffsClass).toBe('truthy');
+      });
+
+      it('sets the available MR Tabs event hub to the new Diff', () => {
+        expect(testContext.class.diffsClass).toBe(null);
+
+        testContext.class.createDiff();
+
+        expect(testContext.class.diffsClass.mrHub).toBe(testContext.class.eventHub);
+      });
+    });
+
+    describe('setHubToDiff', () => {
+      it('sets the MR Tabs event hub to the child Diff', () => {
+        testContext.class.diffsClass = {};
+
+        testContext.class.setHubToDiff();
+
+        expect(testContext.class.diffsClass.mrHub).toBe(testContext.class.eventHub);
+      });
+
+      it('does not fatal if theres no child Diff', () => {
+        testContext.class.diffsClass = null;
+
+        expect(() => {
+          testContext.class.setHubToDiff();
+        }).not.toThrow();
       });
     });
   });

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_memory_store_caching do
+RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_memory_store_caching, feature_category: :importers do
   let(:group) { create(:group).tap { |g| g.add_maintainer(importer_user) } }
   let(:project) { create(:project, :repository, group: group) }
   let(:members_mapper) { double('members_mapper').as_null_object }
@@ -41,7 +41,7 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
   context 'hook object' do
     let(:relation_sym) { :hooks }
     let(:id) { 999 }
-    let(:service_id) { 99 }
+    let(:integration_id) { 99 }
     let(:original_project_id) { 8 }
     let(:token) { 'secret' }
 
@@ -52,7 +52,7 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
         'project_id' => original_project_id,
         'created_at' => '2016-08-12T09:41:03.462Z',
         'updated_at' => '2016-08-12T09:41:03.462Z',
-        'service_id' => service_id,
+        'integration_id' => integration_id,
         'push_events' => true,
         'issues_events' => false,
         'confidential_issues_events' => false,
@@ -71,8 +71,8 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
       expect(created_object.id).not_to eq(id)
     end
 
-    it 'does not have the original service_id' do
-      expect(created_object.service_id).not_to eq(service_id)
+    it 'does not have the original integration_id' do
+      expect(created_object.integration_id).not_to eq(integration_id)
     end
 
     it 'does not have the original project_id' do
@@ -88,10 +88,10 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
     end
 
     context 'original service exists' do
-      let(:service_id) { create(:integration, project: project).id }
+      let(:integration_id) { create(:integration, project: project).id }
 
-      it 'does not have the original service_id' do
-        expect(created_object.service_id).not_to eq(service_id)
+      it 'does not have the original integration_id' do
+        expect(created_object.integration_id).not_to eq(integration_id)
       end
     end
 
@@ -302,7 +302,7 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
     let(:relation_sym) { :hazardous_foo_model }
     let(:relation_hash) do
       {
-        'service_id' => 99,
+        'integration_id' => 99,
         'moved_to_id' => 99,
         'namespace_id' => 99,
         'ci_id' => 99,
@@ -317,7 +317,7 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
     before do
       stub_const('HazardousFooModel', Class.new(FooModel))
       HazardousFooModel.class_eval do
-        attr_accessor :service_id, :moved_to_id, :namespace_id, :ci_id, :random_project_id, :random_id, :milestone_id, :project_id
+        attr_accessor :integration_id, :moved_to_id, :namespace_id, :ci_id, :random_project_id, :random_id, :milestone_id, :project_id
       end
 
       allow(HazardousFooModel).to receive(:reflect_on_association).and_return(nil)
@@ -418,21 +418,73 @@ RSpec.describe Gitlab::ImportExport::Project::RelationFactory, :use_clean_rails_
     end
   end
 
-  context 'merge request access level object' do
-    let(:relation_sym) { :'ProtectedBranch::MergeAccessLevel' }
-    let(:relation_hash) { { 'access_level' => 30, 'created_at' => '2022-03-29T09:53:13.457Z', 'updated_at' => '2022-03-29T09:54:13.457Z' } }
+  describe 'protected branch access levels' do
+    shared_examples 'access levels' do
+      let(:relation_hash) { { 'access_level' => access_level, 'created_at' => '2022-03-29T09:53:13.457Z', 'updated_at' => '2022-03-29T09:54:13.457Z' } }
 
-    it 'sets access level to maintainer' do
-      expect(created_object.access_level).to equal(Gitlab::Access::MAINTAINER)
+      context 'when access level is no one' do
+        let(:access_level) { Gitlab::Access::NO_ACCESS }
+
+        it 'keeps no one access level' do
+          expect(created_object.access_level).to equal(access_level)
+        end
+      end
+
+      context 'when access level is below maintainer' do
+        let(:access_level) { Gitlab::Access::DEVELOPER }
+
+        it 'sets access level to maintainer' do
+          expect(created_object.access_level).to equal(Gitlab::Access::MAINTAINER)
+        end
+      end
+
+      context 'when access level is above maintainer' do
+        let(:access_level) { Gitlab::Access::OWNER }
+
+        it 'sets access level to maintainer' do
+          expect(created_object.access_level).to equal(Gitlab::Access::MAINTAINER)
+        end
+      end
+
+      describe 'root ancestor membership' do
+        let(:access_level) { Gitlab::Access::DEVELOPER }
+
+        context 'when importer user is root group owner' do
+          let(:importer_user) { create(:user) }
+
+          it 'keeps access level as is' do
+            group.add_owner(importer_user)
+
+            expect(created_object.access_level).to equal(access_level)
+          end
+        end
+
+        context 'when user membership in root group is missing' do
+          it 'sets access level to maintainer' do
+            group.members.delete_all
+
+            expect(created_object.access_level).to equal(Gitlab::Access::MAINTAINER)
+          end
+        end
+
+        context 'when root ancestor is not a group' do
+          it 'sets access level to maintainer' do
+            expect(created_object.access_level).to equal(Gitlab::Access::MAINTAINER)
+          end
+        end
+      end
     end
-  end
 
-  context 'push access level object' do
-    let(:relation_sym) { :'ProtectedBranch::PushAccessLevel' }
-    let(:relation_hash) { { 'access_level' => 30, 'created_at' => '2022-03-29T09:53:13.457Z', 'updated_at' => '2022-03-29T09:54:13.457Z' } }
+    describe 'merge access level' do
+      let(:relation_sym) { :'ProtectedBranch::MergeAccessLevel' }
 
-    it 'sets access level to maintainer' do
-      expect(created_object.access_level).to equal(Gitlab::Access::MAINTAINER)
+      include_examples 'access levels'
+    end
+
+    describe 'push access level' do
+      let(:relation_sym) { :'ProtectedBranch::PushAccessLevel' }
+
+      include_examples 'access levels'
     end
   end
 end

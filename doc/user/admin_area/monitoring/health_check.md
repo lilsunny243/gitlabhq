@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Health Check **(FREE SELF)**
@@ -15,7 +15,7 @@ traffic until the system is ready or restart the container as needed.
 ## IP allowlist
 
 To access monitoring resources, the requesting client IP needs to be included in the allowlist.
-For details, see [how to add IPs to the allowlist for the monitoring endpoints](../../../administration/monitoring/ip_whitelist.md).
+For details, see [how to add IPs to the allowlist for the monitoring endpoints](../../../administration/monitoring/ip_allowlist.md).
 
 ## Using the endpoints locally
 
@@ -133,7 +133,7 @@ This check is being exempt from Rack Attack.
 
 ## Sidekiq
 
-Learn how to configure the [Sidekiq health checks](../../../administration/sidekiq_health_check.md).
+Learn how to configure the [Sidekiq health checks](../../../administration/sidekiq/sidekiq_health_check.md).
 
 <!-- ## Troubleshooting
 
@@ -143,6 +143,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

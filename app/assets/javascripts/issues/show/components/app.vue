@@ -1,18 +1,20 @@
 <script>
 import { GlIcon, GlBadge, GlIntersectionObserver, GlTooltipDirective } from '@gitlab/ui';
 import Visibility from 'visibilityjs';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import {
-  IssuableStatus,
   IssuableStatusText,
-  WorkspaceType,
-  IssuableType,
+  STATUS_CLOSED,
+  TYPE_EPIC,
+  TYPE_INCIDENT,
+  TYPE_ISSUE,
+  WORKSPACE_PROJECT,
 } from '~/issues/constants';
 import Poll from '~/lib/utils/poll';
 import { visitUrl } from '~/lib/utils/url_utility';
 import { __, sprintf } from '~/locale';
 import ConfidentialityBadge from '~/vue_shared/components/confidentiality_badge.vue';
-import { ISSUE_TYPE_PATH, INCIDENT_TYPE_PATH, INCIDENT_TYPE, POLLING_DELAY } from '../constants';
+import { ISSUE_TYPE_PATH, INCIDENT_TYPE_PATH, POLLING_DELAY } from '../constants';
 import eventHub from '../event_hub';
 import getIssueStateQuery from '../queries/get_issue_state.query.graphql';
 import Service from '../services/index';
@@ -24,7 +26,7 @@ import PinnedLinks from './pinned_links.vue';
 import TitleComponent from './title.vue';
 
 export default {
-  WorkspaceType,
+  WORKSPACE_PROJECT,
   components: {
     GlIcon,
     GlBadge,
@@ -156,7 +158,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: IssuableType.Issue,
+      default: TYPE_ISSUE,
     },
     canAttachFile: {
       type: Boolean,
@@ -251,7 +253,7 @@ export default {
       return sprintf(__('Error updating %{issuableType}'), { issuableType: this.issuableType });
     },
     isClosed() {
-      return this.issuableStatus === IssuableStatus.Closed;
+      return this.issuableStatus === STATUS_CLOSED;
     },
     pinnedLinkClasses() {
       return this.showTitleBorder
@@ -259,7 +261,7 @@ export default {
         : '';
     },
     statusIcon() {
-      if (this.issuableType === IssuableType.Issue) {
+      if (this.issuableType === TYPE_ISSUE) {
         return this.isClosed ? 'issue-closed' : 'issues';
       }
       return this.isClosed ? 'epic-closed' : 'epic';
@@ -271,7 +273,7 @@ export default {
       return IssuableStatusText[this.issuableStatus];
     },
     shouldShowStickyHeader() {
-      return [IssuableType.Issue, IssuableType.Epic].includes(this.issuableType);
+      return [TYPE_ISSUE, TYPE_EPIC].includes(this.issuableType);
     },
   },
   created() {
@@ -327,7 +329,7 @@ export default {
           this.store.updateState(data);
         })
         .catch(() => {
-          createFlash({
+          createAlert({
             message: this.defaultErrorMessage,
           });
         });
@@ -362,7 +364,7 @@ export default {
           this.updateAndShowForm(res.data);
         })
         .catch(() => {
-          createFlash({
+          createAlert({
             message: this.defaultErrorMessage,
           });
           this.updateAndShowForm();
@@ -401,14 +403,14 @@ export default {
         .then((data) => {
           if (
             !window.location.pathname.includes(data.web_url) &&
-            issueState.issueType !== INCIDENT_TYPE
+            issueState.issueType !== TYPE_INCIDENT
           ) {
             visitUrl(data.web_url);
           }
 
           if (issueState.isDirty) {
             const URI =
-              issueState.issueType === INCIDENT_TYPE
+              issueState.issueType === TYPE_INCIDENT
                 ? data.web_url.replace(ISSUE_TYPE_PATH, INCIDENT_TYPE_PATH)
                 : data.web_url;
             visitUrl(URI);
@@ -429,7 +431,7 @@ export default {
             errMsg += `. ${message}`;
           }
 
-          this.flashContainer = createFlash({
+          this.flashContainer = createAlert({
             message: errMsg,
           });
         })
@@ -453,7 +455,7 @@ export default {
       }
     },
 
-    handleListItemReorder(description) {
+    handleSaveDescription(description) {
       this.updateFormState();
       this.setFormState({ description });
       this.updateIssuable();
@@ -532,7 +534,7 @@ export default {
               <confidentiality-badge
                 v-if="isConfidential"
                 data-testid="confidential"
-                :workspace-type="$options.WorkspaceType.project"
+                :workspace-type="$options.WORKSPACE_PROJECT"
                 :issuable-type="issuableType"
               />
               <span
@@ -573,7 +575,7 @@ export default {
         :update-url="updateEndpoint"
         :lock-version="state.lock_version"
         :is-updating="formState.updateLoading"
-        @listItemReorder="handleListItemReorder"
+        @saveDescription="handleSaveDescription"
         @taskListUpdateStarted="taskListUpdateStarted"
         @taskListUpdateSucceeded="taskListUpdateSucceeded"
         @taskListUpdateFailed="taskListUpdateFailed"

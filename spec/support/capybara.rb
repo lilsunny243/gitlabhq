@@ -7,7 +7,7 @@ require 'capybara-screenshot/rspec'
 require 'selenium-webdriver'
 
 # Give CI some extra time
-timeout = ENV['CI'] || ENV['CI_SERVER'] ? 60 : 30
+timeout = ENV['CI'] || ENV['CI_SERVER'] ? 30 : 10
 
 # Support running Capybara on a specific port to allow saving commonly used pages
 Capybara.server_port = ENV['CAPYBARA_PORT'] if ENV['CAPYBARA_PORT']
@@ -16,19 +16,23 @@ Capybara.server_port = ENV['CAPYBARA_PORT'] if ENV['CAPYBARA_PORT']
 JSConsoleError = Class.new(StandardError)
 
 # Filter out innocuous JS console messages
-JS_CONSOLE_FILTER = Regexp.union([
-  '"[HMR] Waiting for update signal from WDS..."',
-  '"[WDS] Hot Module Replacement enabled."',
-  '"[WDS] Live Reloading enabled."',
-  'Download the Vue Devtools extension',
-  'Download the Apollo DevTools',
-  "Unrecognized feature: 'interest-cohort'",
-  'Does this page need fixes or improvements?'
-])
+JS_CONSOLE_FILTER = Regexp.union(
+  [
+    '"[HMR] Waiting for update signal from WDS..."',
+    '"[WDS] Hot Module Replacement enabled."',
+    '"[WDS] Live Reloading enabled."',
+    'Download the Vue Devtools extension',
+    'Download the Apollo DevTools',
+    "Unrecognized feature: 'interest-cohort'",
+    'Does this page need fixes or improvements?'
+  ]
+)
 
 CAPYBARA_WINDOW_SIZE = [1366, 768].freeze
 
 SCREENSHOT_FILENAME_LENGTH = ENV['CI'] || ENV['CI_SERVER'] ? 255 : 99
+
+@blackhole_tcp_server = nil
 
 # Run Workhorse on the given host and port, proxying to Puma on a UNIX socket,
 # for a closer-to-production experience
@@ -72,8 +76,25 @@ Capybara.register_driver :chrome do |app|
   # Explicitly set user-data-dir to prevent crashes. See https://gitlab.com/gitlab-org/gitlab-foss/issues/58882#note_179811508
   options.add_argument("user-data-dir=/tmp/chrome") if ENV['CI'] || ENV['CI_SERVER']
 
+  # Set chrome default download path
+  if ENV['DEFAULT_CHROME_DOWNLOAD_PATH']
+    options.add_preference("download.default_directory", ENV['DEFAULT_CHROME_DOWNLOAD_PATH'])
+    options.add_preference("download.prompt_for_download", false)
+  end
+
   # Chrome 75 defaults to W3C mode which doesn't allow console log access
   options.add_option(:w3c, false)
+
+  # Set up a proxy server to block all external traffic.
+  @blackhole_tcp_server = TCPServer.new(0)
+  Thread.new do
+    loop do
+      Thread.start(@blackhole_tcp_server.accept, &:close)
+    end
+  end
+
+  options.add_argument("--proxy-server=http://127.0.0.1:#{@blackhole_tcp_server.addr[1]}")
+  options.add_argument("--proxy-bypass-list=127.0.0.1,localhost,#{Gitlab.config.gitlab.host}")
 
   Capybara::Selenium::Driver.new(
     app,

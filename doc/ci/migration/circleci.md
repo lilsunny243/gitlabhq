@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 type: index, howto
 ---
@@ -136,6 +136,7 @@ job3:
 job4:
   stage: deploy
   script: make deploy
+  environment: production
 ```
 
 #### Scheduled run
@@ -196,6 +197,7 @@ deploy_prod:
   script:
     - echo "Deploy to production server"
   when: manual
+  environment: production
 ```
 
 ### Filter job by branch
@@ -222,6 +224,7 @@ deploy:
     - echo "Deploy job"
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^rc-/
+  environment: production
 ```
 
 ### Caching
@@ -265,7 +268,7 @@ test_async:
 
 ## Contexts and variables
 
-CircleCI provides [Contexts](https://circleci.com/docs/contexts) to securely pass environment variables across project pipelines. In GitLab, a [Group](../../user/group/index.md) can be created to assemble related projects together. At the group level, [CI/CD variables](../variables/index.md#add-a-cicd-variable-to-a-group) can be stored outside the individual projects, and securely passed into pipelines across multiple projects.
+CircleCI provides [Contexts](https://circleci.com/docs/contexts/) to securely pass environment variables across project pipelines. In GitLab, a [Group](../../user/group/index.md) can be created to assemble related projects together. At the group level, [CI/CD variables](../variables/index.md#for-a-group) can be stored outside the individual projects, and securely passed into pipelines across multiple projects.
 
 ## Orbs
 

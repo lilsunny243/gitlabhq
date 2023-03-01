@@ -7,12 +7,9 @@ import RemoveMemberButton from './remove_member_button.vue';
 export default {
   name: 'AccessRequestActionButtons',
   components: { ActionButtonGroup, RemoveMemberButton, ApproveAccessRequestButton },
+  inheritAttrs: false,
   props: {
     member: {
-      type: Object,
-      required: true,
-    },
-    permissions: {
       type: Object,
       required: true,
     },
@@ -43,17 +40,15 @@ export default {
 
 <template>
   <action-button-group>
-    <div v-if="permissions.canUpdate" class="gl-px-1">
+    <div class="gl-px-1">
       <approve-access-request-button :member-id="member.id" />
     </div>
-    <div v-if="permissions.canRemove" class="gl-px-1">
+    <div class="gl-px-1">
       <remove-member-button
         :member-id="member.id"
         :message="message"
         :title="s__('Member|Deny access')"
         :is-access-request="true"
-        icon="close"
-        button-category="primary"
       />
     </div>
   </action-button-group>

@@ -3,6 +3,8 @@ import Vuex from 'vuex';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import SubmitDropdown from '~/batch_comments/components/submit_dropdown.vue';
 
+jest.mock('~/autosave');
+
 Vue.use(Vuex);
 
 let wrapper;
@@ -92,7 +94,7 @@ describe('Batch comments submit dropdown', () => {
     canApprove | exists   | existsText
     ${true}    | ${true}  | ${'shows'}
     ${false}   | ${false} | ${'hides'}
-  `('it $existsText approve checkbox if can_approve is $canApprove', ({ canApprove, exists }) => {
+  `('$existsText approve checkbox if can_approve is $canApprove', ({ canApprove, exists }) => {
     factory({ canApprove });
 
     expect(wrapper.findByTestId('approve_merge_request').exists()).toBe(exists);

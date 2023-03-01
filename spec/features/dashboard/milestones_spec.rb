@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dashboard > Milestones' do
+RSpec.describe 'Dashboard > Milestones', feature_category: :team_planning do
   describe 'as anonymous user' do
     before do
       visit dashboard_milestones_path
@@ -26,6 +26,8 @@ RSpec.describe 'Dashboard > Milestones' do
       visit dashboard_milestones_path
     end
 
+    it_behaves_like 'a dashboard page with sidebar', :dashboard_milestones_path, :milestones
+
     it 'sees milestones' do
       expect(page).to have_current_path dashboard_milestones_path, ignore_query: true
       expect(page).to have_content(milestone.title)
@@ -35,13 +37,12 @@ RSpec.describe 'Dashboard > Milestones' do
 
     describe 'new milestones dropdown', :js do
       it 'takes user to a new milestone page', :js do
-        click_button 'Toggle project select'
+        click_button 'Select project to create milestone'
 
-        page.within('.select2-results') do
-          first('.select2-result-label').click
+        page.within('[data-testid="new-resource-dropdown"]') do
+          click_button group.name
+          click_link "New milestone in #{group.name}"
         end
-
-        find('.js-new-project-item-link').click
 
         expect(page).to have_current_path(new_group_milestone_path(group), ignore_query: true)
       end

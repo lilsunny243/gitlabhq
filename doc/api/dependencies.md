@@ -1,7 +1,7 @@
 ---
 stage: Secure
 group: Composition Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Dependencies API **(ULTIMATE)**
@@ -33,7 +33,7 @@ GET /projects/:id/dependencies?package_manager=yarn,bundler
 
 | Attribute     | Type           | Required | Description                                                                                                                                                                 |
 | ------------- | -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding).                                                            |
+| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding).                                                            |
 | `package_manager` | string array   | no       | Returns dependencies belonging to specified package manager. Valid values: `bundler`, `composer`, `conan`, `go`, `gradle`, `maven`, `npm`, `nuget`, `pip`, `pipenv`, `yarn`, `sbt`, or `setuptools`. |
 
 ```shell
@@ -49,18 +49,34 @@ Example response:
     "version": "5.0.1",
     "package_manager": "bundler",
     "dependency_file_path": "Gemfile.lock",
-    "vulnerabilities": [{
-      "name": "DDoS",
-      "severity": "unknown"
-    }]
+    "vulnerabilities": [
+      {
+        "name": "DDoS",
+        "severity": "unknown",
+        "id": 144827,
+        "url": "https://gitlab.example.com/group/project/-/security/vulnerabilities/144827"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT"
+      }
+    ]
   },
   {
-      "name": "hanami",
-      "version": "1.3.1",
-      "package_manager": "bundler",
-      "dependency_file_path": "Gemfile.lock",
-      "vulnerabilities": []
-    }
+    "name": "hanami",
+    "version": "1.3.1",
+    "package_manager": "bundler",
+    "dependency_file_path": "Gemfile.lock",
+    "vulnerabilities": [],
+    "licenses": [
+      {
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT"
+      }
+    ]
+  }
 ]
 ```
 
@@ -69,4 +85,4 @@ Example response:
 By default, `GET` requests return 20 results at a time because the API results
 are paginated.
 
-Read more on [pagination](index.md#pagination).
+Read more on [pagination](rest/index.md#pagination).

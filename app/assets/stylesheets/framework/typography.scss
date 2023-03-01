@@ -33,14 +33,6 @@
     }
   }
 
-  a {
-    color: $blue-600;
-
-    > code {
-      color: $blue-600;
-    }
-  }
-
   .media-container {
     display: inline-flex;
     flex-direction: column;
@@ -89,6 +81,7 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
     word-break: keep-all;
+    @include gl-font-base;
   }
 
   h1 {
@@ -330,10 +323,9 @@
 
   pre {
     margin-bottom: 16px;
-    font-size: 13px;
     line-height: 1.6em;
     overflow-x: auto;
-    border-radius: 2px;
+    border-radius: $border-radius-default;
 
     // Multi-line code blocks should scroll horizontally
     code {
@@ -595,7 +587,7 @@
     }
   }
 
-  .gl-new-dropdown-item {
+  .gl-dropdown-item {
     margin: 0;
     padding: 0;
     line-height: 1rem;
@@ -666,7 +658,7 @@ pre {
   display: block;
   padding: $gl-padding-8 $input-horizontal-padding;
   margin: 0 0 $gl-padding-8;
-  font-size: $gl-font-size-monospace;
+  @include gl-font-base;
   word-break: break-all;
   word-wrap: break-word;
   color: $gl-text-color;
@@ -688,7 +680,7 @@ code {
 }
 
 .monospace {
-  font-family: $monospace-font;
+  @include gl-font-monospace;
 }
 
 .weight-normal {
@@ -696,8 +688,7 @@ code {
 }
 
 .commit-sha,
-.ref-name,
-.pipeline-number {
+.ref-name {
   font-family: $monospace-font;
   font-size: 95%;
 }
@@ -714,11 +705,7 @@ code {
  */
 textarea.js-gfm-input {
   font-family: $monospace-font;
-  font-size: $gl-font-size-monospace;
-}
-
-.strikethrough {
-  text-decoration: line-through;
+  @include gl-font-base;
 }
 
 h1,
@@ -783,4 +770,9 @@ textarea {
 
 wbr {
   display: inline-block;
+}
+
+// The font used in Monaco editor - Web IDE, Snippets, single file editor
+:root {
+  --code-editor-font: #{$monospace-font};
 }

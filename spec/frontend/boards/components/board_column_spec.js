@@ -34,8 +34,12 @@ describe('Board Column Component', () => {
     wrapper = shallowMount(BoardColumn, {
       store,
       propsData: {
-        disabled: false,
         list: listMock,
+        boardId: 'gid://gitlab/Board/1',
+        filters: {},
+      },
+      provide: {
+        isApolloBoard: false,
       },
     });
   };

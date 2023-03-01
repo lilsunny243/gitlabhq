@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Cascading Settings
@@ -38,7 +38,7 @@ Settings are not cascading by default. To define a cascading setting, take the f
    `application_settings`.
 
     ```ruby
-    class AddDelayedProjectRemovalCascadingSetting < Gitlab::Database::Migration[1.0]
+    class AddDelayedProjectRemovalCascadingSetting < Gitlab::Database::Migration[2.1]
       include Gitlab::Database::MigrationHelpers::CascadingNamespaceSettings
 
       enable_lock_retries!
@@ -153,7 +153,7 @@ Renders the label for a checkbox setting.
 
 [`_setting_label_fieldset.html.haml`](https://gitlab.com/gitlab-org/gitlab/-/blob/c2736823b8e922e26fd35df4f0cd77019243c858/app/views/shared/namespaces/cascading_settings/_setting_label_fieldset.html.haml)
 
-Renders the label for a fieldset setting.
+Renders the label for a `fieldset` setting.
 
 | Local                  | Description                                                                                                                                                                                                          | Type                 | Required (default value) |
 |:-----------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------|:-------------------------|

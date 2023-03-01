@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Load Balancer for multi-node GitLab **(FREE SELF)**
@@ -36,7 +36,7 @@ for details on managing SSL certificates and configuring NGINX.
 
 ### Load Balancers terminate SSL without backend SSL
 
-Configure your load balancers to use the 'HTTP(S)' protocol rather than 'TCP'.
+Configure your load balancers to use the `HTTP(S)` protocol rather than `TCP`.
 The load balancers is be responsible for managing SSL certificates and
 terminating SSL.
 
@@ -47,7 +47,7 @@ for details.
 
 ### Load Balancers terminate SSL with backend SSL
 
-Configure your load balancers to use the 'HTTP(S)' protocol rather than 'TCP'.
+Configure your load balancers to use the `HTTP(S)` protocol rather than `TCP`.
 The load balancers is responsible for managing SSL certificates that
 end users see.
 
@@ -114,6 +114,9 @@ Configure DNS for an alternate SSH hostname such as `altssh.gitlab.example.com`.
 ## Readiness check
 
 It is strongly recommend that multi-node deployments configure load balancers to use the [readiness check](../user/admin_area/monitoring/health_check.md#readiness) to ensure a node is ready to accept traffic, before routing traffic to it. This is especially important when utilizing Puma, as there is a brief period during a restart where Puma doesn't accept requests.
+
+WARNING:
+Using the `all=1` parameter with the readiness check in GitLab versions 15.4 to 15.8 may cause [increased Praefect memory usage](https://gitlab.com/gitlab-org/gitaly/-/issues/4751) and lead to memory errors.
 
 ## Troubleshooting
 

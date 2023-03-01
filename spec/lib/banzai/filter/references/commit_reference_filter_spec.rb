@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Filter::References::CommitReferenceFilter do
+RSpec.describe Banzai::Filter::References::CommitReferenceFilter, feature_category: :source_code_management do
   include FilterSpecHelper
 
   let(:project) { create(:project, :public, :repository) }
@@ -282,7 +282,7 @@ RSpec.describe Banzai::Filter::References::CommitReferenceFilter do
     let(:commit3_reference) { commit3.to_reference(full: true) }
 
     it 'does not have N+1 per multiple references per project', :use_sql_query_cache do
-      markdown = "#{commit_reference}"
+      markdown = commit_reference.to_s
       max_count = ActiveRecord::QueryRecorder.new(skip_cached: false) do
         reference_filter(markdown)
       end.count

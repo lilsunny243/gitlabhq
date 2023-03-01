@@ -287,39 +287,6 @@ RSpec.describe GroupsHelper do
     end
   end
 
-  describe '#parent_group_options' do
-    let_it_be(:current_user) { create(:user) }
-    let_it_be(:group) { create(:group, name: 'group') }
-    let_it_be(:group2) { create(:group, name: 'group2') }
-
-    before do
-      group.add_owner(current_user)
-      group2.add_owner(current_user)
-    end
-
-    it 'includes explicitly owned groups except self' do
-      expect(parent_group_options(group2)).to eq([{ id: group.id, text: group.human_name }].to_json)
-    end
-
-    it 'excludes parent group' do
-      subgroup = create(:group, parent: group2)
-
-      expect(parent_group_options(subgroup)).to eq([{ id: group.id, text: group.human_name }].to_json)
-    end
-
-    it 'includes subgroups with inherited ownership' do
-      subgroup = create(:group, parent: group)
-
-      expect(parent_group_options(group2)).to eq([{ id: group.id, text: group.human_name }, { id: subgroup.id, text: subgroup.human_name }].to_json)
-    end
-
-    it 'excludes own subgroups' do
-      create(:group, parent: group2)
-
-      expect(parent_group_options(group2)).to eq([{ id: group.id, text: group.human_name }].to_json)
-    end
-  end
-
   describe '#can_disable_group_emails?' do
     let_it_be(:current_user) { create(:user) }
     let_it_be(:group) { create(:group, name: 'group') }
@@ -388,22 +355,30 @@ RSpec.describe GroupsHelper do
   end
 
   describe '#show_thanks_for_purchase_alert?' do
-    subject { helper.show_thanks_for_purchase_alert? }
+    subject { helper.show_thanks_for_purchase_alert?(quantity) }
 
-    it 'returns true with purchased_quantity present in params' do
-      allow(controller).to receive(:params) { { purchased_quantity: '1' } }
+    context 'with quantity present' do
+      let(:quantity) { 1 }
 
-      is_expected.to be_truthy
+      it 'returns true' do
+        is_expected.to be_truthy
+      end
     end
 
-    it 'returns false with purchased_quantity not present in params' do
-      is_expected.to be_falsey
+    context 'with quantity not present' do
+      let(:quantity) { nil }
+
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
     end
 
-    it 'returns false with purchased_quantity is empty in params' do
-      allow(controller).to receive(:params) { { purchased_quantity: '' } }
+    context 'with quantity empty' do
+      let(:quantity) { '' }
 
-      is_expected.to be_falsey
+      it 'returns false' do
+        is_expected.to be_falsey
+      end
     end
   end
 
@@ -461,7 +436,8 @@ RSpec.describe GroupsHelper do
       it 'returns expected hash' do
         expect(subgroup_creation_data(subgroup)).to eq({
           import_existing_group_path: '/groups/new#import-group-pane',
-          parent_group_name: name
+          parent_group_name: name,
+          parent_group_url: group_url(group)
         })
       end
     end
@@ -470,7 +446,8 @@ RSpec.describe GroupsHelper do
       it 'returns expected hash' do
         expect(subgroup_creation_data(group)).to eq({
           import_existing_group_path: '/groups/new#import-group-pane',
-          parent_group_name: nil
+          parent_group_name: nil,
+          parent_group_url: nil
         })
       end
     end
@@ -494,29 +471,38 @@ RSpec.describe GroupsHelper do
     end
   end
 
-  describe '#subgroups_and_projects_list_app_data' do
+  describe '#group_overview_tabs_app_data' do
     let_it_be(:group) { create(:group) }
     let_it_be(:user) { create(:user) }
+    let_it_be(:initial_sort) { 'created_asc' }
 
     before do
       allow(helper).to receive(:current_user).and_return(user)
 
       allow(helper).to receive(:can?).with(user, :create_subgroup, group) { true }
       allow(helper).to receive(:can?).with(user, :create_projects, group) { true }
+      allow(helper).to receive(:project_list_sort_by).and_return(initial_sort)
     end
 
     it 'returns expected hash' do
-      expect(helper.subgroups_and_projects_list_app_data(group)).to match({
-        show_schema_markup: 'true',
-        new_subgroup_path: including("groups/new?parent_id=#{group.id}#create-group-pane"),
-        new_project_path: including("/projects/new?namespace_id=#{group.id}"),
-        new_subgroup_illustration: including('illustrations/subgroup-create-new-sm'),
-        new_project_illustration: including('illustrations/project-create-new-sm'),
-        empty_subgroup_illustration: including('illustrations/empty-state/empty-subgroup-md'),
-        render_empty_state: 'true',
-        can_create_subgroups: 'true',
-        can_create_projects: 'true'
-      })
+      expect(helper.group_overview_tabs_app_data(group)).to match(
+        {
+          subgroups_and_projects_endpoint: including("/groups/#{group.path}/-/children.json"),
+          shared_projects_endpoint: including("/groups/#{group.path}/-/shared_projects.json"),
+          archived_projects_endpoint: including("/groups/#{group.path}/-/children.json?archived=only"),
+          current_group_visibility: group.visibility,
+          initial_sort: initial_sort,
+          show_schema_markup: 'true',
+          new_subgroup_path: including("groups/new?parent_id=#{group.id}#create-group-pane"),
+          new_project_path: including("/projects/new?namespace_id=#{group.id}"),
+          new_subgroup_illustration: including('illustrations/subgroup-create-new-sm'),
+          new_project_illustration: including('illustrations/project-create-new-sm'),
+          empty_subgroup_illustration: including('illustrations/empty-state/empty-subgroup-md'),
+          render_empty_state: 'true',
+          can_create_subgroups: 'true',
+          can_create_projects: 'true'
+        }
+      )
     end
   end
 

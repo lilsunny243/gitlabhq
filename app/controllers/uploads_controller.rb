@@ -15,6 +15,7 @@ class UploadsController < ApplicationController
     "personal_snippet" => PersonalSnippet,
     "projects/topic" => Projects::Topic,
     'alert_management_metric_image' => ::AlertManagement::MetricImage,
+    "achievements/achievement" => Achievements::Achievement,
     nil => PersonalSnippet
   }.freeze
 
@@ -52,6 +53,8 @@ class UploadsController < ApplicationController
       # access to itself when a secret is given.
       # For instance, user avatars are readable by anyone,
       # while temporary, user snippet uploads are not.
+      return false if !current_user && public_visibility_restricted?
+
       !secret? || can?(current_user, :update_user, model)
     when Appearance
       true
@@ -59,6 +62,8 @@ class UploadsController < ApplicationController
       true
     when ::AlertManagement::MetricImage
       can?(current_user, :read_alert_management_metric_image, model.alert)
+    when ::Achievements::Achievement
+      true
     else
       can?(current_user, "read_#{model.class.underscore}".to_sym, model)
     end
@@ -90,7 +95,7 @@ class UploadsController < ApplicationController
 
   def cache_settings
     case model
-    when User, Appearance, Projects::Topic
+    when User, Appearance, Projects::Topic, Achievements::Achievement
       [5.minutes, { public: true, must_revalidate: false }]
     when Project, Group
       [5.minutes, { private: true, must_revalidate: true }]

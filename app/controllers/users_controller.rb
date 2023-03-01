@@ -9,33 +9,36 @@ class UsersController < ApplicationController
   include Gitlab::NoteableMetadata
 
   requires_cross_project_access show: false,
-                                groups: false,
-                                projects: false,
-                                contributed: false,
-                                snippets: true,
-                                calendar: false,
-                                followers: false,
-                                following: false,
-                                calendar_activities: true
+    groups: false,
+    projects: false,
+    contributed: false,
+    snippets: true,
+    calendar: false,
+    followers: false,
+    following: false,
+    calendar_activities: true
 
   skip_before_action :authenticate_user!
   prepend_before_action(only: [:show]) { authenticate_sessionless_user!(:rss) }
   before_action :user, except: [:exists]
-  before_action :authorize_read_user_profile!,
-                only: [:calendar, :calendar_activities, :groups, :projects, :contributed, :starred, :snippets, :followers, :following]
+  before_action :authorize_read_user_profile!, only: [
+    :calendar, :calendar_activities, :groups, :projects, :contributed, :starred, :snippets, :followers, :following
+  ]
   before_action only: [:exists] do
     check_rate_limit!(:username_exists, scope: request.ip)
   end
+  before_action only: [:show] do
+    push_frontend_feature_flag(:profile_tabs_vue, current_user)
+  end
 
-  feature_category :users, [:show, :activity, :groups, :projects, :contributed, :starred,
+  feature_category :user_profile, [:show, :activity, :groups, :projects, :contributed, :starred,
                             :followers, :following, :calendar, :calendar_activities,
                             :exists, :activity, :follow, :unfollow, :ssh_keys]
 
-  feature_category :snippets, [:snippets]
-  feature_category :source_code_management, [:gpg_keys]
+  feature_category :source_code_management, [:snippets, :gpg_keys]
 
   # TODO: Set higher urgency after resolving https://gitlab.com/gitlab-org/gitlab/-/issues/357914
-  urgency :low, [:show, :calendar_activities, :contributed, :activity, :projects, :groups, :calendar]
+  urgency :low, [:show, :calendar_activities, :contributed, :activity, :projects, :groups, :calendar, :snippets]
   urgency :default, [:followers, :following, :starred]
   urgency :high, [:exists]
 
@@ -174,8 +177,9 @@ class UsersController < ApplicationController
   end
 
   def follow
-    current_user.follow(user)
+    followee = current_user.follow(user)
 
+    flash[:alert] = followee.errors.full_messages.join(', ') if followee&.errors&.any?
     redirect_path = referer_path(request) || @user
 
     redirect_to redirect_path
@@ -273,8 +277,6 @@ class UsersController < ApplicationController
 
   def finder_params
     {
-      # don't display projects pending deletion
-      without_deleted: true,
       # don't display projects marked for deletion
       not_aimed_for_deletion: true
     }

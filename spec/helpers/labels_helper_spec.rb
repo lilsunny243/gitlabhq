@@ -310,4 +310,38 @@ RSpec.describe LabelsHelper do
       end
     end
   end
+
+  describe '#wrap_label_html' do
+    let(:project) { build_stubbed(:project) }
+    let(:xss_label) do
+      build_stubbed(:label, name: 'xsslabel', project: project, color: '"><img src=x onerror=prompt(1)>')
+    end
+
+    it 'does not include the color' do
+      expect(wrap_label_html('xss', label: xss_label, small: false)).not_to include('color:')
+    end
+  end
+
+  describe '#label_subscription_toggle_button_text' do
+    let(:label) { instance_double(Label) }
+    let(:current_user) { instance_double(User) }
+
+    subject { label_subscription_toggle_button_text(label) }
+
+    context 'when the label is subscribed' do
+      before do
+        allow(label).to receive(:subscribed?).and_return(true)
+      end
+
+      it { is_expected.to eq(_('Unsubscribe')) }
+    end
+
+    context 'when the label is not subscribed' do
+      before do
+        allow(label).to receive(:subscribed?).and_return(false)
+      end
+
+      it { is_expected.to eq(_('Subscribe')) }
+    end
+  end
 end

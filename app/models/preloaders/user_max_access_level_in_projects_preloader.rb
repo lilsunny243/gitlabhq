@@ -10,13 +10,15 @@ module Preloaders
                   else
                     # Push projects base query in to a sub-select to avoid
                     # table name clashes. Performs better than aliasing.
-                    Project.where(id: projects.reselect(:id))
+                    Project.where(id: projects.subquery(:id))
                   end
 
       @user = user
     end
 
     def execute
+      return unless @user
+
       project_authorizations = ProjectAuthorization.arel_table
 
       auths = @projects

@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Release fields
@@ -34,7 +34,7 @@ Every release has a description. You can add any text you like, but we recommend
 including a changelog to describe the content of your release. This helps users
 quickly scan the differences between each release you publish.
 
-[Git's tagging messages](https://git-scm.com/book/en/v2/Git-Basics-Tagging) can
+[Tagging messages in Git](https://git-scm.com/book/en/v2/Git-Basics-Tagging) can
 be included in Release note descriptions by selecting **Include tag message in
 the release notes**.
 
@@ -93,7 +93,7 @@ By default, GitLab fetches the release using `released_at` time. The use of the 
 The assets associated with a release are accessible through a permanent URL.
 GitLab always redirects this URL to the actual asset
 location, so even if the assets move to a different location, you can continue
-to use the same URL. This is defined during [link creation](../../../api/releases/links.md#create-a-link) or [updating](../../../api/releases/links.md#update-a-link) using the `filepath` API attribute.
+to use the same URL. This is defined during [link creation](../../../api/releases/links.md#create-a-release-link) or [updating](../../../api/releases/links.md#update-a-release-link) using the `filepath` API attribute.
 
 The format of the URL is:
 
@@ -133,7 +133,7 @@ The format of the URL is:
 https://host/namespace/project/-/releases/permalink/latest/downloads/:filepath
 ```
 
-If you have an asset with [`filepath`](../../../api/releases/links.md#create-a-link) for the `v11.9.0-rc2` latest release in the `gitlab-org`
+If you have an asset with [`filepath`](../../../api/releases/links.md#create-a-release-link) for the `v11.9.0-rc2` latest release in the `gitlab-org`
 namespace and `gitlab-runner` project on `gitlab.com`, for example:
 
 ```json

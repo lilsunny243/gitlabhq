@@ -10,7 +10,7 @@ module API
       feature_category :kubernetes_management
 
       params do
-        requires :id, type: String, desc: 'The ID of a project'
+        requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
       end
       resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
         params do
@@ -18,37 +18,40 @@ module API
         end
         resource ':id/cluster_agents/:agent_id' do
           resource :tokens do
-            desc 'List agent tokens' do
-              detail 'This feature was introduced in GitLab 15.0.'
+            desc 'List tokens for an agent' do
+              detail 'This feature was introduced in GitLab 15.0. Returns a list of tokens for an agent.'
               success Entities::Clusters::AgentTokenBasic
+              tags %w[cluster_agents]
             end
             params do
               use :pagination
             end
             get do
               agent = ::Clusters::AgentsFinder.new(user_project, current_user).find(params[:agent_id])
+              agent_tokens = ::Clusters::AgentTokensFinder.new(agent, current_user).execute
 
-              present paginate(agent.agent_tokens), with: Entities::Clusters::AgentTokenBasic
+              present paginate(agent_tokens), with: Entities::Clusters::AgentTokenBasic
             end
 
             desc 'Get a single agent token' do
-              detail 'This feature was introduced in GitLab 15.0.'
+              detail 'This feature was introduced in GitLab 15.0. Gets a single agent token.'
               success Entities::Clusters::AgentToken
+              tags %w[cluster_agents]
             end
             params do
               requires :token_id, type: Integer, desc: 'The ID of the agent token'
             end
             get ':token_id' do
               agent = ::Clusters::AgentsFinder.new(user_project, current_user).find(params[:agent_id])
-
-              token = agent.agent_tokens.find(params[:token_id])
+              token = ::Clusters::AgentTokensFinder.new(agent, current_user).find(params[:token_id])
 
               present token, with: Entities::Clusters::AgentToken
             end
 
             desc 'Create an agent token' do
-              detail 'This feature was introduced in GitLab 15.0.'
+              detail 'This feature was introduced in GitLab 15.0. Creates a new token for an agent.'
               success Entities::Clusters::AgentTokenWithToken
+              tags %w[cluster_agents]
             end
             params do
               requires :name, type: String, desc: 'The name for the token'
@@ -62,7 +65,9 @@ module API
               agent = ::Clusters::AgentsFinder.new(user_project, current_user).find(params[:agent_id])
 
               result = ::Clusters::AgentTokens::CreateService.new(
-                container: agent.project, current_user: current_user, params: token_params.merge(agent_id: agent.id)
+                agent: agent,
+                current_user: current_user,
+                params: token_params
               ).execute
 
               bad_request!(result[:message]) if result[:status] == :error
@@ -71,7 +76,8 @@ module API
             end
 
             desc 'Revoke an agent token' do
-              detail 'This feature was introduced in GitLab 15.0.'
+              detail 'This feature was introduced in GitLab 15.0. Revokes an agent token.'
+              tags %w[cluster_agents]
             end
             params do
               requires :token_id, type: Integer, desc: 'The ID of the agent token'
@@ -80,11 +86,11 @@ module API
               authorize! :admin_cluster, user_project
 
               agent = ::Clusters::AgentsFinder.new(user_project, current_user).find(params[:agent_id])
+              token = ::Clusters::AgentTokensFinder.new(agent, current_user).find(params[:token_id])
 
-              token = agent.agent_tokens.find(params[:token_id])
+              result = ::Clusters::AgentTokens::RevokeService.new(token: token, current_user: current_user).execute
 
-              # Skipping explicit error handling and relying on exceptions
-              token.revoked!
+              bad_request!(result[:message]) if result[:status] == :error
 
               status :no_content
             end

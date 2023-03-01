@@ -9,17 +9,17 @@ import { stubPerformanceWebAPI } from 'helpers/performance';
 import waitForPromises from 'helpers/wait_for_promises';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import GetSnippetQuery from 'shared_queries/snippet/snippet.query.graphql';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import * as urlUtils from '~/lib/utils/url_utility';
 import SnippetEditApp from '~/snippets/components/edit.vue';
 import SnippetBlobActionsEdit from '~/snippets/components/snippet_blob_actions_edit.vue';
 import SnippetDescriptionEdit from '~/snippets/components/snippet_description_edit.vue';
 import SnippetVisibilityEdit from '~/snippets/components/snippet_visibility_edit.vue';
 import {
-  SNIPPET_VISIBILITY_PRIVATE,
-  SNIPPET_VISIBILITY_INTERNAL,
-  SNIPPET_VISIBILITY_PUBLIC,
-} from '~/snippets/constants';
+  VISIBILITY_LEVEL_PRIVATE_STRING,
+  VISIBILITY_LEVEL_INTERNAL_STRING,
+  VISIBILITY_LEVEL_PUBLIC_STRING,
+} from '~/visibility_level/constants';
 import CreateSnippetMutation from '~/snippets/mutations/create_snippet.mutation.graphql';
 import UpdateSnippetMutation from '~/snippets/mutations/update_snippet.mutation.graphql';
 import FormFooterActions from '~/vue_shared/components/form/form_footer_actions.vue';
@@ -41,7 +41,7 @@ const TEST_SNIPPET_GID = 'gid://gitlab/PersonalSnippet/42';
 const createSnippet = () =>
   merge(createGQLSnippet(), {
     webUrl: TEST_WEB_URL,
-    visibilityLevel: SNIPPET_VISIBILITY_PRIVATE,
+    visibilityLevel: VISIBILITY_LEVEL_PRIVATE_STRING,
   });
 
 const createQueryResponse = (obj = {}) =>
@@ -70,7 +70,7 @@ const getApiData = ({
   id,
   title = '',
   description = '',
-  visibilityLevel = SNIPPET_VISIBILITY_PRIVATE,
+  visibilityLevel = VISIBILITY_LEVEL_PRIVATE_STRING,
 } = {}) => ({
   id,
   title,
@@ -128,7 +128,10 @@ describe('Snippet Edit app', () => {
   const setDescription = (val) =>
     wrapper.findComponent(SnippetDescriptionEdit).vm.$emit('input', val);
 
-  const createComponent = ({ props = {}, selectedLevel = SNIPPET_VISIBILITY_PRIVATE } = {}) => {
+  const createComponent = ({
+    props = {},
+    selectedLevel = VISIBILITY_LEVEL_PRIVATE_STRING,
+  } = {}) => {
     if (wrapper) {
       throw new Error('wrapper already created');
     }
@@ -203,7 +206,7 @@ describe('Snippet Edit app', () => {
     });
 
     it('should hide loader', () => {
-      expect(wrapper.find(GlLoadingIcon).exists()).toBe(false);
+      expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(false);
     });
   });
 
@@ -234,7 +237,7 @@ describe('Snippet Edit app', () => {
           !titleHasErrors,
         );
 
-        expect(wrapper.find(SnippetBlobActionsEdit).props('isValid')).toEqual(
+        expect(wrapper.findComponent(SnippetBlobActionsEdit).props('isValid')).toEqual(
           !blobActionsHasErrors,
         );
       },
@@ -260,17 +263,18 @@ describe('Snippet Edit app', () => {
       },
     );
 
-    it.each([SNIPPET_VISIBILITY_PRIVATE, SNIPPET_VISIBILITY_INTERNAL, SNIPPET_VISIBILITY_PUBLIC])(
-      'marks %s visibility by default',
-      async (visibility) => {
-        createComponent({
-          props: { snippetGid: '' },
-          selectedLevel: visibility,
-        });
+    it.each([
+      VISIBILITY_LEVEL_PRIVATE_STRING,
+      VISIBILITY_LEVEL_INTERNAL_STRING,
+      VISIBILITY_LEVEL_PUBLIC_STRING,
+    ])('marks %s visibility by default', async (visibility) => {
+      createComponent({
+        props: { snippetGid: '' },
+        selectedLevel: visibility,
+      });
 
-        expect(wrapper.find(SnippetVisibilityEdit).props('value')).toBe(visibility);
-      },
-    );
+      expect(wrapper.findComponent(SnippetVisibilityEdit).props('value')).toBe(visibility);
+    });
 
     describe('form submission handling', () => {
       describe('when creating a new snippet', () => {
@@ -357,7 +361,7 @@ describe('Snippet Edit app', () => {
           await waitForPromises();
 
           expect(urlUtils.redirectTo).not.toHaveBeenCalled();
-          expect(createFlash).toHaveBeenCalledWith({
+          expect(createAlert).toHaveBeenCalledWith({
             message: `Can't create snippet: ${TEST_MUTATION_ERROR}`,
           });
         });
@@ -381,7 +385,7 @@ describe('Snippet Edit app', () => {
             });
 
             expect(urlUtils.redirectTo).not.toHaveBeenCalled();
-            expect(createFlash).toHaveBeenCalledWith({
+            expect(createAlert).toHaveBeenCalledWith({
               message: `Can't update snippet: ${TEST_MUTATION_ERROR}`,
             });
           },
@@ -403,7 +407,7 @@ describe('Snippet Edit app', () => {
 
         it('should flash', () => {
           // Apollo automatically wraps the resolver's error in a NetworkError
-          expect(createFlash).toHaveBeenCalledWith({
+          expect(createAlert).toHaveBeenCalledWith({
             message: `Can't update snippet: ${TEST_API_ERROR.message}`,
           });
         });

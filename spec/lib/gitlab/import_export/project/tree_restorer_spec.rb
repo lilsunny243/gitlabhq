@@ -6,7 +6,7 @@ def match_mr1_note(content_regex)
   MergeRequest.find_by(title: 'MR1').notes.find { |n| n.note.match(/#{content_regex}/) }
 end
 
-RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
+RSpec.describe Gitlab::ImportExport::Project::TreeRestorer, feature_category: :importers do
   include ImportExport::CommonUtil
   using RSpec::Parameterized::TableSyntax
 
@@ -140,13 +140,13 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
 
         it 'restores pipelines based on ascending id order' do
           expected_ordered_shas = %w[
-          2ea1f3dec713d940208fb5ce4a38765ecb5d3f73
-          ce84140e8b878ce6e7c4d298c7202ff38170e3ac
-          048721d90c449b244b7b4c53a9186b04330174ec
-          sha-notes
-          5f923865dde3436854e9ceb9cdb7815618d4e849
-          d2d430676773caa88cdaf7c55944073b2fd5561a
-          2ea1f3dec713d940208fb5ce4a38765ecb5d3f73
+            2ea1f3dec713d940208fb5ce4a38765ecb5d3f73
+            ce84140e8b878ce6e7c4d298c7202ff38170e3ac
+            048721d90c449b244b7b4c53a9186b04330174ec
+            sha-notes
+            5f923865dde3436854e9ceb9cdb7815618d4e849
+            d2d430676773caa88cdaf7c55944073b2fd5561a
+            2ea1f3dec713d940208fb5ce4a38765ecb5d3f73
           ]
 
           project = Project.find_by_path('project')
@@ -154,6 +154,15 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
           project.ci_pipelines.order(:id).each_with_index do |pipeline, i|
             expect(pipeline['sha']).to eq expected_ordered_shas[i]
           end
+        end
+
+        it 'restores pipeline metadata' do
+          pipeline = Ci::Pipeline.find_by_sha('sha-notes')
+          pipeline_metadata = pipeline.pipeline_metadata
+
+          expect(pipeline_metadata.name).to eq('Build pipeline')
+          expect(pipeline_metadata.pipeline_id).to eq(pipeline.id)
+          expect(pipeline_metadata.project_id).to eq(pipeline.project_id)
         end
 
         it 'preserves updated_at on issues' do
@@ -286,6 +295,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
 
         it 'has project labels' do
           expect(ProjectLabel.count).to eq(3)
+          expect(ProjectLabel.pluck(:group_id).compact).to be_empty
         end
 
         it 'has merge request approvals' do
@@ -519,7 +529,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
           it 'has the correct number of pipelines and statuses' do
             expect(@project.ci_pipelines.size).to eq(7)
 
-            @project.ci_pipelines.order(:id).zip([2, 0, 2, 2, 2, 2, 0])
+            @project.ci_pipelines.order(:id).zip([2, 0, 2, 3, 2, 2, 0])
               .each do |(pipeline, expected_status_size)|
               expect(pipeline.statuses.size).to eq(expected_status_size)
             end
@@ -539,8 +549,16 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
             expect(Ci::Stage.all).to all(have_attributes(pipeline_id: a_value > 0))
           end
 
-          it 'restores statuses' do
-            expect(CommitStatus.all.count).to be 10
+          it 'restores builds' do
+            expect(Ci::Build.all.count).to be 7
+          end
+
+          it 'restores bridges' do
+            expect(Ci::Bridge.all.count).to be 1
+          end
+
+          it 'restores generic commit statuses' do
+            expect(GenericCommitStatus.all.count).to be 1
           end
 
           it 'correctly restores association between a stage and a job' do
@@ -564,6 +582,10 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
           it 'has no import failures' do
             expect(@project.import_failures.size).to eq 0
           end
+        end
+
+        it 'restores commit notes' do
+          expect(@project.commit_notes.count).to eq(3)
         end
       end
     end
@@ -759,7 +781,7 @@ RSpec.describe Gitlab::ImportExport::Project::TreeRestorer do
 
         it 'overrides project feature access levels' do
           access_level_keys = ProjectFeature.available_features.map { |feature| ProjectFeature.access_level_attribute(feature) }
-          disabled_access_levels = access_level_keys.to_h { |item| [item, 'disabled'] }
+          disabled_access_levels = access_level_keys.index_with { 'disabled' }
 
           project.create_import_data(data: { override_params: disabled_access_levels })
 

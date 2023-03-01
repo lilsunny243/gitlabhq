@@ -91,8 +91,8 @@ module Gitlab
         end
 
         def create_issue!
-          @issue = ::Issues::CreateService.new(
-            project: project,
+          result = ::Issues::CreateService.new(
+            container: project,
             current_user: User.support_bot,
             params: {
               title: mail.subject,
@@ -106,7 +106,9 @@ module Gitlab
             spam_params: nil
           ).execute
 
-          raise InvalidIssueError unless @issue.persisted?
+          raise InvalidIssueError if result.error?
+
+          @issue = result[:issue]
 
           begin
             ::Issue::Email.create!(issue: @issue, email_message_id: mail.message_id)

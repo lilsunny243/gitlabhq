@@ -1,9 +1,8 @@
-import { GlDropdownItem, GlSearchBoxByType } from '@gitlab/ui';
+import { GlCollapsibleListbox } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
-import { DEFAULT_DEBOUNCE_AND_THROTTLE_MS } from '~/lib/utils/constants';
 import BranchesDropdown from '~/projects/commit/components/branches_dropdown.vue';
 
 Vue.use(Vuex);
@@ -13,7 +12,7 @@ describe('BranchesDropdown', () => {
   let store;
   const spyFetchBranches = jest.fn();
 
-  const createComponent = (term, state = { isFetching: false }) => {
+  const createComponent = (props, state = { isFetching: false, branch: '_main_' }) => {
     store = new Vuex.Store({
       getters: {
         joinedBranches: () => ['_main_', '_branch_1_', '_branch_2_'],
@@ -28,17 +27,18 @@ describe('BranchesDropdown', () => {
       shallowMount(BranchesDropdown, {
         store,
         propsData: {
-          value: term,
+          value: props.value,
+          blanked: props.blanked || false,
         },
       }),
     );
   };
 
-  const findAllDropdownItems = () => wrapper.findAllComponents(GlDropdownItem);
-  const findSearchBoxByType = () => wrapper.findComponent(GlSearchBoxByType);
-  const findDropdownItemByIndex = (index) => wrapper.findAllComponents(GlDropdownItem).at(index);
-  const findNoResults = () => wrapper.findByTestId('empty-result-message');
-  const findLoading = () => wrapper.findByTestId('dropdown-text-loading-icon');
+  const findDropdown = () => wrapper.findComponent(GlCollapsibleListbox);
+
+  beforeEach(() => {
+    createComponent({ value: '' });
+  });
 
   afterEach(() => {
     wrapper.destroy();
@@ -47,121 +47,36 @@ describe('BranchesDropdown', () => {
   });
 
   describe('On mount', () => {
-    beforeEach(() => {
-      createComponent('');
-    });
-
     it('invokes fetchBranches', () => {
       expect(spyFetchBranches).toHaveBeenCalled();
     });
   });
 
-  describe('Loading states', () => {
-    it('shows loading icon while fetching', () => {
-      createComponent('', { isFetching: true });
+  describe('Value prop changes in parent component', () => {
+    it('triggers fetchBranches call', async () => {
+      await wrapper.setProps({ value: 'new value' });
 
-      expect(findLoading().isVisible()).toBe(true);
-    });
-
-    it('does not show loading icon', () => {
-      createComponent('');
-
-      expect(findLoading().isVisible()).toBe(false);
+      expect(spyFetchBranches).toHaveBeenCalled();
     });
   });
 
-  describe('No branches found', () => {
-    beforeEach(() => {
-      createComponent('_non_existent_branch_');
-    });
+  describe('Selecting Dropdown Item', () => {
+    it('emits event', async () => {
+      findDropdown().vm.$emit('select', '_anything_');
 
-    it('renders empty results message', () => {
-      expect(findNoResults().text()).toBe('No matching results');
-    });
-
-    it('shows GlSearchBoxByType with default attributes', () => {
-      expect(findSearchBoxByType().exists()).toBe(true);
-      expect(findSearchBoxByType().vm.$attrs).toMatchObject({
-        placeholder: 'Search branches',
-        debounce: DEFAULT_DEBOUNCE_AND_THROTTLE_MS,
-      });
-    });
-  });
-
-  describe('Search term is empty', () => {
-    beforeEach(() => {
-      createComponent('');
-    });
-
-    it('renders all branches when search term is empty', () => {
-      expect(findAllDropdownItems()).toHaveLength(3);
-      expect(findDropdownItemByIndex(0).text()).toBe('_main_');
-      expect(findDropdownItemByIndex(1).text()).toBe('_branch_1_');
-      expect(findDropdownItemByIndex(2).text()).toBe('_branch_2_');
-    });
-
-    it('should not be selected on the inactive branch', () => {
-      expect(wrapper.vm.isSelected('_main_')).toBe(false);
+      expect(wrapper.emitted()).toHaveProperty('input');
     });
   });
 
   describe('When searching', () => {
-    beforeEach(() => {
-      createComponent('');
-    });
-
     it('invokes fetchBranches', async () => {
       const spy = jest.spyOn(wrapper.vm, 'fetchBranches');
 
-      findSearchBoxByType().vm.$emit('input', '_anything_');
+      findDropdown().vm.$emit('search', '_anything_');
 
       await nextTick();
 
       expect(spy).toHaveBeenCalledWith('_anything_');
-      expect(wrapper.vm.searchTerm).toBe('_anything_');
-    });
-  });
-
-  describe('Branches found', () => {
-    beforeEach(() => {
-      createComponent('_branch_1_', { branch: '_branch_1_' });
-    });
-
-    it('renders only the branch searched for', () => {
-      expect(findAllDropdownItems()).toHaveLength(1);
-      expect(findDropdownItemByIndex(0).text()).toBe('_branch_1_');
-    });
-
-    it('should not display empty results message', () => {
-      expect(findNoResults().exists()).toBe(false);
-    });
-
-    it('should signify this branch is selected', () => {
-      expect(wrapper.vm.isSelected('_branch_1_')).toBe(true);
-    });
-
-    it('should signify the branch is not selected', () => {
-      expect(wrapper.vm.isSelected('_not_selected_branch_')).toBe(false);
-    });
-
-    describe('Custom events', () => {
-      it('should emit selectBranch if an branch is clicked', () => {
-        findDropdownItemByIndex(0).vm.$emit('click');
-
-        expect(wrapper.emitted('selectBranch')).toEqual([['_branch_1_']]);
-        expect(wrapper.vm.searchTerm).toBe('_branch_1_');
-      });
-    });
-  });
-
-  describe('Case insensitive for search term', () => {
-    beforeEach(() => {
-      createComponent('_BrAnCh_1_');
-    });
-
-    it('renders only the branch searched for', () => {
-      expect(findAllDropdownItems()).toHaveLength(1);
-      expect(findDropdownItemByIndex(0).text()).toBe('_branch_1_');
     });
   });
 });

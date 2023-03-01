@@ -16,7 +16,7 @@ module Ci
       def initialize(job)
         @job = job
         @project = job.project
-        @pipeline = job.pipeline if ::Feature.enabled?(:ci_update_unlocked_job_artifacts, @project)
+        @pipeline = job.pipeline
       end
 
       def authorize(artifact_type:, filesize: nil)
@@ -80,19 +80,20 @@ module Ci
           Gitlab::CurrentSettings.current_application_settings.default_artifacts_expire_in
 
         artifact_attributes = {
-          job_id: job.id,
+          job: job,
           project: project,
           expire_in: expire_in
         }
 
-        artifact_attributes[:locked] = pipeline.locked if ::Feature.enabled?(:ci_update_unlocked_job_artifacts, project)
+        artifact_attributes[:locked] = pipeline.locked
 
         artifact = Ci::JobArtifact.new(
           artifact_attributes.merge(
             file: artifacts_file,
             file_type: params[:artifact_type],
             file_format: params[:artifact_format],
-            file_sha256: artifacts_file.sha256
+            file_sha256: artifacts_file.sha256,
+            accessibility: accessibility(params)
           )
         )
 
@@ -102,12 +103,17 @@ module Ci
                                   file: metadata_file,
                                   file_type: :metadata,
                                   file_format: :gzip,
-                                  file_sha256: metadata_file.sha256
+                                  file_sha256: metadata_file.sha256,
+                                  accessibility: accessibility(params)
                                 )
                               )
                             end
 
         [artifact, artifact_metadata]
+      end
+
+      def accessibility(params)
+        params[:accessibility] || 'public'
       end
 
       def parse_artifact(artifact)
@@ -125,8 +131,6 @@ module Ci
           # NOTE: The `artifacts_expire_at` column is already deprecated and to be removed in the near future.
           job.update_column(:artifacts_expire_at, artifact.expire_at)
         end
-
-        Gitlab::Ci::Artifacts::Logger.log_created(artifact)
 
         success(artifact: artifact)
       rescue ActiveRecord::RecordNotUnique => error

@@ -165,6 +165,10 @@ module Gitlab
       end
 
       def with_deploy_token(raw, &block)
+        unless Gitlab::ExternalAuthorization.allow_deploy_tokens_and_deploy_keys?
+          raise ::Gitlab::Auth::UnauthorizedError
+        end
+
         token = ::DeployToken.active.find_by_token(raw.password)
         return unless token
 

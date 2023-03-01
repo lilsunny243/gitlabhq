@@ -2,15 +2,17 @@
 type: reference, dev
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: "GitLab's development guidelines for GitLab Pages"
 ---
 
-# Getting started with development
+# Contribute to GitLab Pages development
+
+Learn how to configure GitLab Pages so you can help develop the feature.
 
 ## Configuring GitLab Pages hostname
 
-GitLab Pages need a hostname or domain, as each different GitLab Pages site is accessed via a
+GitLab Pages needs a hostname or domain, as each different GitLab Pages site is accessed through a
 subdomain. You can set the GitLab Pages hostname:
 
 - [Without wildcard, editing your hosts file](#without-wildcard-editing-your-hosts-file).
@@ -147,7 +149,7 @@ GitLab Pages access control is disabled by default. To enable it:
 1. Restart GitLab (if running through the GDK, run `gdk restart`). Running
    `gdk reconfigure` overwrites the value of `access_control` in `config/gitlab.yml`.
 1. In your local GitLab instance, in the browser go to `http://gdk.test:3000/admin/applications`.
-1. Create an [Instance-wide OAuth application](../../integration/oauth_provider.md#instance-wide-applications)
+1. Create an [Instance-wide OAuth application](../../integration/oauth_provider.md#create-an-instance-wide-application)
    with the `api` scope.
 1. Set the value of your `redirect-uri` to the `pages-domain` authorization endpoint
 (for example, `http://pages.gdk.test:3010/auth`).
@@ -178,7 +180,7 @@ The `redirect-uri` must not contain any GitLab Pages site domain.
       auth-redirect-uri=http://pages.gdk.test:3010/auth # the authentication callback url for GitLab Pages
       ```
 
-1. If running Pages inside the GDK, you can use GDK's `protected_config_files` section under `gdk` in
+1. If running Pages inside the GDK, you can use GDK `protected_config_files` section under `gdk` in
    your `gdk.yml` to avoid getting `gitlab-pages.conf` configuration rewritten:
 
    ```yaml

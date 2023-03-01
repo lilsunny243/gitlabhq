@@ -6,7 +6,7 @@ module Groups
 
     skip_cross_project_access_check :show, :update
 
-    feature_category :pipeline_authoring
+    feature_category :pipeline_composition
 
     urgency :low, [:show]
 
@@ -50,7 +50,7 @@ module Groups
     end
 
     def variable_params_attributes
-      %i[id variable_type key secret_value protected masked _destroy]
+      %i[id variable_type key secret_value protected masked raw _destroy]
     end
 
     def authorize_admin_build!

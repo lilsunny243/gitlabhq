@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Broadcast Messages' do
+RSpec.describe 'Broadcast Messages', feature_category: :onboarding do
   let_it_be(:user) { create(:user) }
 
   shared_examples 'a Broadcast Messages' do |type|
@@ -23,7 +23,8 @@ RSpec.describe 'Broadcast Messages' do
   end
 
   shared_examples 'a dismissable Broadcast Messages' do
-    it 'hides broadcast message after dismiss', :js do
+    it 'hides broadcast message after dismiss', :js,
+      quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/390900' do
       visit root_path
 
       find('.js-dismiss-current-broadcast-notification').click
@@ -31,10 +32,14 @@ RSpec.describe 'Broadcast Messages' do
       expect(page).not_to have_content 'SampleMessage'
     end
 
-    it 'broadcast message is still hidden after refresh', :js do
+    it 'broadcast message is still hidden after refresh', :js,
+      quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391406' do
       visit root_path
 
       find('.js-dismiss-current-broadcast-notification').click
+
+      wait_for_cookie_set("hide_broadcast_message_#{broadcast_message.id}")
+
       visit root_path
 
       expect(page).not_to have_content 'SampleMessage'

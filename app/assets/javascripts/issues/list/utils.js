@@ -4,17 +4,32 @@ import { getParameterByName } from '~/lib/utils/url_utility';
 import { __ } from '~/locale';
 import {
   FILTERED_SEARCH_TERM,
-  OPERATOR_IS_NOT,
+  OPERATOR_NOT,
+  OPERATOR_OR,
+  TOKEN_TYPE_ASSIGNEE,
+  TOKEN_TYPE_AUTHOR,
+  TOKEN_TYPE_CONFIDENTIAL,
+  TOKEN_TYPE_ITERATION,
+  TOKEN_TYPE_MILESTONE,
+  TOKEN_TYPE_RELEASE,
+  TOKEN_TYPE_TYPE,
+  TOKEN_TYPE_HEALTH,
+  TOKEN_TYPE_LABEL,
 } from '~/vue_shared/components/filtered_search_bar/constants';
 import {
+  ALTERNATIVE_FILTER,
   API_PARAM,
   BLOCKING_ISSUES_ASC,
   BLOCKING_ISSUES_DESC,
+  CLOSED_AT_ASC,
+  CLOSED_AT_DESC,
   CREATED_ASC,
   CREATED_DESC,
   DUE_DATE_ASC,
   DUE_DATE_DESC,
   filters,
+  HEALTH_STATUS_ASC,
+  HEALTH_STATUS_DESC,
   LABEL_PRIORITY_ASC,
   LABEL_PRIORITY_DESC,
   MILESTONE_DUE_ASC,
@@ -31,20 +46,12 @@ import {
   specialFilterValues,
   TITLE_ASC,
   TITLE_DESC,
-  TOKEN_TYPE_ASSIGNEE,
-  TOKEN_TYPE_CONFIDENTIAL,
-  TOKEN_TYPE_ITERATION,
-  TOKEN_TYPE_MILESTONE,
-  TOKEN_TYPE_RELEASE,
-  TOKEN_TYPE_TYPE,
   UPDATED_ASC,
   UPDATED_DESC,
   URL_PARAM,
   urlSortParams,
   WEIGHT_ASC,
   WEIGHT_DESC,
-  CLOSED_ASC,
-  CLOSED_DESC,
 } from './constants';
 
 export const getInitialPageParams = (
@@ -65,7 +72,11 @@ export const getSortKey = (sort) =>
 
 export const isSortKey = (sort) => Object.keys(urlSortParams).includes(sort);
 
-export const getSortOptions = (hasIssueWeightsFeature, hasBlockedIssuesFeature) => {
+export const getSortOptions = ({
+  hasBlockedIssuesFeature,
+  hasIssuableHealthStatusFeature,
+  hasIssueWeightsFeature,
+}) => {
   const sortOptions = [
     {
       id: 1,
@@ -95,8 +106,8 @@ export const getSortOptions = (hasIssueWeightsFeature, hasBlockedIssuesFeature) 
       id: 4,
       title: __('Closed date'),
       sortDirection: {
-        ascending: CLOSED_ASC,
-        descending: CLOSED_DESC,
+        ascending: CLOSED_AT_ASC,
+        descending: CLOSED_AT_DESC,
       },
     },
     {
@@ -148,6 +159,17 @@ export const getSortOptions = (hasIssueWeightsFeature, hasBlockedIssuesFeature) 
       },
     },
   ];
+
+  if (hasIssuableHealthStatusFeature) {
+    sortOptions.push({
+      id: sortOptions.length + 1,
+      title: __('Health'),
+      sortDirection: {
+        ascending: HEALTH_STATUS_ASC,
+        descending: HEALTH_STATUS_DESC,
+      },
+    });
+  }
 
   if (hasIssueWeightsFeature) {
     sortOptions.push({
@@ -222,13 +244,25 @@ export const getFilterTokens = (locationSearch) => {
   return tokens.length ? tokens : [createTerm()];
 };
 
-const getFilterType = (data, tokenType = '') => {
+const isSpecialFilter = (type, data) => {
   const isAssigneeIdParam =
-    tokenType === TOKEN_TYPE_ASSIGNEE &&
+    type === TOKEN_TYPE_ASSIGNEE &&
     isPositiveInteger(data) &&
     getParameterByName(PARAM_ASSIGNEE_ID) === data;
+  return specialFilterValues.includes(data) || isAssigneeIdParam;
+};
 
-  return specialFilterValues.includes(data) || isAssigneeIdParam ? SPECIAL_FILTER : NORMAL_FILTER;
+const getFilterType = ({ type, value: { data, operator } }) => {
+  const isUnionedAuthor = type === TOKEN_TYPE_AUTHOR && operator === OPERATOR_OR;
+  const isUnionedLabel = type === TOKEN_TYPE_LABEL && operator === OPERATOR_OR;
+
+  if (isUnionedAuthor || isUnionedLabel) {
+    return ALTERNATIVE_FILTER;
+  }
+  if (isSpecialFilter(type, data)) {
+    return SPECIAL_FILTER;
+  }
+  return NORMAL_FILTER;
 };
 
 const wildcardTokens = [TOKEN_TYPE_ITERATION, TOKEN_TYPE_MILESTONE, TOKEN_TYPE_RELEASE];
@@ -236,8 +270,13 @@ const wildcardTokens = [TOKEN_TYPE_ITERATION, TOKEN_TYPE_MILESTONE, TOKEN_TYPE_R
 const isWildcardValue = (tokenType, value) =>
   wildcardTokens.includes(tokenType) && specialFilterValues.includes(value);
 
+const isHealthStatusSpecialFilter = (tokenType, value) =>
+  tokenType === TOKEN_TYPE_HEALTH && specialFilterValues.includes(value);
+
 const requiresUpperCaseValue = (tokenType, value) =>
-  tokenType === TOKEN_TYPE_TYPE || isWildcardValue(tokenType, value);
+  tokenType === TOKEN_TYPE_TYPE ||
+  isWildcardValue(tokenType, value) ||
+  isHealthStatusSpecialFilter(tokenType, value);
 
 const formatData = (token) => {
   if (requiresUpperCaseValue(token.type, token.value.data)) {
@@ -252,30 +291,46 @@ const formatData = (token) => {
 export const convertToApiParams = (filterTokens) => {
   const params = {};
   const not = {};
+  const or = {};
 
   filterTokens
     .filter((token) => token.type !== FILTERED_SEARCH_TERM)
     .forEach((token) => {
-      const filterType = getFilterType(token.value.data, token.type);
-      const field = filters[token.type][API_PARAM][filterType];
-      const obj = token.value.operator === OPERATOR_IS_NOT ? not : params;
+      const filterType = getFilterType(token);
+      const apiField = filters[token.type][API_PARAM][filterType];
+      let obj;
+      if (token.value.operator === OPERATOR_NOT) {
+        obj = not;
+      } else if (token.value.operator === OPERATOR_OR) {
+        obj = or;
+      } else {
+        obj = params;
+      }
       const data = formatData(token);
       Object.assign(obj, {
-        [field]: obj[field] ? [obj[field], data].flat() : data,
+        [apiField]: obj[apiField] ? [obj[apiField], data].flat() : data,
       });
     });
 
-  return Object.keys(not).length ? Object.assign(params, { not }) : params;
+  if (Object.keys(not).length) {
+    Object.assign(params, { not });
+  }
+
+  if (Object.keys(or).length) {
+    Object.assign(params, { or });
+  }
+
+  return params;
 };
 
 export const convertToUrlParams = (filterTokens) =>
   filterTokens
     .filter((token) => token.type !== FILTERED_SEARCH_TERM)
     .reduce((acc, token) => {
-      const filterType = getFilterType(token.value.data, token.type);
-      const param = filters[token.type][URL_PARAM][token.value.operator]?.[filterType];
+      const filterType = getFilterType(token);
+      const urlParam = filters[token.type][URL_PARAM][token.value.operator]?.[filterType];
       return Object.assign(acc, {
-        [param]: acc[param] ? [acc[param], token.value.data].flat() : token.value.data,
+        [urlParam]: acc[urlParam] ? [acc[urlParam], token.value.data].flat() : token.value.data,
       });
     }, {});
 
@@ -283,4 +338,4 @@ export const convertToSearchQuery = (filterTokens) =>
   filterTokens
     .filter((token) => token.type === FILTERED_SEARCH_TERM && token.value.data)
     .map((token) => token.value.data)
-    .join(' ');
+    .join(' ') || undefined;

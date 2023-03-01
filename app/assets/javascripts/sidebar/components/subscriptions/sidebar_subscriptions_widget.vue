@@ -1,13 +1,13 @@
 <script>
-import { GlIcon, GlLoadingIcon, GlToggle, GlTooltipDirective } from '@gitlab/ui';
-import createFlash from '~/flash';
-import { IssuableType } from '~/issues/constants';
+import { GlDropdownForm, GlIcon, GlLoadingIcon, GlToggle, GlTooltipDirective } from '@gitlab/ui';
+import { createAlert } from '~/flash';
+import { IssuableType, TYPE_EPIC } from '~/issues/constants';
 import { isLoggedIn } from '~/lib/utils/common_utils';
 import { __, sprintf } from '~/locale';
-import SidebarEditableItem from '~/sidebar/components/sidebar_editable_item.vue';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import toast from '~/vue_shared/plugins/global_toast';
-import { subscribedQueries, Tracking } from '~/sidebar/constants';
+import { subscribedQueries, Tracking } from '../../constants';
+import SidebarEditableItem from '../sidebar_editable_item.vue';
 
 const ICON_ON = 'notifications';
 const ICON_OFF = 'notifications-off';
@@ -22,6 +22,7 @@ export default {
     GlTooltip: GlTooltipDirective,
   },
   components: {
+    GlDropdownForm,
     GlIcon,
     GlLoadingIcon,
     GlToggle,
@@ -73,7 +74,7 @@ export default {
         this.$emit('subscribedUpdated', data.workspace?.issuable?.subscribed);
       },
       error() {
-        createFlash({
+        createAlert({
           message: sprintf(
             __('Something went wrong while setting %{issuableType} notifications.'),
             {
@@ -104,7 +105,7 @@ export default {
       return ICON_ON;
     },
     parentIsGroup() {
-      return this.issuableType === IssuableType.Epic;
+      return this.issuableType === TYPE_EPIC;
     },
     subscribeDisabledDescription() {
       return sprintf(__('Disabled by %{parent} owner'), {
@@ -137,7 +138,7 @@ export default {
             },
           }) => {
             if (errors.length) {
-              createFlash({
+              createAlert({
                 message: errors[0],
               });
             }
@@ -148,7 +149,7 @@ export default {
           },
         )
         .catch(() => {
-          createFlash({
+          createAlert({
             message: sprintf(
               __('Something went wrong while setting %{issuableType} notifications.'),
               {
@@ -181,7 +182,7 @@ export default {
 </script>
 
 <template>
-  <div v-if="isMergeRequest" class="gl-new-dropdown-item">
+  <gl-dropdown-form v-if="isMergeRequest" class="gl-dropdown-item">
     <div class="gl-px-5 gl-pb-2 gl-pt-1">
       <gl-toggle
         :value="subscribed"
@@ -192,7 +193,7 @@ export default {
         @change="toggleSubscribed"
       />
     </div>
-  </div>
+  </gl-dropdown-form>
   <sidebar-editable-item
     v-else
     ref="editable"

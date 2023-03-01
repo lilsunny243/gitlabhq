@@ -1,0 +1,190 @@
+@mixin active-toggle {
+  @include gl-bg-gray-50;
+  mix-blend-mode: multiply;
+
+  .gl-dark & {
+    mix-blend-mode: screen;
+  }
+
+  .notification {
+    border-color: $gray-50;
+  }
+}
+
+@mixin notification-dot($color, $size, $top, $left) {
+  background-color: $color;
+  border: 2px solid $gray-10; // Same as the sidebar's background color.
+  position: absolute;
+  height: $size;
+  width: $size;
+  top: $top;
+  left: $left;
+  border-radius: 50%;
+  transition: background-color 100ms linear, border-color 100ms linear;
+}
+
+.super-sidebar {
+  @include gl-fixed;
+  @include gl-top-0;
+  @include gl-bottom-0;
+  @include gl-left-0;
+  @include gl-bg-gray-10;
+  @include gl-border-r;
+  @include gl-border-gray-a-08;
+  transform: translate3d(0, 0, 0);
+  width: $super-sidebar-width;
+  z-index: 600;
+
+  &.super-sidebar-loading {
+    transform: translate3d(-100%, 0, 0);
+
+    @include media-breakpoint-up(xl) {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  &:not(.super-sidebar-loading) {
+    transition: transform $gl-transition-duration-medium;
+  }
+
+  .user-bar {
+    background-color: $t-gray-a-04;
+
+    .tanuki-logo {
+      @include gl-vertical-align-middle;
+    }
+
+    .user-bar-item {
+      @include gl-rounded-base;
+      @include gl-p-2;
+      @include gl-bg-transparent;
+      @include gl-border-none;
+
+
+      &:hover,
+      &:focus,
+      &:active {
+        @include active-toggle;
+      }
+
+      &:focus,
+      &:active {
+        @include gl-focus;
+      }
+    }
+
+    .gl-new-dropdown-toggle[aria-expanded='true'],
+    .gl-new-dropdown-custom-toggle[aria-expanded='true'] .user-bar-item {
+      @include active-toggle;
+    }
+  }
+
+  .counter .gl-icon {
+    color: var(--gray-500, $gray-500);
+  }
+
+  .counter:hover,
+  .counter:focus,
+  .gl-new-dropdown-custom-toggle:hover .counter,
+  .gl-new-dropdown-custom-toggle:focus .counter,
+  .gl-new-dropdown-custom-toggle[aria-expanded='true'] .counter {
+    background-color: $gray-50;
+    border-color: transparent;
+    mix-blend-mode: multiply;
+
+    .gl-dark & {
+      mix-blend-mode: screen;
+    }
+
+    .gl-icon {
+      color: var(--gray-700, $gray-700);
+    }
+  }
+
+  .context-switcher-toggle {
+    &[aria-expanded='true'] {
+      background-color: $t-gray-a-08;
+    }
+  }
+
+  .btn-with-notification {
+    position: relative;
+
+    .notification-dot-info {
+      @include notification-dot($blue-500, 9px, 5px, 22px);
+    }
+
+    .notification-dot-warning {
+      @include notification-dot($orange-300, 12px, 1px, 19px);
+    }
+
+    &:hover,
+    &:focus {
+      .notification {
+        border-color: $gray-50; // Same as the button's hover background color.
+      }
+    }
+  }
+
+  .gl-new-dropdown-custom-toggle {
+    .btn-with-notification {
+      mix-blend-mode: unset; // Our tertiary buttons otherwise use another mix-blend mode, making border-color semi-transparent.
+    }
+
+    &[aria-expanded='true'] {
+      .btn-with-notification {
+        @include active-toggle;
+      }
+    }
+  }
+}
+
+.page-with-super-sidebar {
+  padding-left: 0;
+  transition: padding-left $gl-transition-duration-medium;
+
+  @include media-breakpoint-up(xl) {
+    padding-left: $contextual-sidebar-width;
+
+    .super-sidebar-toggle {
+      display: none;
+    }
+  }
+}
+
+.page-with-super-sidebar-collapsed {
+  .super-sidebar {
+    transform: translate3d(-100%, 0, 0);
+  }
+
+  @include media-breakpoint-up(xl) {
+    padding-left: 0;
+
+    .super-sidebar-toggle {
+      display: block;
+    }
+  }
+}
+
+.container-limited .super-sidebar-toggle {
+  @media (min-width: $super-sidebar-toggle-position-breakpoint) {
+    position: absolute;
+    left: $gl-spacing-scale-3;
+    top: $gl-spacing-scale-3;
+    margin: 0;
+  }
+}
+
+.with-performance-bar .super-sidebar {
+  top: $performance-bar-height;
+}
+
+.gl-dark {
+  .super-sidebar {
+    .gl-new-dropdown-custom-toggle {
+      .btn-with-notification.btn-with-notification {
+        mix-blend-mode: unset;
+      }
+    }
+  }
+}

@@ -21,6 +21,15 @@ RSpec.describe Ci::SecureFile do
     subject { build(:ci_secure_file, project: create(:project)) }
   end
 
+  describe 'default attributes' do
+    before do
+      allow(Ci::SecureFileUploader).to receive(:default_store).and_return(5)
+    end
+
+    it { expect(described_class.new.file_store).to eq(5) }
+    it { expect(described_class.new(file_store: 3).file_store).to eq(3) }
+  end
+
   describe 'validations' do
     it { is_expected.to validate_presence_of(:checksum) }
     it { is_expected.to validate_presence_of(:file_store) }
@@ -79,6 +88,108 @@ RSpec.describe Ci::SecureFile do
   describe '#file' do
     it 'returns the saved file' do
       expect(Base64.encode64(subject.file.read)).to eq(Base64.encode64(sample_file))
+    end
+  end
+
+  describe '#file_extension' do
+    it 'returns the extension for the file name' do
+      file = build(:ci_secure_file, name: 'file1.cer')
+      expect(file.file_extension).to eq('cer')
+    end
+
+    it 'returns only the last part of the extension for the file name' do
+      file = build(:ci_secure_file, name: 'file1.tar.gz')
+      expect(file.file_extension).to eq('gz')
+    end
+
+    it 'returns nil if there is no file extension' do
+      file = build(:ci_secure_file, name: 'file1')
+      expect(file.file_extension).to be nil
+    end
+  end
+
+  describe '#metadata_parsable?' do
+    it 'returns true when the file extension has a supported parser' do
+      file = build(:ci_secure_file, name: 'file1.cer')
+      expect(file.metadata_parsable?).to be true
+    end
+
+    it 'returns false when the file extension does not have a supported parser' do
+      file = build(:ci_secure_file, name: 'file1.foo')
+      expect(file.metadata_parsable?).to be false
+    end
+  end
+
+  describe '#metadata_parser' do
+    it 'returns an instance of Gitlab::Ci::SecureFiles::Cer when a .cer file is supplied' do
+      file = build(:ci_secure_file, name: 'file1.cer')
+      expect(file.metadata_parser).to be_an_instance_of(Gitlab::Ci::SecureFiles::Cer)
+    end
+
+    it 'returns an instance of Gitlab::Ci::SecureFiles::P12 when a .p12 file is supplied' do
+      file = build(:ci_secure_file, name: 'file1.p12')
+      expect(file.metadata_parser).to be_an_instance_of(Gitlab::Ci::SecureFiles::P12)
+    end
+
+    it 'returns an instance of Gitlab::Ci::SecureFiles::MobileProvision when a .mobileprovision file is supplied' do
+      file = build(:ci_secure_file, name: 'file1.mobileprovision')
+      expect(file.metadata_parser).to be_an_instance_of(Gitlab::Ci::SecureFiles::MobileProvision)
+    end
+
+    it 'returns nil when the file type is not supported by any parsers' do
+      file = build(:ci_secure_file, name: 'file1.foo')
+      expect(file.metadata_parser).to be nil
+    end
+  end
+
+  describe '#update_metadata!' do
+    it 'assigns the expected metadata when a parsable .cer file is supplied' do
+      file = create(:ci_secure_file, name: 'file1.cer',
+                                     file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.cer')))
+      file.update_metadata!
+
+      file.reload
+
+      expect(file.expires_at).to eq(DateTime.parse('2022-04-26 19:20:40'))
+      expect(file.metadata['id']).to eq('33669367788748363528491290218354043267')
+      expect(file.metadata['issuer']['CN']).to eq('Apple Worldwide Developer Relations Certification Authority')
+      expect(file.metadata['subject']['OU']).to eq('N7SYAN8PX8')
+    end
+
+    it 'assigns the expected metadata when a parsable .p12 file is supplied' do
+      file = create(:ci_secure_file, name: 'file1.p12',
+                                     file: CarrierWaveStringFile.new(fixture_file('ci_secure_files/sample.p12')))
+      file.update_metadata!
+
+      file.reload
+
+      expect(file.expires_at).to eq(DateTime.parse('2022-09-21 14:56:00'))
+      expect(file.metadata['id']).to eq('75949910542696343243264405377658443914')
+      expect(file.metadata['issuer']['CN']).to eq('Apple Worldwide Developer Relations Certification Authority')
+      expect(file.metadata['subject']['OU']).to eq('N7SYAN8PX8')
+    end
+
+    it 'assigns the expected metadata when a parsable .mobileprovision file is supplied' do
+      file = create(:ci_secure_file, name: 'file1.mobileprovision',
+                                     file: CarrierWaveStringFile.new(
+                                       fixture_file('ci_secure_files/sample.mobileprovision')
+                                     ))
+      file.update_metadata!
+
+      file.reload
+
+      expect(file.expires_at).to eq(DateTime.parse('2023-08-01 23:15:13'))
+      expect(file.metadata['id']).to eq('6b9fcce1-b9a9-4b37-b2ce-ec4da2044abf')
+      expect(file.metadata['platforms'].first).to eq('iOS')
+      expect(file.metadata['app_name']).to eq('iOS Demo')
+      expect(file.metadata['app_id']).to eq('match Development com.gitlab.ios-demo')
+    end
+
+    it 'logs an error when something goes wrong with the file parsing' do
+      corrupt_file = create(:ci_secure_file, name: 'file1.cer', file: CarrierWaveStringFile.new('11111111'))
+      message = 'Validation failed: Metadata must be a valid json schema - not enough data.'
+      expect(Gitlab::AppLogger).to receive(:error).with("Secure File Parser Failure (#{corrupt_file.id}): #{message}")
+      corrupt_file.update_metadata!
     end
   end
 end

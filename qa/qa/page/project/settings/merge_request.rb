@@ -7,7 +7,7 @@ module QA
         class MergeRequest < QA::Page::Base
           include QA::Page::Settings::Common
 
-          view 'app/views/projects/edit.html.haml' do
+          view 'app/views/projects/settings/merge_requests/show.html.haml' do
             element :save_merge_request_changes_button
           end
 
@@ -15,8 +15,8 @@ module QA
             element :merge_ff_radio
           end
 
-          view 'app/views/projects/_merge_request_merge_checks_settings.html.haml' do
-            element :allow_merge_if_all_discussions_are_resolved_checkbox
+          view 'app/views/projects/_merge_request_pipelines_and_threads_options.html.haml' do
+            element :only_allow_merge_if_all_discussions_are_resolved_checkbox
           end
 
           def click_save_changes
@@ -29,7 +29,7 @@ module QA
           end
 
           def enable_merge_if_all_disscussions_are_resolved
-            check_element(:allow_merge_if_all_discussions_are_resolved_checkbox, true)
+            check_element(:only_allow_merge_if_all_discussions_are_resolved_checkbox, true)
             click_save_changes
           end
         end

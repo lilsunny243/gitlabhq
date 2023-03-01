@@ -1,5 +1,6 @@
 <script>
-import { GlButton, GlPopover, GlSafeHtmlDirective } from '@gitlab/ui';
+import { GlButton, GlPopover } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 
 /**
  * Render a button with a question mark icon
@@ -12,13 +13,18 @@ export default {
     GlPopover,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   props: {
     options: {
       type: Object,
       required: false,
       default: () => ({}),
+    },
+    icon: {
+      type: String,
+      required: false,
+      default: 'question-o',
     },
   },
   methods: {
@@ -30,7 +36,7 @@ export default {
 </script>
 <template>
   <span>
-    <gl-button ref="popoverTrigger" variant="link" icon="question-o" :aria-label="__('Help')" />
+    <gl-button ref="popoverTrigger" variant="link" :icon="icon" :aria-label="__('Help')" />
     <gl-popover :target="targetFn" v-bind="options">
       <template v-if="options.title" #title>
         <span v-safe-html="options.title"></span>

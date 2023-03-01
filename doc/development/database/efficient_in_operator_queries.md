@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Efficient `IN` operator queries
@@ -126,8 +126,7 @@ For very large groups the database queries can easily time out, causing HTTP 500
 
 ## Optimizing ordered `IN` queries
 
-In the talk
-["How to teach an elephant to dance rock'n'roll"](https://www.youtube.com/watch?v=Ha38lcjVyhQ),
+In the talk ["How to teach an elephant to dance rock and roll"](https://www.youtube.com/watch?v=Ha38lcjVyhQ),
 Maxim Boguk demonstrated a technique to optimize a special class of ordered `IN` queries,
 such as our ordered group-level queries.
 
@@ -160,7 +159,7 @@ The technique can only optimize `IN` queries that satisfy the following requirem
   in the following order: `column_for_the_in_query`, `order by column 1`, and
   `order by column 2`.
 - The columns in the `ORDER BY` clause are distinct
-  (the combination of the columns uniquely identifies one particular column in the table).
+  (the combination of the columns uniquely identifies one particular row in the table).
 
 WARNING:
 This technique does not improve the performance of the `COUNT(*)` queries.
@@ -670,6 +669,64 @@ records_by_id.each do |id, _|
 end
 ```
 
+#### Ordering by `JOIN` columns
+
+Ordering records by mixed columns where one or more columns are coming from `JOIN` tables
+works with limitations. It requires extra configuration (CTE). The trick is to use a
+non-materialized CTE to act as a "fake" table which exposes all required columns.
+
+NOTE:
+The query performance might not improve compared to the standard `IN` query. Always
+check the query plan.
+
+Example: order issues by `projects.name, issues.id` within the group hierarchy
+
+The first step is to create a CTE, where all required columns are collected in the `SELECT`
+clause.
+
+```ruby
+cte_query = Issue
+  .select('issues.id AS id', 'issues.project_id AS project_id', 'projects.name AS projects_name')
+  .joins(:project)
+
+cte = Gitlab::SQL::CTE.new(:issue_with_projects, cte_query, materialized: false)
+```
+
+Custom order object configuration:
+
+```ruby
+order = Gitlab::Pagination::Keyset::Order.build([
+          Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+            attribute_name: 'projects_name',
+            order_expression: Issue.arel_table[:projects_name].asc,
+            sql_type: 'character varying',
+            nullable: :nulls_last,
+            distinct: false
+          ),
+          Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+            attribute_name: :id,
+            order_expression: Issue.arel_table[:id].asc
+          )
+        ])
+```
+
+Generate the query:
+
+```ruby
+scope = cte.apply_to(Issue.where({}).reorder(order))
+
+opts = {
+  scope: scope,
+  array_scope: Project.where(namespace_id: top_level_group.self_and_descendants.select(:id)).select(:id),
+  array_mapping_scope: -> (id_expression) { Issue.where(Issue.arel_table[:project_id].eq(id_expression)) }
+}
+
+records = Gitlab::Pagination::Keyset::InOperatorOptimization::QueryBuilder
+  .new(**opts)
+  .execute
+  .limit(20)
+```
+
 #### Batch iteration
 
 Batch iteration over the records is possible via the keyset `Iterator` class.
@@ -860,11 +917,11 @@ the `LIMIT` is reached or no more data can be found.
 Here's an outline of the steps we take in the recursive CTE query
 (expressing the steps in SQL is non-trivial but is explained next):
 
-1. Sort the initial resultset according to the `ORDER BY` clause.
+1. Sort the initial `resultset` according to the `ORDER BY` clause.
 1. Pick the top cursor to fetch the record, this is our first record. In the example,
 this cursor would be (`2020-01-05`, `3`) for `project_id=9`.
 1. We can use (`2020-01-05`, `3`) to fetch the next issue respecting the `ORDER BY` clause
-`project_id=9` filter. This produces an updated resultset.
+`project_id=9` filter. This produces an updated `resultset`.
 
   | `project_ids` | `created_at_values` | `id_values` |
   | ------------- | ------------------- | ----------- |
@@ -873,7 +930,7 @@ this cursor would be (`2020-01-05`, `3`) for `project_id=9`.
   | 10            | 2020-01-15          | 7           |
   | **9**         | **2020-01-06**      | **6**       |
 
-1. Repeat 1 to 3 with the updated resultset until we have fetched `N=20` records.
+1. Repeat 1 to 3 with the updated `resultset` until we have fetched `N=20` records.
 
 ### Initializing the recursive CTE query
 
@@ -1052,6 +1109,6 @@ Performance comparison for the `gitlab-org` group:
 | Optimized `IN` query | 9783                          | 450ms                   | 22ms                  |
 
 NOTE:
-Before taking measurements, the group lookup query was executed separately in order to make
+Before taking measurements, the group lookup query was executed separately to make
 the group data available in the buffer cache. Since it's a frequently called query, it
 hits many shared buffers during the query execution in the production environment.

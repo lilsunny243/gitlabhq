@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Configure an external Sidekiq instance **(FREE SELF)**
@@ -37,7 +37,7 @@ By default, GitLab uses UNIX sockets and is not set up to communicate via TCP. T
    ## Set up the Gitaly token as a form of authentication since you are accessing Gitaly over the network
    ## https://docs.gitlab.com/ee/administration/gitaly/configure_gitaly.html#about-the-gitaly-token
    gitaly['auth_token'] = 'abc123secret'
-   praefect['auth_token'] = 'abc123secret'
+   praefect['configuration'][:auth][:token] = 'abc123secret'
    gitlab_rails['gitaly_token'] = 'abc123secret'
 
    ## Redis configuration
@@ -184,8 +184,8 @@ Updates to example must be made at:
    ## Set number of Sidekiq queue processes to the same number as available CPUs
    sidekiq['queue_groups'] = ['*'] * 4
 
-   ## Set number of Sidekiq threads per queue process to the recommend number of 10
-   sidekiq['max_concurrency'] = 10
+   ## Set number of Sidekiq threads per queue process to the recommend number of 20
+   sidekiq['max_concurrency'] = 20
    ```
 
 1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the GitLab instance and replace the file in the Sidekiq instance.
@@ -377,9 +377,13 @@ To enable LDAP with the synchronization worker for Sidekiq:
    sudo gitlab-ctl reconfigure
    ```
 
+## Configure SAML Groups for SAML Group Sync
+
+If you use [SAML Group Sync](../../user/group/saml_sso/group_sync.md), you must configure [SAML Groups](../../integration/saml.md#configure-users-based-on-saml-group-membership) on all your Sidekiq nodes.
+
 ## Disable Rugged
 
-Calls into Rugged, Ruby bindings for `libgit2`, [lock the Sidekiq processes's GVL](https://silverhammermba.github.io/emberb/c/#c-in-ruby-threads),
+Calls into Rugged, Ruby bindings for `libgit2`, [lock the Sidekiq processes (GVL)](https://silverhammermba.github.io/emberb/c/#c-in-ruby-threads),
 blocking all jobs on that worker from proceeding. If Rugged calls performed by Sidekiq are slow, this can cause significant delays in
 background task processing.
 
@@ -394,7 +398,7 @@ sudo gitlab-rake gitlab:features:disable_rugged
 ## Related topics
 
 - [Extra Sidekiq processes](extra_sidekiq_processes.md)
-- [Extra Sidekiq routing](extra_sidekiq_routing.md)
+- [Processing specific job classes](processing_specific_job_classes.md)
 - [Sidekiq health checks](sidekiq_health_check.md)
 - [Using the GitLab-Sidekiq chart](https://docs.gitlab.com/charts/charts/gitlab/sidekiq/)
 

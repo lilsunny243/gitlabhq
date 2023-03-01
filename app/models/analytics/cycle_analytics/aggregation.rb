@@ -1,23 +1,13 @@
 # frozen_string_literal: true
 
 class Analytics::CycleAnalytics::Aggregation < ApplicationRecord
-  include IgnorableColumns
   include FromUnion
-
-  belongs_to :group, optional: false
+  include Analytics::CycleAnalytics::Parentable
 
   validates :incremental_runtimes_in_seconds, :incremental_processed_records, :full_runtimes_in_seconds, :full_processed_records, presence: true, length: { maximum: 10 }, allow_blank: true
 
-  scope :priority_order, -> (column_to_sort = :last_incremental_run_at) { order(arel_table[column_to_sort].asc.nulls_first) }
+  scope :priority_order, ->(column_to_sort = :last_incremental_run_at) { order(arel_table[column_to_sort].asc.nulls_first) }
   scope :enabled, -> { where('enabled IS TRUE') }
-
-  # These columns were added with wrong naming convention, the columns were never used.
-  ignore_column :last_full_run_processed_records, remove_with: '15.1', remove_after: '2022-05-22'
-  ignore_column :last_full_run_runtimes_in_seconds, remove_with: '15.1', remove_after: '2022-05-22'
-  ignore_column :last_full_run_issues_updated_at, remove_with: '15.1', remove_after: '2022-05-22'
-  ignore_column :last_full_run_mrs_updated_at, remove_with: '15.1', remove_after: '2022-05-22'
-  ignore_column :last_full_run_issues_id, remove_with: '15.1', remove_after: '2022-05-22'
-  ignore_column :last_full_run_merge_requests_id, remove_with: '15.1', remove_after: '2022-05-22'
 
   def cursor_for(mode, model)
     {
@@ -67,13 +57,19 @@ class Analytics::CycleAnalytics::Aggregation < ApplicationRecord
     estimation < 1 ? nil : estimation.from_now
   end
 
-  def self.safe_create_for_group(group)
+  def self.safe_create_for_namespace(group_or_project_namespace)
+    # Namespaces::ProjectNamespace has no root_ancestor
+    # Related: https://gitlab.com/gitlab-org/gitlab/-/issues/386124
+    group = group_or_project_namespace.is_a?(Group) ? group_or_project_namespace : group_or_project_namespace.parent
     top_level_group = group.root_ancestor
     aggregation = find_by(group_id: top_level_group.id)
-    return aggregation if aggregation.present?
+    return aggregation if aggregation&.enabled?
 
-    insert({ group_id: top_level_group.id }, unique_by: :group_id)
-    find_by(group_id: top_level_group.id)
+    # At this point we're sure that the group is licensed, we can always enable the aggregation.
+    # This re-enables the aggregation in case the group downgraded and later upgraded the license.
+    upsert({ group_id: top_level_group.id, enabled: true })
+
+    find(top_level_group.id)
   end
 
   private

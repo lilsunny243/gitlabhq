@@ -1,16 +1,11 @@
 <script>
-import {
-  GlButton,
-  GlLoadingIcon,
-  GlSafeHtmlDirective as SafeHtml,
-  GlSprintf,
-  GlAlert,
-} from '@gitlab/ui';
+import { GlButton, GlLoadingIcon, GlSprintf, GlAlert } from '@gitlab/ui';
 import { escape } from 'lodash';
 import { mapActions, mapGetters, mapState } from 'vuex';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { IdState } from 'vendor/vue-virtual-scroller';
 import DiffContent from 'jh_else_ce/diffs/components/diff_content.vue';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { hasDiff } from '~/helpers/diffs_helper';
 import { diffViewerErrors } from '~/ide/constants';
 import { scrollToElement } from '~/lib/utils/common_utils';
@@ -309,7 +304,7 @@ export default {
         })
         .catch(() => {
           idState.isLoadingCollapsedDiff = false;
-          createFlash({
+          createAlert({
             message: this.$options.i18n.genericError,
           });
         });
@@ -393,7 +388,7 @@ export default {
             v-else-if="conflictResolutionPath"
             :message="
               __(
-                'You can %{gitlabLinkStart}resolve conflicts on GitLab%{gitlabLinkEnd} or %{resolveLocallyStart}resolve it locally%{resolveLocallyEnd}.',
+                'You can %{gitlabLinkStart}resolve conflicts on GitLab%{gitlabLinkEnd} or %{resolveLocallyStart}resolve them locally%{resolveLocallyEnd}.',
               )
             "
           >
@@ -415,7 +410,7 @@ export default {
           </gl-sprintf>
           <gl-sprintf
             v-else
-            :message="__('You can %{resolveLocallyStart}resolve it locally%{resolveLocallyEnd}.')"
+            :message="__('You can %{resolveLocallyStart}resolve them locally%{resolveLocallyEnd}.')"
           >
             <template #resolveLocally="{ content }">
               <gl-button

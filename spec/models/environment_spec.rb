@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Environment, :use_clean_rails_memory_store_caching do
+RSpec.describe Environment, :use_clean_rails_memory_store_caching, feature_category: :continuous_delivery do
   include ReactiveCachingHelpers
   using RSpec::Parameterized::TableSyntax
   include RepoHelpers
@@ -17,6 +17,8 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
   it { is_expected.to nullify_if_blank(:external_url) }
 
   it { is_expected.to belong_to(:project).required }
+  it { is_expected.to belong_to(:merge_request).optional }
+
   it { is_expected.to have_many(:deployments) }
   it { is_expected.to have_many(:metrics_dashboard_annotations) }
   it { is_expected.to have_many(:alert_management_alerts) }
@@ -39,6 +41,53 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
       environment = build(:environment, external_url: nil)
 
       expect(environment).to be_valid
+    end
+
+    context 'does not allow changes to merge_request' do
+      let(:merge_request) { create(:merge_request, source_project: project) }
+
+      it 'for an environment that has no merge request associated' do
+        environment = create(:environment)
+
+        environment.merge_request = merge_request
+
+        expect(environment).not_to be_valid
+      end
+
+      it 'for an environment that has a merge request associated' do
+        environment = create(:environment, merge_request: merge_request)
+
+        environment.merge_request = nil
+
+        expect(environment).not_to be_valid
+      end
+    end
+
+    context 'tier' do
+      let!(:env) { build(:environment, tier: nil) }
+
+      before do
+        # Disable `before_validation: :ensure_environment_tier` since it always set tier and interfere with tests.
+        # See: https://github.com/thoughtbot/shoulda/issues/178#issuecomment-1654014
+
+        allow_any_instance_of(described_class).to receive(:ensure_environment_tier).and_return(env)
+      end
+
+      context 'presence is checked' do
+        it 'during create and update' do
+          expect(env).to validate_presence_of(:tier).on(:create)
+          expect(env).to validate_presence_of(:tier).on(:update)
+        end
+      end
+
+      context 'when FF is disabled' do
+        before do
+          stub_feature_flags(validate_environment_tier_presence: false)
+        end
+
+        it { expect(env).to validate_presence_of(:tier).on(:create) }
+        it { expect(env).not_to validate_presence_of(:tier).on(:update) }
+      end
     end
   end
 
@@ -95,7 +144,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
       environment = create(:environment, name: 'gprd')
       environment.update_column(:tier, nil)
 
-      expect { environment.stop! }.to change { environment.reload.tier }.from(nil).to('production')
+      expect { environment.save! }.to change { environment.reload.tier }.from(nil).to('production')
     end
 
     it 'does not overwrite the existing environment tier' do
@@ -162,7 +211,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
     end
 
     describe ".schedule_to_delete" do
-      subject { described_class.for_id(deletable_environment).schedule_to_delete }
+      subject { described_class.id_in(deletable_environment).schedule_to_delete }
 
       it "schedules the record for deletion" do
         freeze_time do
@@ -253,6 +302,72 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
 
     context 'when query contains a wildcard character' do
       let(:query) { 'produc%' }
+
+      it 'prevents wildcard injection' do
+        is_expected.to be_empty
+      end
+    end
+  end
+
+  describe '.for_name_like_within_folder' do
+    subject { project.environments.for_name_like_within_folder(query, limit: limit) }
+
+    let!(:environment) { create(:environment, name: 'review/test-app', project: project) }
+    let!(:environment_a) { create(:environment, name: 'test-app', project: project) }
+    let(:query) { 'test' }
+    let(:limit) { 5 }
+
+    it 'returns a found name' do
+      is_expected.to contain_exactly(environment)
+    end
+
+    it 'does not return environment without folder' do
+      is_expected.not_to include(environment_a)
+    end
+
+    context 'when query is test-app' do
+      let(:query) { 'test-app' }
+
+      it 'returns a found name' do
+        is_expected.to include(environment)
+      end
+    end
+
+    context 'when query is test-app-a' do
+      let(:query) { 'test-app-a' }
+
+      it 'returns empty array' do
+        is_expected.to be_empty
+      end
+    end
+
+    context 'when query is empty string' do
+      let(:query) { '' }
+      let!(:environment_b) { create(:environment, name: 'review/test-app-1', project: project) }
+
+      it 'returns only the foldered environments' do
+        is_expected.to contain_exactly(environment, environment_b)
+      end
+    end
+
+    context 'when query is nil' do
+      let(:query) {}
+
+      it 'raises an error' do
+        expect { subject }.to raise_error(NoMethodError)
+      end
+    end
+
+    context 'when query is partially matched in the middle of environment name' do
+      let(:query) { 'app' }
+
+      it 'returns empty array' do
+        is_expected.to be_empty
+      end
+    end
+
+    context 'when query contains a wildcard character' do
+      let(:query) { 'test%' }
 
       it 'prevents wildcard injection' do
         is_expected.to be_empty
@@ -368,7 +483,10 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
       'staging'            | described_class.tiers[:staging]
       'pre-prod'           | described_class.tiers[:staging]
       'blue-kit-stage'     | described_class.tiers[:staging]
-      'pre-prod'           | described_class.tiers[:staging]
+      'nonprod'            | described_class.tiers[:staging]
+      'nonlive'            | described_class.tiers[:staging]
+      'non-prod'           | described_class.tiers[:staging]
+      'non-live'           | described_class.tiers[:staging]
       'gprd'               | described_class.tiers[:production]
       'gprd-cny'           | described_class.tiers[:production]
       'production'         | described_class.tiers[:production]
@@ -859,8 +977,8 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
   describe '#actions_for' do
     let(:deployment) { create(:deployment, :success, environment: environment) }
     let(:pipeline) { deployment.deployable.pipeline }
-    let!(:review_action) { create(:ci_build, :manual, name: 'review-apps', pipeline: pipeline, environment: 'review/$CI_COMMIT_REF_NAME' ) }
-    let!(:production_action) { create(:ci_build, :manual, name: 'production', pipeline: pipeline, environment: 'production' ) }
+    let!(:review_action) { create(:ci_build, :manual, name: 'review-apps', pipeline: pipeline, environment: 'review/$CI_COMMIT_REF_NAME') }
+    let!(:production_action) { create(:ci_build, :manual, name: 'production', pipeline: pipeline, environment: 'production') }
 
     it 'returns a list of actions with matching environment' do
       expect(environment.actions_for('review/master')).to contain_exactly(review_action)
@@ -944,6 +1062,26 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
 
           is_expected.to eq(deployment)
         end
+      end
+    end
+  end
+
+  describe 'Last deployment relations' do
+    Deployment::FINISHED_STATUSES.each do |status|
+      it "returns the last #{status} deployment" do
+        create(:deployment, status.to_sym, environment: environment, finished_at: 1.day.ago)
+        expected = create(:deployment, status.to_sym, environment: environment, finished_at: Time.current)
+
+        expect(environment.public_send(:"last_#{status}_deployment")).to eq(expected)
+      end
+    end
+
+    Deployment::UPCOMING_STATUSES.each do |status|
+      it "returns the last #{status} deployment" do
+        create(:deployment, status.to_sym, environment: environment)
+        expected = create(:deployment, status.to_sym, environment: environment)
+
+        expect(environment.public_send(:"last_#{status}_deployment")).to eq(expected)
       end
     end
   end
@@ -1249,7 +1387,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
 
     context 'when the environment is available' do
       context 'with a deployment service' do
-        let(:project) { create(:prometheus_project, :repository) }
+        let(:project) { create(:project, :with_prometheus_integration, :repository) }
 
         context 'and a deployment' do
           let!(:deployment) { create(:deployment, environment: environment) }
@@ -1322,7 +1460,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
     end
 
     context 'when the environment is unavailable' do
-      let(:project) { create(:prometheus_project) }
+      let(:project) { create(:project, :with_prometheus_integration) }
 
       before do
         environment.stop
@@ -1349,7 +1487,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
   end
 
   describe '#metrics' do
-    let(:project) { create(:prometheus_project) }
+    let(:project) { create(:project, :with_prometheus_integration) }
 
     subject { environment.metrics }
 
@@ -1385,7 +1523,7 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
   end
 
   describe '#additional_metrics' do
-    let(:project) { create(:prometheus_project) }
+    let(:project) { create(:project, :with_prometheus_integration) }
     let(:metric_params) { [] }
 
     subject { environment.additional_metrics(*metric_params) }
@@ -1575,17 +1713,30 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
       nil        | nil
       'never'    | nil
     end
-    with_them do
-      it 'sets correct auto_stop_in' do
-        freeze_time do
-          if expected_result.is_a?(Integer) || expected_result.nil?
-            subject
 
-            expect(environment.auto_stop_in).to eq(expected_result)
-          else
-            expect { subject }.to raise_error(expected_result)
+    with_them do
+      shared_examples 'for given values expected result is set' do
+        it do
+          freeze_time do
+            if expected_result.is_a?(Integer) || expected_result.nil?
+              subject
+
+              expect(environment.auto_stop_in).to eq(expected_result)
+            else
+              expect { subject }.to raise_error(expected_result)
+            end
           end
         end
+      end
+
+      context 'new assignment sets correct auto_stop_in' do
+        include_examples 'for given values expected result is set'
+      end
+
+      context 'resets older value' do
+        let(:environment) { create(:environment, auto_stop_at: 1.day.since.round) }
+
+        include_examples 'for given values expected result is set'
       end
     end
   end
@@ -1856,6 +2007,61 @@ RSpec.describe Environment, :use_clean_rails_memory_store_caching do
 
         it { is_expected.to eq(true) }
       end
+    end
+  end
+
+  describe '#deploy_freezes' do
+    let(:environment) { create(:environment, project: project, name: 'staging') }
+    let(:freeze_period) { create(:ci_freeze_period, project: project) }
+
+    subject { environment.deploy_freezes }
+
+    it 'returns the freeze periods of the associated project' do
+      expect(subject).to contain_exactly(freeze_period)
+    end
+
+    it 'caches the freeze periods' do
+      expect(Gitlab::SafeRequestStore).to receive(:fetch)
+        .at_least(:once)
+        .and_return([freeze_period])
+
+      subject
+    end
+  end
+
+  describe '#deployed_and_updated_before' do
+    subject do
+      described_class.deployed_and_updated_before(project_id, before)
+    end
+
+    let(:project_id) { project.id }
+    let(:before) { 1.week.ago.to_date.to_s }
+    let(:environment) { create(:environment, project: project, updated_at: 2.weeks.ago) }
+    let!(:stale_deployment) { create(:deployment, environment: environment, updated_at: 2.weeks.ago) }
+
+    it 'excludes environments with recent deployments' do
+      create(:deployment, environment: environment, updated_at: Date.current)
+
+      is_expected.to match_array([])
+    end
+
+    it 'includes environments with no deployments' do
+      environment1 = create(:environment, project: project, updated_at: 2.weeks.ago)
+
+      is_expected.to match_array([environment, environment1])
+    end
+
+    it 'excludes environments that have been recently updated with no deployments' do
+      create(:environment, project: project)
+
+      is_expected.to match_array([environment])
+    end
+
+    it 'excludes environments that have been recently updated with stale deployments' do
+      environment1 = create(:environment, project: project)
+      create(:deployment, environment: environment1, updated_at: 2.weeks.ago)
+
+      is_expected.to match_array([environment])
     end
   end
 end

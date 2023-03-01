@@ -6,10 +6,10 @@ import {
   issuable2,
   issuable3,
 } from 'jest/issuable/components/related_issuable_mock_data';
+import { TYPE_ISSUE } from '~/issues/constants';
 import RelatedIssuesBlock from '~/related_issues/components/related_issues_block.vue';
 import AddIssuableForm from '~/related_issues/components/add_issuable_form.vue';
 import {
-  issuableTypesMap,
   linkedIssueTypesMap,
   linkedIssueTypesTextMap,
   PathIdSeparator,
@@ -34,18 +34,18 @@ describe('RelatedIssuesBlock', () => {
       wrapper = mountExtended(RelatedIssuesBlock, {
         propsData: {
           pathIdSeparator: PathIdSeparator.Issue,
-          issuableType: issuableTypesMap.ISSUE,
+          issuableType: TYPE_ISSUE,
         },
       });
     });
 
     it.each`
-      issuableType | pathIdSeparator          | titleText         | helpLinkText                        | addButtonText
-      ${'issue'}   | ${PathIdSeparator.Issue} | ${'Linked items'} | ${'Read more about related issues'} | ${'Add a related issue'}
-      ${'epic'}    | ${PathIdSeparator.Epic}  | ${'Linked epics'} | ${'Read more about related epics'}  | ${'Add a related epic'}
+      issuableType | pathIdSeparator          | titleText         | addButtonText
+      ${'issue'}   | ${PathIdSeparator.Issue} | ${'Linked items'} | ${'Add a related issue'}
+      ${'epic'}    | ${PathIdSeparator.Epic}  | ${'Linked epics'} | ${'Add a related epic'}
     `(
-      'displays "$titleText" in the header, "$helpLinkText" aria-label for help link, and "$addButtonText" aria-label for add button when issuableType is set to "$issuableType"',
-      ({ issuableType, pathIdSeparator, titleText, helpLinkText, addButtonText }) => {
+      'displays "$titleText" in the header and "$addButtonText" aria-label for add button when issuableType is set to "$issuableType"',
+      ({ issuableType, pathIdSeparator, titleText, addButtonText }) => {
         wrapper = mountExtended(RelatedIssuesBlock, {
           propsData: {
             pathIdSeparator,
@@ -56,9 +56,6 @@ describe('RelatedIssuesBlock', () => {
         });
 
         expect(wrapper.find('.card-title').text()).toContain(titleText);
-        expect(wrapper.find('[data-testid="help-link"]').attributes('aria-label')).toBe(
-          helpLinkText,
-        );
         expect(findIssueCountBadgeAddButton().attributes('aria-label')).toBe(addButtonText);
       },
     );
@@ -100,7 +97,7 @@ describe('RelatedIssuesBlock', () => {
         slots: { 'header-actions': headerActions },
       });
 
-      expect(wrapper.find('[data-testid="custom-button"]').html()).toBe(headerActions);
+      expect(wrapper.findByTestId('custom-button').html()).toBe(headerActions);
     });
   });
 
@@ -153,7 +150,7 @@ describe('RelatedIssuesBlock', () => {
     });
 
     it('sets `autoCompleteEpics` to false for add-issuable-form', () => {
-      expect(wrapper.find(AddIssuableForm).props('autoCompleteEpics')).toBe(false);
+      expect(wrapper.findComponent(AddIssuableForm).props('autoCompleteEpics')).toBe(false);
     });
   });
 
@@ -227,7 +224,7 @@ describe('RelatedIssuesBlock', () => {
           },
         });
 
-        const iconComponent = wrapper.find(GlIcon);
+        const iconComponent = wrapper.findComponent(GlIcon);
         expect(iconComponent.exists()).toBe(true);
         expect(iconComponent.props('name')).toBe(icon);
       });
@@ -240,7 +237,7 @@ describe('RelatedIssuesBlock', () => {
         propsData: {
           pathIdSeparator: PathIdSeparator.Issue,
           relatedIssues: [issuable1, issuable2, issuable3],
-          issuableType: issuableTypesMap.ISSUE,
+          issuableType: TYPE_ISSUE,
         },
       });
     });
@@ -260,15 +257,30 @@ describe('RelatedIssuesBlock', () => {
     });
   });
 
-  it('toggle button is disabled when issue has no related items', () => {
-    wrapper = shallowMountExtended(RelatedIssuesBlock, {
-      propsData: {
-        pathIdSeparator: PathIdSeparator.Issue,
-        relatedIssues: [],
-        issuableType: 'issue',
-      },
-    });
+  describe('empty state', () => {
+    it.each`
+      issuableType  | pathIdSeparator          | showCategorizedIssues | emptyText                                                                                 | helpLinkText
+      ${'issue'}    | ${PathIdSeparator.Issue} | ${false}              | ${"Link issues together to show that they're related."}                                   | ${'Learn more about linking issues'}
+      ${'issue'}    | ${PathIdSeparator.Issue} | ${true}               | ${"Link issues together to show that they're related or that one is blocking others."}    | ${'Learn more about linking issues'}
+      ${'incident'} | ${PathIdSeparator.Issue} | ${false}              | ${"Link incidents together to show that they're related."}                                | ${'Learn more about linking issues and incidents'}
+      ${'incident'} | ${PathIdSeparator.Issue} | ${true}               | ${"Link incidents together to show that they're related or that one is blocking others."} | ${'Learn more about linking issues and incidents'}
+      ${'epic'}     | ${PathIdSeparator.Epic}  | ${true}               | ${"Link epics together to show that they're related or that one is blocking others."}     | ${'Learn more about linking epics'}
+    `(
+      'displays "$emptyText" in the body and "$helpLinkText" aria-label for help link',
+      ({ issuableType, pathIdSeparator, showCategorizedIssues, emptyText, helpLinkText }) => {
+        wrapper = mountExtended(RelatedIssuesBlock, {
+          propsData: {
+            pathIdSeparator,
+            issuableType,
+            canAdmin: true,
+            helpPath: '/help/user/project/issues/related_issues',
+            showCategorizedIssues,
+          },
+        });
 
-    expect(findToggleButton().props('disabled')).toBe(true);
+        expect(wrapper.findByTestId('related-issues-body').text()).toContain(emptyText);
+        expect(wrapper.findByTestId('help-link').attributes('aria-label')).toBe(helpLinkText);
+      },
+    );
   });
 });

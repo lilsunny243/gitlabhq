@@ -1,6 +1,6 @@
 <script>
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { IssuableType } from '~/issues/constants';
+import { IssuableType, TYPE_ISSUE } from '~/issues/constants';
 import { __, sprintf } from '~/locale';
 import AssigneeAvatarLink from './assignee_avatar_link.vue';
 import UserNameWithStatus from './user_name_with_status.vue';
@@ -21,7 +21,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: 'issue',
+      default: TYPE_ISSUE,
     },
   },
   data() {
@@ -91,6 +91,7 @@ export default {
           <div
             class="gl-ml-3 gl-line-height-normal gl-display-grid gl-align-items-center"
             data-testid="username"
+            data-qa-selector="username"
           >
             <user-name-with-status :name="user.name" :availability="userAvailability(user)" />
           </div>

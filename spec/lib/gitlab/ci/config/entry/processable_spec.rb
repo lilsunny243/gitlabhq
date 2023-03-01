@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Config::Entry::Processable do
+RSpec.describe Gitlab::Ci::Config::Entry::Processable, feature_category: :pipeline_composition do
   let(:node_class) do
     Class.new(::Gitlab::Config::Entry::Node) do
       include Gitlab::Ci::Config::Entry::Processable
@@ -104,100 +104,6 @@ RSpec.describe Gitlab::Ci::Config::Entry::Processable do
         end
       end
 
-      context 'when only: is used with rules:' do
-        let(:config) { { only: ['merge_requests'], rules: [{ if: '$THIS' }] } }
-
-        it 'returns error about mixing only: with rules:' do
-          expect(entry).not_to be_valid
-          expect(entry.errors).to include /may not be used with `rules`/
-        end
-
-        context 'and only: is blank' do
-          let(:config) { { only: nil, rules: [{ if: '$THIS' }] } }
-
-          it 'returns error about mixing only: with rules:' do
-            expect(entry).not_to be_valid
-            expect(entry.errors).to include /may not be used with `rules`/
-          end
-        end
-
-        context 'and rules: is blank' do
-          let(:config) { { only: ['merge_requests'], rules: nil } }
-
-          it 'returns error about mixing only: with rules:' do
-            expect(entry).not_to be_valid
-            expect(entry.errors).to include /may not be used with `rules`/
-          end
-        end
-      end
-
-      context 'when except: is used with rules:' do
-        let(:config) { { except: { refs: %w[master] }, rules: [{ if: '$THIS' }] } }
-
-        it 'returns error about mixing except: with rules:' do
-          expect(entry).not_to be_valid
-          expect(entry.errors).to include /may not be used with `rules`/
-        end
-
-        context 'and except: is blank' do
-          let(:config) { { except: nil, rules: [{ if: '$THIS' }] } }
-
-          it 'returns error about mixing except: with rules:' do
-            expect(entry).not_to be_valid
-            expect(entry.errors).to include /may not be used with `rules`/
-          end
-        end
-
-        context 'and rules: is blank' do
-          let(:config) { { except: { refs: %w[master] }, rules: nil } }
-
-          it 'returns error about mixing except: with rules:' do
-            expect(entry).not_to be_valid
-            expect(entry.errors).to include /may not be used with `rules`/
-          end
-        end
-      end
-
-      context 'when only: and except: are both used with rules:' do
-        let(:config) do
-          {
-            only: %w[merge_requests],
-            except: { refs: %w[master] },
-            rules: [{ if: '$THIS' }]
-          }
-        end
-
-        it 'returns errors about mixing both only: and except: with rules:' do
-          expect(entry).not_to be_valid
-          expect(entry.errors).to include /may not be used with `rules`/
-          expect(entry.errors).to include /may not be used with `rules`/
-        end
-
-        context 'when only: and except: as both blank' do
-          let(:config) do
-            { only: nil, except: nil, rules: [{ if: '$THIS' }] }
-          end
-
-          it 'returns errors about mixing both only: and except: with rules:' do
-            expect(entry).not_to be_valid
-            expect(entry.errors).to include /may not be used with `rules`/
-            expect(entry.errors).to include /may not be used with `rules`/
-          end
-        end
-
-        context 'when rules: is blank' do
-          let(:config) do
-            { only: %w[merge_requests], except: { refs: %w[master] }, rules: nil }
-          end
-
-          it 'returns errors about mixing both only: and except: with rules:' do
-            expect(entry).not_to be_valid
-            expect(entry.errors).to include /may not be used with `rules`/
-            expect(entry.errors).to include /may not be used with `rules`/
-          end
-        end
-      end
-
       context 'when a variable has an invalid data attribute' do
         let(:config) do
           {
@@ -208,21 +114,92 @@ RSpec.describe Gitlab::Ci::Config::Entry::Processable do
 
         it 'reports error about variable' do
           expect(entry.errors)
-            .to include 'variables:var2 config must be a string'
+            .to include 'variables:var2 config uses invalid data keys: description'
+        end
+      end
+    end
+
+    context 'when only: is used with rules:' do
+      let(:config) { { only: ['merge_requests'], rules: [{ if: '$THIS' }] } }
+
+      it 'returns error about mixing only: with rules:' do
+        expect(entry).not_to be_valid
+        expect(entry.errors).to include /may not be used with `rules`: only/
+      end
+
+      context 'and only: is blank' do
+        let(:config) { { only: nil, rules: [{ if: '$THIS' }] } }
+
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
+
+      context 'and rules: is blank' do
+        let(:config) { { only: ['merge_requests'], rules: nil } }
+
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
+    end
+
+    context 'when except: is used with rules:' do
+      let(:config) { { except: { refs: %w[master] }, rules: [{ if: '$THIS' }] } }
+
+      it 'returns error about mixing except: with rules:' do
+        expect(entry).not_to be_valid
+        expect(entry.errors).to include /may not be used with `rules`: except/
+      end
+
+      context 'and except: is blank' do
+        let(:config) { { except: nil, rules: [{ if: '$THIS' }] } }
+
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
+
+      context 'and rules: is blank' do
+        let(:config) { { except: { refs: %w[master] }, rules: nil } }
+
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
+    end
+
+    context 'when only: and except: are both used with rules:' do
+      let(:config) do
+        {
+          only: %w[merge_requests],
+          except: { refs: %w[master] },
+          rules: [{ if: '$THIS' }]
+        }
+      end
+
+      it 'returns errors about mixing both only: and except: with rules:' do
+        expect(entry).not_to be_valid
+        expect(entry.errors).to include /may not be used with `rules`: only, except/
+      end
+
+      context 'when only: and except: as both blank' do
+        let(:config) do
+          { only: nil, except: nil, rules: [{ if: '$THIS' }] }
         end
 
-        context 'when the FF ci_variables_refactoring_to_variable is disabled' do
-          let(:entry_without_ff) { node_class.new(config, name: :rspec) }
+        it 'is valid' do
+          expect(entry).to be_valid
+        end
+      end
 
-          before do
-            stub_feature_flags(ci_variables_refactoring_to_variable: false)
-            entry_without_ff.compose!
-          end
+      context 'when rules: is blank' do
+        let(:config) do
+          { only: %w[merge_requests], except: { refs: %w[master] }, rules: nil }
+        end
 
-          it 'reports error about variable' do
-            expect(entry_without_ff.errors)
-              .to include /config should be a hash of key value pairs/
-          end
+        it 'is valid' do
+          expect(entry).to be_valid
         end
       end
     end
@@ -262,7 +239,7 @@ RSpec.describe Gitlab::Ci::Config::Entry::Processable do
       with_them do
         let(:config) { { script: 'ls', rules: rules, only: only }.compact }
 
-        it "#{name}" do
+        it name.to_s do
           expect(workflow).to receive(:has_rules?) { has_workflow_rules? }
 
           entry.compose!(deps)
@@ -457,6 +434,29 @@ RSpec.describe Gitlab::Ci::Config::Entry::Processable do
             stage: 'test',
             only: { refs: %w[branches tags] },
             job_variables: {},
+            root_variables_inheritance: true
+          )
+        end
+      end
+
+      context 'when variables have "expand" data' do
+        let(:config) do
+          {
+            script: 'echo',
+            variables: { 'VAR1' => 'val 1',
+                         'VAR2' => { value: 'val 2', expand: false },
+                         'VAR3' => { value: 'val 3', expand: true } }
+          }
+        end
+
+        it 'returns correct value' do
+          expect(entry.value).to eq(
+            name: :rspec,
+            stage: 'test',
+            only: { refs: %w[branches tags] },
+            job_variables: { 'VAR1' => { value: 'val 1' },
+                             'VAR2' => { value: 'val 2', raw: true },
+                             'VAR3' => { value: 'val 3', raw: false } },
             root_variables_inheritance: true
           )
         end

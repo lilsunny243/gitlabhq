@@ -19,6 +19,37 @@ RSpec.describe Projects::UpdatePagesService do
 
   subject { described_class.new(project, build) }
 
+  context 'when a deploy stage already exists', :aggregate_failures do
+    let!(:stage) { create(:ci_stage, name: 'deploy', pipeline: pipeline) }
+
+    it 'assigns the deploy stage' do
+      expect { subject.execute }
+        .to change(GenericCommitStatus, :count).by(1)
+        .and change(Ci::Stage.where(name: 'deploy'), :count).by(0)
+
+      status = GenericCommitStatus.last
+
+      expect(status.ci_stage).to eq(stage)
+      expect(status.ci_stage.name).to eq('deploy')
+      expect(status.stage_name).to eq('deploy')
+      expect(status.stage).to eq('deploy')
+    end
+  end
+
+  context 'when a deploy stage does not exists' do
+    it 'assigns the deploy stage' do
+      expect { subject.execute }
+        .to change(GenericCommitStatus, :count).by(1)
+        .and change(Ci::Stage.where(name: 'deploy'), :count).by(1)
+
+      status = GenericCommitStatus.last
+
+      expect(status.ci_stage.name).to eq('deploy')
+      expect(status.stage_name).to eq('deploy')
+      expect(status.stage).to eq('deploy')
+    end
+  end
+
   context 'for new artifacts' do
     context "for a valid job" do
       let!(:artifacts_archive) { create(:ci_job_artifact, :correct_checksum, file: file, job: build) }
@@ -289,10 +320,11 @@ RSpec.describe Projects::UpdatePagesService do
   end
 
   context 'when retrying the job' do
+    let(:stage) { create(:ci_stage, position: 1_000_000, name: 'deploy', pipeline: pipeline) }
     let!(:older_deploy_job) do
       create(:generic_commit_status, :failed, pipeline: pipeline,
                                               ref: build.ref,
-                                              stage: 'deploy',
+                                              ci_stage: stage,
                                               name: 'pages:deploy')
     end
 
@@ -306,13 +338,15 @@ RSpec.describe Projects::UpdatePagesService do
       expect(execute).to eq(:success)
 
       expect(older_deploy_job.reload).to be_retried
+      expect(deploy_status.ci_stage).to eq(stage)
+      expect(deploy_status.stage_idx).to eq(stage.position)
     end
   end
 
   private
 
   def deploy_status
-    GenericCommitStatus.find_by(name: 'pages:deploy')
+    GenericCommitStatus.where(name: 'pages:deploy').last
   end
 
   def execute

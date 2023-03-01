@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Vuex
@@ -22,7 +22,7 @@ official [Vuex documentation](https://vuex.vuejs.org).
 
 Vuex is composed of State, Getters, Mutations, Actions, and Modules.
 
-When a user clicks on an action, we need to `dispatch` it. This action `commits` a mutation that changes the state. The action itself does not update the state; only a mutation should update the state.
+When a user selects an action, we need to `dispatch` it. This action `commits` a mutation that changes the state. The action itself does not update the state; only a mutation should update the state.
 
 ## File structure
 
@@ -97,7 +97,7 @@ In this file, we write the actions that call mutations for handling a list of us
 ```javascript
   import * as types from './mutation_types';
   import axios from '~/lib/utils/axios_utils';
-  import createFlash from '~/flash';
+  import { createAlert } from '~/flash';
 
   export const fetchUsers = ({ state, dispatch }) => {
     commit(types.REQUEST_USERS);
@@ -106,7 +106,7 @@ In this file, we write the actions that call mutations for handling a list of us
       .then(({ data }) => commit(types.RECEIVE_USERS_SUCCESS, data))
       .catch((error) => {
         commit(types.RECEIVE_USERS_ERROR, error)
-        createFlash({ message: 'There was an error' })
+        createAlert({ message: 'There was an error' })
       });
   }
 

@@ -1,6 +1,7 @@
 - page_title    _("Dashboard")
 - header_title  _("Dashboard"), root_path unless header_title
-- sidebar       "dashboard"
-- @hide_breadcrumbs = true
+
+- @left_sidebar = true
+- nav (@parent_group ? "group" : "your_work")
 
 = render template: "layouts/application"

@@ -69,6 +69,8 @@ RSpec.describe SessionsController do
 
       expect(controller.stored_location_for(:redirect)).to eq(search_path)
     end
+
+    it_behaves_like "switches to user preferred language", 'Sign in'
   end
 
   describe '#create' do
@@ -219,7 +221,7 @@ RSpec.describe SessionsController do
           expect(Gitlab::Metrics).to receive(:counter)
                                       .with(:successful_login_captcha_total, anything)
                                       .and_return(counter)
-          expect(Gitlab::Metrics).to receive(:counter).and_call_original
+          expect(Gitlab::Metrics).to receive(:counter).at_least(1).time.and_call_original
 
           post(:create, params: { user: user_params }, session: sesion_params)
         end
@@ -373,8 +375,7 @@ RSpec.describe SessionsController do
 
           context 'when OTP is valid for another user' do
             it 'does not authenticate' do
-              authenticate_2fa(login: another_user.username,
-                               otp_attempt: another_user.current_otp)
+              authenticate_2fa(login: another_user.username, otp_attempt: another_user.current_otp)
 
               expect(subject.current_user).not_to eq another_user
             end
@@ -382,8 +383,7 @@ RSpec.describe SessionsController do
 
           context 'when OTP is invalid for another user' do
             it 'does not authenticate' do
-              authenticate_2fa(login: another_user.username,
-                               otp_attempt: 'invalid')
+              authenticate_2fa(login: another_user.username, otp_attempt: 'invalid')
 
               expect(subject.current_user).not_to eq another_user
             end
@@ -399,17 +399,29 @@ RSpec.describe SessionsController do
             end
 
             context 'when OTP is invalid' do
-              before do
-                authenticate_2fa(otp_attempt: 'invalid')
-              end
+              let(:code) { 'invalid' }
 
               it 'does not authenticate' do
+                authenticate_2fa(otp_attempt: code)
+
                 expect(subject.current_user).not_to eq user
               end
 
               it 'warns about invalid OTP code' do
+                authenticate_2fa(otp_attempt: code)
+
                 expect(controller).to set_flash.now[:alert]
                   .to(/Invalid two-factor code/)
+              end
+
+              it 'sends an email to the user informing about the attempt to sign in with a wrong OTP code' do
+                controller.request.remote_addr = '1.2.3.4'
+
+                expect_next_instance_of(NotificationService) do |instance|
+                  expect(instance).to receive(:two_factor_otp_attempt_failed).with(user, '1.2.3.4')
+                end
+
+                authenticate_2fa(otp_attempt: code)
               end
             end
           end
@@ -462,6 +474,22 @@ RSpec.describe SessionsController do
       it "creates an authentication event record" do
         expect { authenticate_2fa(login: user.username, otp_attempt: user.current_otp) }.to change { AuthenticationEvent.count }.by(1)
         expect(AuthenticationEvent.last.provider).to eq("two-factor")
+      end
+
+      context 'when rendering devise two factor' do
+        render_views
+
+        before do
+          Gon.clear
+        end
+
+        it "adds gon variables" do
+          authenticate_2fa(login: user.username, password: user.password)
+
+          expect(response).to render_template('devise/sessions/two_factor')
+          expect(Gon.all_variables).not_to be_empty
+          expect(response.body).to match('gon.api_version')
+        end
       end
     end
 
@@ -537,8 +565,7 @@ RSpec.describe SessionsController do
       it 'sets the username and caller_id in the context' do
         expect(controller).to receive(:destroy).and_wrap_original do |m, *args|
           expect(Gitlab::ApplicationContext.current)
-            .to include('meta.user' => user.username,
-                        'meta.caller_id' => 'SessionsController#destroy')
+            .to include('meta.user' => user.username, 'meta.caller_id' => 'SessionsController#destroy')
 
           m.call(*args)
         end
@@ -577,8 +604,7 @@ RSpec.describe SessionsController do
           m.call(*args)
         end
 
-        post(:create,
-             params: { user: { login: user.username, password: user.password.succ } })
+        post :create, params: { user: { login: user.username, password: user.password.succ } }
       end
     end
   end

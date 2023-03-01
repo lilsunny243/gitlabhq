@@ -1,3 +1,6 @@
+$search-input-field-min-width: 320px;
+$search-input-field-x-min-width: 200px;
+
 .navbar-gitlab {
   padding: 0 16px;
   z-index: $header-zindex;
@@ -60,11 +63,6 @@
           @include gl-focus($focus-ring: $focus-ring-dark);
         }
       }
-
-      .project-item-select {
-        right: auto;
-        left: 0;
-      }
     }
 
     .dropdown.open {
@@ -76,6 +74,47 @@
     .navbar-collapse > ul.nav > li:not(.d-none) {
       margin: 0 2px;
     }
+  }
+
+  .header-search {
+    min-width: $search-input-field-min-width;
+
+    // This is a temporary workaround!
+    // the button in GitLab UI Search components need to be updated to not be the small size
+    // see in Figma: https://www.figma.com/file/qEddyqCrI7kPSBjGmwkZzQ/Component-library?node-id=43905%3A45540
+    .gl-search-box-by-type-clear.btn-sm {
+      padding: 0.5rem !important;
+    }
+
+    @include media-breakpoint-between(md, lg) {
+      min-width: $search-input-field-x-min-width;
+    }
+
+    &.is-searching {
+      .in-search-scope-help {
+        position: absolute;
+        top: $gl-spacing-scale-2;
+        right: 2.125rem;
+        z-index: 2;
+      }
+    }
+
+    &.is-not-focused {
+      .gl-search-box-by-type-clear {
+        display: none;
+      }
+    }
+
+    .keyboard-shortcut-helper {
+      transform: translateY(calc(50% - 2px));
+      box-shadow: none;
+      border-color: transparent;
+    }
+  }
+
+  .header-search-dropdown-menu {
+    max-height: $dropdown-max-height;
+    top: 100%;
   }
 
   .navbar-collapse {
@@ -282,7 +321,6 @@
 .breadcrumbs-container {
   display: flex;
   width: 100%;
-  position: relative;
   padding-top: $gl-padding / 2;
   padding-bottom: $gl-padding / 2;
   align-items: center;
@@ -389,18 +427,6 @@
   display: flex;
   flex: 0 0 auto;
   margin-left: auto;
-}
-
-.btn-sign-in {
-  background-color: $indigo-100;
-  color: $indigo-900;
-  font-weight: $gl-font-weight-bold;
-  line-height: 18px;
-  margin: 4px 0 4px 2px;
-
-  &:hover {
-    background-color: $white;
-  }
 }
 
 @include media-breakpoint-down(xs) {
@@ -531,31 +557,22 @@
 }
 
 .toggle-mobile-nav {
-  display: none;
-  background-color: transparent;
-  border: 0;
-  padding: 6px 16px;
-  margin: 0 0 0 -15px;
-  height: 46px;
-  color: $gl-text-color;
+  @include gl-display-none;
 
   @include media-breakpoint-down(sm) {
-    display: flex;
-    align-items: center;
-
-    i {
-      font-size: 18px;
-    }
+    @include gl-display-block;
 
     + .breadcrumbs-links {
-      padding-left: $gl-padding;
-      border-left: 1px solid $gl-text-color-quaternary;
+      @include gl-pl-4;
+      @include gl-border-l-1;
+      @include gl-border-l-solid;
+      @include gl-border-gray-100;
     }
   }
 }
 
 .top-nav-container-view {
-  .gl-new-dropdown & .gl-search-box-by-type {
+  .gl-dropdown & .gl-search-box-by-type {
     @include gl-m-0;
   }
 
@@ -565,10 +582,6 @@
 }
 
 .top-nav-toggle {
-  .dropdown-icon {
-    @include gl-mr-3;
-  }
-
   .dropdown-chevron {
     top: 0;
   }

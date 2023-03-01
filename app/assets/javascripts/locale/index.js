@@ -1,13 +1,22 @@
 import Jed from 'jed';
-import ensureSingleLine from './ensure_single_line';
+import ensureSingleLine from './ensure_single_line.cjs';
 import sprintf from './sprintf';
 
 const GITLAB_FALLBACK_LANGUAGE = 'en';
 
 const languageCode = () =>
   document.querySelector('html').getAttribute('lang') || GITLAB_FALLBACK_LANGUAGE;
-const locale = new Jed(window.translations || {});
-delete window.translations;
+
+/**
+ * This file might be imported into a web worker indirectly, the `window` object
+ * won't be defined in the web worker context so we need to check if it is defined
+ * before we access the `translations` property.
+ */
+const hasTranslations = typeof window !== 'undefined' && window.translations;
+const locale = new Jed(hasTranslations ? window.translations : {});
+if (hasTranslations) {
+  delete window.translations;
+}
 
 /**
   Translates `text`

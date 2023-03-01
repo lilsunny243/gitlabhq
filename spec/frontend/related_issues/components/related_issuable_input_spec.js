@@ -1,8 +1,9 @@
 import { shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { TEST_HOST } from 'helpers/test_constants';
+import { TYPE_ISSUE } from '~/issues/constants';
 import RelatedIssuableInput from '~/related_issues/components/related_issuable_input.vue';
-import { issuableTypesMap, PathIdSeparator } from '~/related_issues/constants';
+import { PathIdSeparator } from '~/related_issues/constants';
 
 jest.mock('ee_else_ce/gfm_auto_complete', () => {
   return function gfmAutoComplete() {
@@ -21,7 +22,7 @@ describe('RelatedIssuableInput', () => {
       inputValue: '',
       references: [],
       pathIdSeparator: PathIdSeparator.Issue,
-      issuableType: issuableTypesMap.issue,
+      issuableType: TYPE_ISSUE,
       autoCompleteSources: {
         issues: `${TEST_HOST}/h5bp/html5-boilerplate/-/autocomplete_sources/issues`,
       },
@@ -33,7 +34,7 @@ describe('RelatedIssuableInput', () => {
       it('shows placeholder text', () => {
         const wrapper = shallowMount(RelatedIssuableInput, { propsData });
 
-        expect(wrapper.find({ ref: 'input' }).element.placeholder).toBe(
+        expect(wrapper.findComponent({ ref: 'input' }).element.placeholder).toBe(
           'Paste issue link or <#issue id>',
         );
       });
@@ -54,7 +55,7 @@ describe('RelatedIssuableInput', () => {
           },
         });
 
-        expect(wrapper.find({ ref: 'input' }).element.value).toBe('');
+        expect(wrapper.findComponent({ ref: 'input' }).element.value).toBe('');
       });
 
       it('does not have GfmAutoComplete', () => {
@@ -85,7 +86,7 @@ describe('RelatedIssuableInput', () => {
 
       await nextTick();
 
-      expect(document.activeElement).toBe(wrapper.find({ ref: 'input' }).element);
+      expect(document.activeElement).toBe(wrapper.findComponent({ ref: 'input' }).element);
     });
   });
 
@@ -100,7 +101,7 @@ describe('RelatedIssuableInput', () => {
       const newInputValue = 'filling in things';
       const untouchedRawReferences = newInputValue.trim().split(/\s/);
       const touchedReference = untouchedRawReferences.pop();
-      const input = wrapper.find({ ref: 'input' });
+      const input = wrapper.findComponent({ ref: 'input' });
 
       input.element.value = newInputValue;
       input.element.selectionStart = newInputValue.length;

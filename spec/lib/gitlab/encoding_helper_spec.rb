@@ -114,18 +114,6 @@ RSpec.describe Gitlab::EncodingHelper do
         expect(ext_class.encode_utf8_with_escaping!(input)).to eq(expected)
       end
     end
-
-    context 'when feature flag is disabled' do
-      before do
-        stub_feature_flags(escape_gitaly_refs: false)
-      end
-
-      it 'uses #encode! method' do
-        expect(ext_class).to receive(:encode!).with('String')
-
-        ext_class.encode_utf8_with_escaping!('String')
-      end
-    end
   end
 
   describe '#encode_utf8' do
@@ -293,6 +281,14 @@ RSpec.describe Gitlab::EncodingHelper do
       expect(described_class.unquote_path('"\\311\\240\\304\\253\\305\\247\\305\\200\\310\\247\\306\\200"')).to eq('ɠīŧŀȧƀ')
       expect(described_class.unquote_path('"\\\\303\\\\251"')).to eq('\303\251')
       expect(described_class.unquote_path('"\a\b\e\f\n\r\t\v\""')).to eq("\a\b\e\f\n\r\t\v\"")
+    end
+  end
+
+  describe '#strip_bom' do
+    it do
+      expect(described_class.strip_bom('no changes')).to eq('no changes')
+      expect(described_class.strip_bom("\xEF\xBB\xBFhello world")).to eq('hello world')
+      expect(described_class.strip_bom("BOM at the end\xEF\xBB\xBF")).to eq("BOM at the end\xEF\xBB\xBF")
     end
   end
 end

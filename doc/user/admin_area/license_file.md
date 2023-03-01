@@ -1,7 +1,7 @@
 ---
 stage: Fulfillment
 group: Provision
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 <!-- To promote the workflow described in license.md, this page is not included in global left nav. -->
@@ -18,11 +18,15 @@ link to the **Add license** page should be displayed.
 Otherwise, to add your license:
 
 1. Sign in to GitLab as an administrator.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. In the **Add License** area, add a license by either uploading the file or entering the key.
 1. Select the **Terms of Service** checkbox.
 1. Select **Add license**.
+
+NOTE:
+In GitLab 14.7.x to 14.9.x, you can add the license file with the UI.
+In GitLab 14.1.x to 14.7, if you have already activated your subscription with an activation code, you cannot access **Add License** from the Admin Area. You must access **Add License** directly from the URL, `<YourGitLabURL>/admin/license/new`.
 
 ## Add your license file during installation
 
@@ -71,7 +75,9 @@ and issue creation. Your instance becomes read-only and
 an expiration message displays to all administrators. You have a 14-day grace period
 before this occurs.
 
-To resume functionality, activate a new subscription.
+To resume functionality, [renew your subscription](../../subscriptions/self_managed/index.md#renew-subscription-manually).
+
+If the license has been expired for more than 30 days, you must purchase a [new subscription](../../subscriptions/self_managed/index.md) to resume functionality.
 
 To go back to Free features, [delete all expired licenses](#remove-a-license).
 
@@ -79,7 +85,7 @@ To go back to Free features, [delete all expired licenses](#remove-a-license).
 
 To remove a license from a self-managed instance:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Subscription**.
 1. Select **Remove license**.
 
@@ -89,7 +95,7 @@ Repeat these steps to remove all licenses, including those applied in the past.
 
 To view your license details:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Subscription**.
 
 You can add and view more than one license, but only the latest license in
@@ -138,3 +144,92 @@ rules apply:
 For example, if you purchase a license for 100 users, you can have 110 users when you add
 your license. However, if you have 111 users, you must purchase more users before you can add
 the license.
+
+### `Start GitLab Ultimate trial` still displays after adding license
+
+To fix this issue, restart [Puma or your entire GitLab instance](../../administration/restart_gitlab.md).
+
+### License commands in the rails console
+
+The following commands can be run in the [rails console](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+WARNING:
+Any command that changes data directly could be damaging if not run correctly, or under the right conditions.  
+We highly recommend running them in a test environment with a backup of the instance ready to be restored, just in case.
+
+#### See current license information
+
+```ruby
+# License information (name, company, email address)
+License.current.licensee
+
+# Plan:
+License.current.plan
+
+# Uploaded:
+License.current.created_at
+
+# Started:
+License.current.starts_at
+
+# Expires at:
+License.current.expires_at
+
+# Is this a trial license?
+License.current.trial?
+
+# License ID for lookup on CustomersDot
+License.current.license_id
+
+# License data in Base64-encoded ASCII format
+License.current.data
+```
+
+#### Interaction with licenses that start in the future
+
+```ruby
+# Future license data follows the same format as current license data it just uses a different modifier for the License prefix
+License.future_dated
+```
+
+#### Check if a project feature is available on the instance
+
+Features listed in [`features.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/app/models/gitlab_subscriptions/features.rb).
+
+```ruby
+License.current.feature_available?(:jira_dev_panel_integration)
+```
+
+#### Check if a project feature is available in a project
+
+Features listed in [`features.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/app/models/gitlab_subscriptions/features.rb).
+
+```ruby
+p = Project.find_by_full_path('<group>/<project>')
+p.feature_available?(:jira_dev_panel_integration)
+```
+
+#### Add a license through the console
+
+```ruby
+key = "<key>"
+license = License.new(data: key)
+license.save
+License.current # check to make sure it applied
+```
+
+This is needed for example in a known edge-case with
+[expired license and multiple LDAP servers](../../administration/auth/ldap/ldap-troubleshooting.md#expired-license-causes-errors-with-multiple-ldap-servers).
+
+#### Remove licenses
+
+To clean up the [License History table](../../user/admin_area/license_file.md#view-license-details-and-history):
+
+```ruby
+TYPE = :trial?
+# or :expired?
+
+License.select(&TYPE).each(&:destroy!)
+
+# or even License.all.each(&:destroy!)
+```

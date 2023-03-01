@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Keyset pagination
@@ -159,7 +159,7 @@ configuration is necessary:
 - Function-based ordering.
 - Ordering with a custom tie-breaker column, like `iid`.
 
-These order objects can be defined in the model classes as normal ActiveRecord scopes, there is no special behavior that prevents using these scopes elsewhere (kaminari, background jobs).
+These order objects can be defined in the model classes as normal ActiveRecord scopes, there is no special behavior that prevents using these scopes elsewhere (Kaminari, background jobs).
 
 ### `NULLS LAST` ordering
 

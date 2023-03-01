@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner do
+  RSpec.describe 'Verify', :runner, product_group: :runner do
     describe 'Runner registration' do
       let(:executor) { "qa-runner-#{Time.now.to_i}" }
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.name = executor
           runner.tags = ['e2e-test']
         end
@@ -15,7 +15,7 @@ module QA
         runner.remove_via_api!
       end
 
-      it 'user registers a new specific runner', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348025' do
+      it 'user registers a new project runner', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348025' do
         Flow::Login.sign_in
 
         runner.project.visit!

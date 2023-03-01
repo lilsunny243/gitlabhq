@@ -11,7 +11,13 @@ export default {
     BoardSettingsSidebar,
     BoardTopBar,
   },
-  inject: ['disabled'],
+  inject: ['initialBoardId', 'initialFilterParams'],
+  data() {
+    return {
+      boardId: this.initialBoardId,
+      filterParams: { ...this.initialFilterParams },
+    };
+  },
   computed: {
     ...mapGetters(['isSidebarOpen']),
   },
@@ -21,13 +27,23 @@ export default {
   destroyed() {
     window.removeEventListener('popstate', refreshCurrentPage);
   },
+  methods: {
+    switchBoard(id) {
+      this.boardId = id;
+    },
+    setFilters(filters) {
+      const filterParams = { ...filters };
+      if (filterParams.groupBy) delete filterParams.groupBy;
+      this.filterParams = filterParams;
+    },
+  },
 };
 </script>
 
 <template>
   <div class="boards-app gl-relative" :class="{ 'is-compact': isSidebarOpen }">
-    <board-top-bar />
-    <board-content :disabled="disabled" />
+    <board-top-bar :board-id="boardId" @switchBoard="switchBoard" @setFilters="setFilters" />
+    <board-content :board-id="boardId" :filter-params="filterParams" />
     <board-settings-sidebar />
   </div>
 </template>

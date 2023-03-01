@@ -24,7 +24,7 @@
       = expanded ? _('Collapse') : _('Expand')
     %p
       - auto_devops_url = help_page_path('topics/autodevops/index')
-      - quickstart_url = help_page_path('topics/autodevops/quick_start_guide')
+      - quickstart_url = help_page_path('topics/autodevops/cloud_deployments/auto_devops_with_gke')
       - auto_devops_start = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: auto_devops_url }
       - quickstart_start = '<a href="%{url}" target="_blank" rel="noopener noreferrer">'.html_safe % { url: quickstart_url }
       = s_('AutoDevOps|%{auto_devops_start}Automate building, testing, and deploying%{auto_devops_end} your applications based on your continuous integration and delivery configuration. %{quickstart_start}How do I get started?%{quickstart_end}').html_safe % { auto_devops_start: auto_devops_start, auto_devops_end: '</a>'.html_safe, quickstart_start: quickstart_start, quickstart_end: '</a>'.html_safe }
@@ -43,7 +43,10 @@
       = _("Runners are processes that pick up and execute CI/CD jobs for GitLab.")
       = link_to s_('What is GitLab Runner?'), 'https://docs.gitlab.com/runner/', target: '_blank', rel: 'noopener noreferrer'
   .settings-content
-    = render 'projects/runners/settings'
+    - if Feature.enabled?(:project_runners_vue_ui, @project)
+      #js-project-runners{ data: { project_full_path: @project.full_path } }
+    - else
+      = render 'projects/runners/settings'
 
 - if Gitlab::CurrentSettings.current_application_settings.keep_latest_artifact?
   %section.settings.no-animate#js-artifacts-settings{ class: ('expanded' if expanded) }
@@ -57,7 +60,7 @@
     .settings-content
       #js-artifacts-settings-app{ data: { full_path: @project.full_path, help_page_path: help_page_path('ci/pipelines/job_artifacts', anchor: 'keep-artifacts-from-most-recent-successful-jobs') } }
 
-%section.qa-variables-settings.settings.no-animate#js-cicd-variables-settings{ class: ('expanded' if expanded), data: { qa_selector: 'variables_settings_content' } }
+%section.settings.no-animate#js-cicd-variables-settings{ class: ('expanded' if expanded), data: { qa_selector: 'variables_settings_content' } }
   .settings-header
     = render 'ci/variables/header', expanded: expanded
   .settings-content
@@ -103,8 +106,7 @@
     = render Pajamas::ButtonComponent.new(button_options: { class: 'js-settings-toggle' }) do
       = expanded ? _('Collapse') : _('Expand')
     %p
-      = _("Control which projects can be accessed by API requests authenticated with this project's CI_JOB_TOKEN CI/CD variable. It is a security risk to disable this feature, because unauthorized projects might attempt to retrieve an active token and access the API.")
-      = link_to _('Learn more'), help_page_path('ci/jobs/ci_job_token'), target: '_blank', rel: 'noopener noreferrer'
+      = _("Control how the CI_JOB_TOKEN CI/CD variable is used for API access between projects.")
   .settings-content
     = render 'ci/token_access/index'
 
@@ -120,4 +122,3 @@
         = link_to _('Learn more'), help_page_path('ci/secure_files/index'), target: '_blank', rel: 'noopener noreferrer'
     .settings-content
       #js-ci-secure-files{ data: { project_id: @project.id, admin: can?(current_user, :admin_secure_files, @project).to_s, file_size_limit: Ci::SecureFile::FILE_SIZE_LIMIT.to_mb } }
-

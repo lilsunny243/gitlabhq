@@ -15,6 +15,8 @@ module Ci
     private
 
     def process(build)
+      return enqueue(build) if build.enqueue_immediately?
+
       if build.schedulable?
         build.schedule
       elsif build.action?
@@ -25,6 +27,8 @@ module Ci
     end
 
     def enqueue(build)
+      return build.drop!(:failed_outdated_deployment_job) if build.outdated_deployment?
+
       build.enqueue
     end
 

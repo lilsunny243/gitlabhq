@@ -2,7 +2,8 @@
 
 require "spec_helper"
 
-RSpec.describe Gitlab::Ci::Parsers::Sbom::Validators::CyclonedxSchemaValidator do
+RSpec.describe Gitlab::Ci::Parsers::Sbom::Validators::CyclonedxSchemaValidator,
+  feature_category: :dependency_management do
   # Reports should be valid or invalid according to the specification at
   # https://cyclonedx.org/docs/1.4/json/
 
@@ -61,6 +62,47 @@ RSpec.describe Gitlab::Ci::Parsers::Sbom::Validators::CyclonedxSchemaValidator d
       it { is_expected.to be_valid }
     end
 
+    context 'when components have licenses' do
+      let(:components) do
+        [
+          {
+            "type" => "library",
+            "name" => "activesupport",
+            "version" => "5.1.4",
+            "licenses" => [
+              { "license" => { "id" => "MIT" } }
+            ]
+          }
+        ]
+      end
+
+      it { is_expected.to be_valid }
+    end
+
+    context 'when components have a signature' do
+      let(:components) do
+        [
+          {
+            "type" => "library",
+            "name" => "activesupport",
+            "version" => "5.1.4",
+            "signature" => {
+              "algorithm" => "ES256",
+              "publicKey" => {
+                "kty" => "EC",
+                "crv" => "P-256",
+                "x" => "6BKxpty8cI-exDzCkh-goU6dXq3MbcY0cd1LaAxiNrU",
+                "y" => "mCbcvUzm44j3Lt2b5BPyQloQ91tf2D2V-gzeUxWaUdg"
+              },
+              "value" => "ybT1qz5zHNi4Ndc6y7Zhamuf51IqXkPkZwjH1XcC-KSuBiaQplTw6Jasf2MbCLg3CF7PAdnMO__WSLwvI5r2jA"
+            }
+          }
+        ]
+      end
+
+      it { is_expected.to be_valid }
+    end
+
     context "when components are not valid" do
       let(:components) do
         [
@@ -72,12 +114,13 @@ RSpec.describe Gitlab::Ci::Parsers::Sbom::Validators::CyclonedxSchemaValidator d
       it { is_expected.not_to be_valid }
 
       it "outputs errors for each validation failure" do
-        expect(validator.errors).to match_array([
-          "property '/components/0' is missing required keys: name",
-          "property '/components/0/type' is not one of: [\"application\", \"framework\"," \
-            " \"library\", \"container\", \"operating-system\", \"device\", \"firmware\", \"file\"]",
-          "property '/components/1' is missing required keys: type"
-        ])
+        expect(validator.errors).to match_array(
+          [
+            "property '/components/0' is missing required keys: name",
+            "property '/components/0/type' is not one of: [\"application\", \"framework\"," \
+              " \"library\", \"container\", \"operating-system\", \"device\", \"firmware\", \"file\"]",
+            "property '/components/1' is missing required keys: type"
+          ])
       end
     end
   end
@@ -121,10 +164,11 @@ RSpec.describe Gitlab::Ci::Parsers::Sbom::Validators::CyclonedxSchemaValidator d
         it { is_expected.not_to be_valid }
 
         it "outputs errors for each validation failure" do
-          expect(validator.errors).to match_array([
-            "property '/metadata/properties/0/name' is not of type: string",
-            "property '/metadata/properties/0/value' is not of type: string"
-          ])
+          expect(validator.errors).to match_array(
+            [
+              "property '/metadata/properties/0/name' is not of type: string",
+              "property '/metadata/properties/0/value' is not of type: string"
+            ])
         end
       end
     end

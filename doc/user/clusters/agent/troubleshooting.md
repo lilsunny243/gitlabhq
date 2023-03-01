@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting the GitLab agent for Kubernetes
@@ -108,7 +108,7 @@ certificate authority that is unknown to the agent.
 
 To fix this issue, you can present the CA certificate file to the agent
 by using a Kubernetes `configmap` and mount the file in the agent `/etc/ssl/certs` directory from where it
-will be picked up automatically.
+is picked up automatically.
 
 For example, if your internal CA certificate is `myCA.pem`:
 
@@ -200,7 +200,7 @@ are stored in the repository where the agent is configured.
 ```
 
 The GitLab agent performs vulnerability scans by creating a job to scan each workload. If a scan
-is interrupted, these jobs may be left behind and will need to be cleaned up before more jobs can
+is interrupted, these jobs may be left behind and need to be cleaned up before more jobs can
 be run. You can clean up these jobs by running:
 
 ```shell
@@ -208,3 +208,34 @@ kubectl delete jobs -l app.kubernetes.io/managed-by=starboard -n gitlab-agent
 ```
 
 [We're working on making the cleanup of these jobs more robust.](https://gitlab.com/gitlab-org/gitlab/-/issues/362016)
+
+## Inventory policy prevented actuation (strategy: Apply, status: Empty, policy: MustMatch)
+
+```json
+{
+  "error":"inventory policy prevented actuation (strategy: Apply, status: Empty, policy: MustMatch)",
+  "group":"networking.k8s.io",
+  "kind":"Deployment",
+  "name":"resource-name",
+  "namespace":"namespace",
+  "status":"Skipped",
+  "timestamp":"2022-10-29T15:34:21Z",
+  "type":"apply"
+}
+```
+
+This error occurs when the GitLab agent tries to update an object and the object doesn't have the required annotations. To fix this error, you can:
+
+- Add the required annotations manually.
+- Delete the object and let the agent recreate it.
+- Change your [`inventory_policy`](../../infrastructure/clusters/deploy/inventory_object.md#inventory_policy-options) setting.
+
+## Parse error during installation
+
+When you install the agent, you might encounter an error that states:
+
+```shell
+Error: parse error at (gitlab-agent/templates/observability-secret.yaml:1): unclosed action
+```
+
+This error is typically caused by an incompatible version of Helm. To resolve the issue, ensure that you are using a version of Helm [compatible with your version of Kubernetes](index.md#supported-cluster-versions).

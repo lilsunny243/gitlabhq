@@ -15,12 +15,13 @@ RSpec.describe Ci::PipelineEntity do
     subject { entity.as_json }
 
     context 'when pipeline is empty' do
-      let(:pipeline) { create(:ci_empty_pipeline) }
+      let(:pipeline) { create(:ci_empty_pipeline, name: 'Build pipeline') }
 
       it 'contains required fields' do
         expect(subject).to include :id, :iid, :user, :path, :coverage, :source
         expect(subject).to include :ref, :commit
         expect(subject).to include :updated_at, :created_at
+        expect(subject[:name]).to eq('Build pipeline')
       end
 
       it 'excludes coverage data when disabled' do
@@ -31,10 +32,14 @@ RSpec.describe Ci::PipelineEntity do
       end
 
       it 'contains details' do
+        allow(pipeline).to receive(:merge_request_event_type).and_return(:merged_result)
+
         expect(subject).to include :details
         expect(subject[:details])
-          .to include :duration, :finished_at, :name
+          .to include :duration, :finished_at, :event_type_name
         expect(subject[:details][:status]).to include :icon, :favicon, :text, :label, :tooltip
+
+        expect(subject[:details][:event_type_name]).to eq('Merged result pipeline')
       end
 
       it 'contains flags' do

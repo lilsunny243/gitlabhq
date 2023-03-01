@@ -1,25 +1,11 @@
 <script>
 import { GlButton, GlTable } from '@gitlab/ui';
-import { __, s__ } from '~/locale';
+import { s__ } from '~/locale';
 
 export default {
   i18n: {
     emptyText: s__('CI/CD|No projects have been added to the scope'),
   },
-  fields: [
-    {
-      key: 'project',
-      label: __('Projects that can be accessed'),
-      tdClass: 'gl-p-5!',
-      columnClass: 'gl-w-85p',
-    },
-    {
-      key: 'actions',
-      label: '',
-      tdClass: 'gl-p-5! gl-text-right',
-      columnClass: 'gl-w-15p',
-    },
-  ],
   components: {
     GlButton,
     GlTable,
@@ -34,6 +20,10 @@ export default {
       type: Array,
       required: true,
     },
+    tableFields: {
+      type: Array,
+      required: true,
+    },
   },
   methods: {
     removeProject(project) {
@@ -45,7 +35,7 @@ export default {
 <template>
   <gl-table
     :items="projects"
-    :fields="$options.fields"
+    :fields="tableFields"
     :tbody-tr-attr="{ 'data-testid': 'projects-token-table-row' }"
     :empty-text="$options.i18n.emptyText"
     show-empty
@@ -57,7 +47,11 @@ export default {
     </template>
 
     <template #cell(project)="{ item }">
-      {{ item.name }}
+      <span data-testid="token-access-project-name">{{ item.name }}</span>
+    </template>
+
+    <template #cell(namespace)="{ item }">
+      <span data-testid="token-access-project-namespace">{{ item.namespace.fullPath }}</span>
     </template>
 
     <template #cell(actions)="{ item }">

@@ -1,10 +1,19 @@
 import Api from '~/api';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
+import axios from '~/lib/utils/axios_utils';
 import { visitUrl, setUrlParams } from '~/lib/utils/url_utility';
+import { logError } from '~/lib/logger';
 import { __ } from '~/locale';
+import { languageFilterData } from '~/search/sidebar/constants/language_filter_data';
 import { GROUPS_LOCAL_STORAGE_KEY, PROJECTS_LOCAL_STORAGE_KEY, SIDEBAR_PARAMS } from './constants';
 import * as types from './mutation_types';
-import { loadDataFromLS, setFrequentItemToLS, mergeById, isSidebarDirty } from './utils';
+import {
+  loadDataFromLS,
+  setFrequentItemToLS,
+  mergeById,
+  isSidebarDirty,
+  getAggregationsUrl,
+} from './utils';
 
 export const fetchGroups = ({ commit }, search) => {
   commit(types.REQUEST_GROUPS);
@@ -13,7 +22,7 @@ export const fetchGroups = ({ commit }, search) => {
       commit(types.RECEIVE_GROUPS_SUCCESS, data);
     })
     .catch(() => {
-      createFlash({ message: __('There was a problem fetching groups.') });
+      createAlert({ message: __('There was a problem fetching groups.') });
       commit(types.RECEIVE_GROUPS_ERROR);
     });
 };
@@ -23,7 +32,7 @@ export const fetchProjects = ({ commit, state }, search) => {
   const groupId = state.query?.group_id;
 
   const handleCatch = () => {
-    createFlash({ message: __('There was an error fetching projects') });
+    createAlert({ message: __('There was an error fetching projects') });
     commit(types.RECEIVE_PROJECTS_ERROR);
   };
   const handleSuccess = ({ data }) => {
@@ -59,7 +68,7 @@ export const loadFrequentGroups = async ({ commit, state }) => {
     const inflatedData = mergeById(await Promise.all(promises), storedData);
     commit(types.LOAD_FREQUENT_ITEMS, { key: GROUPS_LOCAL_STORAGE_KEY, data: inflatedData });
   } catch {
-    createFlash({ message: __('There was a problem fetching recent groups.') });
+    createAlert({ message: __('There was a problem fetching recent groups.') });
   }
 };
 
@@ -70,7 +79,7 @@ export const loadFrequentProjects = async ({ commit, state }) => {
     const inflatedData = mergeById(await Promise.all(promises), storedData);
     commit(types.LOAD_FREQUENT_ITEMS, { key: PROJECTS_LOCAL_STORAGE_KEY, data: inflatedData });
   } catch {
-    createFlash({ message: __('There was a problem fetching recent projects.') });
+    createAlert({ message: __('There was a problem fetching recent projects.') });
   }
 };
 
@@ -93,9 +102,48 @@ export const setQuery = ({ state, commit }, { key, value }) => {
 };
 
 export const applyQuery = ({ state }) => {
-  visitUrl(setUrlParams({ ...state.query, page: null }));
+  visitUrl(setUrlParams({ ...state.query, page: null }, window.location.href, false, true));
 };
 
 export const resetQuery = ({ state }) => {
-  visitUrl(setUrlParams({ ...state.query, page: null, state: null, confidential: null }));
+  visitUrl(
+    setUrlParams({ ...state.query, page: null, state: null, confidential: null }, undefined, true),
+  );
+};
+
+export const resetLanguageQueryWithRedirect = ({ state }) => {
+  visitUrl(setUrlParams({ ...state.query, language: null }, undefined, true));
+};
+
+export const resetLanguageQuery = ({ commit }) => {
+  commit(types.SET_QUERY, { key: languageFilterData?.filterParam, value: [] });
+};
+
+export const fetchSidebarCount = ({ commit, state }) => {
+  const promises = Object.keys(state.navigation).map((scope) => {
+    // active nav item has count already so we skip it
+    if (scope !== state.urlQuery.scope) {
+      return axios
+        .get(state.navigation[scope].count_link)
+        .then(({ data: { count } }) => {
+          commit(types.RECEIVE_NAVIGATION_COUNT, { key: scope, count });
+        })
+        .catch((e) => logError(e));
+    }
+    return Promise.resolve();
+  });
+  return Promise.all(promises);
+};
+
+export const fetchLanguageAggregation = ({ commit }) => {
+  commit(types.REQUEST_AGGREGATIONS);
+  return axios
+    .get(getAggregationsUrl())
+    .then(({ data }) => {
+      commit(types.RECEIVE_AGGREGATIONS_SUCCESS, data);
+    })
+    .catch((e) => {
+      logError(e);
+      commit(types.RECEIVE_AGGREGATIONS_ERROR);
+    });
 };

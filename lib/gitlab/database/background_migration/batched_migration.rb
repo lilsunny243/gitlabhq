@@ -8,6 +8,7 @@ module Gitlab
         BATCH_CLASS_MODULE = "#{JOB_CLASS_MODULE}::BatchingStrategies"
         MAXIMUM_FAILED_RATIO = 0.5
         MINIMUM_JOBS = 50
+        FINISHED_PROGRESS_VALUE = 100
 
         self.table_name = :batched_background_migrations
 
@@ -58,19 +59,19 @@ module Gitlab
           state :finalizing, value: 5
 
           event :pause do
-            transition any => :paused
+            transition [:active, :paused] => :paused
           end
 
           event :execute do
-            transition any => :active
+            transition [:active, :paused, :failed] => :active
           end
 
           event :finish do
-            transition any => :finished
+            transition [:paused, :finished, :active, :finalizing] => :finished
           end
 
           event :failure do
-            transition any => :failed
+            transition [:failed, :finalizing, :active] => :failed
           end
 
           event :finalize do
@@ -93,8 +94,21 @@ module Gitlab
         end
 
         def self.active_migration(connection:)
+          active_migrations_distinct_on_table(connection: connection, limit: 1).first
+        end
+
+        def self.find_executable(id, connection:)
           for_gitlab_schema(Gitlab::Database.gitlab_schemas_for_connection(connection))
-            .executable.queue_order.first
+            .executable.find_by_id(id)
+        end
+
+        def self.active_migrations_distinct_on_table(connection:, limit:)
+          distinct_on_table = select('DISTINCT ON (table_name) id')
+            .for_gitlab_schema(Gitlab::Database.gitlab_schemas_for_connection(connection))
+            .executable
+            .order(table_name: :asc, id: :asc)
+
+          where(id: distinct_on_table).queue_order.limit(limit)
         end
 
         def self.successful_rows_counts(migrations)
@@ -232,7 +246,15 @@ module Gitlab
           "BatchedMigration[id: #{id}]"
         end
 
+        # Computes an estimation of the progress of the migration in percents.
+        #
+        # Because `total_tuple_count` is an estimation of the tuples based on DB statistics
+        # when the migration is complete there can actually be more or less tuples that initially
+        # estimated as `total_tuple_count` so the progress may not show 100%. For that reason when
+        # we know migration completed successfully, we just return the 100 value
         def progress
+          return FINISHED_PROGRESS_VALUE if finished?
+
           return unless total_tuple_count.to_i > 0
 
           100 * migrated_tuple_count / total_tuple_count

@@ -73,7 +73,7 @@ describe('Details Header', () => {
       apolloProvider,
       propsData,
       directives: {
-        GlTooltip: createMockDirective(),
+        GlTooltip: createMockDirective('gl-tooltip'),
       },
       stubs: {
         TitleArea,
@@ -120,7 +120,7 @@ describe('Details Header', () => {
         return waitForPromises();
       });
 
-      it('shows image.name ', () => {
+      it('shows image.name', () => {
         expect(findTitle().text()).toContain('foo');
       });
 
@@ -289,7 +289,7 @@ describe('Details Header', () => {
       );
     });
 
-    describe('visibility and updated at ', () => {
+    describe('visibility and updated at', () => {
       it('has last updated text', async () => {
         mountComponent();
         await waitForMetadataItems();

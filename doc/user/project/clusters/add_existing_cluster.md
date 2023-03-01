@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Connect existing clusters through cluster certificates (DEPRECATED) **(FREE)**
@@ -68,8 +68,8 @@ To add a Kubernetes cluster to your project, group, or instance:
 1. Navigate to your:
    1. Project's **{cloud-gear}** **Infrastructure > Kubernetes clusters** page, for a project-level cluster.
    1. Group's **{cloud-gear}** **Kubernetes** page, for a group-level cluster.
-   1. **Menu > Admin > Kubernetes** page, for an instance-level cluster.
-1. On the **Kubernetes clusters** page, select the **Connect with a certificate** option from the **Actions** dropdown menu.
+   1. **Main menu > Admin > Kubernetes** page, for an instance-level cluster.
+1. On the **Kubernetes clusters** page, select the **Connect with a certificate** option from the **Actions** dropdown list.
 1. On the **Connect a cluster** page, fill in the details:
    1. **Kubernetes cluster name** (required) - The name you wish to give the cluster.
    1. **Environment scope** (required) - The
@@ -244,8 +244,8 @@ You may also experience this error if your certificate is not valid. To check th
 subject alternative names contain the correct domain for your cluster's API, run this command:
 
 ```shell
-echo | openssl s_client -showcerts -connect kubernetes.example.com:443 2>/dev/null |
+echo | openssl s_client -showcerts -connect kubernetes.example.com:443 -servername kubernetes.example.com 2>/dev/null |
 openssl x509 -inform pem -noout -text
 ```
 
-The `-connect` argument expects a `host:port` combination. For example, `https://kubernetes.example.com` would be `kubernetes.example.com:443`.
+The `-connect` argument expects a `host:port` combination. For example, `https://kubernetes.example.com` would be `kubernetes.example.com:443`. The `-servername` argument expects a domain without any URI, for example `kubernetes.example.com`.

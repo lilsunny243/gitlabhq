@@ -2,7 +2,7 @@
 
 RSpec.shared_examples 'assigns build to package' do
   context 'with build info' do
-    let(:job) { create(:ci_build, user: user) }
+    let(:job) { create(:ci_build, user: user, project: project) }
     let(:params) { super().merge(build: job) }
 
     it 'assigns the pipeline to the package' do
@@ -188,20 +188,6 @@ RSpec.shared_examples 'returns paginated packages' do
   end
 end
 
-RSpec.shared_examples 'background upload schedules a file migration' do
-  context 'background upload enabled' do
-    before do
-      stub_package_file_object_storage(background_upload: true)
-    end
-
-    it 'schedules migration of file to object storage' do
-      expect(ObjectStorage::BackgroundMoveWorker).to receive(:perform_async).with('Packages::PackageFileUploader', 'Packages::PackageFile', :file, kind_of(Numeric))
-
-      subject
-    end
-  end
-end
-
 RSpec.shared_context 'package filter context' do
   def package_filter_url(filter, param)
     "/projects/#{project.id}/packages?package_#{filter}=#{param}"
@@ -227,6 +213,7 @@ RSpec.shared_examples 'filters on each package_type' do |is_project: false|
   let_it_be(:package10) { create(:rubygems_package, project: project) }
   let_it_be(:package11) { create(:helm_package, project: project) }
   let_it_be(:package12) { create(:terraform_module_package, project: project) }
+  let_it_be(:package13) { create(:rpm_package, project: project) }
 
   Packages::Package.package_types.keys.each do |package_type|
     context "for package type #{package_type}" do

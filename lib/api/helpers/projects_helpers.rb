@@ -32,16 +32,23 @@ module API
         optional :builds_access_level, type: String, values: %w(disabled private enabled), desc: 'Builds access level. One of `disabled`, `private` or `enabled`'
         optional :snippets_access_level, type: String, values: %w(disabled private enabled), desc: 'Snippets access level. One of `disabled`, `private` or `enabled`'
         optional :pages_access_level, type: String, values: %w(disabled private enabled public), desc: 'Pages access level. One of `disabled`, `private`, `enabled` or `public`'
-        optional :operations_access_level, type: String, values: %w(disabled private enabled), desc: 'Operations access level. One of `disabled`, `private` or `enabled`'
+        optional :operations_access_level, type: String, values: %w(disabled private enabled), desc: 'Operations access level. One of `disabled`, `private` or `enabled`. Deprecated in GitLab 15.8, see https://gitlab.com/gitlab-org/gitlab/-/issues/385798.'
         optional :analytics_access_level, type: String, values: %w(disabled private enabled), desc: 'Analytics access level. One of `disabled`, `private` or `enabled`'
         optional :container_registry_access_level, type: String, values: %w(disabled private enabled), desc: 'Controls visibility of the container registry. One of `disabled`, `private` or `enabled`. `private` will make the container registry accessible only to project members (reporter role and above). `enabled` will make the container registry accessible to everyone who has access to the project. `disabled` will disable the container registry'
         optional :security_and_compliance_access_level, type: String, values: %w(disabled private enabled), desc: 'Security and compliance access level. One of `disabled`, `private` or `enabled`'
+        optional :releases_access_level, type: String, values: %w(disabled private enabled), desc: 'Releases access level. One of `disabled`, `private` or `enabled`'
+        optional :environments_access_level, type: String, values: %w(disabled private enabled), desc: 'Environments access level. One of `disabled`, `private` or `enabled`'
+        optional :feature_flags_access_level, type: String, values: %w(disabled private enabled), desc: 'Feature flags access level. One of `disabled`, `private` or `enabled`'
+        optional :infrastructure_access_level, type: String, values: %w(disabled private enabled), desc: 'Infrastructure access level. One of `disabled`, `private` or `enabled`'
+        optional :monitor_access_level, type: String, values: %w(disabled private enabled), desc: 'Monitor access level. One of `disabled`, `private` or `enabled`'
 
         optional :emails_disabled, type: Boolean, desc: 'Disable email notifications'
         optional :show_default_award_emojis, type: Boolean, desc: 'Show default award emojis'
+        optional :show_diff_preview_in_email, type: Boolean, desc: 'Include the code diff preview in merge request notification emails'
         optional :warn_about_potentially_unwanted_characters, type: Boolean, desc: 'Warn about Potentially Unwanted Characters'
         optional :enforce_auth_checks_on_uploads, type: Boolean, desc: 'Enforce auth check on uploads'
         optional :shared_runners_enabled, type: Boolean, desc: 'Flag indication if shared runners are enabled for that project'
+        optional :group_runners_enabled, type: Boolean, desc: 'Flag indication if group runners are enabled for that project'
         optional :resolve_outdated_diff_discussions, type: Boolean, desc: 'Automatically resolve merge request diff threads on lines changed with a push'
         optional :remove_source_branch_after_merge, type: Boolean, desc: 'Remove the source branch by default after merge'
         optional :container_registry_enabled, type: Boolean, desc: 'Deprecated: Use :container_registry_access_level instead. Flag indication if the container registry is enabled for that project'
@@ -57,12 +64,13 @@ module API
         optional :only_allow_merge_if_all_discussions_are_resolved, type: Boolean, desc: 'Only allow to merge if all threads are resolved'
         optional :tag_list, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, desc: 'Deprecated: Use :topics instead'
         optional :topics, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, desc: 'The list of topics for a project'
-        optional :avatar, type: ::API::Validations::Types::WorkhorseFile, desc: 'Avatar image for project'
+        optional :avatar, type: ::API::Validations::Types::WorkhorseFile, desc: 'Avatar image for project', documentation: { type: 'file' }
         optional :printing_merge_request_link_enabled, type: Boolean, desc: 'Show link to create/view merge request when pushing from the command line'
         optional :merge_method, type: String, values: %w(ff rebase_merge merge), desc: 'The merge method used when merging merge requests'
         optional :suggestion_commit_message, type: String, desc: 'The commit message used to apply merge request suggestions'
         optional :merge_commit_template, type: String, desc: 'Template used to create merge commit message'
         optional :squash_commit_template, type: String, desc: 'Template used to create squash commit message'
+        optional :issue_branch_template, type: String, desc: 'Template used to create a branch from an issue'
         optional :initialize_with_readme, type: Boolean, desc: "Initialize a project with a README.md"
         optional :ci_default_git_depth, type: Integer, desc: 'Default number of revisions for shallow cloning'
         optional :auto_devops_enabled, type: Boolean, desc: 'Flag indication if Auto DevOps is enabled'
@@ -71,7 +79,7 @@ module API
         optional :repository_storage, type: String, desc: 'Which storage shard the repository is on. Available only to admins'
         optional :packages_enabled, type: Boolean, desc: 'Enable project packages feature'
         optional :squash_option, type: String, values: %w(never always default_on default_off), desc: 'Squash default for project. One of `never`, `always`, `default_on`, or `default_off`.'
-        optional :mr_default_target_self, Boolean, desc: 'Merge requests of this forked project targets itself by default'
+        optional :mr_default_target_self, type: Boolean, desc: 'Merge requests of this forked project targets itself by default'
       end
 
       params :optional_project_params_ee do
@@ -94,7 +102,7 @@ module API
       end
 
       params :optional_update_params_ce do
-        optional :ci_forward_deployment_enabled, type: Boolean, desc: 'Skip older deployment jobs that are still pending'
+        optional :ci_forward_deployment_enabled, type: Boolean, desc: 'Prevent older deployment jobs that are still pending'
         optional :ci_allow_fork_pipelines_to_run_in_parent_project, type: Boolean, desc: 'Allow fork merge request pipelines to run in parent project'
         optional :ci_separated_caches, type: Boolean, desc: 'Enable or disable separated caches based on branch protection.'
         optional :restrict_user_defined_variables, type: Boolean, desc: 'Restrict use of user-defined variables when triggering a pipeline'
@@ -159,9 +167,11 @@ module API
           :request_access_enabled,
           :resolve_outdated_diff_discussions,
           :restrict_user_defined_variables,
+          :show_diff_preview_in_email,
           :security_and_compliance_access_level,
           :squash_option,
           :shared_runners_enabled,
+          :group_runners_enabled,
           :snippets_access_level,
           :tag_list,
           :topics,
@@ -171,12 +181,18 @@ module API
           :suggestion_commit_message,
           :merge_commit_template,
           :squash_commit_template,
+          :issue_branch_template,
           :repository_storage,
           :packages_enabled,
           :service_desk_enabled,
           :keep_latest_artifact,
           :mr_default_target_self,
           :enforce_auth_checks_on_uploads,
+          :releases_access_level,
+          :environments_access_level,
+          :feature_flags_access_level,
+          :infrastructure_access_level,
+          :monitor_access_level,
 
           # TODO: remove in API v5, replaced by *_access_level
           :issues_enabled,
@@ -189,6 +205,9 @@ module API
       end
 
       def filter_attributes_using_license!(attrs)
+      end
+
+      def filter_attributes_under_feature_flag!(attrs, project)
       end
 
       def validate_git_import_url!(import_url)

@@ -27,9 +27,9 @@ module Gitlab
 
               validates :config, disallowed_keys: {
                   in: %i[only except start_in],
-                  message: 'key may not be used with `rules`'
-                },
-                                 if: :has_rules?
+                  message: 'key may not be used with `rules`',
+                  ignore_nil: true
+                }, if: :has_rules_value?
 
               with_options allow_nil: true do
                 validates :extends, array_of_strings_or_string: true
@@ -60,6 +60,7 @@ module Gitlab
 
             entry :variables, ::Gitlab::Ci::Config::Entry::Variables,
               description: 'Environment variables available for this job.',
+              metadata: { allowed_value_data: %i[value expand] },
               inherit: false
 
             entry :inherit, ::Gitlab::Ci::Config::Entry::Inherit,
@@ -120,7 +121,7 @@ module Gitlab
               stage: stage_value,
               extends: extends,
               rules: rules_value,
-              job_variables: variables_value.to_h,
+              job_variables: variables_entry.value_with_data,
               root_variables_inheritance: root_variables_inheritance,
               only: only_value,
               except: except_value,

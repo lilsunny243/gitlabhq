@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Labels do
+RSpec.describe API::Labels, feature_category: :team_planning do
   def put_labels_api(route_type, user, spec_params, request_params = {})
     if route_type == :deprecated
       put api("/projects/#{project.id}/labels", user),
@@ -234,7 +234,7 @@ RSpec.describe API::Labels do
       before do
         create(:labeled_issue, project: project, labels: [group_label], author: user)
         create(:labeled_issue, project: project, labels: [label1], author: user, state: :closed)
-        create(:labeled_merge_request, labels: [priority_label], author: user, source_project: project )
+        create(:labeled_merge_request, labels: [priority_label], author: user, source_project: project)
       end
 
       it 'includes counts in the response' do

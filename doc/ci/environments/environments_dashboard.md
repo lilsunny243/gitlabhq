@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -21,7 +21,7 @@ diagnose if there is a block at a particular point, or if there's
 a more systemic problem you need to investigate.
 
 You can access the dashboard on the top bar by selecting
-**Menu > Environments**.
+**Main menu > Environments**.
 
 ![Environments Dashboard with projects](img/environments_dashboard_v12_5.png)
 
@@ -29,7 +29,7 @@ The Environments dashboard displays a paginated list of projects that includes
 up to three environments per project.
 
 The listed environments for each project are unique, such as
-"production", "staging", and so on. Review apps and other grouped
+"production" and "staging". Review apps and other grouped
 environments are not displayed.
 
 ## Adding a project to the dashboard

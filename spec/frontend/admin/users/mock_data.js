@@ -1,3 +1,5 @@
+import { OBSTACLE_TYPES } from '~/vue_shared/components/user_deletion_obstacles/constants';
+
 export const users = [
   {
     id: 2177,
@@ -48,3 +50,23 @@ export const createGroupCountResponse = (groupCounts) => ({
     },
   },
 });
+
+export const associationsCount = {
+  groups_count: 5,
+  projects_count: 5,
+  issues_count: 5,
+  merge_requests_count: 5,
+};
+
+export const userDeletionObstacles = [
+  { name: 'schedule1', type: OBSTACLE_TYPES.oncallSchedules },
+  { name: 'policy1', type: OBSTACLE_TYPES.escalationPolicies },
+];
+
+export const userStatus = {
+  emoji: 'basketball',
+  message: 'test',
+  availability: 'busy',
+  message_html: 'test',
+  clear_status_at: '2023-01-04T10:00:00.000Z',
+};

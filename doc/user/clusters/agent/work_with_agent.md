@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Working with the agent for Kubernetes **(FREE)**
@@ -18,7 +18,8 @@ Prerequisite:
 
 To view the list of agents:
 
-1. On the top bar, select **Menu > Projects** and find the project that contains your agent configuration file.
+1. On the top bar, select **Main menu > Projects** and find the project that contains your agent configuration file.
+   You cannot view registered agents from a project that does not contain the agent configuration file.
 1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
 1. Select **Agent** tab to view clusters connected to GitLab through the agent.
 
@@ -37,7 +38,7 @@ The activity logs help you to identify problems and get the information
 you need for troubleshooting. You can see events from a week before the
 current date. To view an agent's activity:
 
-1. On the top bar, select **Menu > Projects** and find the project that contains your agent configuration file.
+1. On the top bar, select **Main menu > Projects** and find the project that contains your agent configuration file.
 1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
 1. Select the agent you want to see activity for.
 
@@ -59,7 +60,6 @@ To debug the cluster-side component (`agentk`) of the agent, set the log
 level according to the available options:
 
 - `error`
-- `warning`
 - `info`
 - `debug`
 
@@ -68,16 +68,16 @@ The agent has two loggers:
 - A general purpose logger, which defaults to `info`.
 - A gRPC logger, which defaults to `error`.
 
-One can change their log levels by using a top-level `observability` section in the [agent configuration file](install/index.md#configure-your-agent), for example setting the levels to `debug` and `warning`:
+You can change your log levels by using a top-level `observability` section in the [agent configuration file](install/index.md#configure-your-agent), for example setting the levels to `debug` and `warn`:
 
 ```yaml
 observability:
   logging:
     level: debug
-    grpc_level: warning
+    grpc_level: warn
 ```
 
-When `grpc_level` is set to `info` or below, there will be a lot of gRPC logs.
+When `grpc_level` is set to `info` or below, there are a lot of gRPC logs.
 
 Commit the configuration changes and inspect the agent service logs:
 
@@ -95,7 +95,7 @@ For more information about debugging, see [troubleshooting documentation](troubl
 To reset the agent token without downtime:
 
 1. Create a new token:
-   1. On the top bar, select **Menu > Projects** and find your project.
+   1. On the top bar, select **Main menu > Projects** and find your project.
    1. On the left sidebar, select **Infrastructure > Kubernetes clusters**.
    1. Select the agent you want to create a token for.
    1. On the **Access tokens** tab, select **Create token**.
@@ -117,7 +117,7 @@ clean up those resources manually.
 
 To remove an agent from the UI:
 
-1. On the top bar, select **Menu > Projects** and find the project that contains the agent configuration file.
+1. On the top bar, select **Main menu > Projects** and find the project that contains the agent configuration file.
 1. From the left sidebar, select **Infrastructure > Kubernetes clusters**.
 1. In the table, in the row for your agent, in the **Options** column, select the vertical ellipsis (**{ellipsis_v}**).
 1. Select **Delete agent**.

@@ -4,6 +4,7 @@ require 'spec_helper'
 
 RSpec.describe ContinueParams do
   let(:controller_class) do
+    # rubocop:disable Rails/ApplicationController
     Class.new(ActionController::Base) do
       include ContinueParams
 
@@ -11,6 +12,7 @@ RSpec.describe ContinueParams do
         @request ||= Struct.new(:host, :port).new('test.host', 80)
       end
     end
+    # rubocop:enable Rails/ApplicationController
   end
 
   subject(:controller) { controller_class.new }
@@ -29,10 +31,7 @@ RSpec.describe ContinueParams do
 
   it 'cleans up any params that are not allowed' do
     allow(controller).to receive(:params) do
-      strong_continue_params(to: '/hello',
-                             notice: 'world',
-                             notice_now: '!',
-                             something: 'else')
+      strong_continue_params(to: '/hello', notice: 'world', notice_now: '!', something: 'else')
     end
 
     expect(controller.continue_params.keys).to contain_exactly(*%w(to notice notice_now))

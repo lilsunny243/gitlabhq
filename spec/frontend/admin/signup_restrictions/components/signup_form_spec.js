@@ -1,4 +1,4 @@
-import { GlButton, GlModal } from '@gitlab/ui';
+import { GlButton, GlModal, GlLink } from '@gitlab/ui';
 import { within } from '@testing-library/dom';
 import { shallowMount, mount, createWrapper } from '@vue/test-utils';
 import { stubComponent } from 'helpers/stub_component';
@@ -36,6 +36,7 @@ describe('Signup Form', () => {
   const findDenyListRawInputGroup = () => wrapper.findByTestId('domain-denylist-raw-input-group');
   const findDenyListFileInputGroup = () => wrapper.findByTestId('domain-denylist-file-input-group');
   const findUserCapInput = () => wrapper.findByTestId('user-cap-input');
+  const findUserCapFormGroup = () => wrapper.findByTestId('user-cap-form-group');
   const findModal = () => wrapper.findComponent(GlModal);
 
   afterEach(() => {
@@ -53,7 +54,6 @@ describe('Signup Form', () => {
       prop                                     | propValue                                       | elementSelector                                                             | formElementPassedDataType | formElementKey | expected
       ${'signupEnabled'}                       | ${mockData.signupEnabled}                       | ${'[name="application_setting[signup_enabled]"]'}                           | ${'prop'}                 | ${'value'}     | ${mockData.signupEnabled}
       ${'requireAdminApprovalAfterUserSignup'} | ${mockData.requireAdminApprovalAfterUserSignup} | ${'[name="application_setting[require_admin_approval_after_user_signup]"]'} | ${'prop'}                 | ${'value'}     | ${mockData.requireAdminApprovalAfterUserSignup}
-      ${'sendUserConfirmationEmail'}           | ${mockData.sendUserConfirmationEmail}           | ${'[name="application_setting[send_user_confirmation_email]"]'}             | ${'prop'}                 | ${'value'}     | ${mockData.sendUserConfirmationEmail}
       ${'newUserSignupsCap'}                   | ${mockData.newUserSignupsCap}                   | ${'[name="application_setting[new_user_signups_cap]"]'}                     | ${'attribute'}            | ${'value'}     | ${mockData.newUserSignupsCap}
       ${'minimumPasswordLength'}               | ${mockData.minimumPasswordLength}               | ${'[name="application_setting[minimum_password_length]"]'}                  | ${'attribute'}            | ${'value'}     | ${mockData.minimumPasswordLength}
       ${'minimumPasswordLengthMin'}            | ${mockData.minimumPasswordLengthMin}            | ${'[name="application_setting[minimum_password_length]"]'}                  | ${'attribute'}            | ${'min'}       | ${mockData.minimumPasswordLengthMin}
@@ -212,6 +212,21 @@ describe('Signup Form', () => {
 
         expect(formSubmitSpy).toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('rendering help links within user cap description', () => {
+    beforeEach(() => {
+      mountComponent({ mountFn: mount });
+    });
+
+    it('renders projectSharingHelpLink and groupSharingHelpLink', () => {
+      const [projectSharingLink, groupSharingLink] = findUserCapFormGroup().findAllComponents(
+        GlLink,
+      ).wrappers;
+
+      expect(projectSharingLink.attributes('href')).toBe(mockData.projectSharingHelpLink);
+      expect(groupSharingLink.attributes('href')).toBe(mockData.groupSharingHelpLink);
     });
   });
 });

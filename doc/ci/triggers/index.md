@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Authoring
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: tutorial
 ---
 
@@ -26,7 +26,7 @@ Prerequisite:
 
 To create a trigger token:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Pipeline triggers**.
 1. Enter a description and select **Add trigger**.
@@ -88,6 +88,7 @@ trigger_pipeline:
     - 'curl --fail --request POST --form token=$MY_TRIGGER_TOKEN --form ref=main "https://gitlab.example.com/api/v4/projects/123456/trigger/pipeline"'
   rules:
     - if: $CI_COMMIT_TAG
+  environment: production
 ```
 
 In this example:
@@ -124,7 +125,7 @@ Replace:
 
 If you trigger a pipeline by using a webhook, you can access the webhook payload with
 the `TRIGGER_PAYLOAD` [predefined CI/CD variable](../variables/predefined_variables.md).
-The payload is exposed as a [file-type variable](../variables/index.md#cicd-variable-types),
+The payload is exposed as a [file-type variable](../variables/index.md#use-file-type-cicd-variables),
 so you can access the data with `cat $TRIGGER_PAYLOAD` or a similar command.
 
 ### Pass CI/CD variables in the API call
@@ -152,7 +153,7 @@ users with the Owner and Maintainer role can view the values.
 
 To revoke a trigger token:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Pipeline triggers**.
 1. To the left of the trigger token you want to revoke, select **Revoke** (**{remove}**).
@@ -192,3 +193,21 @@ A response of `{"message":"404 Not Found"}` when triggering a pipeline might be 
 by using a [personal access token](../../user/profile/personal_access_tokens.md)
 instead of a trigger token. [Create a new trigger token](#create-a-trigger-token)
 and use it instead of the personal access token.
+
+### `The requested URL returned error: 400` when triggering a pipeline
+
+If you attempt to trigger a pipeline by using a `ref` that is a branch name that
+doesn't exist, GitLab returns `The requested URL returned error: 400`.
+
+For example, you might accidentally use `main` for the branch name in a project that
+uses a different branch name for its default branch.
+
+Another possible cause for this error is a rule that prevents creation of the pipelines when `CI_PIPELINE_SOURCE` value is `trigger`, such as:
+
+```yaml
+rules:
+  - if: $CI_PIPELINE_SOURCE == "trigger"
+    when: never
+```
+
+Review your [`workflow:rules`](../yaml/index.md#workflowrules) to ensure a pipeline can be created when `CI_PIPELINE_SOURCE` value is `trigger`.

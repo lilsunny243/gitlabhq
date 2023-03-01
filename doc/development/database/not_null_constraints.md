@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # `NOT NULL` constraints
@@ -25,7 +25,7 @@ For example, consider a migration that creates a table with two `NOT NULL` colum
 `db/migrate/20200401000001_create_db_guides.rb`:
 
 ```ruby
-class CreateDbGuides < Gitlab::Database::Migration[1.0]
+class CreateDbGuides < Gitlab::Database::Migration[2.1]
   def change
     create_table :db_guides do |t|
       t.bigint :stars, default: 0, null: false
@@ -44,7 +44,7 @@ For example, consider a migration that adds a new `NOT NULL` column `active` to 
 `db/migrate/20200501000001_add_active_to_db_guides.rb`:
 
 ```ruby
-class AddExtendedTitleToSprints < Gitlab::Database::Migration[1.0]
+class AddExtendedTitleToSprints < Gitlab::Database::Migration[2.1]
   def change
     add_column :db_guides, :active, :boolean, default: true, null: false
   end
@@ -53,8 +53,13 @@ end
 
 ## Add a `NOT NULL` constraint to an existing column
 
-Adding `NOT NULL` to existing database columns requires multiple steps split into at least two
-different releases:
+Adding `NOT NULL` to existing database columns usually requires multiple steps split into at least two
+different releases. If your table is small enough that you don't need to
+use a background migration, you can include all these in the same merge
+request. We recommend to use separate migrations to reduce
+transaction durations.
+
+The steps required are:
 
 1. Release `N.M` (current release)
 
@@ -88,7 +93,7 @@ We only want to enforce the `NOT NULL` constraint without setting a default, as 
 that all epics should have a user-generated description.
 
 After checking our production database, we know that there are `epics` with `NULL` descriptions,
-so we can not add and validate the constraint in one step.
+so we cannot add and validate the constraint in one step.
 
 NOTE:
 Even if we did not have any epic with a `NULL` description, another instance of GitLab could have
@@ -111,7 +116,7 @@ with `validate: false` in a post-deployment migration,
 `db/post_migrate/20200501000001_add_not_null_constraint_to_epics_description.rb`:
 
 ```ruby
-class AddNotNullConstraintToEpicsDescription < Gitlab::Database::Migration[1.0]
+class AddNotNullConstraintToEpicsDescription < Gitlab::Database::Migration[2.1]
   disable_ddl_transaction!
 
   def up
@@ -142,7 +147,7 @@ so we add a post-deployment migration for the 13.0 milestone (current),
 `db/post_migrate/20200501000002_cleanup_epics_with_null_description.rb`:
 
 ```ruby
-class CleanupEpicsWithNullDescription < Gitlab::Database::Migration[1.0]
+class CleanupEpicsWithNullDescription < Gitlab::Database::Migration[2.1]
   # With BATCH_SIZE=1000 and epics.count=29500 on GitLab.com
   # - 30 iterations will be run
   # - each requires on average ~150ms
@@ -180,7 +185,7 @@ migration helper in a final post-deployment migration,
 `db/post_migrate/20200601000001_validate_not_null_constraint_on_epics_description.rb`:
 
 ```ruby
-class ValidateNotNullConstraintOnEpicsDescription < Gitlab::Database::Migration[1.0]
+class ValidateNotNullConstraintOnEpicsDescription < Gitlab::Database::Migration[2.1]
   disable_ddl_transaction!
 
   def up
@@ -197,7 +202,7 @@ end
 
 If you have to clean up a nullable column for a [high-traffic table](../migration_style_guide.md#high-traffic-tables)
 (for example, the `artifacts` in `ci_builds`), your background migration goes on for a while and
-it needs an additional [background migration cleaning up](background_migrations.md#cleaning-up)
+it needs an additional [batched background migration cleaning up](batched_background_migrations.md#cleaning-up)
 in the release after adding the data migration.
 
 In that rare case you need 3 releases end-to-end:

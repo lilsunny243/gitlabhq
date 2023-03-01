@@ -100,7 +100,7 @@ module API
         options = {
           with: serializer,
           current_user: current_user,
-          statistics: params[:statistics] && current_user&.admin?
+          statistics: params[:statistics] && current_user&.can_read_all_resources?
         }
 
         groups = groups.with_statistics if options[:statistics]
@@ -123,6 +123,12 @@ module API
       end
 
       def present_groups_with_pagination_strategies(params, groups)
+        # Prevent Rails from optimizing the count query and inadvertadly creating a poor performing databse query.
+        # https://gitlab.com/gitlab-org/gitlab/-/issues/368969
+        if Feature.enabled?(:present_groups_select_all)
+          groups = groups.select(groups.arel_table[Arel.star])
+        end
+
         return present_groups(params, groups) if current_user.present?
 
         options = {
@@ -180,7 +186,7 @@ module API
       end
 
       def check_subscription!(group)
-        render_api_error!("This group can't be removed because it is linked to a subscription.", :bad_request) if group.paid?
+        render_api_error!("This group can't be removed because it is linked to a subscription.", :bad_request) if group.prevent_delete?
       end
     end
 
@@ -189,6 +195,8 @@ module API
 
       desc 'Get a groups list' do
         success Entities::Group
+        is_array true
+        tags %w[groups]
       end
       params do
         use :group_list_params
@@ -201,6 +209,7 @@ module API
 
       desc 'Create a group. Available only for users who can create groups.' do
         success Entities::Group
+        tags %w[groups]
       end
       params do
         requires :name, type: String, desc: 'The name of the group'
@@ -234,6 +243,7 @@ module API
     resource :groups, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       desc 'Update a group. Available only for users who can administrate groups.' do
         success Entities::Group
+        tags %w[groups]
       end
       params do
         optional :name, type: String, desc: 'The name of the group'
@@ -248,6 +258,8 @@ module API
 
         authorize! :admin_group, group
 
+        group.remove_avatar! if params.key?(:avatar) && params[:avatar].nil?
+
         if update_group(group)
           present_group_details(params, group, with_projects: true)
         else
@@ -257,6 +269,7 @@ module API
 
       desc 'Get a single group, with containing projects.' do
         success Entities::GroupDetail
+        tags %w[groups]
       end
       params do
         use :with_custom_attributes
@@ -270,7 +283,9 @@ module API
         present_group_details(params, group, with_projects: params[:with_projects])
       end
 
-      desc 'Remove a group.'
+      desc 'Remove a group.' do
+        tags %w[groups]
+      end
       delete ":id", feature_category: :subgroups, urgency: :low do
         group = find_group!(params[:id])
         authorize! :admin_group, group
@@ -281,6 +296,8 @@ module API
 
       desc 'Get a list of projects in this group.' do
         success Entities::Project
+        is_array true
+        tags %w[groups]
       end
       params do
         optional :archived, type: Boolean, desc: 'Limit by archived status'
@@ -321,6 +338,8 @@ module API
 
       desc 'Get a list of shared projects in this group' do
         success Entities::Project
+        is_array true
+        tags %w[groups]
       end
       params do
         optional :archived, type: Boolean, desc: 'Limit by archived status'
@@ -349,6 +368,8 @@ module API
 
       desc 'Get a list of subgroups in this group.' do
         success Entities::Group
+        is_array true
+        tags %w[groups]
       end
       params do
         use :group_list_params
@@ -361,6 +382,8 @@ module API
 
       desc 'Get a list of descendant groups of this group.' do
         success Entities::Group
+        is_array true
+        tags %w[groups]
       end
       params do
         use :group_list_params
@@ -374,6 +397,7 @@ module API
 
       desc 'Transfer a project to the group namespace. Available only for admin.' do
         success Entities::GroupDetail
+        tags %w[groups]
       end
       params do
         requires :project_id, type: String, desc: 'The ID or path of the project'
@@ -392,7 +416,11 @@ module API
         end
       end
 
-      desc 'Get the groups to where the current group can be transferred to'
+      desc 'Get the groups to where the current group can be transferred to' do
+        success Entities::Group
+        is_array true
+        tags %w[groups]
+      end
       params do
         optional :search, type: String, desc: 'Return list of namespaces matching the search criteria'
         use :pagination
@@ -407,7 +435,9 @@ module API
         present_groups params, groups, serializer: Entities::PublicGroupDetails
       end
 
-      desc 'Transfer a group to a new parent group or promote a subgroup to a root group'
+      desc 'Transfer a group to a new parent group or promote a subgroup to a root group' do
+        tags %w[groups]
+      end
       params do
         optional :group_id,
                  type: Integer,
@@ -432,6 +462,7 @@ module API
 
       desc 'Share a group with a group' do
         success Entities::GroupDetail
+        tags %w[groups]
       end
       params do
         requires :group_id, type: Integer, desc: 'The ID of the group to share'

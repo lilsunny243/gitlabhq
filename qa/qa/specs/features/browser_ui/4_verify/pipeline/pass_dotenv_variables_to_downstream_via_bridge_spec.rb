@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner do
+  RSpec.describe 'Verify', :runner, product_group: :pipeline_authoring do
     describe 'Pass dotenv variables to downstream via bridge' do
       let(:executor) { "qa-runner-#{Faker::Alphanumeric.alphanumeric(number: 8)}" }
       let(:upstream_var) { Faker::Alphanumeric.alphanumeric(number: 8) }
@@ -22,10 +22,10 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::GroupRunner.fabricate! do |runner|
           runner.name = executor
           runner.tags = [executor]
-          runner.token = group.reload!.runners_token
+          runner.group = group
         end
       end
 

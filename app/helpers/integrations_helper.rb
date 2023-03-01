@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module IntegrationsHelper
+  # rubocop:disable Metrics/CyclomaticComplexity
   def integration_event_title(event)
     case event
     when "push", "push_events"
@@ -27,8 +28,11 @@ module IntegrationsHelper
       _("Deployment")
     when "alert"
       _("Alert")
+    when "incident"
+      _("Incident")
     end
   end
+  # rubocop:enable Metrics/CyclomaticComplexity
 
   def integration_event_description(integration, event)
     case integration
@@ -160,6 +164,54 @@ module IntegrationsHelper
     !Gitlab.com?
   end
 
+  def integration_issue_type(issue_type)
+    issue_type_i18n_map = {
+      'issue' => _('Issue'),
+      'incident' => _('Incident'),
+      'test_case' => _('Test case'),
+      'requirement' => _('Requirement'),
+      'task' => _('Task')
+    }
+
+    issue_type_i18n_map[issue_type] || issue_type
+  end
+
+  def integration_todo_target_type(target_type)
+    target_type_i18n_map = {
+      'Commit' => _('Commit'),
+      'Issue' => _('Issue'),
+      'MergeRequest' => _('Merge Request'),
+      'Epic' => _('Epic'),
+      DesignManagement::Design.name => _('design'),
+      AlertManagement::Alert.name => _('alert')
+    }
+
+    target_type_i18n_map[target_type] || target_type
+  end
+
+  def integration_webhook_event_human_name(event)
+    event_i18n_map = {
+      repository_update_events: _('Repository update events'),
+      push_events: _('Push events'),
+      tag_push_events: s_('Webhooks|Tag push events'),
+      note_events: _('Comments'),
+      confidential_note_events: s_('Webhooks|Confidential comments'),
+      issues_events: s_('Webhooks|Issues events'),
+      confidential_issues_events: s_('Webhooks|Confidential issues events'),
+      subgroup_events: s_('Webhooks|Subgroup events'),
+      member_events: s_('Webhooks|Member events'),
+      merge_requests_events: s_('Webhooks|Merge request events'),
+      job_events: s_('Webhooks|Job events'),
+      pipeline_events: s_('Webhooks|Pipeline events'),
+      wiki_page_events: s_('Webhooks|Wiki page events'),
+      deployment_events: s_('Webhooks|Deployment events'),
+      feature_flag_events: s_('Webhooks|Feature flag events'),
+      releases_events: s_('Webhooks|Releases events')
+    }
+
+    event_i18n_map[event] || event.to_s.humanize
+  end
+
   extend self
 
   private
@@ -182,6 +234,7 @@ module IntegrationsHelper
     end
   end
 
+  # rubocop:disable Metrics/CyclomaticComplexity
   def default_integration_event_description(event)
     case event
     when "push", "push_events"
@@ -208,8 +261,11 @@ module IntegrationsHelper
       s_("ProjectService|Trigger event when a deployment starts or finishes.")
     when "alert"
       s_("ProjectService|Trigger event when a new, unique alert is recorded.")
+    when "incident"
+      s_("ProjectService|Trigger event when an incident is created.")
     end
   end
+  # rubocop:enable Metrics/CyclomaticComplexity
 
   def trigger_events_for_integration(integration)
     Integrations::EventSerializer.new(integration: integration).represent(integration.configurable_events).to_json

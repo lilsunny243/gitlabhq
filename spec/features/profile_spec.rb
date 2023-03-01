@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Profile account page', :js do
+RSpec.describe 'Profile account page', :js, feature_category: :user_profile do
   include Spec::Support::Helpers::ModalHelpers
 
   let(:user) { create(:user) }
@@ -27,7 +27,7 @@ RSpec.describe 'Profile account page', :js do
       expect(User.exists?(user.id)).to be_truthy
     end
 
-    it 'deletes user', :js, :sidekiq_might_not_need_inline do
+    it 'deletes user', :js, :sidekiq_inline do
       click_button 'Delete account'
 
       fill_in 'password', with: user.password
@@ -37,7 +37,10 @@ RSpec.describe 'Profile account page', :js do
       end
 
       expect(page).to have_content('Account scheduled for removal')
-      expect(User.exists?(user.id)).to be_falsy
+      expect(
+        Users::GhostUserMigration.where(user: user,
+                                        initiator_user: user)
+      ).to be_exists
     end
 
     it 'shows invalid password flash message', :js do

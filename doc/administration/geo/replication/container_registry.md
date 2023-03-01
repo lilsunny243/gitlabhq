@@ -1,13 +1,18 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
 # Container Registry for a secondary site **(PREMIUM SELF)**
 
 You can set up a Container Registry on your **secondary** Geo site that mirrors the one on the **primary** Geo site.
+
+NOTE:
+The Container Registry replication is used only for disaster recovery purposes. We do not recommend
+pulling the Container Registry data from the secondary. For a feature proposal to implement it in the
+future, see [Geo: Accelerate container images by serving read request from secondary site](https://gitlab.com/gitlab-org/gitlab/-/issues/365864) for details.
 
 ## Supported container registries
 
@@ -160,7 +165,7 @@ For each application and Sidekiq node on the **secondary** site:
 
 To verify Container Registry replication is working, on the **secondary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Nodes**.
    The initial replication, or "backfill", is probably still in progress.
 

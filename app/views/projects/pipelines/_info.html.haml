@@ -1,26 +1,34 @@
-.commit-box
-  %h3.commit-title
-    = markdown(commit.title, pipeline: :single_line)
-  - if commit.description.present?
-    %pre.commit-description<
-      = preserve(markdown(commit.description, pipeline: :single_line))
+- if @pipeline.name
+  .gl-border-t.gl-p-5.gl-px-0
+    %h3.gl-m-0.gl-text-body
+      = @pipeline.name
+- else
+  .commit-box
+    %h3.commit-title
+      = markdown(commit.title, pipeline: :single_line)
+    - if commit.description.present?
+      %pre.commit-description<
+        = preserve(markdown(commit.description, pipeline: :single_line))
 
 .info-well
   .well-segment.pipeline-info{ class: "gl-align-items-baseline!" }
     .icon-container
       = sprite_icon('clock', css_class: 'gl-top-0!')
-    = pluralize @pipeline.total_size, "job"
-    = @pipeline.ref_text
+    - jobs = n_('%d job', '%d jobs', @pipeline.total_size) % @pipeline.total_size
     - if @pipeline.duration
-      in
-      = time_interval_in_words(@pipeline.duration)
+      = s_('Pipelines|%{jobs} %{ref_text} in %{duration}').html_safe % { jobs: jobs, ref_text: @pipeline.ref_text, duration: time_interval_in_words(@pipeline.duration) }
+    - else
+      = jobs
+      = @pipeline.ref_text
     - if @pipeline.queued_duration
-      = "(queued for #{time_interval_in_words(@pipeline.queued_duration)})"
+      = s_("Pipelines|(queued for %{queued_duration})") % { queued_duration: time_interval_in_words(@pipeline.queued_duration)}
 
   - if has_pipeline_badges?(@pipeline)
-    .well-segment.qa-pipeline-badges
+    .well-segment
       .icon-container
         = sprite_icon('flag', css_class: 'gl-top-0!')
+      - if @pipeline.schedule?
+        = gl_badge_tag _('Scheduled'), { variant: :info, size: :sm }, { class: 'js-pipeline-url-scheduled', title: _('This pipeline was triggered by a schedule.') }
       - if @pipeline.child?
         - text = sprintf(s_('Pipelines|Child pipeline (%{link_start}parent%{link_end})'), { link_start: "<a href='#{pipeline_path(@pipeline.triggered_by_pipeline)}' class='text-underline'>", link_end: "</a>"}).html_safe
         = gl_badge_tag text, { variant: :info, size: :sm }, { class: 'js-pipeline-child has-tooltip', title: s_("Pipelines|This is a child pipeline within the parent pipeline") }
@@ -38,15 +46,20 @@
         - popover_content_text = _('Learn more about Auto DevOps')
         = gl_badge_tag s_('Pipelines|Auto DevOps'), { variant: :info, size: :sm }, { class: 'js-pipeline-url-autodevops', href: "#", tabindex: "0", role: "button", data: { container: 'body', toggle: 'popover', placement: 'top', html: 'true', triggers: 'focus', title: "<div class='gl-font-weight-normal gl-line-height-normal'>#{popover_title_text}</div>", content: "<a href='#{popover_content_url}' target='_blank' rel='noopener noreferrer nofollow'>#{popover_content_text}</a>" } }
       - if @pipeline.detached_merge_request_pipeline?
-        = gl_badge_tag s_('Pipelines|merge request'), { variant: :info, size: :sm }, { class: 'js-pipeline-url-mergerequest has-tooltip', title: s_("Pipelines|This pipeline ran on the contents of this merge request's source branch, not the target branch.") }
+        = gl_badge_tag s_('Pipelines|merge request'), { variant: :info, size: :sm }, { class: 'js-pipeline-url-mergerequest has-tooltip', data: { qa_selector: 'merge_request_badge_tag' }, title: s_("Pipelines|This pipeline ran on the contents of this merge request's source branch, not the target branch.") }
       - if @pipeline.stuck?
         = gl_badge_tag s_('Pipelines|stuck'), { variant: :warning, size: :sm }, { class: 'js-pipeline-url-stuck has-tooltip' }
 
-  .well-segment.branch-info
+  .well-segment{ 'data-testid': 'commit-row' }
     .icon-container.commit-icon
       = sprite_icon('commit', css_class: 'gl-top-0!')
-    = link_to commit.short_id, project_commit_path(@project, @pipeline.sha), class: "commit-sha"
-    = clipboard_button(text: @pipeline.sha, title: _("Copy commit SHA"))
+    - if @pipeline.name
+      = markdown(commit.title, pipeline: :single_line)
+      = clipboard_button(text: @pipeline.sha, title: _("Copy commit SHA"))
+      = link_to commit.short_id, project_commit_path(@project, @pipeline.sha), class: "commit-sha"
+    - else
+      = link_to commit.short_id, project_commit_path(@project, @pipeline.sha), class: "commit-sha"
+      = clipboard_button(text: @pipeline.sha, title: _("Copy commit SHA"))
 
   .well-segment.related-merge-request-info
     .icon-container

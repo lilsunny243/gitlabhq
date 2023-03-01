@@ -528,7 +528,6 @@ export const mockPipelineJobsQueryResponse = {
               artifacts: {
                 nodes: [
                   {
-                    id: 'gid://gitlab/Ci::JobArtifact/101',
                     downloadPath: '/root/ci-project/-/jobs/620/artifacts/download?file_type=trace',
                     fileType: 'TRACE',
                     __typename: 'CiJobArtifact',
@@ -581,7 +580,6 @@ export const mockPipelineJobsQueryResponse = {
               artifacts: {
                 nodes: [
                   {
-                    id: 'gid://gitlab/Ci::JobArtifact/102',
                     downloadPath: '/root/ci-project/-/jobs/619/artifacts/download?file_type=trace',
                     fileType: 'TRACE',
                     __typename: 'CiJobArtifact',
@@ -732,6 +730,7 @@ export const mockPipelineTag = () => {
       },
       active: false,
       source: 'push',
+      name: 'Build pipeline',
       created_at: '2022-02-02T15:39:04.012Z',
       updated_at: '2022-02-02T15:40:59.573Z',
       path: '/root/mr-widgets/-/pipelines/311',
@@ -837,7 +836,7 @@ export const mockPipelineTag = () => {
         ],
         duration: 93,
         finished_at: '2022-02-02T15:40:59.384Z',
-        name: 'Pipeline',
+        event_type_name: 'Pipeline',
         manual_actions: [],
         scheduled_actions: [],
       },
@@ -956,6 +955,7 @@ export const mockPipelineBranch = () => {
       },
       active: false,
       source: 'push',
+      name: 'Build pipeline',
       created_at: '2022-01-14T17:40:27.866Z',
       updated_at: '2022-01-14T18:02:35.850Z',
       path: '/root/mr-widgets/-/pipelines/268',
@@ -1043,7 +1043,7 @@ export const mockPipelineBranch = () => {
         ],
         duration: 75,
         finished_at: '2022-01-14T18:02:35.842Z',
-        name: 'Pipeline',
+        event_type_name: 'Pipeline',
         manual_actions: [],
         scheduled_actions: [],
       },

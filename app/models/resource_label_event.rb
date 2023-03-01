@@ -2,7 +2,6 @@
 
 class ResourceLabelEvent < ResourceEvent
   include CacheMarkdownField
-  include IssueResourceEvent
   include MergeRequestResourceEvent
 
   cache_markdown_field :reference
@@ -14,8 +13,8 @@ class ResourceLabelEvent < ResourceEvent
   validates :label, presence: { unless: :importing? }, on: :create
   validate :exactly_one_issuable, unless: :importing?
 
-  after_save :expire_etag_cache
   after_destroy :expire_etag_cache
+  after_save :expire_etag_cache
 
   enum action: {
     add: 1,
@@ -30,13 +29,16 @@ class ResourceLabelEvent < ResourceEvent
     labels = events.map(&:label).compact
     project_labels, group_labels = labels.partition { |label| label.is_a? ProjectLabel }
 
-    preloader = ActiveRecord::Associations::Preloader.new
-    preloader.preload(project_labels, { project: :project_feature })
-    preloader.preload(group_labels, :group)
+    ActiveRecord::Associations::Preloader.new(records: project_labels, associations: { project: :project_feature }).call
+    ActiveRecord::Associations::Preloader.new(records: group_labels, associations: :group).call
   end
 
   def issuable
     issue || merge_request
+  end
+
+  def synthetic_note_class
+    LabelNote
   end
 
   def project
@@ -115,7 +117,7 @@ class ResourceLabelEvent < ResourceEvent
   end
 
   def discussion_id_key
-    [self.class.name, created_at, user_id]
+    [self.class.name, created_at.to_f, user_id]
   end
 end
 

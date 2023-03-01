@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Sidekiq worker attributes
@@ -37,7 +37,7 @@ end
 ### Latency sensitive jobs
 
 If a large number of background jobs get scheduled at once, queueing of jobs may
-occur while jobs wait for a worker node to be become available. This is normal
+occur while jobs wait for a worker node to be become available. This is standard
 and gives the system resilience by allowing it to gracefully handle spikes in
 traffic. Some jobs, however, are more sensitive to latency than others.
 
@@ -60,7 +60,7 @@ that branch, but be told in the UI that the branch does not exist. We deem these
 jobs to be `urgency :high`.
 
 Extra effort is made to ensure that these jobs are started within a very short
-period of time after being scheduled. However, in order to ensure throughput,
+period of time after being scheduled. However, to ensure throughput,
 these jobs also have very strict execution duration requirements:
 
 1. The median job execution time should be less than 1 second.
@@ -79,7 +79,7 @@ On GitLab.com, we run Sidekiq in several
 each of which represents a particular type of workload.
 
 When changing a queue's urgency, or adding a new queue, we need to take
-into account the expected workload on the new shard. Note that, if we're
+into account the expected workload on the new shard. If we're
 changing an existing queue, there is also an effect on the old shard,
 but that always reduces work.
 
@@ -108,7 +108,7 @@ shard_consumption = shard_rps * shard_duration_avg
 
 If we expect an increase of **less than 5%**, then no further action is needed.
 
-Otherwise, please ping `@gitlab-org/scalability` on the merge request and ask
+Otherwise, ping `@gitlab-org/scalability` on the merge request and ask
 for a review.
 
 ## Jobs with External Dependencies
@@ -117,11 +117,11 @@ Most background jobs in the GitLab application communicate with other GitLab
 services. For example, PostgreSQL, Redis, Gitaly, and Object Storage. These are considered
 to be "internal" dependencies for a job.
 
-However, some jobs are dependent on external services in order to complete
+However, some jobs are dependent on external services to complete
 successfully. Some examples include:
 
 1. Jobs which call web-hooks configured by a user.
-1. Jobs which deploy an application to a k8s cluster configured by a user.
+1. Jobs which deploy an application to a Kubernetes cluster configured by a user.
 
 These jobs have "external dependencies". This is important for the operation of
 the background processing cluster in several ways:
@@ -179,8 +179,8 @@ performance.
 Likewise, if a worker uses large amounts of memory, we can run these on a
 bespoke low concurrency, high memory fleet.
 
-Note that memory-bound workers create heavy GC workloads, with pauses of
-10-50ms. This has an impact on the latency requirements for the
+Memory-bound workers create heavy GC workloads, with pauses of
+10-50 ms. This has an impact on the latency requirements for the
 worker. For this reason, `memory` bound, `urgency :high` jobs are not
 permitted and fail CI. In general, `memory` bound workers are
 discouraged, and alternative approaches to processing the work should be
@@ -219,7 +219,7 @@ We use the following approach to determine whether a worker is CPU-bound:
 - Divide `cpu_s` by `duration` to get the percentage time spend on-CPU.
 - If this ratio exceeds 33%, the worker is considered CPU-bound and should be
   annotated as such.
-- Note that these values should not be used over small sample sizes, but
+- These values should not be used over small sample sizes, but
   rather over fairly large aggregates.
 
 ## Feature category
@@ -254,7 +254,7 @@ When setting this field, consider the following trade-off:
 - Prefer read replicas to add relief to the primary, but increase the likelihood of stale reads that have to be retried.
 
 To maintain the same behavior compared to before this field was introduced, set it to `:always`, so
-database operations will only target the primary. Reasons for having to do so include workers
+database operations only target the primary. Reasons for having to do so include workers
 that mostly or exclusively perform writes, or workers that read their own writes and who might run
 into data consistency issues should a stale record be read back from a replica. **Try to avoid
 these scenarios, since `:always` should be considered the exception, not the rule.**
@@ -270,14 +270,14 @@ The difference is in what happens when there is still replication lag after the 
 switch over to the primary right away, whereas `delayed` workers fail fast and are retried once.
 If they still encounter replication lag, they also switch to the primary instead.
 **If your worker never performs any writes, it is strongly advised to apply one of these consistency settings,
-since it will never need to rely on the primary database node.**
+since it never needs to rely on the primary database node.**
 
 The table below shows the `data_consistency` attribute and its values, ordered by the degree to which
-they prefer read replicas and will wait for replicas to catch up:
+they prefer read replicas and wait for replicas to catch up:
 
 | **Data Consistency**  | **Description**  |
 |--------------|-----------------------------|
-| `:always`    | The job is required to use the primary database (default). It should be used for workers that primarily perform writes or that have strict requirements around data consistency when reading their own writes. |
+| `:always`    | The job is required to use the primary database (default). It should be used for workers that primarily perform writes, have strict requirements around data consistency when reading their own writes, or are cron jobs. |
 | `:sticky`    | The job prefers replicas, but switches to the primary for writes or when encountering replication lag. It should be used for jobs that require to be executed as fast as possible but can sustain a small initial queuing delay.  |
 | `:delayed`   | The job prefers replicas, but switches to the primary for writes. When encountering replication lag before the job starts, the job is retried once. If the replica is still not up to date on the next retry, it switches to the primary. It should be used for jobs where delaying execution further typically does not matter, such as cache expiration or web hooks execution. |
 
@@ -300,14 +300,14 @@ end
 
 The `feature_flag` property allows you to toggle a job's `data_consistency`,
 which permits you to safely toggle load balancing capabilities for a specific job.
-When `feature_flag` is disabled, the job defaults to `:always`, which means that the job will always use the primary database.
+When `feature_flag` is disabled, the job defaults to `:always`, which means that the job always uses the primary database.
 
 The `feature_flag` property does not allow the use of
 [feature gates based on actors](../feature_flags/index.md).
 This means that the feature flag cannot be toggled only for particular
 projects, groups, or users, but instead, you can safely use [percentage of time rollout](../feature_flags/index.md).
-Note that since we check the feature flag on both Sidekiq client and server, rolling out a 10% of the time,
-will likely results in 1% (`0.1` `[from client]*0.1` `[from server]`) of effective jobs using replicas.
+Since we check the feature flag on both Sidekiq client and server, rolling out a 10% of the time,
+likely results in 1% (`0.1` `[from client]*0.1` `[from server]`) of effective jobs using replicas.
 
 Example:
 

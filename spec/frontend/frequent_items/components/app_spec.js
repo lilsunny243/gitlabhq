@@ -1,3 +1,4 @@
+import { GlButton, GlIcon } from '@gitlab/ui';
 import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
@@ -11,6 +12,7 @@ import eventHub from '~/frequent_items/event_hub';
 import { createStore } from '~/frequent_items/store';
 import { getTopFrequentItems } from '~/frequent_items/utils';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { currentSession, mockFrequentProjects, mockSearchedProjects } from '../mock_data';
 
 Vue.use(Vuex);
@@ -31,6 +33,7 @@ describe('Frequent Items App Component', () => {
   const createComponent = (props = {}) => {
     const session = currentSession[TEST_NAMESPACE];
     gon.api_version = session.apiVersion;
+    gon.features = { fullPathProjectSearch: true };
 
     wrapper = mountExtended(App, {
       store,
@@ -103,6 +106,7 @@ describe('Frequent Items App Component', () => {
 
       expect(loading.exists()).toBe(true);
       expect(loading.find('[aria-label="Loading projects"]').exists()).toBe(true);
+      expect(findSectionHeader().exists()).toBe(false);
     });
 
     it('should render frequent projects list header', () => {
@@ -112,27 +116,10 @@ describe('Frequent Items App Component', () => {
       expect(sectionHeader.text()).toBe('Frequently visited');
     });
 
-    it('should render frequent projects list', async () => {
-      const expectedResult = getTopFrequentItems(mockFrequentProjects);
-      localStorage.setItem(TEST_STORAGE_KEY, JSON.stringify(mockFrequentProjects));
-
-      expect(findFrequentItems().length).toBe(1);
-
-      triggerDropdownOpen();
-      await nextTick();
-
-      expect(findFrequentItems().length).toBe(expectedResult.length);
-      expect(findFrequentItemsList().props()).toEqual({
-        items: expectedResult,
-        namespace: TEST_NAMESPACE,
-        hasSearchQuery: false,
-        isFetchFailed: false,
-        matcher: '',
-      });
-    });
-
     it('should render searched projects list', async () => {
-      mock.onGet(/\/api\/v4\/projects.json(.*)$/).replyOnce(200, mockSearchedProjects.data);
+      mock
+        .onGet(/\/api\/v4\/projects.json(.*)$/)
+        .replyOnce(HTTP_STATUS_OK, mockSearchedProjects.data);
 
       setSearch('gitlab');
       await nextTick();
@@ -163,6 +150,47 @@ describe('Frequent Items App Component', () => {
           matcher: 'gitlab',
         }),
       );
+    });
+
+    describe('with frequent items list', () => {
+      const expectedResult = getTopFrequentItems(mockFrequentProjects);
+
+      beforeEach(async () => {
+        localStorage.setItem(TEST_STORAGE_KEY, JSON.stringify(mockFrequentProjects));
+        triggerDropdownOpen();
+        await nextTick();
+      });
+
+      it('should render edit button within header', () => {
+        const itemEditButton = findSectionHeader().findComponent(GlButton);
+
+        expect(itemEditButton.exists()).toBe(true);
+        expect(itemEditButton.attributes('title')).toBe('Toggle edit mode');
+        expect(itemEditButton.findComponent(GlIcon).props('name')).toBe('pencil');
+      });
+
+      it('should render frequent projects list', () => {
+        expect(findFrequentItems().length).toBe(expectedResult.length);
+        expect(findFrequentItemsList().props()).toEqual({
+          items: expectedResult,
+          namespace: TEST_NAMESPACE,
+          hasSearchQuery: false,
+          isFetchFailed: false,
+          isItemRemovalFailed: false,
+          matcher: '',
+        });
+      });
+
+      it('dispatches action `toggleItemsListEditablity` when edit button is clicked', async () => {
+        const itemEditButton = findSectionHeader().findComponent(GlButton);
+        itemEditButton.vm.$emit('click');
+
+        await nextTick();
+
+        expect(store.dispatch).toHaveBeenCalledWith(
+          `${TEST_VUEX_MODULE}/toggleItemsListEditablity`,
+        );
+      });
     });
   });
 

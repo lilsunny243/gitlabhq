@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Go standards and style guidelines
@@ -124,7 +124,7 @@ lint:
     # Write the code coverage report to gl-code-quality-report.json
     # and print linting issues to stdout in the format: path/to/file:line description
     # remove `--issues-exit-code 0` or set to non-zero to fail the job if linting issues are detected
-    - golangci-lint run --issues-exit-code 0 --out-format code-climate | tee gl-code-quality-report.json | jq -r '.[] | "\(.location.path):\(.location.lines.begin) \(.description)"'
+    - golangci-lint run --issues-exit-code 0 --print-issued-lines=false --out-format code-climate:gl-code-quality-report.json,line-number
   artifacts:
     reports:
       codequality: gl-code-quality-report.json
@@ -134,7 +134,7 @@ lint:
 
 Including a `.golangci.yml` in the root directory of the project allows for
 configuration of `golangci-lint`. All options for `golangci-lint` are listed in
-this [example](https://github.com/golangci/golangci-lint/blob/master/.golangci.example.yml).
+this [example](https://github.com/golangci/golangci-lint/blob/master/.golangci.yml).
 
 Once [recursive includes](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/56836)
 become available, you can share job templates like this
@@ -357,7 +357,7 @@ Every binary ideally must have structured (JSON) logging in place as it helps
 with searching and filtering the logs. At GitLab we use structured logging in
 JSON format, as all our infrastructure assumes that. When using
 [Logrus](https://github.com/sirupsen/logrus) you can turn on structured
-logging simply by using the build in [JSON formatter](https://github.com/sirupsen/logrus#formatters). This follows the
+logging by using the build in [JSON formatter](https://github.com/sirupsen/logrus#formatters). This follows the
 same logging type we use in our [Ruby applications](../logging.md#use-structured-json-logging).
 
 #### How to use Logrus
@@ -391,7 +391,7 @@ functionality:
 This gives us a thin abstraction over underlying implementations that is
 consistent across Workhorse, Gitaly, and, in future, other Go servers. For
 example, in the case of `gitlab.com/gitlab-org/labkit/tracing` we can switch
-from using `Opentracing` directly to using `Zipkin` or Gokit's own tracing wrapper
+from using `Opentracing` directly to using `Zipkin` or the Go kit's own tracing wrapper
 without changes to the application code, while still keeping the same
 consistent configuration mechanism (that is, the `GITLAB_TRACING` environment
 variable).
@@ -408,7 +408,7 @@ should be used in functions that can block and passed as the first parameter.
 Every project should have a `Dockerfile` at the root of their repository, to
 build and run the project. Since Go program are static binaries, they should
 not require any external dependency, and shells in the final image are useless.
-We encourage [Multistage builds](https://docs.docker.com/develop/develop-images/multistage-build/):
+We encourage [Multistage builds](https://docs.docker.com/build/building/multi-stage/):
 
 - They let the user build the project with the right Go version and
   dependencies.
@@ -435,6 +435,25 @@ packages separately from external ones. See
 of the Code Review Comments page on the Go wiki for more details.
 Most editors/IDEs allow you to run commands before/after saving a file, you can set it
 up to run `goimports -local gitlab.com/gitlab-org` so that it's applied to every file when saving.
+
+### Naming branches
+
+Only use the characters `a-z`, `0-9` or `-` in branch names. This restriction is due to the fact that `go get` doesn't work as expected when a branch name contains certain characters, such as a slash `/`:
+
+```shell
+$ go get -u gitlab.com/gitlab-org/security-products/analyzers/report/v3@some-user/some-feature
+
+go get: gitlab.com/gitlab-org/security-products/analyzers/report/v3@some-user/some-feature: invalid version: version "some-user/some-feature" invalid: disallowed version string
+```
+
+If a branch name contains a slash, it forces us to refer to the commit SHA instead, which is less flexible. For example:
+
+```shell
+$ go get -u gitlab.com/gitlab-org/security-products/analyzers/report/v3@5c9a4279fa1263755718cf069d54ba8051287954
+
+go: downloading gitlab.com/gitlab-org/security-products/analyzers/report/v3 v3.15.3-0.20221012172609-5c9a4279fa12
+...
+```
 
 ### Initializing slices
 

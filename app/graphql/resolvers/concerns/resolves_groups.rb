@@ -5,8 +5,8 @@ module ResolvesGroups
   extend ActiveSupport::Concern
   include LooksAhead
 
-  def resolve_with_lookahead(**args)
-    apply_lookahead(resolve_groups(**args))
+  def resolve_with_lookahead(...)
+    apply_lookahead(resolve_groups(...))
   end
 
   private
@@ -22,6 +22,7 @@ module ResolvesGroups
       custom_emoji: [:custom_emoji],
       full_path: [:route],
       path: [:route],
+      web_url: [:route],
       dependency_proxy_blob_count: [:dependency_proxy_blobs],
       dependency_proxy_blobs: [:dependency_proxy_blobs],
       dependency_proxy_image_count: [:dependency_proxy_manifests],

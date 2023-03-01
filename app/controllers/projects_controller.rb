@@ -26,7 +26,7 @@ class ProjectsController < Projects::ApplicationController
   before_action :verify_git_import_enabled, only: [:create]
   before_action :project_export_enabled, only: [:export, :download_export, :remove_export, :generate_new_export]
   before_action :present_project, only: [:edit]
-  before_action :authorize_download_code!, only: [:refs]
+  before_action :authorize_read_code!, only: [:refs]
 
   # Authorize
   before_action :authorize_admin_project!, only: [:edit, :update, :housekeeping, :download_export, :export, :remove_export, :generate_new_export]
@@ -37,33 +37,27 @@ class ProjectsController < Projects::ApplicationController
   before_action :check_export_rate_limit!, only: [:export, :download_export, :generate_new_export]
 
   before_action do
-    push_frontend_feature_flag(:lazy_load_commits, @project)
     push_frontend_feature_flag(:highlight_js, @project)
     push_frontend_feature_flag(:file_line_blame, @project)
     push_frontend_feature_flag(:increase_page_size_exponentially, @project)
     push_licensed_feature(:file_locks) if @project.present? && @project.licensed_feature_available?(:file_locks)
     push_licensed_feature(:security_orchestration_policies) if @project.present? && @project.licensed_feature_available?(:security_orchestration_policies)
     push_force_frontend_feature_flag(:work_items, @project&.work_items_feature_flag_enabled?)
+    push_force_frontend_feature_flag(:work_items_mvc, @project&.work_items_mvc_feature_flag_enabled?)
     push_force_frontend_feature_flag(:work_items_mvc_2, @project&.work_items_mvc_2_feature_flag_enabled?)
-    push_frontend_feature_flag(:package_registry_access_level)
-    push_frontend_feature_flag(:work_items_hierarchy, @project)
-  end
-
-  before_action only: :edit do
-    push_frontend_feature_flag(:split_operations_visibility_permissions, @project)
   end
 
   layout :determine_layout
 
   feature_category :projects, [
-                     :index, :show, :new, :create, :edit, :update, :transfer,
-                     :destroy, :archive, :unarchive, :toggle_star, :activity
-                   ]
+    :index, :show, :new, :create, :edit, :update, :transfer,
+    :destroy, :archive, :unarchive, :toggle_star, :activity
+  ]
 
   feature_category :source_code_management, [:remove_fork, :housekeeping, :refs]
   feature_category :team_planning, [:preview_markdown, :new_issuable_address]
   feature_category :importers, [:export, :remove_export, :generate_new_export, :download_export]
-  feature_category :code_review, [:unfoldered_environment_names]
+  feature_category :code_review_workflow, [:unfoldered_environment_names]
   feature_category :portfolio_management, [:planning_hierarchy]
 
   urgency :low, [:export, :remove_export, :generate_new_export, :download_export]
@@ -83,6 +77,8 @@ class ProjectsController < Projects::ApplicationController
   def new
     @namespace = Namespace.find_by(id: params[:namespace_id]) if params[:namespace_id]
     return access_denied! if @namespace && !can?(current_user, :create_projects, @namespace)
+
+    @parent_group = Group.find_by(id: params[:namespace_id])
 
     @current_user_group =
       if current_user.manageable_groups(include_groups_with_developer_maintainer_access: true).count == 1
@@ -228,7 +224,22 @@ class ProjectsController < Projects::ApplicationController
   end
 
   def housekeeping
-    ::Repositories::HousekeepingService.new(@project, :gc).execute
+    task = if params[:prune].present?
+             :prune
+           else
+             :eager
+           end
+
+    ::Repositories::HousekeepingService.new(@project, task).execute do
+      ::Gitlab::Audit::Auditor.audit(
+        name: 'manually_trigger_housekeeping',
+        author: current_user,
+        scope: @project,
+        target: @project,
+        message: "Housekeeping task: #{task}",
+        created_at: DateTime.current
+      )
+    end
 
     redirect_to(
       project_path(@project),
@@ -311,8 +322,6 @@ class ProjectsController < Projects::ApplicationController
     find_tags = true
     find_commits = true
 
-    use_gitaly_pagination = Feature.enabled?(:use_gitaly_pagination_for_refs, @project)
-
     unless find_refs.nil?
       find_branches = find_refs.include?('branches')
       find_tags = find_refs.include?('tags')
@@ -323,7 +332,7 @@ class ProjectsController < Projects::ApplicationController
 
     if find_branches
       branches = BranchesFinder.new(@repository, refs_params.merge(per_page: REFS_LIMIT))
-                   .execute(gitaly_pagination: use_gitaly_pagination)
+                   .execute(gitaly_pagination: true)
                    .take(REFS_LIMIT)
                    .map(&:name)
 
@@ -332,7 +341,7 @@ class ProjectsController < Projects::ApplicationController
 
     if find_tags && @repository.tag_count.nonzero?
       tags = TagsFinder.new(@repository, refs_params.merge(per_page: REFS_LIMIT))
-               .execute(gitaly_pagination: use_gitaly_pagination)
+               .execute(gitaly_pagination: true)
                .take(REFS_LIMIT)
                .map(&:name)
 
@@ -345,7 +354,7 @@ class ProjectsController < Projects::ApplicationController
       options['Commits'] = [ref]
     end
 
-    render json: options.to_json
+    render json: Gitlab::Json.dump(options)
   rescue Gitlab::Git::CommandError
     render json: { error: _('Unable to load refs') }, status: :service_unavailable
   end
@@ -372,7 +381,7 @@ class ProjectsController < Projects::ApplicationController
   def render_landing_page
     Gitlab::Tracking.event('project_overview', 'render', user: current_user, project: @project.project)
 
-    if can?(current_user, :download_code, @project)
+    if can?(current_user, :read_code, @project)
       return render 'projects/no_repo' unless @project.repository_exists?
 
       render 'projects/empty' if @project.empty_repo?
@@ -395,7 +404,7 @@ class ProjectsController < Projects::ApplicationController
 
   def determine_layout
     if [:new, :create].include?(action_name.to_sym)
-      'application'
+      'dashboard'
     elsif [:edit, :update].include?(action_name.to_sym)
       'project_settings'
     else
@@ -435,17 +444,12 @@ class ProjectsController < Projects::ApplicationController
       analytics_access_level
       security_and_compliance_access_level
       container_registry_access_level
-    ] + operations_feature_attributes
-  end
-
-  def operations_feature_attributes
-    if Feature.enabled?(:split_operations_visibility_permissions, project)
-      %i[
-        environments_access_level feature_flags_access_level releases_access_level
-      ]
-    else
-      %i[operations_access_level]
-    end
+      releases_access_level
+      environments_access_level
+      feature_flags_access_level
+      monitor_access_level
+      infrastructure_access_level
+    ]
   end
 
   def project_setting_attributes
@@ -466,7 +470,6 @@ class ProjectsController < Projects::ApplicationController
       :build_timeout_human_readable,
       :resolve_outdated_diff_discussions,
       :container_registry_enabled,
-      :default_branch,
       :description,
       :emails_disabled,
       :external_authorization_classification_label,
@@ -492,7 +495,6 @@ class ProjectsController < Projects::ApplicationController
       :merge_method,
       :initialize_with_sast,
       :initialize_with_readme,
-      :autoclose_referenced_issues,
       :ci_separated_caches,
       :suggestion_commit_message,
       :packages_enabled,
@@ -524,14 +526,6 @@ class ProjectsController < Projects::ApplicationController
     false
   end
 
-  def project_view_files?
-    if current_user
-      current_user.project_view == 'files'
-    else
-      project_view_files_allowed?
-    end
-  end
-
   # Override extract_ref from ExtractsPath, which returns the branch and file path
   # for the blob/tree, which in this case is just the root of the default branch.
   # This way we avoid to access the repository.ref_names.
@@ -542,10 +536,6 @@ class ProjectsController < Projects::ApplicationController
   # Override get_id from ExtractsPath in this case is just the root of the default branch.
   def get_id
     project.repository.root_ref
-  end
-
-  def project_view_files_allowed?
-    !project.empty_repo? && can?(current_user, :download_code, project)
   end
 
   def build_canonical_path(project)

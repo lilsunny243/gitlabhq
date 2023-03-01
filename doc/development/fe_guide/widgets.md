@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Widgets
@@ -44,7 +44,7 @@ All editable sidebar widgets should use [`SidebarEditableItem`](https://gitlab.c
 We aim to make widgets as reusable as possible. That's why we should avoid adding any external state
 bindings to widgets or to their child components. This includes Vuex mappings and mediator stores.
 
-## Widget's responsibility
+## Widget responsibility
 
 A widget is responsible for fetching and updating an entity it's designed for (assignees, iterations, and so on).
 This means a widget should **always** fetch data (if it's not in Apollo cache already).
@@ -78,7 +78,7 @@ To handle the same logic for query updates, we **alias** query fields. For examp
 - `group` or `project` become `workspace`
 - `issue`, `epic`, or `mergeRequest` become `issuable`
 
-Unfortunately, Apollo assigns aliased fields a typename of `undefined`, so we need to fetch `__typename` explicitly:
+Unfortunately, Apollo assigns aliased fields a `typename` of `undefined`, so we need to fetch `__typename` explicitly:
 
 ```plaintext
 query issueConfidential($fullPath: ID!, $iid: String) {

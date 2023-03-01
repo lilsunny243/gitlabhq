@@ -105,16 +105,30 @@ module Gitlab
         def read_write
           connection = nil
           transaction_open = nil
+
+          # Retry only once when in a transaction (see https://gitlab.com/gitlab-org/gitlab/-/issues/220242)
+          attempts = pool.connection.transaction_open? ? 1 : 3
+
           # In the event of a failover the primary may be briefly unavailable.
           # Instead of immediately grinding to a halt we'll retry the operation
           # a few times.
-          retry_with_backoff do
+          # It is not possible preserve transaction state during a retry, so we do not retry in that case.
+          retry_with_backoff(attempts: attempts) do |attempt|
             connection = pool.connection
             transaction_open = connection.transaction_open?
 
+            if attempt && attempt > 1
+              ::Gitlab::Database::LoadBalancing::Logger.warn(
+                event: :read_write_retry,
+                message: 'A read_write block was retried because of connection error'
+              )
+            end
+
             yield connection
           rescue StandardError => e
-            if transaction_open && connection_error?(e)
+            # No leaking will happen on the final attempt. Leaks are caused by subsequent retries
+            not_final_attempt = attempt && attempt < attempts
+            if transaction_open && connection_error?(e) && not_final_attempt
               ::Gitlab::Database::LoadBalancing::Logger.warn(
                 event: :transaction_leak,
                 message: 'A write transaction has leaked during database fail-over'
@@ -171,7 +185,7 @@ module Gitlab
         end
 
         # Yields a block, retrying it upon error using an exponential backoff.
-        def retry_with_backoff(retries = 3, time = 2)
+        def retry_with_backoff(attempts: 3, time: 2)
           # In CI we only use the primary, but databases may not always be
           # available (or take a few seconds to become available). Retrying in
           # this case can slow down CI jobs. In addition, retrying with _only_
@@ -183,12 +197,12 @@ module Gitlab
           # replicas were configured.
           return yield if primary_only?
 
-          retried = 0
+          attempt = 1
           last_error = nil
 
-          while retried < retries
+          while attempt <= attempts
             begin
-              return yield
+              return yield attempt # Yield the current attempt count
             rescue StandardError => error
               raise error unless connection_error?(error)
 
@@ -198,7 +212,7 @@ module Gitlab
 
               last_error = error
               sleep(time)
-              retried += 1
+              attempt += 1
               time **= 2
             end
           end

@@ -61,6 +61,49 @@ RSpec.describe Ci::JobArtifacts::CreateService do
         expect(new_artifact.locked).to eq(job.pipeline.locked)
       end
 
+      it 'sets accessibility level by default to public' do
+        expect { subject }.to change { Ci::JobArtifact.count }.by(1)
+
+        new_artifact = job.job_artifacts.last
+        expect(new_artifact).to be_public_accessibility
+      end
+
+      context 'when accessibility level passed as private' do
+        before do
+          params.merge!('accessibility' => 'private')
+        end
+
+        it 'sets accessibility level to private' do
+          expect { subject }.to change { Ci::JobArtifact.count }.by(1)
+
+          new_artifact = job.job_artifacts.last
+          expect(new_artifact).to be_private_accessibility
+        end
+      end
+
+      context 'when accessibility passed as public' do
+        before do
+          params.merge!('accessibility' => 'public')
+        end
+
+        it 'sets accessibility to public level' do
+          expect { subject }.to change { Ci::JobArtifact.count }.by(1)
+
+          new_artifact = job.job_artifacts.last
+          expect(new_artifact).to be_public_accessibility
+        end
+      end
+
+      context 'when accessibility passed as invalid value' do
+        before do
+          params.merge!('accessibility' => 'invalid_value')
+        end
+
+        it 'fails with argument error' do
+          expect { subject }.to raise_error(ArgumentError)
+        end
+      end
+
       context 'when metadata file is also uploaded' do
         let(:metadata_file) do
           file_to_upload('spec/fixtures/ci_build_artifacts_metadata.gz', sha256: artifacts_sha256)
@@ -80,6 +123,47 @@ RSpec.describe Ci::JobArtifacts::CreateService do
           expect(new_artifact.file_format).to eq('gzip')
           expect(new_artifact.file_sha256).to eq(artifacts_sha256)
           expect(new_artifact.locked).to eq(job.pipeline.locked)
+        end
+
+        it 'sets accessibility by default to public' do
+          expect { subject }.to change { Ci::JobArtifact.count }.by(2)
+
+          new_artifact = job.job_artifacts.last
+          expect(new_artifact).to be_public_accessibility
+        end
+
+        it 'logs the created artifact and metadata' do
+          expect(Gitlab::Ci::Artifacts::Logger)
+            .to receive(:log_created)
+            .with(an_instance_of(Ci::JobArtifact)).twice
+
+          subject
+        end
+
+        context 'when accessibility level passed as private' do
+          before do
+            params.merge!('accessibility' => 'private')
+          end
+
+          it 'sets accessibility to private level' do
+            expect { subject }.to change { Ci::JobArtifact.count }.by(2)
+
+            new_artifact = job.job_artifacts.last
+            expect(new_artifact).to be_private_accessibility
+          end
+        end
+
+        context 'when accessibility passed as public' do
+          before do
+            params.merge!('accessibility' => 'public')
+          end
+
+          it 'sets accessibility level to public' do
+            expect { subject }.to change { Ci::JobArtifact.count }.by(2)
+
+            new_artifact = job.job_artifacts.last
+            expect(new_artifact).to be_public_accessibility
+          end
         end
 
         it 'sets expiration date according to application settings' do
@@ -178,6 +262,19 @@ RSpec.describe Ci::JobArtifacts::CreateService do
         expect(job.job_variables.as_json(only: [:key, :value, :source])).to contain_exactly(
           hash_including('key' => 'KEY1', 'value' => 'VAR1', 'source' => 'dotenv'),
           hash_including('key' => 'KEY2', 'value' => 'VAR2', 'source' => 'dotenv'))
+      end
+    end
+
+    context 'with job partitioning', :ci_partitionable do
+      let(:pipeline) { create(:ci_pipeline, project: project, partition_id: ci_testing_partition_id) }
+      let(:job) { create(:ci_build, pipeline: pipeline) }
+
+      it 'sets partition_id on artifacts' do
+        expect { subject }.to change { Ci::JobArtifact.count }
+
+        artifacts_partitions = job.job_artifacts.map(&:partition_id).uniq
+
+        expect(artifacts_partitions).to eq([ci_testing_partition_id])
       end
     end
 

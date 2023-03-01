@@ -35,6 +35,7 @@ RSpec.describe Ci::PipelineArtifacts::CoverageReportService do
         end
 
         it 'logs relevant information' do
+          allow(Gitlab::AppLogger).to receive(:info).and_call_original
           expect(Gitlab::AppLogger).to receive(:info).with({
                                                              project_id: project.id,
                                                              pipeline_id: pipeline.id,
@@ -51,6 +52,14 @@ RSpec.describe Ci::PipelineArtifacts::CoverageReportService do
       let!(:pipeline) { create(:ci_pipeline, :with_coverage_reports, project: project) }
 
       it_behaves_like 'creating or updating a pipeline coverage report'
+
+      it "artifact has pipeline's locked status" do
+        subject
+
+        artifact = Ci::PipelineArtifact.first
+
+        expect(artifact.locked).to eq(pipeline.locked)
+      end
     end
 
     context 'when pipeline has coverage report from child pipeline' do

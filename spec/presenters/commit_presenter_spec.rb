@@ -2,11 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe CommitPresenter do
-  let(:project) { create(:project, :repository) }
+RSpec.describe CommitPresenter, feature_category: :source_code_management do
   let(:commit) { project.commit }
-  let(:user) { create(:user) }
   let(:presenter) { described_class.new(commit, current_user: user) }
+
+  let_it_be(:user) { build_stubbed(:user) }
+  let_it_be(:project) { create(:project, :repository) }
 
   describe '#web_path' do
     it { expect(presenter.web_path).to eq("/#{project.full_path}/-/commit/#{commit.sha}") }
@@ -92,6 +93,17 @@ RSpec.describe CommitPresenter do
 
     it 'renders html for displaying signature' do
       expect(presenter.signature_html).to eq(signature)
+    end
+  end
+
+  describe '#tags_for_display' do
+    subject { presenter.tags_for_display }
+
+    let(:stubbed_tags) { %w[refs/tags/v1.0 refs/tags/v1.1] }
+
+    it 'removes the refs prefix from tags' do
+      allow(commit).to receive(:referenced_by).and_return(stubbed_tags)
+      expect(subject).to eq(%w[v1.0 v1.1])
     end
   end
 end

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -14,7 +14,7 @@ in the background.
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Select **Edit** of the secondary site you want to tune.
 1. Under **Tuning settings**, there are several variables that can be tuned to
@@ -30,7 +30,7 @@ However, this may not lead to more downloads in parallel unless the number of
 available Sidekiq threads is also increased. For example, if repository synchronization
 concurrency is increased from 25 to 50, you may also want to increase the number
 of Sidekiq threads from 25 to 50. See the
-[Sidekiq concurrency documentation](../../sidekiq/extra_sidekiq_processes.md#number-of-threads)
+[Sidekiq concurrency documentation](../../sidekiq/extra_sidekiq_processes.md#concurrency)
 for more details.
 
 ## Repository re-verification

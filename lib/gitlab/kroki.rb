@@ -1,18 +1,19 @@
 # frozen_string_literal: true
 
+require 'asciidoctor/extensions/asciidoctor_kroki/version'
 require 'asciidoctor/extensions/asciidoctor_kroki/extension'
 
 module Gitlab
   # Helper methods for Kroki
   module Kroki
     BLOCKDIAG_FORMATS = %w[
-        blockdiag
-        seqdiag
-        actdiag
-        nwdiag
-        packetdiag
-        rackdiag
-      ].freeze
+      blockdiag
+      seqdiag
+      actdiag
+      nwdiag
+      packetdiag
+      rackdiag
+    ].freeze
     DIAGRAMS_FORMATS = (::AsciidoctorExtensions::Kroki::SUPPORTED_DIAGRAM_NAMES - %w(mermaid)).freeze
     DIAGRAMS_FORMATS_WO_PLANTUML = (DIAGRAMS_FORMATS - %w(plantuml)).freeze
 

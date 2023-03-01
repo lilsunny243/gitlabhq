@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 RSpec.shared_examples 'issuable invite members' do
+  include Spec::Support::Helpers::Features::InviteMembersModalHelper
+
   context 'when a privileged user can invite' do
     before do
       project.add_maintainer(user)
@@ -15,13 +17,13 @@ RSpec.shared_examples 'issuable invite members' do
 
       page.within '.dropdown-menu-user' do
         expect(page).to have_link('Invite Members')
-        expect(page).to have_selector('[data-track-action="click_invite_members"]')
-        expect(page).to have_selector('[data-track-label="edit_assignee"]')
       end
 
       click_link 'Invite Members'
 
-      expect(page).to have_content("You're inviting members to the")
+      page.within invite_modal_selector do
+        expect(page).to have_content("You're inviting members to the #{project.name} project")
+      end
     end
   end
 

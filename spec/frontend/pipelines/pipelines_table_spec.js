@@ -2,6 +2,7 @@ import '~/commons';
 import { GlTableLite } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import fixture from 'test_fixtures/pipelines/pipelines.json';
+import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import PipelineMiniGraph from '~/pipelines/components/pipeline_mini_graph/pipeline_mini_graph.vue';
 import PipelineOperations from '~/pipelines/components/pipelines_list/pipeline_operations.vue';
@@ -13,16 +14,17 @@ import {
   PipelineKeyOptions,
   BUTTON_TOOLTIP_RETRY,
   BUTTON_TOOLTIP_CANCEL,
+  TRACKING_CATEGORIES,
 } from '~/pipelines/constants';
 
-import eventHub from '~/pipelines/event_hub';
-import CiBadge from '~/vue_shared/components/ci_badge_link.vue';
+import CiBadgeLink from '~/vue_shared/components/ci_badge_link.vue';
 
 jest.mock('~/pipelines/event_hub');
 
 describe('Pipelines Table', () => {
   let pipeline;
   let wrapper;
+  let trackingSpy;
 
   const defaultProps = {
     pipelines: [],
@@ -48,7 +50,7 @@ describe('Pipelines Table', () => {
   };
 
   const findGlTableLite = () => wrapper.findComponent(GlTableLite);
-  const findStatusBadge = () => wrapper.findComponent(CiBadge);
+  const findCiBadgeLink = () => wrapper.findComponent(CiBadgeLink);
   const findPipelineInfo = () => wrapper.findComponent(PipelineUrl);
   const findTriggerer = () => wrapper.findComponent(PipelineTriggerer);
   const findPipelineMiniGraph = () => wrapper.findComponent(PipelineMiniGraph);
@@ -69,6 +71,7 @@ describe('Pipelines Table', () => {
 
   afterEach(() => {
     wrapper.destroy();
+
     wrapper = null;
   });
 
@@ -94,11 +97,7 @@ describe('Pipelines Table', () => {
 
     describe('status cell', () => {
       it('should render a status badge', () => {
-        expect(findStatusBadge().exists()).toBe(true);
-      });
-
-      it('should render status badge with correct path', () => {
-        expect(findStatusBadge().attributes('href')).toBe(pipeline.path);
+        expect(findCiBadgeLink().exists()).toBe(true);
       });
     });
 
@@ -122,6 +121,14 @@ describe('Pipelines Table', () => {
         expect(findPipelineMiniGraph().props('stages').length).toBe(stagesLength);
       });
 
+      it('should render the latest downstream pipelines only', () => {
+        // component receives two downstream pipelines. one of them is already outdated
+        // because we retried the trigger job, so the mini pipeline graph will only
+        // render the newly created downstream pipeline instead
+        expect(pipeline.triggered).toHaveLength(2);
+        expect(findPipelineMiniGraph().props('downstreamPipelines')).toHaveLength(1);
+      });
+
       describe('when pipeline does not have stages', () => {
         beforeEach(() => {
           pipeline = createMockPipeline();
@@ -133,12 +140,6 @@ describe('Pipelines Table', () => {
         it('stages are not rendered', () => {
           expect(findPipelineMiniGraph().props('stages')).toHaveLength(0);
         });
-      });
-
-      it('when action request is complete, should refresh table', () => {
-        findPipelineMiniGraph().vm.$emit('pipelineActionRequestComplete');
-
-        expect(eventHub.$emit).toHaveBeenCalledWith('refreshPipelinesTable');
       });
     });
 
@@ -165,6 +166,48 @@ describe('Pipelines Table', () => {
     describe('triggerer cell', () => {
       it('should render the pipeline triggerer', () => {
         expect(findTriggerer().exists()).toBe(true);
+      });
+    });
+
+    describe('tracking', () => {
+      beforeEach(() => {
+        trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+      });
+
+      afterEach(() => {
+        unmockTracking();
+      });
+
+      it('tracks status badge click', () => {
+        findCiBadgeLink().vm.$emit('ciStatusBadgeClick');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_ci_status_badge', {
+          label: TRACKING_CATEGORIES.table,
+        });
+      });
+
+      it('tracks retry pipeline button click', () => {
+        findRetryBtn().vm.$emit('click');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_retry_button', {
+          label: TRACKING_CATEGORIES.table,
+        });
+      });
+
+      it('tracks cancel pipeline button click', () => {
+        findCancelBtn().vm.$emit('click');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_cancel_button', {
+          label: TRACKING_CATEGORIES.table,
+        });
+      });
+
+      it('tracks pipeline mini graph stage click', () => {
+        findPipelineMiniGraph().vm.$emit('miniGraphStageClick');
+
+        expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_minigraph', {
+          label: TRACKING_CATEGORIES.table,
+        });
       });
     });
   });

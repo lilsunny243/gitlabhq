@@ -21,20 +21,6 @@
   }
 }
 
-@keyframes blinking-scroll-button {
-  0% {
-    opacity: 0.2;
-  }
-
-  50% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0.2;
-  }
-}
-
 @mixin str-truncated($max-width: 82%) {
   display: inline-block;
   overflow: hidden;
@@ -237,6 +223,18 @@
 }
 
 /*
+* Mixin that handles the position of sticky alerts at the top. It accounts for the performance bar
+*/
+// stylelint-disable-next-line length-zero-no-unit
+@mixin sticky-top-positioning($extra: 0px) {
+  top: calc(#{$header-height} + #{$extra});
+
+  .with-performance-bar & {
+    top: calc(#{$header-height} + #{$performance-bar-height} + #{$extra});
+  }
+}
+
+/*
 * Mixin that handles the container for the job logs (CI/CD and kubernetes pod logs)
 */
 @mixin build-log($background: $black) {
@@ -307,27 +305,6 @@
     &:last-child {
       margin-right: 0;
     }
-  }
-
-  .btn-scroll.animate {
-    .scroll-arrow {
-      animation: blinking-scroll-button 1.5s ease-in-out infinite;
-    }
-
-    .scroll-dot {
-      animation: blinking-scroll-button 1.5s ease-in-out infinite;
-      animation-delay: 0.3s;
-    }
-
-    &:disabled {
-      opacity: 1;
-    }
-  }
-
-  .btn-scroll:disabled,
-  .btn-refresh:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
   }
 }
 
@@ -450,7 +427,7 @@
 }
 
 @mixin avatar-counter($border-radius: 1em) {
-  background-color: $gray-darkest;
+  background-color: $gray-400;
   color: $white;
   border: 1px solid $gray-normal;
   border-radius: $border-radius;

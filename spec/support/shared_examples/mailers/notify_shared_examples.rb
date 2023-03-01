@@ -44,12 +44,12 @@ end
 
 RSpec.shared_examples 'an email with X-GitLab headers containing IDs' do
   it 'has X-GitLab-*-ID header' do
-    is_expected.to have_header "X-GitLab-#{model.class.name}-ID", "#{model.id}"
+    is_expected.to have_header "X-GitLab-#{model.class.name}-ID", model.id.to_s
   end
 
   it 'has X-GitLab-*-IID header if model has iid defined' do
     if model.respond_to?(:iid)
-      is_expected.to have_header "X-GitLab-#{model.class.name}-IID", "#{model.iid}"
+      is_expected.to have_header "X-GitLab-#{model.class.name}-IID", model.iid.to_s
     else
       expect(subject.header["X-GitLab-#{model.class.name}-IID"]).to eq nil
     end
@@ -75,7 +75,7 @@ RSpec.shared_examples 'a new thread email with reply-by-email enabled' do
 
     aggregate_failures do
       is_expected.to have_header('Message-ID', "<#{route_key}@#{host}>")
-      is_expected.to have_header('References', /\A<reply\-.*@#{host}>\Z/ )
+      is_expected.to have_header('References', /\A<reply-.*@#{host}>\Z/ )
     end
   end
 end
@@ -91,7 +91,7 @@ RSpec.shared_examples 'a thread answer email with reply-by-email enabled' do
     aggregate_failures do
       is_expected.to have_header('Message-ID', /\A<.*@#{host}>\Z/)
       is_expected.to have_header('In-Reply-To', "<#{route_key}@#{host}>")
-      is_expected.to have_header('References', /\A<reply\-.*@#{host}> <#{route_key}@#{host}>\Z/ )
+      is_expected.to have_header('References', /\A<reply-.*@#{host}> <#{route_key}@#{host}>\Z/ )
       is_expected.to have_subject(/^Re: /)
     end
   end
@@ -277,6 +277,12 @@ end
 RSpec.shared_examples 'no email is sent' do
   it 'does not send an email' do
     expect(subject.message).to be_a_kind_of(ActionMailer::Base::NullMail)
+  end
+end
+
+RSpec.shared_examples 'a mail with default delivery method' do
+  it 'uses mailer default delivery method' do
+    expect(subject.delivery_method).to be_a ActionMailer::Base.delivery_methods[described_class.delivery_method]
   end
 end
 

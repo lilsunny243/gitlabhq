@@ -2,10 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::SecureFiles do
+RSpec.describe API::Ci::SecureFiles, feature_category: :mobile_devops do
   before do
     stub_ci_secure_file_object_storage
-    stub_feature_flags(ci_secure_files: true)
     stub_feature_flags(ci_secure_files_read_only: false)
   end
 
@@ -31,23 +30,6 @@ RSpec.describe API::Ci::SecureFiles do
   end
 
   describe 'GET /projects/:id/secure_files' do
-    context 'feature flag' do
-      it 'returns a 503 when the feature flag is disabled' do
-        stub_feature_flags(ci_secure_files: false)
-
-        get api("/projects/#{project.id}/secure_files", maintainer)
-
-        expect(response).to have_gitlab_http_status(:service_unavailable)
-      end
-
-      it 'returns a 200 when the feature flag is enabled' do
-        get api("/projects/#{project.id}/secure_files", maintainer)
-
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(json_response).to be_a(Array)
-      end
-    end
-
     context 'ci_secure_files_read_only feature flag' do
       context 'when the flag is enabled' do
         before do
@@ -143,6 +125,20 @@ RSpec.describe API::Ci::SecureFiles do
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response['name']).to eq(secure_file.name)
+        expect(json_response['expires_at']).to be nil
+        expect(json_response['metadata']).to be nil
+        expect(json_response['file_extension']).to be nil
+      end
+
+      it 'returns project secure file details with metadata when supported' do
+        secure_file_with_metadata = create(:ci_secure_file_with_metadata, project: project)
+        get api("/projects/#{project.id}/secure_files/#{secure_file_with_metadata.id}", maintainer)
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response['name']).to eq(secure_file_with_metadata.name)
+        expect(json_response['expires_at']).to eq('2022-04-26T19:20:40.000Z')
+        expect(json_response['metadata'].keys).to match_array(%w[id issuer subject expires_at])
+        expect(json_response['file_extension']).to eq('cer')
       end
 
       it 'responds with 404 Not Found if requesting non-existing secure file' do
@@ -255,6 +251,7 @@ RSpec.describe API::Ci::SecureFiles do
         expect(json_response['name']).to eq('upload-keystore.jks')
         expect(json_response['checksum']).to eq(secure_file.checksum)
         expect(json_response['checksum_algorithm']).to eq('sha256')
+        expect(json_response['file_extension']).to eq('jks')
 
         secure_file = Ci::SecureFile.find(json_response['id'])
         expect(secure_file.checksum).to eq(
@@ -340,6 +337,15 @@ RSpec.describe API::Ci::SecureFiles do
         end.not_to change { project.secure_files.count }
 
         expect(response).to have_gitlab_http_status(:payload_too_large)
+      end
+
+      it 'returns an error when and invalid file name is supplied' do
+        params = file_params.merge(name: '../../upload-keystore.jks')
+        expect do
+          post api("/projects/#{project.id}/secure_files", maintainer), params: params
+        end.not_to change { project.secure_files.count }
+
+        expect(response).to have_gitlab_http_status(:internal_server_error)
       end
     end
 

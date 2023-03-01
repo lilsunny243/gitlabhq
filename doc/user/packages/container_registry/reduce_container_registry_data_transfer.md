@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Container Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Reduce Container Registry data transfers **(FREE)**
@@ -22,7 +22,7 @@ usage.
 Use these tools and techniques to determine your image's size:
 
 - [Skopeo](https://github.com/containers/skopeo):
-  use Skopeo's `inspect` command to examine layer count and sizes through API calls. You can
+  use the Skopeo `inspect` command to examine layer count and sizes through API calls. You can
   therefore inspect this data prior to running `docker pull IMAGE`.
 
 - Docker in CI: examine and record the image size when using GitLab CI prior to pushing an image
@@ -41,10 +41,10 @@ Use these tools and techniques to determine your image's size:
 ### Use a smaller base image
 
 Consider using a smaller base image, such as [Alpine Linux](https://alpinelinux.org/).
-An Alpine image is around 5MB, which is several times smaller than popular base images such as
+An Alpine image is around 5 MB, which is several times smaller than popular base images such as
 [Debian](https://hub.docker.com/_/debian).
 If your application is distributed as a self-contained static binary, such as for Go applications,
-you can also consider using Docker's [scratch](https://hub.docker.com/_/scratch/)
+you can also consider using the Docker [scratch](https://hub.docker.com/_/scratch/)
 base image.
 
 If you need to use a specific base image OS, look for `-slim` or `-minimal` variants, as this helps
@@ -90,7 +90,7 @@ build process instead of trying to minify images afterward.
 
 ### Use multi-stage builds
 
-With [multi-stage builds](https://docs.docker.com/develop/develop-images/multistage-build/),
+With [multi-stage builds](https://docs.docker.com/build/building/multi-stage/),
 you use multiple `FROM` statements in your Dockerfile. Each `FROM` instruction can use a different
 base, and each begins a new build stage. You can selectively copy artifacts from one stage to
 another, leaving behind everything you don't want in the final image. This is especially useful when

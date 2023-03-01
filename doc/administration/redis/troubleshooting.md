@@ -2,7 +2,7 @@
 type: reference
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Redis **(FREE SELF)**
@@ -26,8 +26,8 @@ Start Redis troubleshooting with a basic Redis activity check:
 
 1. Open a terminal on your GitLab server.
 1. Run `gitlab-redis-cli --stat` and observe the output while it runs.
-1. Go to your GitLab UI and browse to a handful of pages. Any page works, like
-   group or project overviews, issues, files in repositories, and so on.
+1. Go to your GitLab UI and browse to a handful of pages. Any page works, such as
+   group or project overviews, issues, or files in repositories.
 1. Check the `stat` output again and verify that the values for `keys`, `clients`,
    `requests`, and `connections` increases as you browse. If the numbers go up,
    basic Redis functionality is working and GitLab can connect to it.

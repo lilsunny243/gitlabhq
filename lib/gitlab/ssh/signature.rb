@@ -9,6 +9,8 @@ module Gitlab
     class Signature
       include Gitlab::Utils::StrongMemoize
 
+      GIT_NAMESPACE = 'git'
+
       def initialize(signature_text, signed_text, committer_email)
         @signature_text = signature_text
         @signed_text = signed_text
@@ -18,11 +20,16 @@ module Gitlab
       def verification_status
         strong_memoize(:verification_status) do
           next :unverified unless all_attributes_present?
-          next :unverified unless valid_signature_blob? && committer
+          next :unverified unless valid_signature_blob?
           next :unknown_key unless signed_by_key
+          next :other_user unless committer
           next :other_user unless signed_by_key.user == committer
 
-          :verified
+          if signed_by_user_email_verified?
+            :verified
+          else
+            :unverified
+          end
         end
       end
 
@@ -30,8 +37,12 @@ module Gitlab
         strong_memoize(:signed_by_key) do
           next unless key_fingerprint
 
-          Key.find_by_fingerprint_sha256(key_fingerprint)
+          Key.signing.find_by_fingerprint_sha256(key_fingerprint)
         end
+      end
+
+      def key_fingerprint
+        strong_memoize(:key_fingerprint) { signature&.public_key&.fingerprint }
       end
 
       private
@@ -48,6 +59,7 @@ module Gitlab
       # still need to check that the key belongs to the committer.
       def valid_signature_blob?
         return false unless signature
+        return false unless signature.namespace == GIT_NAMESPACE
 
         signature.verify(@signed_text)
       end
@@ -55,7 +67,11 @@ module Gitlab
       def committer
         # Lookup by email because users can push verified commits that were made
         # by someone else. For example: Doing a rebase.
-        strong_memoize(:committer) { User.find_by_any_email(@committer_email, confirmed: true) }
+        strong_memoize(:committer) { User.find_by_any_email(@committer_email) }
+      end
+
+      def signed_by_user_email_verified?
+        signed_by_key.user.verified_emails.include?(@committer_email)
       end
 
       def signature
@@ -64,10 +80,6 @@ module Gitlab
         rescue SSHData::DecodeError
           nil
         end
-      end
-
-      def key_fingerprint
-        strong_memoize(:key_fingerprint) { signature&.public_key&.fingerprint }
       end
     end
   end

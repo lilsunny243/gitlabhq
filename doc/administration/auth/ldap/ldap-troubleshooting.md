@@ -2,7 +2,7 @@
 type: reference
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting LDAP **(FREE SELF)**
@@ -167,16 +167,15 @@ may see the following message: `Access denied for your LDAP account`.
 
 We have a workaround, based on toggling the access level of affected users:
 
-1. As an administrator, on the top bar, select **Menu > Admin**.
+1. As an administrator, on the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users**.
 1. Select the name of the affected user.
-1. In the user's administrative page, press **Edit** on the top right of the page.
-1. Change the user's access level from `Regular` to `Admin` (or vice versa),
-   and press **Save changes** at the bottom of the page.
-1. Press **Edit** on the top right of the user's profile page
-   again.
-1. Restore the user's original access level (`Regular` or `Admin`)
-   and press **Save changes** again.
+1. In the upper-right corner, select **Edit**.
+1. Change the user's access level from `Regular` to `Administrator` (or vice versa).
+1. At the bottom of the page, select **Save changes**.
+1. In the upper-right corner, select **Edit** again.
+1. Restore the user's original access level (`Regular` or `Administrator`)
+   and select **Save changes** again.
 
 The user should now be able to sign in.
 
@@ -196,7 +195,7 @@ same user) has the email `email@example.com` set as a secondary email, which
 is throwing this error.
 
 We can check where this conflicting email address is coming from using the
-[rails console](#rails-console). Once in the console, run the following:
+[rails console](#rails-console). In the console, run the following:
 
 ```ruby
 # This searches for an email among the primary AND secondary emails
@@ -225,7 +224,7 @@ field contains no data:
 
 To resolve this:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, go to **Settings > General**.
 1. Expand both of the following:
    - **Account and limit**.
@@ -368,12 +367,12 @@ things to debug the situation.
 - Ensure the correct [LDAP group link is added to the GitLab group](ldap_synchronization.md#add-group-links).
 - Check that the user has an LDAP identity:
   1. Sign in to GitLab as an administrator user.
-  1. On the top bar, select **Menu > Admin**.
+  1. On the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Overview > Users**.
   1. Search for the user.
   1. Open the user by selecting their name. Do not select **Edit**.
   1. Select the **Identities** tab. There should be an LDAP identity with
-     an LDAP DN as the 'Identifier'. If not, this user hasn't signed in with
+     an LDAP DN as the `Identifier`. If not, this user hasn't signed in with
      LDAP yet and must do so first.
 - You've waited an hour or [the configured interval](ldap_synchronization.md#adjust-ldap-group-sync-schedule) for
   the group to sync. To speed up the process, either go to the GitLab group **Group information > Members**
@@ -523,8 +522,8 @@ LDAP group lookups. The very last occurrence of this entry should indicate
 exactly which users GitLab believes should be added to the group.
 
 NOTE:
-10 is 'Guest', 20 is 'Reporter', 30 is 'Developer', 40 is 'Maintainer'
-and 50 is 'Owner'.
+10 is `Guest`, 20 is `Reporter`, 30 is `Developer`, 40 is `Maintainer`
+and 50 is `Owner`.
 
 ```shell
 Resolved 'my_group' group member access: {"uid=john0,ou=people,dc=example,dc=com"=>30,
@@ -541,12 +540,12 @@ Usually this is not a cause for concern.
 
 If you think a particular user should already exist in GitLab, but you're seeing
 this entry, it could be due to a mismatched DN stored in GitLab. See
-[User DN and/or email have changed](#user-dn-orand-email-have-changed) to update the user's LDAP identity.
+[User DN and email have changed](#user-dn-and-email-have-changed) to update the user's LDAP identity.
 
 ```shell
 User with DN `uid=john0,ou=people,dc=example,dc=com` should have access
 to 'my_group' group but there is no user in GitLab with that
-identity. Membership will be updated once the user signs in for
+identity. Membership will be updated when the user signs in for
 the first time.
 ```
 
@@ -556,7 +555,7 @@ Finally, the following entry says syncing has finished for this group:
 Finished syncing all providers for 'my_group' group
 ```
 
-Once all the configured group links have been synchronized, GitLab looks
+When all the configured group links have been synchronized, GitLab looks
 for any Administrators or External users to sync:
 
 ```shell
@@ -614,26 +613,26 @@ ldap_group.member_dns
 ldap_group.member_uids
 ```
 
-### User DN or/and email have changed
+#### LDAP synchronization does not remove group creator from group
 
-When an LDAP user is created in GitLab, their LDAP DN is stored for later reference.
+[LDAP synchronization](ldap_synchronization.md) should remove an LDAP group's creator
+from that group, if that user does not exist in the group. If running LDAP synchronization
+does not do this:
 
-If GitLab cannot find a user by their DN, it falls back
-to finding the user by their email. If the lookup is successful, GitLab
-updates the stored DN to the new value so both values now match what's in
-LDAP.
+1. Add the user to the LDAP group.
+1. Wait until LDAP group synchronization has finished running.
+1. Remove the user from the LDAP group.
 
-If the email has changed and the DN has not, GitLab finds the user with
-the DN and updates its own record of the user's email to match the one in LDAP.
+### User DN and email have changed
 
-However, if the primary email _and_ the DN change in LDAP, then GitLab
-has no way of identifying the correct LDAP record of the user and, as a
-result, the user is blocked. To rectify this, the user's existing
-profile must be updated with at least one of the new values (primary
-email or DN) so the LDAP record can be found.
+If both the primary email **and** the DN change in LDAP, GitLab cannot identify the correct LDAP record of a user. As a
+result, GitLab blocks that user. So that GitLab can find the LDAP record, update the user's existing GitLab profile with
+at least either:
 
-The following script updates the emails for all provided users so they
-aren't blocked or unable to access their accounts.
+- The new primary email.
+- DN values.
+
+The following script updates the emails for all provided users so they aren't blocked or unable to access their accounts.
 
 NOTE:
 The following script requires that any new accounts with the new
@@ -659,7 +658,7 @@ end
 You can then [run a UserSync](#sync-all-users) **(PREMIUM SELF)** to sync the latest DN
 for each of these users.
 
-## Could not authenticate you from ldapmain because "Unknown provider"
+## `Could not authenticate you from Ldapmain because "Unknown provider"`
 
 You can receive the following error when authenticating with an LDAP server:
 
@@ -735,7 +734,7 @@ To resolve this error, you must apply a new license to the GitLab instance witho
 
 1. Remove or comment out the GitLab configuration lines for all non-primary LDAP servers.
 1. [Reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure) so that it temporarily uses only one LDAP server.
-1. Enter the [Rails console and add the license key](../../troubleshooting/gitlab_rails_cheat_sheet.md#add-a-license-through-the-console).
+1. Enter the [Rails console and add the license key](../../../user/admin_area/license_file.md#add-a-license-through-the-console).
 1. Re-enable the additional LDAP servers in the GitLab configuration and reconfigure GitLab again.
 
 ## Debugging Tools
@@ -821,6 +820,38 @@ ldapsearch -D "cn=admin,dc=ldap-testing,dc=example,dc=com" \
 The `bind_dn`, `password`, `port`, `host`, and `base` are all
 identical to what's configured in the `gitlab.rb`.
 
+#### Use ldapsearch with `start_tls` encryption
+
+The previous example performs an LDAP test in plaintext to port 389. If you are using [`start_tls` encryption](index.md#basic-configuration-settings), in
+the `ldapsearch` command include:
+
+- The `-Z` flag.
+- The FQDN of the LDAP server.
+
+You must include these because, during TLS negotiation, the FQDN of the LDAP server is evaluated against its certificate:
+
+```shell
+ldapsearch -D "cn=admin,dc=ldap-testing,dc=example,dc=com" \
+  -w Password1 \
+  -p 389 \
+  -h "testing.ldap.com" \
+  -b "dc=ldap-testing,dc=example,dc=com" -Z
+```
+
+#### Use ldapsearch with `simple_tls` encryption
+
+If you are using [`simple_tls` encryption](index.md#basic-configuration-settings) (usually on port 636), include the following in the `ldapsearch` command:
+
+- The LDAP server FQDN with the `-H` flag and the port.
+- The full constructed URI.
+
+```shell
+ldapsearch -D "cn=admin,dc=ldap-testing,dc=example,dc=com" \
+  -w Password1 \
+  -H "ldaps://testing.ldap.com:636" \
+  -b "dc=ldap-testing,dc=example,dc=com"
+```
+
 For more information, see the [official `ldapsearch` documentation](https://linux.die.net/man/1/ldapsearch).
 
 ### Using **AdFind** (Windows)
@@ -865,4 +896,37 @@ To enable debug output in the rails console, [enter the rails console](#rails-co
 
 ```ruby
 Rails.logger.level = Logger::DEBUG
+```
+
+#### Get all error messages associated with groups, subgroups, members, and requesters
+
+Collect error messages associated with groups, subgroups, members, and requesters. This
+captures error messages that may not appear in the Web interface. This can be especially helpful
+for troubleshooting issues with [LDAP group sync](ldap_synchronization.md#group-sync)
+and unexpected behavior with users and their membership in groups and subgroups.
+
+```ruby
+# Find the group and subgroup
+group = Group.find_by_full_path("parent_group")
+subgroup = Group.find_by_full_path("parent_group/child_group")
+
+# Group and subgroup errors
+group.valid?
+group.errors.map(&:full_messages)
+
+subgroup.valid?
+subgroup.errors.map(&:full_messages)
+
+# Group and subgroup errors for the members AND requesters
+group.requesters.map(&:valid?)
+group.requesters.map(&:errors).map(&:full_messages)
+group.members.map(&:valid?)
+group.members.map(&:errors).map(&:full_messages)
+group.members_and_requesters.map(&:errors).map(&:full_messages)
+
+subgroup.requesters.map(&:valid?)
+subgroup.requesters.map(&:errors).map(&:full_messages)
+subgroup.members.map(&:valid?)
+subgroup.members.map(&:errors).map(&:full_messages)
+subgroup.members_and_requesters.map(&:errors).map(&:full_messages)
 ```

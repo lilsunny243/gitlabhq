@@ -20,8 +20,8 @@ RSpec.describe Gitlab::BackgroundMigration::RemoveBackfilledJobArtifactsExpireAt
       )
     end
 
-    let_it_be(:namespace) { table(:namespaces).create!(id: 1, name: 'user', path: 'user') }
-    let_it_be(:project) do
+    let!(:namespace) { table(:namespaces).create!(id: 1, name: 'user', path: 'user') }
+    let!(:project) do
       table(:projects).create!(
         id: 1,
         name: 'gitlab1',
@@ -85,8 +85,9 @@ RSpec.describe Gitlab::BackgroundMigration::RemoveBackfilledJobArtifactsExpireAt
     private
 
     def create_job_artifact(id:, file_type:, expire_at:)
-      job = table(:ci_builds, database: :ci).create!(id: id)
-      job_artifact.create!(id: id, job_id: job.id, expire_at: expire_at, project_id: project.id, file_type: file_type)
+      job = table(:ci_builds, database: :ci).create!(id: id, partition_id: 100)
+      job_artifact.create!(id: id, job_id: job.id, expire_at: expire_at, project_id: project.id,
+                           file_type: file_type, partition_id: 100)
     end
   end
 end

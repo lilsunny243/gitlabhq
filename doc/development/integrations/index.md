@@ -1,18 +1,18 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: "GitLab's development guidelines for Integrations"
 ---
 
-# Integrations development guide **(FREE)**
+# Integrations development guide
 
 This page provides development guidelines for implementing [GitLab integrations](../../user/project/integrations/index.md),
 which are part of our [main Rails project](https://gitlab.com/gitlab-org/gitlab).
 
-Also see our [direction page](https://about.gitlab.com/direction/ecosystem/integrations/) for an overview of our strategy around integrations.
+Also see our [direction page](https://about.gitlab.com/direction/manage/integrations/) for an overview of our strategy around integrations.
 
-This guide is a work in progress. You're welcome to ping `@gitlab-org/ecosystem-stage/integrations`
+This guide is a work in progress. You're welcome to ping `@gitlab-org/manage/integrations`
 if you need clarification or spot any outdated information.
 
 ## Add a new integration
@@ -58,7 +58,7 @@ end
 
 `Integration.prop_accessor` installs accessor methods on the class. Here we would have `#url`, `#url=` and `#url_changed?`, to manage the `url` field. Fields stored in `Integration#properties` should be accessed by these accessors directly on the model, just like other ActiveRecord attributes.
 
-You should always access the properties through their getters, and not interact with the `properties` hash directly.
+You should always access the properties through their `getters`, and not interact with the `properties` hash directly.
 You **must not** write to the `properties` hash, you **must** use the generated setter method instead. Direct writes to this
 hash are not persisted.
 
@@ -119,6 +119,39 @@ module Integrations
   class FooBar < Integration
     def self.supported_events
       []
+    end
+  end
+end
+```
+
+## Define configuration test
+
+Optionally, you can define a configuration test of an integration's settings. The test is executed from the integration form's **Test** button, and results are returned to the user.
+
+A good configuration test:
+
+- Does not change data on the service. For example, it should not trigger a CI build. Sending a message is okay.
+- Is meaningful and as thorough as possible.
+
+If it's not possible to follow the above guidelines, consider not adding a configuration test.
+
+To add a configuration test, define a `#test` method for the integration model.
+
+The method receives `data`, which is a test push event payload.
+It should return a hash, containing the keys:
+
+- `success` (required): a boolean to indicate if the configuration test has passed.
+- `result` (optional): a message returned to the user if the configuration test has failed.
+
+For example:
+
+```ruby
+module Integrations
+  class FooBar < Integration
+    def test(data)
+      success = test_api_key(data)
+
+      { success: success, result: 'API key is invalid' }
     end
   end
 end
@@ -273,7 +306,7 @@ When developing a new integration, we also recommend you gate the availability b
 
 You can provide help text in the integration form, including links to off-site documentation,
 as described above in [Customize the frontend form](#customize-the-frontend-form). Refer to
-our [usability guidelines](https://design.gitlab.com/usability/helping-users/) for help text.
+our [usability guidelines](https://design.gitlab.com/usability/contextual-help) for help text.
 
 For more detailed documentation, provide a page in `doc/user/project/integrations`,
 and link it from the [Integrations overview](../../user/project/integrations/index.md).
@@ -281,6 +314,8 @@ and link it from the [Integrations overview](../../user/project/integrations/ind
 You can also refer to our general [documentation guidelines](../documentation/index.md).
 
 ## Testing
+
+Testing should not be confused with [defining configuration tests](#define-configuration-test).
 
 It is often sufficient to add tests for the integration model in `spec/models/integrations`,
 and a factory with example settings in `spec/factories/integrations.rb`.

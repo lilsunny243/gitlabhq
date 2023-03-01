@@ -43,11 +43,6 @@ export default {
     isBlob() {
       return this.file.type === 'blob';
     },
-    levelIndentation() {
-      return {
-        marginLeft: this.level ? `${this.level * 16}px` : null,
-      };
-    },
     fileClass() {
       return {
         'file-open': this.isBlob && this.file.opened,
@@ -144,7 +139,6 @@ export default {
     >
       <span
         ref="textOutput"
-        :style="levelIndentation"
         class="file-row-name"
         :title="file.name"
         data-qa-selector="file_name_content"
@@ -174,7 +168,7 @@ export default {
 .file-row {
   display: flex;
   align-items: center;
-  height: 32px;
+  height: var(--file-row-height, 32px);
   padding: 4px 8px;
   margin-left: -8px;
   margin-right: -8px;
@@ -198,6 +192,7 @@ export default {
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-left: calc(var(--level) * 16px);
 }
 
 .file-row-name .file-row-icon {

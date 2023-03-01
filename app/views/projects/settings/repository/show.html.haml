@@ -3,7 +3,7 @@
 - @content_class = "limit-container-width" unless fluid_layout
 - deploy_token_description = s_('DeployTokens|Deploy tokens allow access to packages, your repository, and registry images.')
 
-= render "projects/default_branch/show"
+= render "projects/branch_defaults/show"
 - if Feature.enabled?(:branch_rules, @project)
   = render "projects/branch_rules/show"
 = render_if_exists "projects/push_rules/index"
@@ -13,9 +13,9 @@
 -# The shared parts of the views can be found in the `shared` directory.
 -# Those are used throughout the actual views. These `shared` views are then
 -# reused in EE.
-= render "projects/settings/repository/protected_branches"
+= render "projects/settings/repository/protected_branches", protected_branch_entity: @project
 = render "shared/deploy_tokens/index", group_or_project: @project, description: deploy_token_description
-= render @deploy_keys
+= render 'shared/deploy_keys/index'
 = render "projects/cleanup/show"
 
 = render_if_exists 'shared/promotions/promote_repository_features'

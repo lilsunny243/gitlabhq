@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::UsageData do
+RSpec.describe API::UsageData, feature_category: :service_ping do
   let_it_be(:user) { create(:user) }
 
   describe 'POST /usage_data/increment_counter' do
@@ -138,7 +138,9 @@ RSpec.describe API::UsageData do
 
       context 'with correct params' do
         it 'returns status ok' do
-          expect(Gitlab::Redis::HLL).to receive(:add)
+          expect(Gitlab::UsageDataCounters::HLLRedisCounter).to receive(:track).with(anything, known_event, anything)
+          # allow other events to also get triggered
+          allow(Gitlab::UsageDataCounters::HLLRedisCounter).to receive(:track)
 
           post api(endpoint, user), params: { event: known_event }
 

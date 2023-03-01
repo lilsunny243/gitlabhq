@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Blob shortcuts', :js do
+RSpec.describe 'Blob shortcuts', :js, feature_category: :team_planning do
   let(:user) { create(:user) }
   let(:project) { create(:project, :public, :repository) }
   let(:issue) { create(:issue, project: project, author: user) }
@@ -11,6 +11,7 @@ RSpec.describe 'Blob shortcuts', :js do
 
   before do
     project.add_developer(user)
+
     sign_in(user)
   end
 
@@ -87,7 +88,7 @@ RSpec.describe 'Blob shortcuts', :js do
     it "opens milestones dropdown for editing" do
       find('body').native.send_key('m')
 
-      expect(find('[data-testid="milestone-edit"]')).to have_selector('.gl-new-dropdown-inner')
+      expect(find('[data-testid="milestone-edit"]')).to have_selector('.gl-dropdown-inner')
     end
   end
 

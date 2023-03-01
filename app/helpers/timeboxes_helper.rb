@@ -8,11 +8,23 @@ module TimeboxesHelper
     if milestone.closed?
       _('Closed')
     elsif milestone.expired?
-      _('Past due')
+      _('Expired')
     elsif milestone.upcoming?
       _('Upcoming')
     else
       _('Open')
+    end
+  end
+
+  def milestone_badge_variant(milestone)
+    if milestone.closed?
+      :danger
+    elsif milestone.expired?
+      :warning
+    elsif milestone.upcoming?
+      :neutral
+    else
+      :success
     end
   end
 
@@ -36,7 +48,7 @@ module TimeboxesHelper
     end
   end
 
-  def milestones_browse_issuables_path(milestone, state: nil, type:)
+  def milestones_browse_issuables_path(milestone, type:, state: nil)
     opts = { milestone_title: milestone.title, state: state }
 
     if @project
@@ -77,14 +89,10 @@ module TimeboxesHelper
   end
 
   def milestone_progress_bar(milestone)
-    options = {
-      class: 'progress-bar bg-success',
-      style: "width: #{milestone.percent_complete}%;"
-    }
-
-    content_tag :div, class: 'progress' do
-      content_tag :div, nil, options
-    end
+    render Pajamas::ProgressComponent.new(
+      value: milestone.percent_complete,
+      variant: :success
+    )
   end
 
   def milestone_time_for(date, date_type)
@@ -172,18 +180,19 @@ module TimeboxesHelper
 
   def timebox_date_range(timebox)
     if timebox.start_date && timebox.due_date
-      "#{timebox.start_date.to_s(:medium)}–#{timebox.due_date.to_s(:medium)}"
+      s_("DateRange|%{start_date}–%{end_date}") % { start_date: l(timebox.start_date, format: Date::DATE_FORMATS[:medium]),
+                                                    end_date: l(timebox.due_date, format: Date::DATE_FORMATS[:medium]) }
     elsif timebox.due_date
       if timebox.due_date.past?
-        _("expired on %{timebox_due_date}") % { timebox_due_date: timebox.due_date.to_s(:medium) }
+        _("expired on %{timebox_due_date}") % { timebox_due_date: l(timebox.due_date, format: Date::DATE_FORMATS[:medium]) }
       else
-        _("expires on %{timebox_due_date}") % { timebox_due_date: timebox.due_date.to_s(:medium) }
+        _("expires on %{timebox_due_date}") % { timebox_due_date: l(timebox.due_date, format: Date::DATE_FORMATS[:medium]) }
       end
     elsif timebox.start_date
       if timebox.start_date.past?
-        _("started on %{timebox_start_date}") % { timebox_start_date: timebox.start_date.to_s(:medium) }
+        _("started on %{timebox_start_date}") % { timebox_start_date: l(timebox.start_date, format: Date::DATE_FORMATS[:medium]) }
       else
-        _("starts on %{timebox_start_date}") % { timebox_start_date: timebox.start_date.to_s(:medium) }
+        _("starts on %{timebox_start_date}") % { timebox_start_date: l(timebox.start_date, format: Date::DATE_FORMATS[:medium]) }
       end
     end
   end

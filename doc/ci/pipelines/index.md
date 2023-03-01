@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/ci/pipelines.html'
 type: reference
 ---
@@ -57,7 +57,7 @@ Pipelines can be configured in many different ways:
   already been merged into the target branch.
 - [Merge trains](../pipelines/merge_trains.md)
   use merged results pipelines to queue merges one after the other.
-- [Parent-child pipelines](parent_child_pipelines.md) break down complex pipelines
+- [Parent-child pipelines](downstream_pipelines.md#parent-child-pipelines) break down complex pipelines
   into one parent pipeline that can trigger multiple child sub-pipelines, which all
   run in the same project and with the same SHA. This pipeline architecture is commonly used for mono-repos.
 - [Multi-project pipelines](downstream_pipelines.md#multi-project-pipelines) combine pipelines for different projects together.
@@ -75,12 +75,12 @@ You can also configure specific aspects of your pipelines through the GitLab UI.
 
 - [Pipeline settings](settings.md) for each project.
 - [Pipeline schedules](schedules.md).
-- [Custom CI/CD variables](../variables/index.md#custom-cicd-variables).
+- [Custom CI/CD variables](../variables/index.md#for-a-project).
 
 ### Ref specs for runners
 
 When a runner picks a pipeline job, GitLab provides that job's metadata. This includes the [Git refspecs](https://git-scm.com/book/en/v2/Git-Internals-The-Refspec),
-which indicate which ref (branch, tag, and so on) and commit (SHA1) are checked out from your
+which indicate which ref (such as branch or tag) and commit (SHA1) are checked out from your
 project repository.
 
 This table lists the refspecs injected for each pipeline type:
@@ -136,16 +136,16 @@ and [view your pipeline status](https://marketplace.visualstudio.com/items?itemN
 
 Pipelines can be manually executed, with predefined or manually-specified [variables](../variables/index.md).
 
-You might do this if the results of a pipeline (for example, a code build) are required outside the normal
+You might do this if the results of a pipeline (for example, a code build) are required outside the standard
 operation of the pipeline.
 
 To execute a pipeline manually:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **CI/CD > Pipelines**.
 1. Select **Run pipeline**.
 1. In the **Run for branch name or tag** field, select the branch or tag to run the pipeline for.
-1. Enter any [environment variables](../variables/index.md) required for the pipeline to run.
+1. Enter any [CI/CD variables](../variables/index.md) required for the pipeline to run.
    You can set specific variables to have their [values prefilled in the form](#prefill-variables-in-manual-pipelines).
 1. Select **Run pipeline**.
 
@@ -155,26 +155,64 @@ The pipeline now executes the jobs as configured.
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30101) in GitLab 13.7.
 
-You can use the [`value` and `description`](../yaml/index.md#variablesdescription)
-keywords to define
-[pipeline-level (global) variables](../variables/index.md#create-a-custom-cicd-variable-in-the-gitlab-ciyml-file)
-that are prefilled when running a pipeline manually.
+You can use the [`description` and `value`](../yaml/index.md#variablesdescription)
+keywords to [define pipeline-level (global) variables](../variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file)
+that are prefilled when running a pipeline manually. Use the description to explain
+information such as what the variable is used for, and what the acceptable values are.
 
-In pipelines triggered manually, the **Run pipelines** page displays all top-level variables
-with a `description` and `value` defined in the `.gitlab-ci.yml` file. The values
-can then be modified if needed, which overrides the value for that single pipeline run.
+Job-level variables cannot be pre-filled.
 
-The description is displayed next to the variable. It can be used to explain what
-the variable is used for, what the acceptable values are, and so on:
+In manually-triggered pipelines, the **Run pipeline** page displays all pipeline-level variables
+that have a `description` defined in the `.gitlab-ci.yml` file. The description displays
+below the variable.
+
+You can change the prefilled value, which [overrides the value](../variables/index.md#override-a-defined-cicd-variable) for that single pipeline run.
+Any variables overridden by using this process are [expanded](../variables/index.md#prevent-cicd-variable-expansion)
+and not [masked](../variables/index.md#mask-a-cicd-variable).
+If you do not define a `value` for the variable in the configuration file, the variable name is still listed,
+but the value field is blank.
+
+For example:
+
+```yaml
+variables:
+  DEPLOY_CREDENTIALS:
+    description: "The deployment credentials."
+  DEPLOY_ENVIRONMENT:
+    description: "Select the deployment target. Valid options are: 'canary', 'staging', 'production', or a stable branch of your choice."
+    value: "canary"
+```
+
+In this example:
+
+- `DEPLOY_CREDENTIALS` is listed in the **Run pipeline** page, but with no value set.
+  The user is expected to define the value each time the pipeline is run manually.
+- `DEPLOY_ENVIRONMENT` is pre-filled in the **Run pipeline** page with `canary` as the default value,
+  and the message explains the other options.
+
+#### Configure a list of selectable prefilled variable values
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/363660) in GitLab 15.5 [with a flag](../../administration/feature_flags.md) named `run_pipeline_graphql`. Disabled by default.
+> - The `options` keyword was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/105502) in GitLab 15.7.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106038) in GitLab 15.7. Feature flag `run_pipeline_graphql` removed.
+
+You can define an array of CI/CD variable values the user can select from when running a pipeline manually.
+These values are in a dropdown list in the **Run pipeline** page. Add the list of
+value options to `options` and set the default value with `value`. The string in `value`
+must also be included in the `options` list.
+
+For example:
 
 ```yaml
 variables:
   DEPLOY_ENVIRONMENT:
-    value: "staging"  # Deploy to staging by default
-    description: "The deployment target. Change this variable to 'canary' or 'production' if needed."
+    value: "staging"
+    options:
+      - "production"
+      - "staging"
+      - "canary"
+    description: "The deployment target. Set to 'staging' by default."
 ```
-
-You cannot set job-level variables to be pre-filled when you run a pipeline manually.
 
 ### Run a pipeline by using a URL query string
 
@@ -248,13 +286,13 @@ pipelines.
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24851) in GitLab 12.7.
 
 Users with the Owner role for a project can delete a pipeline
-by clicking on the pipeline in the **CI/CD > Pipelines** to get to the **Pipeline Details**
+by selecting the pipeline in the **CI/CD > Pipelines** to get to the **Pipeline Details**
 page, then selecting **Delete**.
 
 ![Pipeline Delete](img/pipeline-delete.png)
 
 Deleting a pipeline does not automatically delete its
-[child pipelines](parent_child_pipelines.md).
+[child pipelines](downstream_pipelines.md#parent-child-pipelines).
 See the [related issue](https://gitlab.com/gitlab-org/gitlab/-/issues/39503)
 for details.
 
@@ -289,6 +327,9 @@ preserving deployment keys and other credentials from being unintentionally
 accessed. To ensure that jobs intended to be executed on protected
 runners do not use regular runners, they must be tagged accordingly.
 
+Review the [deployment safety](../environments/deployment_safety.md)
+page for additional security recommendations for securing your pipelines.
+
 ## Trigger a pipeline when an upstream project is rebuilt **(PREMIUM)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/9045) in GitLab 12.8.
@@ -304,7 +345,7 @@ Prerequisites:
 
 To trigger the pipeline when the upstream project is rebuilt:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Pipeline subscriptions**.
 1. Enter the project you want to subscribe to, in the format `<namespace>/<project>`.
@@ -386,7 +427,7 @@ You can group the jobs by:
 you visualize the entire pipeline, including all cross-project inter-dependencies.
 
 If a stage contains more than 100 jobs, only the first 100 jobs are listed in the
-pipeline graph. The remaining jobs still run as normal. To see the jobs:
+pipeline graph. The remaining jobs still run as usual. To see the jobs:
 
 - Select the pipeline, and the jobs are listed on the right side of the pipeline details page.
 - On the left sidebar, select **CI/CD > Jobs**.

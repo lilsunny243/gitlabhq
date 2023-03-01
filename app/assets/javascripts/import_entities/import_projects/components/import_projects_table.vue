@@ -9,10 +9,12 @@ import {
 import { mapActions, mapState, mapGetters } from 'vuex';
 import { n__, __, sprintf } from '~/locale';
 import ProviderRepoTableRow from './provider_repo_table_row.vue';
+import AdvancedSettings from './advanced_settings.vue';
 
 export default {
   name: 'ImportProjectsTable',
   components: {
+    AdvancedSettings,
     ProviderRepoTableRow,
     GlLoadingIcon,
     GlButton,
@@ -35,12 +37,34 @@ export default {
       required: false,
       default: false,
     },
+    cancelable: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    optionalStages: {
+      type: Array,
+      required: false,
+      default: () => [],
+    },
+    isAdvancedSettingsPanelInitiallyExpanded: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
+  },
+
+  data() {
+    return {
+      optionalStagesSelection: Object.fromEntries(
+        this.optionalStages.map(({ name }) => [name, false]),
+      ),
+    };
   },
 
   computed: {
-    ...mapState(['filter', 'repositories', 'namespaces', 'defaultTargetNamespace', 'pageInfo']),
+    ...mapState(['filter', 'repositories', 'defaultTargetNamespace', 'pageInfo', 'isLoadingRepos']),
     ...mapGetters([
-      'isLoading',
       'isImportingAnyRepo',
       'importingRepoCount',
       'hasImportableRepos',
@@ -78,7 +102,6 @@ export default {
   },
 
   mounted() {
-    this.fetchNamespaces();
     this.fetchJobs();
 
     if (!this.paginatable) {
@@ -95,7 +118,6 @@ export default {
     ...mapActions([
       'fetchRepos',
       'fetchJobs',
-      'fetchNamespaces',
       'stopJobsPolling',
       'clearJobsEtagPoll',
       'setFilter',
@@ -127,7 +149,7 @@ export default {
         modal-id="import-all-modal"
         :title="s__('ImportProjects|Import repositories')"
         :ok-title="__('Import')"
-        @ok="importAll"
+        @ok="importAll({ optionalStages: optionalStagesSelection })"
       >
         {{
           n__(
@@ -150,40 +172,48 @@ export default {
         />
       </form>
     </div>
+    <advanced-settings
+      v-if="optionalStages && optionalStages.length"
+      v-model="optionalStagesSelection"
+      :stages="optionalStages"
+      :is-initially-expanded="isAdvancedSettingsPanelInitiallyExpanded"
+      class="gl-mb-5"
+    />
     <div v-if="repositories.length" class="gl-w-full">
       <table>
         <thead class="gl-border-0 gl-border-solid gl-border-t-1 gl-border-gray-100">
-          <th class="import-jobs-from-col gl-p-4 gl-vertical-align-top gl-border-b-1">
+          <th class="gl-w-half gl-p-4 gl-vertical-align-top gl-border-b-1">
             {{ fromHeaderText }}
           </th>
-          <th class="import-jobs-to-col gl-p-4 gl-vertical-align-top gl-border-b-1">
+          <th class="gl-w-half gl-p-4 gl-vertical-align-top gl-border-b-1">
             {{ __('To GitLab') }}
           </th>
-          <th class="import-jobs-status-col gl-p-4 gl-vertical-align-top gl-border-b-1">
+          <th class="gl-p-4 gl-vertical-align-top gl-border-b-1">
             {{ __('Status') }}
           </th>
-          <th class="import-jobs-cta-col gl-p-4 gl-vertical-align-top gl-border-b-1"></th>
+          <th class="gl-p-4 gl-vertical-align-top gl-border-b-1"></th>
         </thead>
         <tbody>
           <template v-for="repo in repositories">
             <provider-repo-table-row
               :key="repo.importSource.providerLink"
               :repo="repo"
-              :available-namespaces="namespaces"
               :user-namespace="defaultTargetNamespace"
+              :optional-stages="optionalStagesSelection"
+              :cancelable="cancelable"
             />
           </template>
         </tbody>
       </table>
     </div>
     <gl-intersection-observer
-      v-if="paginatable"
+      v-if="paginatable && pageInfo.hasNextPage"
       :key="pagePaginationStateKey"
       @appear="fetchRepos"
     />
-    <gl-loading-icon v-if="isLoading" class="gl-mt-7" size="lg" />
+    <gl-loading-icon v-if="isLoadingRepos" class="gl-mt-7" size="lg" />
 
-    <div v-if="!isLoading && repositories.length === 0" class="gl-text-center">
+    <div v-if="!isLoadingRepos && repositories.length === 0" class="gl-text-center">
       <strong>{{ emptyStateText }}</strong>
     </div>
   </div>

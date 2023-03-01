@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User searches group settings', :js do
+RSpec.describe 'User searches group settings', :js, feature_category: :subgroups do
   let_it_be(:user) { create(:user) }
   let_it_be(:group) { create(:group) }
 
@@ -43,7 +43,7 @@ RSpec.describe 'User searches group settings', :js do
     it_behaves_like 'can search settings', 'Variables', 'Auto DevOps'
   end
 
-  context 'in Packages & Registries page' do
+  context 'in Packages and registries page' do
     before do
       visit group_settings_packages_and_registries_path(group)
     end

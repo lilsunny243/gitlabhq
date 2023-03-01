@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :registry, only: { pipeline: :main } do
+  RSpec.describe 'Package', :orchestrated, :registry, only: { pipeline: :main }, product_group: :container_registry do
     describe 'Dependency Proxy' do
       using RSpec::Parameterized::TableSyntax
       include Support::Helpers::MaskToken
@@ -14,7 +14,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.name = "qa-runner-#{Time.now.to_i}"
           runner.tags = ["runner-for-#{project.name}"]
           runner.executor = :docker

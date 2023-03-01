@@ -63,6 +63,47 @@ RSpec.describe Gitlab::GitalyClient::CommitService do
       end
     end
 
+    context 'when given a whitespace param' do
+      context 'and the param is true' do
+        it 'uses the ignore all white spaces const' do
+          request = Gitaly::CommitDiffRequest.new
+
+          expect(Gitaly::CommitDiffRequest).to receive(:new)
+            .with(hash_including(whitespace_changes: Gitaly::CommitDiffRequest::WhitespaceChanges::WHITESPACE_CHANGES_IGNORE_ALL)).and_return(request)
+
+          expect_any_instance_of(Gitaly::DiffService::Stub).to receive(:commit_diff).with(request, kind_of(Hash))
+
+          client.diff_from_parent(commit, ignore_whitespace_change: true)
+        end
+      end
+
+      context 'and the param is false' do
+        it 'does not set a whitespace param' do
+          request = Gitaly::CommitDiffRequest.new
+
+          expect(Gitaly::CommitDiffRequest).to receive(:new)
+            .with(hash_not_including(:whitespace_changes)).and_return(request)
+
+          expect_any_instance_of(Gitaly::DiffService::Stub).to receive(:commit_diff).with(request, kind_of(Hash))
+
+          client.diff_from_parent(commit, ignore_whitespace_change: false)
+        end
+      end
+    end
+
+    context 'when given no whitespace param' do
+      it 'does not set a whitespace param' do
+        request = Gitaly::CommitDiffRequest.new
+
+        expect(Gitaly::CommitDiffRequest).to receive(:new)
+          .with(hash_not_including(:whitespace_changes)).and_return(request)
+
+        expect_any_instance_of(Gitaly::DiffService::Stub).to receive(:commit_diff).with(request, kind_of(Hash))
+
+        client.diff_from_parent(commit)
+      end
+    end
+
     it 'returns a Gitlab::GitalyClient::DiffStitcher' do
       ret = client.diff_from_parent(commit)
 
@@ -297,6 +338,11 @@ RSpec.describe Gitlab::GitalyClient::CommitService do
   describe '#list_commits' do
     let(:revisions) { 'master' }
     let(:reverse) { false }
+    let(:author) { nil }
+    let(:ignore_case) { nil }
+    let(:commit_message_patterns) { nil }
+    let(:before) { nil }
+    let(:after) { nil }
     let(:pagination_params) { nil }
 
     shared_examples 'a ListCommits request' do
@@ -309,13 +355,18 @@ RSpec.describe Gitlab::GitalyClient::CommitService do
           expected_request = gitaly_request_with_params(
             Array.wrap(revisions),
             reverse: reverse,
+            author: author,
+            ignore_case: ignore_case,
+            commit_message_patterns: commit_message_patterns,
+            before: before,
+            after: after,
             pagination_params: pagination_params
           )
 
           expect(service).to receive(:list_commits).with(expected_request, kind_of(Hash)).and_return([])
         end
 
-        client.list_commits(revisions, reverse: reverse, pagination_params: pagination_params)
+        client.list_commits(revisions, { reverse: reverse, author: author, ignore_case: ignore_case, commit_message_patterns: commit_message_patterns, before: before, after: after, pagination_params: pagination_params })
       end
     end
 
@@ -333,7 +384,12 @@ RSpec.describe Gitlab::GitalyClient::CommitService do
       it_behaves_like 'a ListCommits request'
     end
 
-    context 'with pagination params' do
+    context 'with commit message, author, before and after' do
+      let(:author) { "Dmitriy" }
+      let(:before) { 1474828200 }
+      let(:after) { 1474828200 }
+      let(:commit_message_patterns) { "Initial commit" }
+      let(:ignore_case) { true }
       let(:pagination_params) { { limit: 1, page_token: 'foo' } }
 
       it_behaves_like 'a ListCommits request'

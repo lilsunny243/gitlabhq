@@ -2,6 +2,7 @@ import { flattenDeep, clone } from 'lodash';
 import { match } from '~/diffs/utils/diff_file';
 import { badgeState } from '~/issuable/components/status_box.vue';
 import { isInMRPage } from '~/lib/utils/common_utils';
+import { doesHashExistInUrl } from '~/lib/utils/url_utility';
 import * as constants from '../constants';
 import { collapseSystemNotes } from './collapse_utils';
 
@@ -94,9 +95,9 @@ export const getUserDataByProp = (state) => (prop) => state.userData && state.us
 export const descriptionVersions = (state) => state.descriptionVersions;
 
 export const canUserAddIncidentTimelineEvents = (state) => {
-  return (
-    state.userData.can_add_timeline_events &&
-    state.noteableData.type === constants.NOTEABLE_TYPE_MAPPING.Incident
+  return Boolean(
+    state.userData?.can_add_timeline_events &&
+      state.noteableData.type === constants.NOTEABLE_TYPE_MAPPING.Incident,
   );
 };
 
@@ -314,3 +315,22 @@ export const getSuggestionsFilePaths = (state) => () =>
 
     return acc;
   }, []);
+
+export const getFetchDiscussionsConfig = (state, getters) => {
+  const defaultConfig = { path: getters.getNotesDataByProp('discussionsPath') };
+
+  const currentFilter =
+    getters.getNotesDataByProp('notesFilter') || constants.DISCUSSION_FILTERS_DEFAULT_VALUE;
+
+  if (
+    doesHashExistInUrl(constants.NOTE_UNDERSCORE) &&
+    currentFilter !== constants.DISCUSSION_FILTERS_DEFAULT_VALUE
+  ) {
+    return {
+      ...defaultConfig,
+      filter: constants.DISCUSSION_FILTERS_DEFAULT_VALUE,
+      persistFilter: false,
+    };
+  }
+  return defaultConfig;
+};

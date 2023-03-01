@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Repository storage types **(FREE SELF)**
@@ -79,7 +79,7 @@ Administrators can look up a project's hashed path from its name or ID using:
 
 To look up a project's hash path in the Admin Area:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Projects** and select the project.
 
 The **Gitaly relative path** is displayed there and looks similar to:
@@ -167,6 +167,10 @@ For example:
 "@groups/#{hash[0..1]}/#{hash[2..3]}/#{hash}.wiki.git"
 ```
 
+### Gitaly Cluster storage
+
+If Gitaly Cluster is used, Praefect manages storage locations. For more information, see [Praefect-generated replica paths](gitaly/index.md#praefect-generated-replica-paths-gitlab-150-and-later).
+
 ### Object storage support
 
 This table shows which storable objects are storable in each storage type:
@@ -204,7 +208,7 @@ CI/CD artifacts are:
 #### LFS objects
 
 [LFS Objects in GitLab](../topics/git/lfs/index.md) implement a similar
-storage pattern using two characters and two-level folders, following Git's own implementation:
+storage pattern using two characters and two-level folders, following the Git implementation:
 
 ```ruby
 "shared/lfs-objects/#{oid[0..1}/#{oid[2..3]}/#{oid[4..-1]}"

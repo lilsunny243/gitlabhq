@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Ruby 3 gotchas
@@ -57,7 +57,7 @@ To write code that works under both 2.7 and 3.0, consider the following options:
 
 We recommend always passing the block explicitly, and prefer two required arguments as block parameters.
 
-To learn more, see [Ruby issue 12706](https://bugs.ruby-lang.org/issues/12706).
+For more information, see [Ruby issue 12706](https://bugs.ruby-lang.org/issues/12706).
 
 ## `Symbol#to_proc` returns signature metadata consistent with lambdas
 
@@ -92,7 +92,7 @@ called without a receiver.
 Ruby 3 corrects this: the code that tests `Proc` object arity or parameter lists might now break and
 has to be updated.
 
-To learn more, see [Ruby issue 16260](https://bugs.ruby-lang.org/issues/16260).
+For more information, see [Ruby issue 16260](https://bugs.ruby-lang.org/issues/16260).
 
 ## `OpenStruct` does not evaluate fields lazily
 
@@ -163,3 +163,40 @@ For Ruby 3 compliance, this should be changed to one of the following invocation
 
 - `f(**{k: v})`
 - `f(k: v)`
+
+## RSpec `with` argument matcher fails for shorthand Hash syntax
+
+Because keyword arguments ("kwargs") are a first-class concept in Ruby 3, keyword arguments are not
+converted into internal `Hash` instances anymore. This leads to RSpec method argument matchers failing
+when the receiver takes a positional options hash instead of kwargs:
+
+```ruby
+def m(options={}); end
+```
+
+```ruby
+expect(subject).to receive(:m).with(a: 42)
+```
+
+In Ruby 3 this expectations fails with the following error:
+
+```plaintext
+  Failure/Error:
+
+     #<subject> received :m with unexpected arguments
+       expected: ({:a=>42})
+            got: ({:a=>42})
+```
+
+This happens because RSpec uses a kwargs argument matcher here, but the method takes a hash.
+It works in Ruby 2, because `a: 42` is converted to a hash first and RSpec will use a hash argument matcher.
+
+A workaround is to not use the shorthand syntax and pass an actual `Hash` instead whenever we know a method
+to take an options hash:
+
+```ruby
+# Note the braces around the key-value pair.
+expect(subject).to receive(:m).with({ a: 42 })
+```
+
+For more information, see [the official issue report for RSpec](https://github.com/rspec/rspec-mocks/issues/1460).

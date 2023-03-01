@@ -25,9 +25,9 @@ module Gitlab
         if matches.one?
           matches.first
         elsif matches.none?
-          raise UnknownProcessError, "Failed to identify runtime for process #{Process.pid} (#{$0})"
+          raise UnknownProcessError, "Failed to identify runtime for process #{Process.pid} (#{$PROGRAM_NAME})"
         else
-          raise AmbiguousProcessError, "Ambiguous runtime #{matches} for process #{Process.pid} (#{$0})"
+          raise AmbiguousProcessError, "Ambiguous runtime #{matches} for process #{Process.pid} (#{$PROGRAM_NAME})"
         end
       end
 
@@ -42,7 +42,7 @@ module Gitlab
       end
 
       def sidekiq?
-        !!(defined?(::Sidekiq) && Sidekiq.server?)
+        !!(defined?(::Sidekiq) && Sidekiq.try(:server?))
       end
 
       def rake?
@@ -94,7 +94,7 @@ module Gitlab
           #
           # These threads execute Sidekiq client middleware when jobs
           # are enqueued and those can access DB / Redis.
-          threads += Sidekiq.options[:concurrency] + 2
+          threads += Sidekiq[:concurrency] + 2
         end
 
         if puma?

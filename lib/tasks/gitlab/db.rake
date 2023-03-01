@@ -131,7 +131,7 @@ namespace :gitlab do
       end
     end
 
-    desc 'This adjusts and cleans db/structure.sql - it runs after db:structure:dump'
+    desc 'This adjusts and cleans db/structure.sql - it runs after db:schema:dump'
     task :clean_structure_sql do |task_name|
       ActiveRecord::Base.configurations.configs_for(env_name: ActiveRecord::Tasks::DatabaseTasks.env).each do |db_config|
         structure_file = ActiveRecord::Tasks::DatabaseTasks.dump_filename(db_config.name)
@@ -147,26 +147,13 @@ namespace :gitlab do
       Rake::Task[task_name].reenable
     end
 
-    # Inform Rake that custom tasks should be run every time rake db:structure:dump is run
-    #
-    # Rails 6.1 deprecates db:structure:dump in favor of db:schema:dump
-    Rake::Task['db:structure:dump'].enhance do
-      Rake::Task['gitlab:db:clean_structure_sql'].invoke
-    end
-
     # Inform Rake that custom tasks should be run every time rake db:schema:dump is run
     Rake::Task['db:schema:dump'].enhance do
       Rake::Task['gitlab:db:clean_structure_sql'].invoke
     end
 
     ActiveRecord::Tasks::DatabaseTasks.for_each(databases) do |name|
-      # Inform Rake that custom tasks should be run every time rake db:structure:dump is run
-      #
-      # Rails 6.1 deprecates db:structure:dump in favor of db:schema:dump
-      Rake::Task["db:structure:dump:#{name}"].enhance do
-        Rake::Task['gitlab:db:clean_structure_sql'].invoke
-      end
-
+      # Inform Rake that custom tasks should be run every time rake db:schema:dump is run
       Rake::Task["db:schema:dump:#{name}"].enhance do
         Rake::Task['gitlab:db:clean_structure_sql'].invoke
       end
@@ -283,6 +270,66 @@ namespace :gitlab do
       end
     end
 
+    namespace :execute_async_index_operations do
+      each_database(databases) do |database_name|
+        task database_name, [:pick] => :environment do |_, args|
+          args.with_defaults(pick: 2)
+
+          if Feature.disabled?(:database_async_index_operations, type: :ops)
+            puts <<~NOTE.color(:yellow)
+              Note: database async index operations feature is currently disabled.
+
+              Enable with: Feature.enable(:database_async_index_operations)
+            NOTE
+            exit
+          end
+
+          Gitlab::Database::EachDatabase.each_database_connection(only: database_name) do
+            Gitlab::Database::AsyncIndexes.execute_pending_actions!(how_many: args[:pick].to_i)
+          end
+        end
+      end
+
+      task :all, [:pick] => :environment do |_, args|
+        default_pick = Gitlab.dev_or_test_env? ? 1000 : 2
+        args.with_defaults(pick: default_pick)
+
+        each_database(databases) do |database_name|
+          Rake::Task["gitlab:db:execute_async_index_operations:#{database_name}"].invoke(args[:pick])
+        end
+      end
+    end
+
+    namespace :validate_async_constraints do
+      each_database(databases) do |database_name|
+        task database_name, [:pick] => :environment do |_, args|
+          args.with_defaults(pick: 2)
+
+          if Feature.disabled?(:database_async_foreign_key_validation, type: :ops)
+            puts <<~NOTE.color(:yellow)
+              Note: database async foreign key validation feature is currently disabled.
+
+              Enable with: Feature.enable(:database_async_foreign_key_validation)
+            NOTE
+            exit
+          end
+
+          Gitlab::Database::EachDatabase.each_database_connection(only: database_name) do
+            Gitlab::Database::AsyncConstraints.validate_pending_entries!(how_many: args[:pick].to_i)
+          end
+        end
+      end
+
+      task :all, [:pick] => :environment do |_, args|
+        default_pick = Gitlab.dev_or_test_env? ? 1000 : 2
+        args.with_defaults(pick: default_pick)
+
+        each_database(databases) do |database_name|
+          Rake::Task["gitlab:db:validate_async_constraints:#{database_name}"].invoke(args[:pick])
+        end
+      end
+    end
+
     desc 'Check if there have been user additions to the database'
     task active: :environment do
       if ActiveRecord::Base.connection.migration_context.needs_migration?
@@ -304,14 +351,31 @@ namespace :gitlab do
     end
 
     namespace :migration_testing do
-      desc 'Run migrations with instrumentation'
+      # Not possible to import Gitlab::Database::DATABASE_NAMES here
+      # Specs verify that a task exists for each entry in that array.
+      all_databases = %i[main ci main_clusterwide]
+
       task up: :environment do
-        Gitlab::Database::Migrations::Runner.up.run
+        Gitlab::Database::Migrations::Runner.up(database: 'main', legacy_mode: true).run
       end
 
-      desc 'Run down migrations in current branch with instrumentation'
-      task down: :environment do
-        Gitlab::Database::Migrations::Runner.down.run
+      namespace :up do
+        all_databases.each do |db|
+          desc "Run migrations on #{db} with instrumentation"
+          task db => :environment do
+            Gitlab::Database::Migrations::Runner.batched_migrations_last_id(db).store
+            Gitlab::Database::Migrations::Runner.up(database: db).run
+          end
+        end
+      end
+
+      namespace :down do
+        all_databases.each do |db|
+          desc "Run down migrations on #{db} in current branch with instrumentation"
+          task db => :environment do
+            Gitlab::Database::Migrations::Runner.down(database: db).run
+          end
+        end
       end
 
       desc 'Sample traditional background migrations with instrumentation'
@@ -321,12 +385,24 @@ namespace :gitlab do
         Gitlab::Database::Migrations::Runner.background_migrations.run_jobs(for_duration: duration)
       end
 
-      desc 'Sample batched background migrations with instrumentation'
+      namespace :sample_batched_background_migrations do
+        all_databases.each do |db|
+          desc "Sample batched background migrations on #{db} with instrumentation"
+          task db, [:duration_s] => [:environment] do |_t, args|
+            duration = args[:duration_s]&.to_i&.seconds || 30.minutes # Default of 30 minutes
+
+            Gitlab::Database::Migrations::Runner.batched_background_migrations(for_database: db)
+                                                .run_jobs(for_duration: duration)
+          end
+        end
+      end
+
+      desc "Sample batched background migrations with instrumentation (legacy)"
       task :sample_batched_background_migrations, [:database, :duration_s] => [:environment] do |_t, args|
-        database_name = args[:database] || 'main'
         duration = args[:duration_s]&.to_i&.seconds || 30.minutes # Default of 30 minutes
 
-        Gitlab::Database::Migrations::Runner.batched_background_migrations(for_database: database_name)
+        database = args[:database] || 'main'
+        Gitlab::Database::Migrations::Runner.batched_background_migrations(for_database: database, legacy_mode: true)
                                             .run_jobs(for_duration: duration)
       end
     end
@@ -370,66 +446,96 @@ namespace :gitlab do
 
     namespace :dictionary do
       DB_DOCS_PATH = File.join(Rails.root, 'db', 'docs')
+      EE_DICTIONARY_PATH = File.join(Rails.root, 'ee', 'db', 'docs')
 
       desc 'Generate database docs yaml'
       task generate: :environment do
-        FileUtils.mkdir_p(DB_DOCS_PATH) unless Dir.exist?(DB_DOCS_PATH)
+        FileUtils.mkdir_p(DB_DOCS_PATH)
+        FileUtils.mkdir_p(EE_DICTIONARY_PATH) if Gitlab.ee?
 
         Rails.application.eager_load!
 
-        tables = Gitlab::Database.database_base_models.flat_map { |_, m| m.connection.tables }
-        classes = tables.to_h { |t| [t, []] }
+        version = Gem::Version.new(File.read('VERSION'))
+        milestone = version.release.segments[0..1].join('.')
+
+        classes = {}
 
         Gitlab::Database.database_base_models.each do |_, model_class|
+          tables = model_class.connection.tables
+
+          views = model_class.connection.views
+
+          sources = tables + views
+
+          model_classes = sources.index_with { [] }
+
+          classes.merge!(model_classes) { |_, sources, new_sources| sources + new_sources }
+
           model_class
             .descendants
             .reject(&:abstract_class)
             .reject { |c| c.name =~ /^(?:EE::)?Gitlab::(?:BackgroundMigration|DatabaseImporters)::/ }
             .reject { |c| c.name =~ /^HABTM_/ }
             .each { |c| classes[c.table_name] << c.name if classes.has_key?(c.table_name) }
-        end
 
-        version = Gem::Version.new(File.read('VERSION'))
-        milestone = version.release.segments[0..1].join('.')
+          sources.each do |source_name|
+            next if source_name.start_with?('_test_') # Ignore test tables
 
-        tables.each do |table_name|
-          file = File.join(DB_DOCS_PATH, "#{table_name}.yml")
+            database = model_class.connection_db_config.name
+            file = dictionary_file_path(source_name, views, database)
+            key_name = "#{data_source_type(source_name, views)}_name"
 
-          table_metadata = {
-            'table_name' => table_name,
-            'classes' => classes[table_name]&.sort&.uniq,
-            'feature_categories' => [],
-            'description' => nil,
-            'introduced_by_url' => nil,
-            'milestone' => milestone
-          }
+            table_metadata = {
+              key_name => source_name,
+              'classes' => classes[source_name]&.sort&.uniq,
+              'feature_categories' => [],
+              'description' => nil,
+              'introduced_by_url' => nil,
+              'milestone' => milestone
+            }
 
-          if File.exist?(file)
-            outdated = false
+            if File.exist?(file)
+              outdated = false
 
-            existing_metadata = YAML.safe_load(File.read(file))
+              existing_metadata = YAML.safe_load(File.read(file))
 
-            if existing_metadata['table_name'] != table_metadata['table_name']
-              existing_metadata['table_name'] = table_metadata['table_name']
-              outdated = true
+              if existing_metadata[key_name] != table_metadata[key_name]
+                existing_metadata[key_name] = table_metadata[key_name]
+                outdated = true
+              end
+
+              if existing_metadata['classes'] && existing_metadata['classes'].sort != table_metadata['classes'].sort
+                existing_metadata['classes'] = (existing_metadata['classes'] + table_metadata['classes']).uniq.sort
+                outdated = true
+              end
+
+              File.write(file, existing_metadata.to_yaml) if outdated
+            else
+              File.write(file, table_metadata.to_yaml)
             end
-
-            if existing_metadata['classes'].difference(table_metadata['classes']).any?
-              existing_metadata['classes'] = table_metadata['classes']
-              outdated = true
-            end
-
-            File.write(file, existing_metadata.to_yaml) if outdated
-          else
-            File.write(file, table_metadata.to_yaml)
           end
         end
       end
 
-      # Temporary disable this, see https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85760#note_998452069
-      # Rake::Task['db:migrate'].enhance do
-      #   Rake::Task['gitlab:db:dictionary:generate'].invoke if Rails.env.development?
-      # end
+      private
+
+      def data_source_type(source_name, views)
+        return 'view' if views.include?(source_name)
+
+        'table'
+      end
+
+      def dictionary_file_path(source_name, views, database)
+        sub_directory = views.include?(source_name) ? 'views' : ''
+
+        path = database == 'geo' ? EE_DICTIONARY_PATH : DB_DOCS_PATH
+
+        File.join(path, sub_directory, "#{source_name}.yml")
+      end
+
+      Rake::Task['db:migrate'].enhance do
+        Rake::Task['gitlab:db:dictionary:generate'].invoke if Rails.env.development?
+      end
     end
   end
 end

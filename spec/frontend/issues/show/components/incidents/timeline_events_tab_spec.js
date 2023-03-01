@@ -36,7 +36,7 @@ describe('TimelineEventsTab', () => {
       provide: {
         fullPath: 'group/project',
         issuableId: '1',
-        canUpdate: true,
+        canUpdateTimelineEvent: true,
         ...provide,
       },
       apolloProvider: mockApollo,
@@ -112,7 +112,9 @@ describe('TimelineEventsTab', () => {
       await waitForPromises();
 
       expect(findEmptyState().exists()).toBe(false);
-      expect(findTimelineEventsList().props('timelineEvents')).toHaveLength(3);
+      expect(findTimelineEventsList().props('timelineEvents')).toHaveLength(
+        timelineEventsQueryListResponse.data.project.incidentManagementTimelineEvents.nodes.length,
+      );
     });
   });
 
@@ -136,7 +138,7 @@ describe('TimelineEventsTab', () => {
     it('should not show a button when user cannot update', () => {
       mountComponent({
         mockApollo: createMockApolloProvider(emptyResponse),
-        provide: { canUpdate: false },
+        provide: { canUpdateTimelineEvent: false },
       });
 
       expect(findAddEventButton().exists()).toBe(false);

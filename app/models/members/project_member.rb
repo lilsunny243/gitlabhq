@@ -10,7 +10,7 @@ class ProjectMember < Member
   delegate :namespace_id, to: :project
 
   # Make sure project member points only to project as it source
-  default_value_for :source_type, SOURCE_TYPE
+  attribute :source_type, default: SOURCE_TYPE
   validates :source_type, format: { with: SOURCE_TYPE_FORMAT }
   default_scope { where(source_type: SOURCE_TYPE) } # rubocop:disable Cop/DefaultScope
 
@@ -96,6 +96,10 @@ class ProjectMember < Member
     { project: project }
   end
 
+  def holder_of_the_personal_namespace?
+    project.personal_namespace_holder?(user)
+  end
+
   private
 
   override :access_level_inclusion
@@ -105,28 +109,24 @@ class ProjectMember < Member
     end
   end
 
+  # This method is overridden in the test environment, see stubbed_member.rb
   override :refresh_member_authorized_projects
-  def refresh_member_authorized_projects(blocking:)
+  def refresh_member_authorized_projects
     return unless user
 
-    # rubocop:disable CodeReuse/ServiceClass
-    if blocking
-      blocking_project_authorizations_refresh
-    else
-      AuthorizedProjectUpdate::ProjectRecalculatePerUserWorker.perform_async(project.id, user.id)
-    end
+    execute_project_authorizations_refresh
 
+    # rubocop:disable CodeReuse/ServiceClass
     # Until we compare the inconsistency rates of the new, specialized service and
     # the old approach, we still run AuthorizedProjectsWorker
     # but with some delay and lower urgency as a safety net.
     UserProjectAccessChangedService.new(user_id)
-                                   .execute(blocking: false, priority: UserProjectAccessChangedService::LOW_PRIORITY)
+                                   .execute(priority: UserProjectAccessChangedService::LOW_PRIORITY)
     # rubocop:enable CodeReuse/ServiceClass
   end
 
-  # This method is overridden in the test environment, see stubbed_member.rb
-  def blocking_project_authorizations_refresh
-    AuthorizedProjectUpdate::ProjectRecalculatePerUserWorker.bulk_perform_and_wait([[project.id, user.id]])
+  def execute_project_authorizations_refresh
+    AuthorizedProjectUpdate::ProjectRecalculatePerUserWorker.perform_async(project.id, user.id)
   end
 
   # TODO: https://gitlab.com/groups/gitlab-org/-/epics/7054

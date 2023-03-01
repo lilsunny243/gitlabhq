@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ApplicationSetting do
+RSpec.describe ApplicationSetting, feature_category: :not_owned, type: :model do
   using RSpec::Parameterized::TableSyntax
 
   subject(:setting) { described_class.create_from_defaults }
@@ -16,6 +16,28 @@ RSpec.describe ApplicationSetting do
   it { expect(setting).to be_valid }
   it { expect(setting.uuid).to be_present }
   it { expect(setting).to have_db_column(:auto_devops_enabled) }
+
+  describe 'default values' do
+    subject(:setting) { described_class.new }
+
+    it { expect(setting.id).to eq(1) }
+    it { expect(setting.repository_storages_weighted).to eq({}) }
+    it { expect(setting.kroki_formats).to eq({}) }
+  end
+
+  describe 'associations' do
+    it do
+      is_expected.to belong_to(:self_monitoring_project).class_name('Project')
+        .with_foreign_key(:instance_administration_project_id)
+        .inverse_of(:application_setting)
+    end
+
+    it do
+      is_expected.to belong_to(:instance_group).class_name('Group')
+        .with_foreign_key(:instance_administrators_group_id)
+        .inverse_of(:application_setting)
+    end
+  end
 
   describe 'validations' do
     let(:http)  { 'http://example.com' }
@@ -116,10 +138,24 @@ RSpec.describe ApplicationSetting do
     it { is_expected.to validate_presence_of(:max_yaml_depth) }
     it { is_expected.to validate_numericality_of(:max_yaml_depth).only_integer.is_greater_than(0) }
     it { is_expected.to validate_presence_of(:max_pages_size) }
+    it { is_expected.to validate_presence_of(:max_pages_custom_domains_per_project) }
+    it { is_expected.to validate_presence_of(:max_terraform_state_size_bytes) }
+    it { is_expected.to validate_numericality_of(:max_terraform_state_size_bytes).only_integer.is_greater_than_or_equal_to(0) }
+
+    it { is_expected.to allow_value(true).for(:user_defaults_to_private_profile) }
+    it { is_expected.to allow_value(false).for(:user_defaults_to_private_profile) }
+    it { is_expected.not_to allow_value(nil).for(:user_defaults_to_private_profile) }
 
     it 'ensures max_pages_size is an integer greater than 0 (or equal to 0 to indicate unlimited/maximum)' do
       is_expected.to validate_numericality_of(:max_pages_size).only_integer.is_greater_than_or_equal_to(0)
                        .is_less_than(::Gitlab::Pages::MAX_SIZE / 1.megabyte)
+    end
+
+    it 'ensures max_pages_custom_domains_per_project is an integer greater than 0 (or equal to 0 to indicate unlimited/maximum)' do
+      is_expected
+        .to validate_numericality_of(:max_pages_custom_domains_per_project)
+        .only_integer
+        .is_greater_than_or_equal_to(0)
     end
 
     it { is_expected.to validate_presence_of(:jobs_per_stage_page_size) }
@@ -160,7 +196,8 @@ RSpec.describe ApplicationSetting do
     it { is_expected.not_to allow_value('default' => 101).for(:repository_storages_weighted).with_message("value for 'default' must be between 0 and 100") }
     it { is_expected.not_to allow_value('default' => 100, shouldntexist: 50).for(:repository_storages_weighted).with_message("can't include: shouldntexist") }
 
-    %i[notes_create_limit search_rate_limit search_rate_limit_unauthenticated users_get_by_id_limit].each do |setting|
+    %i[notes_create_limit search_rate_limit search_rate_limit_unauthenticated users_get_by_id_limit
+      projects_api_rate_limit_unauthenticated].each do |setting|
       it { is_expected.to allow_value(400).for(setting) }
       it { is_expected.not_to allow_value('two').for(setting) }
       it { is_expected.not_to allow_value(nil).for(setting) }
@@ -194,6 +231,28 @@ RSpec.describe ApplicationSetting do
     it { is_expected.not_to allow_value(nil).for(:valid_runner_registrars) }
     it { is_expected.to allow_value([]).for(:valid_runner_registrars) }
     it { is_expected.to allow_value(%w(project group)).for(:valid_runner_registrars) }
+
+    it { is_expected.to allow_value(http).for(:jira_connect_proxy_url) }
+    it { is_expected.to allow_value(https).for(:jira_connect_proxy_url) }
+
+    it { is_expected.to allow_value(true).for(:bulk_import_enabled) }
+    it { is_expected.to allow_value(false).for(:bulk_import_enabled) }
+    it { is_expected.not_to allow_value(nil).for(:bulk_import_enabled) }
+
+    it { is_expected.to allow_value(true).for(:allow_runner_registration_token) }
+    it { is_expected.to allow_value(false).for(:allow_runner_registration_token) }
+    it { is_expected.not_to allow_value(nil).for(:allow_runner_registration_token) }
+
+    context 'when deactivate_dormant_users is enabled' do
+      before do
+        stub_application_setting(deactivate_dormant_users: true)
+      end
+
+      it { is_expected.not_to allow_value(nil).for(:deactivate_dormant_users_period) }
+      it { is_expected.to allow_value(90).for(:deactivate_dormant_users_period) }
+      it { is_expected.to allow_value(365).for(:deactivate_dormant_users_period) }
+      it { is_expected.not_to allow_value(89).for(:deactivate_dormant_users_period) }
+    end
 
     context 'help_page_documentation_base_url validations' do
       it { is_expected.to allow_value(nil).for(:help_page_documentation_base_url) }
@@ -242,6 +301,7 @@ RSpec.describe ApplicationSetting do
         end
 
         it { is_expected.not_to allow_value('http://localhost:9000').for(:grafana_url) }
+        it { is_expected.not_to allow_value('http://localhost:9000').for(:jira_connect_proxy_url) }
       end
 
       context 'with invalid grafana URL' do
@@ -249,11 +309,12 @@ RSpec.describe ApplicationSetting do
           subject.grafana_url = ' ' + http
           expect(subject.save).to be false
 
-          expect(subject.errors[:grafana_url]).to eq([
-            'must be a valid relative or absolute URL. ' \
-            'Please check your Grafana URL setting in ' \
-            'Admin Area > Settings > Metrics and profiling > Metrics - Grafana'
-          ])
+          expect(subject.errors[:grafana_url]).to eq(
+            [
+              'must be a valid relative or absolute URL. ' \
+              'Please check your Grafana URL setting in ' \
+              'Admin Area > Settings > Metrics and profiling > Metrics - Grafana'
+            ])
         end
       end
 
@@ -262,11 +323,12 @@ RSpec.describe ApplicationSetting do
           subject.grafana_url = javascript
           expect(subject.save).to be false
 
-          expect(subject.errors[:grafana_url]).to eq([
-            'is blocked: Only allowed schemes are http, https. Please check your ' \
-            'Grafana URL setting in ' \
-            'Admin Area > Settings > Metrics and profiling > Metrics - Grafana'
-          ])
+          expect(subject.errors[:grafana_url]).to eq(
+            [
+              'is blocked: Only allowed schemes are http, https. Please check your ' \
+              'Grafana URL setting in ' \
+              'Admin Area > Settings > Metrics and profiling > Metrics - Grafana'
+            ])
         end
       end
     end
@@ -678,35 +740,7 @@ RSpec.describe ApplicationSetting do
     end
 
     context 'housekeeping settings' do
-      it { is_expected.not_to allow_value(0).for(:housekeeping_incremental_repack_period) }
-
-      it 'wants the full repack period to be at least the incremental repack period' do
-        subject.housekeeping_incremental_repack_period = 2
-        subject.housekeeping_full_repack_period = 1
-
-        expect(subject).not_to be_valid
-      end
-
-      it 'wants the gc period to be at least the full repack period' do
-        subject.housekeeping_full_repack_period = 100
-        subject.housekeeping_gc_period = 90
-
-        expect(subject).not_to be_valid
-      end
-
-      it 'allows the same period for incremental repack and full repack, effectively skipping incremental repack' do
-        subject.housekeeping_incremental_repack_period = 2
-        subject.housekeeping_full_repack_period = 2
-
-        expect(subject).to be_valid
-      end
-
-      it 'allows the same period for full repack and gc, effectively skipping full repack' do
-        subject.housekeeping_full_repack_period = 100
-        subject.housekeeping_gc_period = 100
-
-        expect(subject).to be_valid
-      end
+      it { is_expected.not_to allow_value(0).for(:housekeeping_optimize_repository_period) }
     end
 
     context 'gitaly timeouts' do
@@ -1100,6 +1134,16 @@ RSpec.describe ApplicationSetting do
         it { is_expected.to validate_presence_of(:error_tracking_api_url) }
       end
     end
+
+    context 'for default_preferred_language' do
+      it { is_expected.to allow_value(*Gitlab::I18n.available_locales).for(:default_preferred_language) }
+      it { is_expected.not_to allow_value(nil, '', 'invalid_locale').for(:default_preferred_language) }
+    end
+
+    context 'for default_syntax_highlighting_theme' do
+      it { is_expected.to allow_value(*Gitlab::ColorSchemes.valid_ids).for(:default_syntax_highlighting_theme) }
+      it { is_expected.not_to allow_value(nil, 0, Gitlab::ColorSchemes.available_schemes.size + 1).for(:default_syntax_highlighting_theme) }
+    end
   end
 
   context 'restrict creating duplicates' do
@@ -1245,11 +1289,10 @@ RSpec.describe ApplicationSetting do
     end
   end
 
-  describe '#instance_review_permitted?', :request_store, :use_clean_rails_memory_store_caching do
+  describe '#instance_review_permitted?', :request_store, :use_clean_rails_memory_store_caching, :without_license do
     subject { setting.instance_review_permitted? }
 
     before do
-      allow(License).to receive(:current).and_return(nil) if Gitlab.ee?
       allow(Rails.cache).to receive(:fetch).and_call_original
       expect(Rails.cache).to receive(:fetch).with('limited_users_count', anything).and_return(
         ::ApplicationSetting::INSTANCE_REVIEW_MIN_USERS + users_over_minimum
@@ -1443,6 +1486,12 @@ RSpec.describe ApplicationSetting do
   context 'personal accesss token prefix' do
     it 'sets the correct default value' do
       expect(setting.personal_access_token_prefix).to eql('glpat-')
+    end
+  end
+
+  describe '.personal_access_tokens_disabled?' do
+    it 'is false' do
+      expect(setting.personal_access_tokens_disabled?).to eq(false)
     end
   end
 end

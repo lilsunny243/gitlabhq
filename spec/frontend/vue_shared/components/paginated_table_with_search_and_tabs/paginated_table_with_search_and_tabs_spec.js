@@ -2,9 +2,15 @@ import { GlAlert, GlBadge, GlPagination, GlTabs, GlTab } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import Tracking from '~/tracking';
-import { OPERATOR_IS_ONLY } from '~/vue_shared/components/filtered_search_bar/constants';
+import {
+  OPERATORS_IS,
+  TOKEN_TITLE_ASSIGNEE,
+  TOKEN_TITLE_AUTHOR,
+  TOKEN_TYPE_ASSIGNEE,
+  TOKEN_TYPE_AUTHOR,
+} from '~/vue_shared/components/filtered_search_bar/constants';
 import FilteredSearchBar from '~/vue_shared/components/filtered_search_bar/filtered_search_bar_root.vue';
-import AuthorToken from '~/vue_shared/components/filtered_search_bar/tokens/author_token.vue';
+import UserToken from '~/vue_shared/components/filtered_search_bar/tokens/user_token.vue';
 import PageWrapper from '~/vue_shared/components/paginated_table_with_search_and_tabs/paginated_table_with_search_and_tabs.vue';
 import mockItems from './mocks/items.json';
 import mockFilters from './mocks/items_filters.json';
@@ -102,16 +108,23 @@ describe('AlertManagementEmptyState', () => {
   const findStatusTabs = () => wrapper.findComponent(GlTabs);
   const findStatusFilterBadge = () => wrapper.findAllComponents(GlBadge);
 
+  const handleFilterItems = (filters) => {
+    Filters().vm.$emit('onFilter', filters);
+    return nextTick();
+  };
+
   describe('Snowplow tracking', () => {
+    const category = 'category';
+    const action = 'action';
+
     beforeEach(() => {
       jest.spyOn(Tracking, 'event');
       mountComponent({
-        props: { trackViewsOptions: { category: 'category', action: 'action' } },
+        props: { trackViewsOptions: { category, action } },
       });
     });
 
     it('should track the items list page views', () => {
-      const { category, action } = wrapper.vm.trackViewsOptions;
       expect(Tracking.event).toHaveBeenCalledWith(category, action);
     });
   });
@@ -166,7 +179,7 @@ describe('AlertManagementEmptyState', () => {
 
     it('renders the filter set with the tokens according to the prop filterSearchTokens', () => {
       mountComponent({
-        props: { filterSearchTokens: ['assignee_username'] },
+        props: { filterSearchTokens: [TOKEN_TYPE_ASSIGNEE] },
       });
 
       expect(Filters().exists()).toBe(true);
@@ -228,14 +241,14 @@ describe('AlertManagementEmptyState', () => {
         findPagination().vm.$emit('input', 3);
 
         await nextTick();
-        expect(wrapper.vm.previousPage).toBe(2);
+        expect(findPagination().props('prevPage')).toBe(2);
       });
 
       it('returns 0 when it is the first page', async () => {
         findPagination().vm.$emit('input', 1);
 
         await nextTick();
-        expect(wrapper.vm.previousPage).toBe(0);
+        expect(findPagination().props('prevPage')).toBe(0);
       });
     });
 
@@ -259,14 +272,14 @@ describe('AlertManagementEmptyState', () => {
         findPagination().vm.$emit('input', 1);
 
         await nextTick();
-        expect(wrapper.vm.nextPage).toBe(2);
+        expect(findPagination().props('nextPage')).toBe(2);
       });
 
       it('returns `null` when currentPage is already last page', async () => {
         findStatusTabs().vm.$emit('input', 1);
         findPagination().vm.$emit('input', 1);
         await nextTick();
-        expect(wrapper.vm.nextPage).toBeNull();
+        expect(findPagination().props('nextPage')).toBeNull();
       });
     });
   });
@@ -287,26 +300,26 @@ describe('AlertManagementEmptyState', () => {
       expect(Filters().props('searchInputPlaceholder')).toBe('Search or filter results…');
       expect(Filters().props('tokens')).toEqual([
         {
-          type: 'author_username',
+          type: TOKEN_TYPE_AUTHOR,
           icon: 'user',
-          title: 'Author',
+          title: TOKEN_TITLE_AUTHOR,
           unique: true,
           symbol: '@',
-          token: AuthorToken,
-          operators: OPERATOR_IS_ONLY,
+          token: UserToken,
+          operators: OPERATORS_IS,
           fetchPath: '/link',
-          fetchAuthors: expect.any(Function),
+          fetchUsers: expect.any(Function),
         },
         {
-          type: 'assignee_username',
+          type: TOKEN_TYPE_ASSIGNEE,
           icon: 'user',
-          title: 'Assignee',
+          title: TOKEN_TITLE_ASSIGNEE,
           unique: true,
           symbol: '@',
-          token: AuthorToken,
-          operators: OPERATOR_IS_ONLY,
+          token: UserToken,
+          operators: OPERATORS_IS,
           fetchPath: '/link',
-          fetchAuthors: expect.any(Function),
+          fetchUsers: expect.any(Function),
         },
       ]);
       expect(Filters().props('recentSearchesStorageKey')).toBe('items');
@@ -314,36 +327,32 @@ describe('AlertManagementEmptyState', () => {
 
     it('returns correctly applied filter search values', async () => {
       const searchTerm = 'foo';
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({
-        searchTerm,
-      });
-
+      await handleFilterItems([{ type: 'filtered-search-term', value: { data: searchTerm } }]);
       await nextTick();
-      expect(wrapper.vm.filteredSearchValue).toEqual([searchTerm]);
+      expect(Filters().props('initialFilterValue')).toEqual([searchTerm]);
     });
 
-    it('updates props tied to getIncidents GraphQL query', () => {
-      wrapper.vm.handleFilterItems(mockFilters);
+    it('updates props tied to getIncidents GraphQL query', async () => {
+      await handleFilterItems(mockFilters);
 
-      expect(wrapper.vm.authorUsername).toBe('root');
-      expect(wrapper.vm.assigneeUsername).toEqual('root2');
-      expect(wrapper.vm.searchTerm).toBe(mockFilters[2].value.data);
+      const [
+        {
+          value: { data: authorUsername },
+        },
+        {
+          value: { data: assigneeUsername },
+        },
+        searchTerm,
+      ] = Filters().props('initialFilterValue');
+
+      expect(authorUsername).toBe('root');
+      expect(assigneeUsername).toEqual('root2');
+      expect(searchTerm).toBe(mockFilters[2].value.data);
     });
 
-    it('updates props `searchTerm` and `authorUsername` with empty values when passed filters param is empty', () => {
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({
-        authorUsername: 'foo',
-        searchTerm: 'bar',
-      });
-
-      wrapper.vm.handleFilterItems([]);
-
-      expect(wrapper.vm.authorUsername).toBe('');
-      expect(wrapper.vm.searchTerm).toBe('');
+    it('updates props `searchTerm` and `authorUsername` with empty values when passed filters param is empty', async () => {
+      await handleFilterItems([]);
+      expect(Filters().props('initialFilterValue')).toEqual([]);
     });
   });
 });

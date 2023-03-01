@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 # Work items and work item types
 
@@ -54,7 +54,8 @@ To avoid confusion and ensure communication is efficient, we will use the follow
 | work item view    | The new frontend view that renders work items of any type |  | |
 | legacy issue view | The existing view used to render issues and incidents | | |
 | issue             | The existing issue model | | |
-| issuable          | Any model currently using the issueable module (issues, epics and MRs) | _Incidents are an **issuable**_ | _Incidents are a **work item type**_ |
+| issuable          | Any model currently using the issuable module (issues, epics and MRs) | _Incidents are an **issuable**_ | _Incidents are a **work item type**_ |
+| widget            | A UI element to present or allow interaction with specific work item data | | |
 
 Some terms have been used in the past but have since become confusing and are now discouraged.
 
@@ -88,10 +89,10 @@ so that in future we can allow users to define custom WITs, we will move the
 to `work_item_types` will involve creating the set of WITs for all root-level groups.
 
 NOTE:
-At first, defining a WIT will only be possible at the root-level group, which would then be inherited by sub-groups.
-We will investigate the possibility of defining new WITs at sub-group levels at a later iteration.
+At first, defining a WIT will only be possible at the root-level group, which would then be inherited by subgroups.
+We will investigate the possibility of defining new WITs at subgroup levels at a later iteration.
 
-### Introducing work_item_types table
+### Introducing `work_item_types` table
 
 For example, suppose there are three root-level groups with IDs: `11`, `12`, and `13`. Also,
 assume the following base types: `issue: 0`, `incident: 1`, `test_case: 2`.
@@ -138,6 +139,20 @@ To introduce a new WIT there are two options:
 
 ### Work item type widgets
 
+A widget is a single component that can exist on a work item. This component can be used on one or
+many work item types and can be lightly customized at the point of implementation.
+
+A widget contains both the frontend UI (if present) and the associated logic for presenting and
+managing any data used by the widget. There can be a one-to-many connection between the data model
+and widgets. It means there can be multiple widgets that use or manage the same data, and they could
+be present at the same time (for example, a read-only summary widget and an editable detail widget,
+or two widgets showing two different filtered views of the same model).
+
+Widgets should be differentiated by their **purpose**. When possible, this purpose should be
+abstracted to the highest reasonable level to maximize reusability. For example, the widget for
+managing "tasks" was built as "child items". Rather than managing one type of child, it's abstracted
+up to managing any children.
+
 All WITs will share the same pool of predefined widgets and will be customized by
 which widgets are active on a specific WIT. Every attribute (column or association)
 will become a widget with self-encapsulated functionality regardless of the WIT it belongs to.
@@ -150,8 +165,31 @@ of widgets.
 In order to customize each WIT with corresponding active widgets we will need a data
 structure to map each WIT to specific widgets.
 
-NOTE:
-The exact structure of the WITs widgets metadata is still to be defined.
+The intent is for work item types to be highly configurable, both by GitLab for
+implementing various work item schemes for customers (an opinionated GitLab
+workflow, or SAFe 5, etc), and eventually for customers to customize their own
+workflows.
+
+In this case, a work item scheme would be defined as a set of types with
+certain characteristics (some widgets enabled, others not), such as an Epic,
+Story, Bug, and Task, etc.
+
+As we're building a new work item architecture, we want to build the ability to
+define these various types in a very flexible manner. Having GitLab use
+this system first (without introducing customer customization) allows us to
+better build out the initial system.
+
+Work item's `base_type` is used to define static mapping of what
+widgets are available for each type (current status), this definition should be
+rather stored in a database table. The exact structure of the WIT widgets metadata
+is [still to be defined](https://gitlab.com/gitlab-org/gitlab/-/issues/370599).
+`base_type` was added to help convert other types of resources (requirements
+and incidents) into work items. Eventually (when these resources become regular
+work items), `base_type` will be removed.
+
+Until the architecture of WIT widgets is finalized, we are holding off on the creation of new work item
+types. If a new work item type is absolutely necessary, please reach out to a
+member of the [Project Management Engineering Team](https://gitlab.com/gitlab-org/gitlab/-/issues/370599).
 
 ### Custom work item types
 
@@ -190,7 +228,7 @@ So, migrating epics to a work item type requires providing feature parity betwee
 
 The main missing features are:
 
-- Get WIs to the group level. This is dependent on [Consolidate Groups and Projects](https://gitlab.com/gitlab-org/architecture/tasks/-/issues/7)
+- Get work items to the group level. This is dependent on [Consolidate Groups and Projects](https://gitlab.com/gitlab-org/architecture/tasks/-/issues/7)
   initiative.
 - A hierarchy widget: the ability to structure work items into hierarchies.
 - Inherited date widget.

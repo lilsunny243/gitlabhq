@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Find relevant log entries with a correlation ID **(FREE SELF)**
@@ -28,7 +28,7 @@ documentation for some popular browsers.
 - [Network Monitor - Firefox Developer Tools](https://developer.mozilla.org/en-US/docs/Tools/Network_Monitor)
 - [Inspect Network Activity In Chrome DevTools](https://developer.chrome.com/docs/devtools/network/)
 - [Safari Web Development Tools](https://developer.apple.com/safari/tools/)
-- [Microsoft Edge Network panel](https://docs.microsoft.com/en-us/microsoft-edge/devtools-guide-chromium/network/)
+- [Microsoft Edge Network panel](https://learn.microsoft.com/en-us/microsoft-edge/devtools-guide-chromium/network/)
 
 To locate a relevant request and view its correlation ID:
 
@@ -103,7 +103,7 @@ sudo gitlab-ctl tail gitlab-rails/production_json.log | grep '"username":"bob"' 
 
 ## Searching your logs for the correlation ID
 
-Once you have the correlation ID you can start searching for relevant log
+When you have the correlation ID you can start searching for relevant log
 entries. You can filter the lines by the correlation ID itself.
 Combining a `find` and `grep` should be sufficient to find the entries you are looking for.
 
@@ -133,7 +133,7 @@ You can use the [performance bar](../monitoring/performance/performance_bar.md) 
 
 To view the data, the correlation ID of the request must match the same session as the user
 viewing the performance bar. For API requests, this means that you must perform the request
-using the session cookie of the signed-in user.
+using the session cookie of the authenticated user.
 
 For example, if you want to view the database queries executed for the following API endpoint:
 
@@ -187,7 +187,7 @@ You can then view the database details for this request:
 
    ![Paste request ID into progress bar](img/paste-request-id-into-progress-bar_v14_3.png)
 
-1. A new request is inserted into the `Request Selector` dropdown on the right-hand side of the Performance Bar. Select the new request to view the metrics of the API request:
+1. A new request is inserted into the `Request Selector` dropdown list on the right-hand side of the Performance Bar. Select the new request to view the metrics of the API request:
 
    ![Select request ID from request selector drop down menu](img/select-request-id-from-request-selector-drop-down-menu_v14_3.png)
 

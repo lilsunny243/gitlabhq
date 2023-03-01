@@ -23,9 +23,11 @@ module Gitlab
       # with an explosion in unused metric combinations, but we want the
       # most common ones to be always present.
       FEATURE_CATEGORIES_TO_INITIALIZE = ['authentication_and_authorization',
-                                          'code_review', 'continuous_integration',
+                                          'code_review_workflow', 'continuous_integration',
                                           'not_owned', 'source_code_management',
                                           FEATURE_CATEGORY_DEFAULT].freeze
+
+      REQUEST_URGENCY_KEY = 'gitlab.request_urgency'
 
       def initialize(app)
         @app = app
@@ -75,14 +77,16 @@ module Gitlab
 
         begin
           status, headers, body = @app.call(env)
+          return [status, headers, body] if health_endpoint
 
-          elapsed = ::Gitlab::Metrics::System.monotonic_time - started
-
-          if !health_endpoint && ::Gitlab::Metrics.record_duration_for_status?(status)
+          urgency = urgency_for_env(env)
+          if ::Gitlab::Metrics.record_duration_for_status?(status)
+            elapsed = ::Gitlab::Metrics::System.monotonic_time - started
             self.class.http_request_duration_seconds.observe({ method: method }, elapsed)
-
-            record_apdex(env, elapsed)
+            record_apdex(urgency, elapsed)
           end
+
+          record_error(urgency, status)
 
           [status, headers, body]
         rescue StandardError
@@ -115,12 +119,17 @@ module Gitlab
         ::Gitlab::ApplicationContext.current_context_attribute(:caller_id)
       end
 
-      def record_apdex(env, elapsed)
-        urgency = urgency_for_env(env)
-
+      def record_apdex(urgency, elapsed)
         Gitlab::Metrics::RailsSlis.request_apdex.increment(
           labels: labels_from_context.merge(request_urgency: urgency.name),
           success: elapsed < urgency.duration
+        )
+      end
+
+      def record_error(urgency, status)
+        Gitlab::Metrics::RailsSlis.request_error_rate.increment(
+          labels: labels_from_context.merge(request_urgency: urgency.name),
+          error: ::Gitlab::Metrics.server_error?(status)
         )
       end
 
@@ -133,7 +142,9 @@ module Gitlab
 
       def urgency_for_env(env)
         endpoint_urgency =
-          if env['api.endpoint'].present?
+          if env[REQUEST_URGENCY_KEY].present?
+            env[REQUEST_URGENCY_KEY]
+          elsif env['api.endpoint'].present?
             env['api.endpoint'].options[:for].try(:urgency_for_app, env['api.endpoint'])
           elsif env['action_controller.instance'].present? && env['action_controller.instance'].respond_to?(:urgency)
             env['action_controller.instance'].urgency

@@ -46,13 +46,9 @@ RSpec.describe 'admin/application_settings/general.html.haml' do
       it_behaves_like 'does not render registration features prompt', :application_setting_disabled_repository_size_limit
     end
 
-    context 'with no license and service ping disabled' do
+    context 'with no license and service ping disabled', :without_license do
       before do
         stub_application_setting(usage_ping_enabled: false)
-
-        if Gitlab.ee?
-          allow(License).to receive(:current).and_return(nil)
-        end
       end
 
       it_behaves_like 'renders registration features prompt', :application_setting_disabled_repository_size_limit
@@ -69,23 +65,11 @@ RSpec.describe 'admin/application_settings/general.html.haml' do
     end
   end
 
-  describe 'jira connect application key' do
-    it 'shows the jira connect application key section' do
+  describe 'jira connect settings' do
+    it 'shows the jira connect settings section' do
       render
 
       expect(rendered).to have_css('#js-jira_connect-settings')
-    end
-
-    context 'when the jira_connect_oauth feature flag is disabled' do
-      before do
-        stub_feature_flags(jira_connect_oauth: false)
-      end
-
-      it 'does not show the jira connect application key section' do
-        render
-
-        expect(rendered).not_to have_css('#js-jira_connect-settings')
-      end
     end
   end
 

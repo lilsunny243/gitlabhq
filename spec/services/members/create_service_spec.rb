@@ -20,10 +20,10 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
     case source
     when Project
       source.add_maintainer(user)
-      OnboardingProgress.onboard(source.namespace)
+      Onboarding::Progress.onboard(source.namespace)
     when Group
       source.add_owner(user)
-      OnboardingProgress.onboard(source)
+      Onboarding::Progress.onboard(source)
     end
   end
 
@@ -59,7 +59,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
     it 'adds a user to members' do
       expect(execute_service[:status]).to eq(:success)
       expect(source.users).to include member
-      expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(true)
+      expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(true)
     end
 
     context 'when user_id is passed as an integer' do
@@ -68,7 +68,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       it 'successfully creates member' do
         expect(execute_service[:status]).to eq(:success)
         expect(source.users).to include member
-        expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(true)
+        expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(true)
       end
     end
 
@@ -78,7 +78,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       it 'successfully creates members' do
         expect(execute_service[:status]).to eq(:success)
         expect(source.users).to include(member, user_invited_by_id)
-        expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(true)
+        expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(true)
       end
     end
 
@@ -88,7 +88,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       it 'successfully creates members' do
         expect(execute_service[:status]).to eq(:success)
         expect(source.users).to include(member, user_invited_by_id)
-        expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(true)
+        expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(true)
       end
     end
 
@@ -98,7 +98,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       it 'adds a user to members' do
         expect(execute_service[:status]).to eq(:success)
         expect(source.users).to include member
-        expect(OnboardingProgress.completed?(source, :user_added)).to be(true)
+        expect(Onboarding::Progress.completed?(source, :user_added)).to be(true)
       end
 
       it 'triggers a members added event' do
@@ -110,16 +110,65 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
         expect(execute_service[:status]).to eq(:success)
       end
     end
+
+    context 'when only one user fails validations' do
+      let_it_be(:source) { create(:project, group: create(:group)) }
+      let(:user_id) { [member.id, user_invited_by_id.id] }
+
+      before do
+        # validations will fail because we try to invite them to the project as a guest
+        source.group.add_developer(member)
+      end
+
+      it 'triggers the members added event' do
+        expect(Gitlab::EventStore)
+          .to receive(:publish)
+          .with(an_instance_of(Members::MembersAddedEvent))
+          .and_call_original
+
+        expect(execute_service[:status]).to eq(:error)
+        expect(execute_service[:message])
+          .to include 'Access level should be greater than or equal to Developer inherited membership from group'
+        expect(source.users).not_to include(member)
+        expect(source.users).to include(user_invited_by_id)
+      end
+    end
+
+    context 'when all users fail validations' do
+      let_it_be(:source) { create(:project, group: create(:group)) }
+      let(:user_id) { [member.id, user_invited_by_id.id] }
+
+      before do
+        # validations will fail because we try to invite them to the project as a guest
+        source.group.add_developer(member)
+        source.group.add_developer(user_invited_by_id)
+      end
+
+      it 'does not trigger the members added event' do
+        expect(Gitlab::EventStore)
+          .not_to receive(:publish)
+          .with(an_instance_of(Members::MembersAddedEvent))
+
+        expect(execute_service[:status]).to eq(:error)
+        expect(execute_service[:message])
+          .to include 'Access level should be greater than or equal to Developer inherited membership from group'
+        expect(source.users).not_to include(member, user_invited_by_id)
+      end
+    end
   end
 
   context 'when passing no user ids' do
     let(:user_id) { '' }
 
     it 'does not add a member' do
+      expect(Gitlab::EventStore)
+        .not_to receive(:publish)
+        .with(an_instance_of(Members::MembersAddedEvent))
+
       expect(execute_service[:status]).to eq(:error)
       expect(execute_service[:message]).to be_present
       expect(source.users).not_to include member
-      expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(false)
+      expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(false)
     end
   end
 
@@ -130,7 +179,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       expect(execute_service[:status]).to eq(:error)
       expect(execute_service[:message]).to be_present
       expect(source.users).not_to include member
-      expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(false)
+      expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(false)
     end
   end
 
@@ -141,7 +190,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       expect(execute_service[:status]).to eq(:error)
       expect(execute_service[:message]).to include("#{member.username}: Access level is not included in the list")
       expect(source.users).not_to include member
-      expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(false)
+      expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(false)
     end
   end
 
@@ -153,7 +202,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
     it 'allows already invited members to be re-invited by email and updates the member access' do
       expect(execute_service[:status]).to eq(:success)
       expect(invited_member.reset.access_level).to eq ProjectMember::MAINTAINER
-      expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(true)
+      expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(true)
     end
   end
 
@@ -170,7 +219,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       it 'does not update the member' do
         expect(execute_service[:status]).to eq(:error)
         expect(execute_service[:message]).to eq("#{project_bot.username}: not authorized to update member")
-        expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(false)
+        expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(false)
       end
     end
 
@@ -178,7 +227,7 @@ RSpec.describe Members::CreateService, :aggregate_failures, :clean_gitlab_redis_
       it 'adds the member' do
         expect(execute_service[:status]).to eq(:success)
         expect(source.users).to include project_bot
-        expect(OnboardingProgress.completed?(source.namespace, :user_added)).to be(true)
+        expect(Onboarding::Progress.completed?(source.namespace, :user_added)).to be(true)
       end
     end
   end

@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create a Google GKE cluster
@@ -20,7 +20,7 @@ by using the GitLab agent for Kubernetes.
 
 **Prerequisites:**
 
-- A [Google Cloud Platform (GCP) service account](https://cloud.google.com/docs/authentication/getting-started).
+- A [Google Cloud Platform (GCP) service account](https://cloud.google.com/docs/authentication#service-accounts).
 - [A runner](https://docs.gitlab.com/runner/install/) you can use to run the GitLab CI/CD pipeline.
 
 **Steps:**
@@ -41,7 +41,8 @@ Start by [importing the example project by URL](../../../project/import/repo_by_
 
 To import the project:
 
-1. On the top bar, select **Menu > Create new project**.
+1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+1. On the right of the page, select **New project**.
 1. Select **Import project**.
 1. Select **Repository by URL**.
 1. For the **Git repository URL**, enter `https://gitlab.com/gitlab-org/configure/examples/gitlab-terraform-gke.git`.
@@ -70,7 +71,7 @@ To create a GitLab agent for Kubernetes:
 
 To set up your project to communicate to GCP and the GitLab API:
 
-1. To authenticate GCP with GitLab, create a [GCP service account](https://cloud.google.com/docs/authentication/getting-started)
+1. To authenticate GCP with GitLab, create a [GCP service account](https://cloud.google.com/docs/authentication#service-accounts)
 with following roles: `Compute Network Viewer`, `Kubernetes Engine Admin`, `Service Account User`, and `Service Account Admin`. Both User and Admin
 service accounts are necessary. The User role impersonates the [default service account](https://cloud.google.com/compute/docs/access/service-accounts#default_service_account)
 when [creating the node pool](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/using_gke_with_terraform#node-pool-management).
@@ -93,7 +94,7 @@ Use CI/CD environment variables to configure your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Variables**.
 1. Set the variable `BASE64_GOOGLE_CREDENTIALS` to the `base64` encoded JSON file you just created.
-1. Set the variable `TF_VAR_gcp_project` to your GCP's `project` name.
+1. Set the variable `TF_VAR_gcp_project` to your GCP `project` name.
 1. Set the variable `TF_VAR_agent_token` to the agent token displayed in the previous task.
 1. Set the variable `TF_VAR_kas_address` to the agent server address displayed in the previous task.
 
@@ -116,7 +117,7 @@ Refer to the [Google Terraform provider](https://registry.terraform.io/providers
 After configuring your project, manually trigger the provisioning of your cluster. In GitLab:
 
 1. On the left sidebar, go to **CI/CD > Pipelines**.
-1. Next to **Play** (**{play}**), select the dropdown icon (**{chevron-lg-down}**).
+1. Next to **Play** (**{play}**), select the dropdown list icon (**{chevron-lg-down}**).
 1. Select **Deploy** to manually trigger the deployment job.
 
 When the pipeline finishes successfully, you can see your new cluster:

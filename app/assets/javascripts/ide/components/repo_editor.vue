@@ -7,11 +7,12 @@ import {
   EDITOR_TYPE_CODE,
   EDITOR_CODE_INSTANCE_FN,
   EDITOR_DIFF_INSTANCE_FN,
+  EXTENSION_CI_SCHEMA_FILE_NAME_MATCH,
 } from '~/editor/constants';
 import { SourceEditorExtension } from '~/editor/extensions/source_editor_extension_base';
 import { EditorWebIdeExtension } from '~/editor/extensions/source_editor_webide_ext';
 import SourceEditor from '~/editor/source_editor';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import ModelManager from '~/ide/lib/common/model_manager';
 import { defaultDiffEditorOptions, defaultEditorOptions } from '~/ide/lib/editor_options';
 import { __ } from '~/locale';
@@ -145,6 +146,12 @@ export default {
     showTabs() {
       return !this.shouldHideEditor && this.isEditModeActive && this.previewMode;
     },
+    isCiConfigFile() {
+      return (
+        this.file.path === EXTENSION_CI_SCHEMA_FILE_NAME_MATCH &&
+        this.editor?.getEditorType() === EDITOR_TYPE_CODE
+      );
+    },
   },
   watch: {
     'file.name': {
@@ -232,14 +239,12 @@ export default {
         return;
       }
 
-      this.registerSchemaForFile();
-
       Promise.all([this.fetchFileData(), this.fetchEditorconfigRules()])
         .then(() => {
           this.createEditorInstance();
         })
         .catch((err) => {
-          createFlash({
+          createAlert({
             message: __('Error setting up editor. Please try again.'),
             fadeTransition: false,
             addBodyClass: true,
@@ -331,7 +336,7 @@ export default {
               useLivePreviewExtension();
             })
             .catch((e) =>
-              createFlash({
+              createAlert({
                 message: e,
               }),
             );
@@ -356,6 +361,8 @@ export default {
       this.isEditorLoading = false;
 
       this.model.updateOptions(this.rules);
+
+      this.registerSchemaForFile();
 
       this.model.onChange((model) => {
         const { file } = model;
@@ -446,8 +453,33 @@ export default {
       return Promise.resolve();
     },
     registerSchemaForFile() {
-      const schema = this.getJsonSchemaForPath(this.file.path);
-      registerSchema(schema);
+      const registerExternalSchema = () => {
+        const schema = this.getJsonSchemaForPath(this.file.path);
+        return registerSchema(schema);
+      };
+      const registerLocalSchema = async () => {
+        if (!this.CiSchemaExtension) {
+          const { CiSchemaExtension } = await import(
+            '~/editor/extensions/source_editor_ci_schema_ext'
+          ).catch((e) =>
+            createAlert({
+              message: e,
+            }),
+          );
+          this.CiSchemaExtension = CiSchemaExtension;
+        }
+        this.editor.use({ definition: this.CiSchemaExtension });
+        this.editor.registerCiSchema();
+      };
+
+      if (this.isCiConfigFile) {
+        registerLocalSchema();
+      } else {
+        if (this.CiSchemaExtension) {
+          this.editor.unuse(this.CiSchemaExtension);
+        }
+        registerExternalSchema();
+      }
     },
     updateEditor(data) {
       // Looks like our model wrapper `.dispose` causes the monaco editor to emit some position changes after

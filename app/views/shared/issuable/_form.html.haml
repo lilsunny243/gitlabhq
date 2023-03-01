@@ -62,16 +62,19 @@
       = sanitize(html_escape(_('Please review the %{linkStart}contribution guidelines%{linkEnd} for this project.')) % { linkStart: contribution_guidelines_start, linkEnd: contribution_guidelines_end })
 
   - if issuable.new_record?
-    = form.submit "#{_('Create')} #{issuable.class.model_name.human.downcase}", class: 'gl-button btn btn-confirm gl-mr-2', data: { qa_selector: 'issuable_create_button', track_experiment: 'promote_mr_approvals_in_free', track_action: 'click_button', track_label: 'submit_mr', track_value: 0 }
+    = form.submit "#{_('Create')} #{issuable.class.model_name.human.downcase}", pajamas_button: true, class: 'gl-mr-2', data: { qa_selector: 'issuable_create_button', track_action: 'click_button', track_label: 'submit_mr', track_value: 0 }
   - else
-    = form.submit _('Save changes'), class: 'gl-button btn btn-confirm gl-mr-2', data: { track_experiment: 'promote_mr_approvals_in_free', track_action: 'click_button', track_label: 'submit_mr', track_value: 0 }
+    = form.submit _('Save changes'), pajamas_button: true, class: 'gl-mr-2', data: { track_action: 'click_button', track_label: 'submit_mr', track_value: 0 }
 
   - if issuable.new_record?
     = link_to _('Cancel'), polymorphic_path([@project, issuable.class]), class: 'btn gl-button btn-default js-reset-autosave'
   - else
     = link_to _('Cancel'), polymorphic_path([@project, issuable]), class: 'gl-button btn btn-default js-reset-autosave'
     - if can?(current_user, :"destroy_#{issuable.to_ability_name}", @project)
-      = link_to 'Delete', polymorphic_path([@project, issuable], params: { destroy_confirm: true }), data: { confirm: _('%{issuableType} will be removed! Are you sure?') % { issuableType: issuable.human_class_name } }, method: :delete, class: 'btn gl-button btn-danger btn-danger-secondary gl-float-right js-reset-autosave'
+      - confirm_title = _('Delete %{issuableType}?') % { issuableType: issuable.human_class_name }
+      - confirm_body = _('You’re about to permanently delete the %{issuableType} ‘%{strongOpen}%{issuableTitle}%{strongClose}’. To avoid data loss, consider %{strongOpen}closing this %{issuableType}%{strongClose} instead. Once deleted, it cannot be undone or recovered.') % { issuableType: issuable.human_class_name, issuableTitle: issuable.title, strongOpen: '<strong>', strongClose: '</strong>' }
+      - confirm_primary_btn_text = _('Delete %{issuableType}') % { issuableType: issuable.human_class_name }
+      = link_to _('Delete'), polymorphic_path([@project, issuable], params: { destroy_confirm: true }), data: { title: confirm_title, confirm: confirm_body, is_html_message: true, confirm_btn_variant: 'danger'}, method: :delete, class: 'btn gl-button btn-danger btn-danger-secondary gl-float-right js-reset-autosave', "aria-label": confirm_primary_btn_text
 
 - if issuable.respond_to?(:issue_type)
   = form.hidden_field :issue_type

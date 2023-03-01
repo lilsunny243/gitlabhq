@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'File blob', :js do
+RSpec.describe 'File blob', :js, feature_category: :projects do
   include MobileHelpers
 
   let(:project) { create(:project, :public, :repository) }
@@ -137,11 +137,13 @@ RSpec.describe 'File blob', :js do
 
     context 'when ref switch' do
       def switch_ref_to(ref_name)
-        first('[data-testid="branches-select"]').click
+        find('.ref-selector').click
+        wait_for_requests
 
-        page.within '.project-refs-form' do
-          click_link ref_name
+        page.within('.ref-selector') do
+          fill_in 'Search by Git revision', with: ref_name
           wait_for_requests
+          find('li', text: ref_name, match: :prefer_exact).click
         end
       end
 
@@ -589,76 +591,35 @@ RSpec.describe 'File blob', :js do
           file_path: '.gitlab/dashboards/custom-dashboard.yml',
           file_content: file_content
         ).execute
+
+        visit_blob('.gitlab/dashboards/custom-dashboard.yml')
       end
 
-      context 'with metrics_dashboard_exhaustive_validations feature flag off' do
-        before do
-          stub_feature_flags(metrics_dashboard_exhaustive_validations: false)
-          visit_blob('.gitlab/dashboards/custom-dashboard.yml')
-        end
+      context 'valid dashboard file' do
+        let(:file_content) { File.read(Rails.root.join('config/prometheus/common_metrics.yml')) }
 
-        context 'valid dashboard file' do
-          let(:file_content) { File.read(Rails.root.join('config/prometheus/common_metrics.yml')) }
+        it 'displays an auxiliary viewer' do
+          aggregate_failures do
+            # shows that dashboard yaml is valid
+            expect(page).to have_content('Metrics Dashboard YAML definition is valid.')
 
-          it 'displays an auxiliary viewer' do
-            aggregate_failures do
-              # shows that dashboard yaml is valid
-              expect(page).to have_content('Metrics Dashboard YAML definition is valid.')
-
-              # shows a learn more link
-              expect(page).to have_link('Learn more')
-            end
-          end
-        end
-
-        context 'invalid dashboard file' do
-          let(:file_content) { "dashboard: 'invalid'" }
-
-          it 'displays an auxiliary viewer' do
-            aggregate_failures do
-              # shows that dashboard yaml is invalid
-              expect(page).to have_content('Metrics Dashboard YAML definition is invalid:')
-              expect(page).to have_content("panel_groups: should be an array of panel_groups objects")
-
-              # shows a learn more link
-              expect(page).to have_link('Learn more')
-            end
+            # shows a learn more link
+            expect(page).to have_link('Learn more')
           end
         end
       end
 
-      context 'with metrics_dashboard_exhaustive_validations feature flag on' do
-        before do
-          stub_feature_flags(metrics_dashboard_exhaustive_validations: true)
-          visit_blob('.gitlab/dashboards/custom-dashboard.yml')
-        end
+      context 'invalid dashboard file' do
+        let(:file_content) { "dashboard: 'invalid'" }
 
-        context 'valid dashboard file' do
-          let(:file_content) { File.read(Rails.root.join('config/prometheus/common_metrics.yml')) }
+        it 'displays an auxiliary viewer' do
+          aggregate_failures do
+            # shows that dashboard yaml is invalid
+            expect(page).to have_content('Metrics Dashboard YAML definition is invalid:')
+            expect(page).to have_content("panel_groups: should be an array of panel_groups objects")
 
-          it 'displays an auxiliary viewer' do
-            aggregate_failures do
-              # shows that dashboard yaml is valid
-              expect(page).to have_content('Metrics Dashboard YAML definition is valid.')
-
-              # shows a learn more link
-              expect(page).to have_link('Learn more')
-            end
-          end
-        end
-
-        context 'invalid dashboard file' do
-          let(:file_content) { "dashboard: 'invalid'" }
-
-          it 'displays an auxiliary viewer' do
-            aggregate_failures do
-              # shows that dashboard yaml is invalid
-              expect(page).to have_content('Metrics Dashboard YAML definition is invalid:')
-              expect(page).to have_content("root is missing required keys: panel_groups")
-
-              # shows a learn more link
-              expect(page).to have_link('Learn more')
-            end
+            # shows a learn more link
+            expect(page).to have_link('Learn more')
           end
         end
       end
@@ -675,7 +636,7 @@ RSpec.describe 'File blob', :js do
           expect(page).to have_content('This project is licensed under the MIT License.')
 
           # shows a learn more link
-          expect(page).to have_link('Learn more', href: 'http://choosealicense.com/licenses/mit/')
+          expect(page).to have_link('Learn more', href: 'https://opensource.org/licenses/MIT')
         end
       end
     end
@@ -1001,11 +962,9 @@ RSpec.describe 'File blob', :js do
         wait_for_requests
       end
 
-      it 'removes `style`, `class`, and `data-*`` attributes from HTML' do
-        expect(page).to have_css('h1', text: 'Swagger API documentation')
-        expect(page).not_to have_css('.foo-bar')
-        expect(page).not_to have_css('[style="background-color: red;"]')
-        expect(page).not_to have_css('[data-foo-bar="baz"]')
+      it 'renders sandboxed iframe' do
+        expected = %(iframe[src$="/-/sandbox/swagger"][sandbox="allow-scripts allow-popups allow-forms"][frameborder="0"][width="100%"][height="1000"])
+        expect(page).to have_css(expected)
       end
     end
   end
@@ -1050,8 +1009,8 @@ RSpec.describe 'File blob', :js do
     it 'displays a GPG badge' do
       visit_blob('CONTRIBUTING.md', ref: '33f3729a45c02fc67d00adb1b8bca394b0e761d9')
 
-      expect(page).not_to have_selector '.gpg-status-box.js-loading-gpg-badge'
-      expect(page).to have_selector '.gpg-status-box.invalid'
+      expect(page).not_to have_selector '.js-loading-signature-badge'
+      expect(page).to have_selector '.gl-badge.badge-muted'
     end
   end
 
@@ -1059,8 +1018,8 @@ RSpec.describe 'File blob', :js do
     it 'displays a GPG badge' do
       visit_blob('conflicting-file.md', ref: '6101e87e575de14b38b4e1ce180519a813671e10')
 
-      expect(page).not_to have_selector '.gpg-status-box.js-loading-gpg-badge'
-      expect(page).to have_selector '.gpg-status-box.invalid'
+      expect(page).not_to have_selector '.js-loading-signature-badge'
+      expect(page).to have_selector '.gl-badge.badge-muted'
     end
   end
 

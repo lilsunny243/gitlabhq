@@ -2,8 +2,9 @@ import MockAdapter from 'axios-mock-adapter';
 import $ from 'jquery';
 import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import { TEST_HOST } from 'helpers/test_constants';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import ProtectedBranchEdit from '~/protected_branches/protected_branch_edit';
 
 jest.mock('~/flash');
@@ -115,7 +116,9 @@ describe('ProtectedBranchEdit', () => {
 
     describe('when clicked', () => {
       beforeEach(async () => {
-        mock.onPatch(TEST_URL, { protected_branch: { [patchParam]: true } }).replyOnce(200, {});
+        mock
+          .onPatch(TEST_URL, { protected_branch: { [patchParam]: true } })
+          .replyOnce(HTTP_STATUS_OK, {});
       });
 
       it('checks and disables button', async () => {
@@ -136,20 +139,20 @@ describe('ProtectedBranchEdit', () => {
 
         expect(toggle).not.toHaveClass(IS_DISABLED_CLASS);
         expect(toggle.querySelector(IS_LOADING_SELECTOR)).toBe(null);
-        expect(createFlash).not.toHaveBeenCalled();
+        expect(createAlert).not.toHaveBeenCalled();
       });
     });
 
     describe('when clicked and BE error', () => {
       beforeEach(() => {
-        mock.onPatch(TEST_URL).replyOnce(500);
+        mock.onPatch(TEST_URL).replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         toggle.click();
       });
 
       it('flashes error', async () => {
         await axios.waitForAll();
 
-        expect(createFlash).toHaveBeenCalled();
+        expect(createAlert).toHaveBeenCalled();
       });
     });
   });

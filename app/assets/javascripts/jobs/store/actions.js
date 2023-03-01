@@ -1,14 +1,13 @@
 import Visibility from 'visibilityjs';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { setFaviconOverlay, resetFavicon } from '~/lib/utils/favicon';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_FORBIDDEN } from '~/lib/utils/http_status';
 import Poll from '~/lib/utils/poll';
 import {
   canScroll,
   isScrolledToBottom,
   isScrolledToTop,
-  isScrolledToMiddle,
   scrollDown,
   scrollUp,
 } from '~/lib/utils/scroll_utils';
@@ -23,7 +22,7 @@ export const init = ({ dispatch }, { endpoint, logState, pagePath }) => {
     pagePath,
   });
 
-  return Promise.all([dispatch('fetchJob'), dispatch('fetchJobLog')]);
+  return dispatch('fetchJob');
 };
 
 export const setJobEndpoint = ({ commit }, endpoint) => commit(types.SET_JOB_ENDPOINT, endpoint);
@@ -100,7 +99,7 @@ export const receiveJobSuccess = ({ commit }, data = {}) => {
 };
 export const receiveJobError = ({ commit }) => {
   commit(types.RECEIVE_JOB_ERROR);
-  createFlash({
+  createAlert({
     message: __('An error occurred while fetching the job.'),
   });
   resetFavicon();
@@ -124,15 +123,15 @@ export const scrollBottom = ({ dispatch }) => {
  */
 export const toggleScrollButtons = ({ dispatch }) => {
   if (canScroll()) {
-    if (isScrolledToMiddle()) {
-      dispatch('enableScrollTop');
-      dispatch('enableScrollBottom');
-    } else if (isScrolledToTop()) {
+    if (isScrolledToTop()) {
       dispatch('disableScrollTop');
       dispatch('enableScrollBottom');
     } else if (isScrolledToBottom()) {
       dispatch('disableScrollBottom');
       dispatch('enableScrollTop');
+    } else {
+      dispatch('enableScrollTop');
+      dispatch('enableScrollBottom');
     }
   } else {
     dispatch('disableScrollBottom');
@@ -178,7 +177,7 @@ export const fetchJobLog = ({ dispatch, state }) =>
       }
     })
     .catch((e) => {
-      if (e.response.status === httpStatusCodes.FORBIDDEN) {
+      if (e.response.status === HTTP_STATUS_FORBIDDEN) {
         dispatch('receiveJobLogUnauthorizedError');
       } else {
         reportToSentry('job_actions', e);
@@ -205,14 +204,14 @@ export const receiveJobLogSuccess = ({ commit }, log) => commit(types.RECEIVE_JO
 
 export const receiveJobLogError = ({ dispatch }) => {
   dispatch('stopPollingJobLog');
-  createFlash({
+  createAlert({
     message: __('An error occurred while fetching the job log.'),
   });
 };
 
 export const receiveJobLogUnauthorizedError = ({ dispatch }) => {
   dispatch('stopPollingJobLog');
-  createFlash({
+  createAlert({
     message: __('The current user is not authorized to access the job log.'),
   });
 };
@@ -254,7 +253,7 @@ export const receiveJobsForStageSuccess = ({ commit }, data) =>
 
 export const receiveJobsForStageError = ({ commit }) => {
   commit(types.RECEIVE_JOBS_FOR_STAGE_ERROR);
-  createFlash({
+  createAlert({
     message: __('An error occurred while fetching the jobs.'),
   });
 };
@@ -271,7 +270,7 @@ export const triggerManualJob = ({ state }, variables) => {
       job_variables_attributes: parsedVariables,
     })
     .catch(() =>
-      createFlash({
+      createAlert({
         message: __('An error occurred while triggering the job.'),
       }),
     );

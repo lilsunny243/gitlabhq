@@ -2,8 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe "Group Runners" do
+RSpec.describe "Group Runners", feature_category: :runner_fleet do
   include Spec::Support::Helpers::Features::RunnersHelpers
+  include Spec::Support::Helpers::ModalHelpers
 
   let_it_be(:group_owner) { create(:user) }
   let_it_be(:group) { create(:group) }
@@ -61,7 +62,7 @@ RSpec.describe "Group Runners" do
 
       it 'shows a group badge' do
         within_runner_row(group_runner.id) do
-          expect(page).to have_selector '.badge', text: 'group'
+          expect(page).to have_selector '.badge', text: s_('Runners|Group')
         end
       end
 
@@ -101,15 +102,44 @@ RSpec.describe "Group Runners" do
         let(:runner) { project_runner }
       end
 
-      it 'shows a project (specific) badge' do
+      it 'shows a project badge' do
         within_runner_row(project_runner.id) do
-          expect(page).to have_selector '.badge', text: 'specific'
+          expect(page).to have_selector '.badge', text: s_('Runners|Project')
         end
       end
 
       it 'can edit runner information' do
         within_runner_row(project_runner.id) do
           expect(find_link('Edit')[:href]).to end_with(edit_group_runner_path(group, project_runner))
+        end
+      end
+    end
+
+    context "with an online instance runner" do
+      let!(:instance_runner) do
+        create(:ci_runner, :instance, description: 'runner-baz', contacted_at: Time.zone.now)
+      end
+
+      before do
+        visit group_runners_path(group)
+      end
+
+      context "when selecting 'Show only inherited'" do
+        before do
+          find("[data-testid='runner-membership-toggle'] button").click
+
+          wait_for_requests
+        end
+
+        it_behaves_like 'shows runner in list' do
+          let(:runner) { instance_runner }
+        end
+
+        it 'shows runner details page' do
+          click_link("##{instance_runner.id} (#{instance_runner.short_sha})")
+
+          expect(current_url).to include(group_runner_path(group, instance_runner))
+          expect(page).to have_content "#{s_('Runners|Description')} runner-baz"
         end
       end
     end
@@ -123,8 +153,21 @@ RSpec.describe "Group Runners" do
         visit group_runners_path(group)
 
         within_runner_row(runner.id) do
-          expect(page).to have_button 'Delete runner', disabled: true
+          expect(page).not_to have_button 'Delete runner'
         end
+      end
+    end
+
+    context "with multiple runners" do
+      before do
+        create(:ci_runner, :group, groups: [group], description: 'runner-foo')
+        create(:ci_runner, :group, groups: [group], description: 'runner-bar')
+
+        visit group_runners_path(group)
+      end
+
+      it_behaves_like 'deletes runners in bulk' do
+        let(:runner_count) { '2' }
       end
     end
 
@@ -137,70 +180,54 @@ RSpec.describe "Group Runners" do
         focus_filtered_search
 
         page.within(search_bar_selector) do
-          expect(page).to have_link('Paused')
+          expect(page).to have_link(s_('Runners|Paused'))
           expect(page).to have_content('Status')
         end
+      end
+    end
+
+    describe 'filter by tag' do
+      let!(:runner_1) { create(:ci_runner, :group, groups: [group], description: 'runner-blue', tag_list: ['blue']) }
+      let!(:runner_2) { create(:ci_runner, :group, groups: [group], description: 'runner-red', tag_list: ['red']) }
+
+      before do
+        visit group_runners_path(group)
+      end
+
+      it_behaves_like 'filters by tag' do
+        let(:tag) { 'blue' }
+        let(:found_runner) { runner_1.description }
+        let(:missing_runner) { runner_2.description }
       end
     end
   end
 
   describe "Group runner show page", :js do
-    let!(:group_runner) do
+    let_it_be(:group_runner) do
       create(:ci_runner, :group, groups: [group], description: 'runner-foo')
     end
 
-    it 'user views runner details' do
-      visit group_runner_path(group, group_runner)
+    let_it_be(:group_runner_job) { create(:ci_build, runner: group_runner) }
 
+    before do
+      visit group_runner_path(group, group_runner)
+    end
+
+    it 'user views runner details' do
       expect(page).to have_content "#{s_('Runners|Description')} runner-foo"
+    end
+
+    it_behaves_like 'shows runner jobs tab' do
+      let(:job_count) { '1' }
+      let(:job) { group_runner_job }
     end
   end
 
   describe "Group runner edit page", :js do
-    let!(:group_runner) do
-      create(:ci_runner, :group, groups: [group])
-    end
+    context 'when updating a group runner' do
+      let_it_be(:group_runner) { create(:ci_runner, :group, groups: [group]) }
 
-    context 'when group_runner_edit_vue_ui is disabled' do
       before do
-        stub_feature_flags(group_runner_edit_vue_ui: false)
-      end
-
-      it 'user edits the runner to be protected' do
-        visit edit_group_runner_path(group, group_runner)
-
-        expect(page.find_field('runner[access_level]')).not_to be_checked
-
-        check 'runner_access_level'
-        click_button _('Save changes')
-
-        expect(page).to have_content "#{s_('Runners|Configuration')} #{s_('Runners|Protected')}"
-      end
-
-      context 'when a runner has a tag' do
-        before do
-          group_runner.update!(tag_list: ['tag1'])
-        end
-
-        it 'user edits runner not to run untagged jobs' do
-          visit edit_group_runner_path(group, group_runner)
-
-          page.find_field('runner[tag_list]').set('tag1, tag2')
-
-          uncheck 'runner_run_untagged'
-          click_button _('Save changes')
-
-          # Tags can be in any order
-          expect(page).to have_content /#{s_('Runners|Tags')}.*tag1/
-          expect(page).to have_content /#{s_('Runners|Tags')}.*tag2/
-        end
-      end
-    end
-
-    context 'when group_runner_edit_vue_ui is enabled' do
-      before do
-        stub_feature_flags(group_runner_edit_vue_ui: true)
-
         visit edit_group_runner_path(group, group_runner)
         wait_for_requests
       end
@@ -208,6 +235,20 @@ RSpec.describe "Group Runners" do
       it_behaves_like 'submits edit runner form' do
         let(:runner) { group_runner }
         let(:runner_page_path) { group_runner_path(group, group_runner) }
+      end
+    end
+
+    context 'when updating a project runner' do
+      let_it_be(:project_runner) { create(:ci_runner, :project, projects: [project]) }
+
+      before do
+        visit edit_group_runner_path(group, project_runner)
+        wait_for_requests
+      end
+
+      it_behaves_like 'submits edit runner form' do
+        let(:runner) { project_runner }
+        let(:runner_page_path) { group_runner_path(group, project_runner) }
       end
     end
   end

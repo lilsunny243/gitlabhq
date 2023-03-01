@@ -28,9 +28,12 @@ module API
         desc "Gets a list of #{source_type} badges viewable by the authenticated user." do
           detail 'This feature was introduced in GitLab 10.6.'
           success Entities::Badge
+          is_array true
+          tags %w[badges]
         end
         params do
           use :pagination
+          optional :name, type: String, desc: 'Name for the badge'
         end
         get ":id/badges", urgency: :low do
           source = find_source(source_type, params[:id])
@@ -45,6 +48,7 @@ module API
         desc "Preview a badge from a #{source_type}." do
           detail 'This feature was introduced in GitLab 10.6.'
           success Entities::BasicBadgeDetails
+          tags %w[badges]
         end
         params do
           requires :link_url, type: String, desc: 'URL of the badge link'
@@ -68,6 +72,7 @@ module API
         desc "Gets a badge of a #{source_type}." do
           detail 'This feature was introduced in GitLab 10.6.'
           success Entities::Badge
+          tags %w[badges]
         end
         params do
           requires :badge_id, type: Integer, desc: 'The badge ID'
@@ -85,6 +90,7 @@ module API
         desc "Adds a badge to a #{source_type}." do
           detail 'This feature was introduced in GitLab 10.6.'
           success Entities::Badge
+          tags %w[badges]
         end
         params do
           requires :link_url, type: String, desc: 'URL of the badge link'
@@ -106,6 +112,7 @@ module API
         desc "Updates a badge of a #{source_type}." do
           detail 'This feature was introduced in GitLab 10.6.'
           success Entities::Badge
+          tags %w[badges]
         end
         params do
           optional :link_url, type: String, desc: 'URL of the badge link'
@@ -126,8 +133,9 @@ module API
           end
         end
 
-        desc 'Removes a badge from a project or group.' do
+        desc "Removes a badge from the #{source_type}." do
           detail 'This feature was introduced in GitLab 10.6.'
+          tags %w[badges]
         end
         params do
           requires :badge_id, type: Integer, desc: 'The badge ID'

@@ -2,6 +2,7 @@ import { GlLink, GlModal, GlSprintf, GlFormGroup, GlCollapse, GlIcon } from '@gi
 import MockAdapter from 'axios-mock-adapter';
 import { nextTick } from 'vue';
 import { stubComponent } from 'helpers/stub_component';
+import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import Api from '~/api';
@@ -10,29 +11,37 @@ import InviteMembersModal from '~/invite_members/components/invite_members_modal
 import InviteModalBase from '~/invite_members/components/invite_modal_base.vue';
 import ModalConfetti from '~/invite_members/components/confetti.vue';
 import MembersTokenSelect from '~/invite_members/components/members_token_select.vue';
+import UserLimitNotification from '~/invite_members/components/user_limit_notification.vue';
 import {
   INVITE_MEMBERS_FOR_TASK,
   MEMBERS_MODAL_CELEBRATE_INTRO,
   MEMBERS_MODAL_CELEBRATE_TITLE,
   MEMBERS_PLACEHOLDER,
-  MEMBERS_PLACEHOLDER_DISABLED,
   MEMBERS_TO_PROJECT_CELEBRATE_INTRO_TEXT,
   LEARN_GITLAB,
   EXPANDED_ERRORS,
-  EMPTY_INVITES_ERROR_TEXT,
+  EMPTY_INVITES_ALERT_TEXT,
+  ON_CELEBRATION_TRACK_LABEL,
+  INVITE_MEMBER_MODAL_TRACKING_CATEGORY,
 } from '~/invite_members/constants';
 import eventHub from '~/invite_members/event_hub';
 import ContentTransition from '~/vue_shared/components/content_transition.vue';
 import axios from '~/lib/utils/axios_utils';
-import httpStatus from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_CREATED,
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+} from '~/lib/utils/http_status';
 import { getParameterValues } from '~/lib/utils/url_utility';
+import {
+  displaySuccessfulInvitationAlert,
+  reloadOnInvitationSuccess,
+} from '~/invite_members/utils/trigger_successful_invite_alert';
 import { GROUPS_INVITATIONS_PATH, invitationsApiResponse } from '../mock_data/api_responses';
 import {
   propsData,
   inviteSource,
   newProjectPath,
-  freeUsersLimit,
-  membersCount,
   user1,
   user2,
   user3,
@@ -42,6 +51,7 @@ import {
   GlEmoji,
 } from '../mock_data/member_modal';
 
+jest.mock('~/invite_members/utils/trigger_successful_invite_alert');
 jest.mock('~/experimentation/experiment_tracking');
 jest.mock('~/lib/utils/url_utility', () => ({
   ...jest.requireActual('~/lib/utils/url_utility'),
@@ -51,6 +61,13 @@ jest.mock('~/lib/utils/url_utility', () => ({
 describe('InviteMembersModal', () => {
   let wrapper;
   let mock;
+  let trackingSpy;
+
+  const expectTracking = (
+    action,
+    label = undefined,
+    category = INVITE_MEMBER_MODAL_TRACKING_CATEGORY,
+  ) => expect(trackingSpy).toHaveBeenCalledWith(category, action, { label, category });
 
   const createComponent = (props = {}, stubs = {}) => {
     wrapper = shallowMountExtended(InviteMembersModal, {
@@ -59,6 +76,8 @@ describe('InviteMembersModal', () => {
       },
       propsData: {
         usersLimitDataset: {},
+        activeTrialDataset: {},
+        fullPath: 'project',
         ...propsData,
         ...props,
       },
@@ -75,12 +94,20 @@ describe('InviteMembersModal', () => {
     });
   };
 
-  const createInviteMembersToProjectWrapper = (usersLimitDataset = {}, stubs = {}) => {
-    createComponent({ usersLimitDataset, isProject: true }, stubs);
+  const createInviteMembersToProjectWrapper = (
+    usersLimitDataset = {},
+    activeTrialDataset = {},
+    stubs = {},
+  ) => {
+    createComponent({ usersLimitDataset, activeTrialDataset, isProject: true }, stubs);
   };
 
-  const createInviteMembersToGroupWrapper = (usersLimitDataset = {}, stubs = {}) => {
-    createComponent({ usersLimitDataset, isProject: false }, stubs);
+  const createInviteMembersToGroupWrapper = (
+    usersLimitDataset = {},
+    activeTrialDataset = {},
+    stubs = {},
+  ) => {
+    createComponent({ usersLimitDataset, activeTrialDataset, isProject: false }, stubs);
   };
 
   beforeEach(() => {
@@ -97,8 +124,10 @@ describe('InviteMembersModal', () => {
   const findModal = () => wrapper.findComponent(GlModal);
   const findBase = () => wrapper.findComponent(InviteModalBase);
   const findIntroText = () => wrapper.findByTestId('modal-base-intro-text').text();
+  const findEmptyInvitesAlert = () => wrapper.findByTestId('empty-invites-alert');
   const findMemberErrorAlert = () => wrapper.findByTestId('alert-member-error');
   const findMoreInviteErrorsButton = () => wrapper.findByTestId('accordion-button');
+  const findUserLimitAlert = () => wrapper.findComponent(UserLimitNotification);
   const findAccordion = () => wrapper.findComponent(GlCollapse);
   const findErrorsIcon = () => wrapper.findComponent(GlIcon);
   const findMemberErrorMessage = (element) =>
@@ -112,14 +141,14 @@ describe('InviteMembersModal', () => {
   const findMembersFormGroup = () => wrapper.findByTestId('members-form-group');
   const membersFormGroupInvalidFeedback = () =>
     findMembersFormGroup().attributes('invalid-feedback');
-  const membersFormGroupText = () => findMembersFormGroup().text();
+  const membersFormGroupDescription = () => findMembersFormGroup().attributes('description');
   const findMembersSelect = () => wrapper.findComponent(MembersTokenSelect);
   const findTasksToBeDone = () => wrapper.findByTestId('invite-members-modal-tasks-to-be-done');
   const findTasks = () => wrapper.findByTestId('invite-members-modal-tasks');
   const findProjectSelect = () => wrapper.findByTestId('invite-members-modal-project-select');
   const findNoProjectsAlert = () => wrapper.findByTestId('invite-members-modal-no-projects-alert');
   const findCelebrationEmoji = () => wrapper.findComponent(GlEmoji);
-  const triggerOpenModal = async ({ mode = 'default', source }) => {
+  const triggerOpenModal = async ({ mode = 'default', source } = {}) => {
     eventHub.$emit('openModal', { mode, source });
     await nextTick();
   };
@@ -281,7 +310,7 @@ describe('InviteMembersModal', () => {
     });
   });
 
-  describe('displaying the correct introText and form group description', () => {
+  describe('rendering with tracking considerations', () => {
     describe('when inviting to a project', () => {
       describe('when inviting members', () => {
         beforeEach(() => {
@@ -299,19 +328,8 @@ describe('InviteMembersModal', () => {
 
         describe('members form group description', () => {
           it('renders correct description', () => {
-            createInviteMembersToProjectWrapper({ freeUsersLimit, membersCount }, { GlFormGroup });
-            expect(membersFormGroupText()).toContain(MEMBERS_PLACEHOLDER);
-          });
-
-          describe('when reached user limit', () => {
-            it('renders correct description', () => {
-              createInviteMembersToProjectWrapper(
-                { freeUsersLimit, membersCount: 5 },
-                { GlFormGroup },
-              );
-
-              expect(membersFormGroupText()).toContain(MEMBERS_PLACEHOLDER_DISABLED);
-            });
+            createInviteMembersToProjectWrapper({ GlFormGroup });
+            expect(membersFormGroupDescription()).toContain(MEMBERS_PLACEHOLDER);
           });
         });
       });
@@ -319,7 +337,7 @@ describe('InviteMembersModal', () => {
       describe('when inviting members with celebration', () => {
         beforeEach(async () => {
           createInviteMembersToProjectWrapper();
-          await triggerOpenModal({ mode: 'celebrate' });
+          await triggerOpenModal({ mode: 'celebrate', source: ON_CELEBRATION_TRACK_LABEL });
         });
 
         it('renders the modal with confetti', () => {
@@ -339,23 +357,30 @@ describe('InviteMembersModal', () => {
 
         describe('members form group description', () => {
           it('renders correct description', async () => {
-            createInviteMembersToProjectWrapper({ freeUsersLimit, membersCount }, { GlFormGroup });
+            createInviteMembersToProjectWrapper({ GlFormGroup });
             await triggerOpenModal({ mode: 'celebrate' });
 
-            expect(membersFormGroupText()).toContain(MEMBERS_PLACEHOLDER);
+            expect(membersFormGroupDescription()).toContain(MEMBERS_PLACEHOLDER);
           });
+        });
 
-          describe('when reached user limit', () => {
-            it('renders correct description', async () => {
-              createInviteMembersToProjectWrapper(
-                { freeUsersLimit, membersCount: 5 },
-                { GlFormGroup },
-              );
+        describe('tracking', () => {
+          it('tracks actions', async () => {
+            trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
 
-              await triggerOpenModal({ mode: 'celebrate' });
+            const mockEvent = { preventDefault: jest.fn() };
 
-              expect(membersFormGroupText()).toContain(MEMBERS_PLACEHOLDER_DISABLED);
-            });
+            await triggerOpenModal({ mode: 'celebrate', source: ON_CELEBRATION_TRACK_LABEL });
+
+            expectTracking('render', ON_CELEBRATION_TRACK_LABEL);
+
+            findModal().vm.$emit('cancel', mockEvent);
+            expectTracking('click_cancel', ON_CELEBRATION_TRACK_LABEL);
+
+            findModal().vm.$emit('close');
+            expectTracking('click_x', ON_CELEBRATION_TRACK_LABEL);
+
+            unmockTracking();
           });
         });
       });
@@ -370,17 +395,70 @@ describe('InviteMembersModal', () => {
 
       describe('members form group description', () => {
         it('renders correct description', () => {
-          createInviteMembersToGroupWrapper({ freeUsersLimit, membersCount }, { GlFormGroup });
-          expect(membersFormGroupText()).toContain(MEMBERS_PLACEHOLDER);
-        });
-
-        describe('when reached user limit', () => {
-          it('renders correct description', () => {
-            createInviteMembersToGroupWrapper({ freeUsersLimit, membersCount: 5 }, { GlFormGroup });
-            expect(membersFormGroupText()).toContain(MEMBERS_PLACEHOLDER_DISABLED);
-          });
+          createInviteMembersToGroupWrapper({ GlFormGroup });
+          expect(membersFormGroupDescription()).toContain(MEMBERS_PLACEHOLDER);
         });
       });
+    });
+
+    describe('tracking', () => {
+      it.each`
+        desc         | source                           | label
+        ${'unknown'} | ${{}}                            | ${'unknown'}
+        ${'known'}   | ${{ source: '_invite_source_' }} | ${'_invite_source_'}
+      `('tracks actions with $desc source', async ({ source, label }) => {
+        createInviteMembersToProjectWrapper();
+
+        trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+
+        const mockEvent = { preventDefault: jest.fn() };
+
+        await triggerOpenModal(source);
+
+        expectTracking('render', label);
+
+        findModal().vm.$emit('cancel', mockEvent);
+        expectTracking('click_cancel', label);
+
+        findModal().vm.$emit('close');
+        expectTracking('click_x', label);
+
+        unmockTracking();
+      });
+    });
+  });
+
+  describe('rendering the user limit notification', () => {
+    it('shows the user limit notification alert when reached limit', () => {
+      const usersLimitDataset = { alertVariant: 'reached' };
+
+      createInviteMembersToProjectWrapper(usersLimitDataset);
+
+      expect(findUserLimitAlert().exists()).toBe(true);
+    });
+
+    it('shows the user limit notification alert when close to dashboard limit', () => {
+      const usersLimitDataset = { alertVariant: 'close' };
+
+      createInviteMembersToProjectWrapper(usersLimitDataset);
+
+      expect(findUserLimitAlert().exists()).toBe(true);
+    });
+
+    it('shows the user limit notification alert when :preview_free_user_cap is enabled', () => {
+      const usersLimitDataset = { alertVariant: 'notification' };
+
+      createInviteMembersToProjectWrapper(usersLimitDataset);
+
+      expect(findUserLimitAlert().exists()).toBe(true);
+    });
+
+    it('does not show the user limit notification alert', () => {
+      const usersLimitDataset = {};
+
+      createInviteMembersToProjectWrapper(usersLimitDataset);
+
+      expect(findUserLimitAlert().exists()).toBe(false);
     });
   });
 
@@ -403,7 +481,8 @@ describe('InviteMembersModal', () => {
 
         await waitForPromises();
 
-        expect(membersFormGroupInvalidFeedback()).toBe(EMPTY_INVITES_ERROR_TEXT);
+        expect(findEmptyInvitesAlert().text()).toBe(EMPTY_INVITES_ALERT_TEXT);
+        expect(membersFormGroupInvalidFeedback()).toBe(MEMBERS_PLACEHOLDER);
         expect(findMembersSelect().props('exceptionState')).toBe(false);
 
         await triggerMembersTokenSelect([user1]);
@@ -422,6 +501,29 @@ describe('InviteMembersModal', () => {
         tasks_to_be_done: [],
         tasks_project_id: '',
       };
+
+      describe('when reloadOnSubmit is true', () => {
+        beforeEach(async () => {
+          createComponent({ reloadPageOnSubmit: true });
+          await triggerMembersTokenSelect([user1, user2]);
+
+          wrapper.vm.$toast = { show: jest.fn() };
+          jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
+          clickInviteButton();
+        });
+
+        it('calls displaySuccessfulInvitationAlert on mount', () => {
+          expect(displaySuccessfulInvitationAlert).toHaveBeenCalled();
+        });
+
+        it('calls reloadOnInvitationSuccess', () => {
+          expect(reloadOnInvitationSuccess).toHaveBeenCalled();
+        });
+
+        it('does not show the toast message', () => {
+          expect(wrapper.vm.$toast.show).not.toHaveBeenCalled();
+        });
+      });
 
       describe('when member is added successfully', () => {
         beforeEach(async () => {
@@ -443,6 +545,14 @@ describe('InviteMembersModal', () => {
 
           it('displays the successful toastMessage', () => {
             expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added');
+          });
+
+          it('does not call displaySuccessfulInvitationAlert on mount', () => {
+            expect(displaySuccessfulInvitationAlert).not.toHaveBeenCalled();
+          });
+
+          it('does not call reloadOnInvitationSuccess', () => {
+            expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
           });
         });
 
@@ -470,7 +580,7 @@ describe('InviteMembersModal', () => {
 
         describe('clearing the invalid state and message', () => {
           beforeEach(async () => {
-            mockInvitationsApi(httpStatus.CREATED, invitationsApiResponse.EMAIL_TAKEN);
+            mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.EMAIL_TAKEN);
 
             clickInviteButton();
 
@@ -516,7 +626,7 @@ describe('InviteMembersModal', () => {
 
         it('displays the generic error for http server error', async () => {
           mockInvitationsApi(
-            httpStatus.INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
             'Request failed with status code 500',
           );
 
@@ -529,7 +639,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('displays the restricted user api message for response with bad request', async () => {
-          mockInvitationsApi(httpStatus.CREATED, invitationsApiResponse.EMAIL_RESTRICTED);
+          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.EMAIL_RESTRICTED);
 
           clickInviteButton();
 
@@ -542,7 +652,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('displays all errors when there are multiple existing users that are restricted by email', async () => {
-          mockInvitationsApi(httpStatus.CREATED, invitationsApiResponse.MULTIPLE_RESTRICTED);
+          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.MULTIPLE_RESTRICTED);
 
           clickInviteButton();
 
@@ -580,6 +690,7 @@ describe('InviteMembersModal', () => {
           createComponent();
           await triggerMembersTokenSelect([user3]);
 
+          trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
           wrapper.vm.$toast = { show: jest.fn() };
           jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
         });
@@ -596,6 +707,14 @@ describe('InviteMembersModal', () => {
           it('displays the successful toastMessage', () => {
             expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added');
           });
+
+          it('does not call displaySuccessfulInvitationAlert on mount', () => {
+            expect(displaySuccessfulInvitationAlert).not.toHaveBeenCalled();
+          });
+
+          it('does not call reloadOnInvitationSuccess', () => {
+            expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
+          });
         });
       });
 
@@ -607,7 +726,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('displays the api error for invalid email syntax', async () => {
-          mockInvitationsApi(httpStatus.BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
+          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
 
           clickInviteButton();
 
@@ -619,7 +738,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('clears the error when the modal is hidden', async () => {
-          mockInvitationsApi(httpStatus.BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
+          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.EMAIL_INVALID);
 
           clickInviteButton();
 
@@ -639,7 +758,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('displays the restricted email error when restricted email is invited', async () => {
-          mockInvitationsApi(httpStatus.CREATED, invitationsApiResponse.EMAIL_RESTRICTED);
+          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.EMAIL_RESTRICTED);
 
           clickInviteButton();
 
@@ -653,7 +772,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('displays all errors when there are multiple emails that return a restricted error message', async () => {
-          mockInvitationsApi(httpStatus.CREATED, invitationsApiResponse.MULTIPLE_RESTRICTED);
+          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.MULTIPLE_RESTRICTED);
 
           clickInviteButton();
 
@@ -674,7 +793,7 @@ describe('InviteMembersModal', () => {
         });
 
         it('displays the invalid syntax error for bad request', async () => {
-          mockInvitationsApi(httpStatus.BAD_REQUEST, invitationsApiResponse.ERROR_EMAIL_INVALID);
+          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.ERROR_EMAIL_INVALID);
 
           clickInviteButton();
 
@@ -683,6 +802,14 @@ describe('InviteMembersModal', () => {
           expect(membersFormGroupInvalidFeedback()).toBe(expectedSyntaxError);
           expect(findMembersSelect().props('exceptionState')).toBe(false);
         });
+
+        it('does not call displaySuccessfulInvitationAlert on mount', () => {
+          expect(displaySuccessfulInvitationAlert).not.toHaveBeenCalled();
+        });
+
+        it('does not call reloadOnInvitationSuccess', () => {
+          expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
+        });
       });
 
       describe('when multiple emails are invited at the same time', () => {
@@ -690,7 +817,7 @@ describe('InviteMembersModal', () => {
           createInviteMembersToGroupWrapper();
 
           await triggerMembersTokenSelect([user3, user4]);
-          mockInvitationsApi(httpStatus.BAD_REQUEST, invitationsApiResponse.ERROR_EMAIL_INVALID);
+          mockInvitationsApi(HTTP_STATUS_BAD_REQUEST, invitationsApiResponse.ERROR_EMAIL_INVALID);
 
           clickInviteButton();
 
@@ -704,7 +831,7 @@ describe('InviteMembersModal', () => {
           createInviteMembersToGroupWrapper();
 
           await triggerMembersTokenSelect([user3, user4, user5, user6]);
-          mockInvitationsApi(httpStatus.CREATED, invitationsApiResponse.EXPANDED_RESTRICTED);
+          mockInvitationsApi(HTTP_STATUS_CREATED, invitationsApiResponse.EXPANDED_RESTRICTED);
 
           clickInviteButton();
 
@@ -781,33 +908,50 @@ describe('InviteMembersModal', () => {
           createComponent();
           await triggerMembersTokenSelect([user1, user3]);
 
+          trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
           wrapper.vm.$toast = { show: jest.fn() };
           jest.spyOn(Api, 'inviteGroupMembers').mockResolvedValue({ data: postData });
         });
 
         describe('when triggered from regular mounting', () => {
-          beforeEach(() => {
+          beforeEach(async () => {
+            await triggerOpenModal({ source: '_invite_source_' });
+
             clickInviteButton();
           });
 
-          it('calls Api inviteGroupMembers with the correct params', () => {
-            expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, postData);
+          it('calls Api inviteGroupMembers with the correct params and invite source', () => {
+            expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, {
+              ...postData,
+              invite_source: '_invite_source_',
+            });
           });
 
           it('displays the successful toastMessage', () => {
             expect(wrapper.vm.$toast.show).toHaveBeenCalledWith('Members were successfully added');
           });
+
+          it('does not call displaySuccessfulInvitationAlert on mount', () => {
+            expect(displaySuccessfulInvitationAlert).not.toHaveBeenCalled();
+          });
+
+          it('does not call reloadOnInvitationSuccess', () => {
+            expect(reloadOnInvitationSuccess).not.toHaveBeenCalled();
+          });
+
+          it('tracks successful invite when source is known', () => {
+            expectTracking('invite_successful', '_invite_source_');
+
+            unmockTracking();
+          });
         });
 
-        it('calls Apis with the invite source passed through to openModal', async () => {
-          await triggerOpenModal({ source: '_invite_source_' });
+        it('calls Apis without the invite source passed through to openModal', async () => {
+          await triggerOpenModal();
 
           clickInviteButton();
 
-          expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, {
-            ...postData,
-            invite_source: '_invite_source_',
-          });
+          expect(Api.inviteGroupMembers).toHaveBeenCalledWith(propsData.id, postData);
         });
       });
     });

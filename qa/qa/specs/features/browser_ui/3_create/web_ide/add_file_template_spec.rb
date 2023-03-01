@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create' do
+  RSpec.describe 'Create', feature_flag: { name: 'vscode_web_ide', scope: :global },
+                           product_group: :editor,
+                           quarantine: {
+                             issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/387033',
+                             type: :stale
+                           } do
     describe 'Web IDE file templates' do
       include Runtime::Fixtures
 
@@ -11,6 +16,11 @@ module QA
           project.description = 'Add file templates via the Web IDE'
           project.initialize_with_readme = true
         end
+        Runtime::Feature.disable(:vscode_web_ide)
+      end
+
+      after(:all) do
+        Runtime::Feature.enable(:vscode_web_ide)
       end
 
       templates = [
@@ -54,6 +64,7 @@ module QA
 
           Page::Project::Show.perform(&:open_web_ide!)
           Page::Project::WebIDE::Edit.perform do |ide|
+            ide.wait_until_ide_loads
             ide.create_new_file_from_template template[:file_name], template[:name]
 
             expect(ide.has_file?(template[:file_name])).to be_truthy

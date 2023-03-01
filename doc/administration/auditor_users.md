@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Auditor users **(PREMIUM SELF)**
@@ -31,7 +31,7 @@ To create a new user account with auditor access (or change an existing user):
 
 To create a user account with auditor access:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users**.
 1. Create a new user or edit an existing one. Set **Access Level** to **Auditor**.
 1. If you created a user, select **Create user**. For an existing user, select **Save changes**.
@@ -55,6 +55,7 @@ If you are signed in with auditor access, you:
   you can push commits or comment on issues.
 - Can access the same resources using the GitLab UI or API.
 - Can't view the Admin Area, or perform any administration actions.
+- Can't view job logs when [debug logging](../ci/variables/index.md#enable-debug-logging) is enabled.
 
 ## Maintain auditor users using API
 

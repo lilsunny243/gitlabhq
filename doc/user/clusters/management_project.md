@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Cluster management project (DEPRECATED) **(FREE)**
@@ -61,9 +61,9 @@ To associate a cluster management project with your cluster:
      **Infrastructure > Kubernetes clusters** page.
    - [Group-level cluster](../group/clusters/index.md), go to your group's **Kubernetes**
      page.
-   - [Instance-level cluster](../instance/clusters/index.md), on the top bar, select **Menu > Admin > Kubernetes**.
+   - [Instance-level cluster](../instance/clusters/index.md), on the top bar, select **Main menu > Admin > Kubernetes**.
 1. Expand **Advanced settings**.
-1. From the **Cluster management project** dropdown, select the cluster management project
+1. From the **Cluster management project** dropdown list, select the cluster management project
 you created in the previous step.
 
 ### Configuring your pipeline

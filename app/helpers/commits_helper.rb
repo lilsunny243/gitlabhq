@@ -124,15 +124,11 @@ module CommitsHelper
       new_project_tag_path: new_project_tag_path(project, ref: commit),
       email_patches_path: project_commit_path(project, commit, format: :patch),
       plain_diff_path: project_commit_path(project, commit, format: :diff),
-      can_revert: "#{can_collaborate && !commit.has_been_reverted?(current_user)}",
+      can_revert: (can_collaborate && !commit.has_been_reverted?(current_user)).to_s,
       can_cherry_pick: can_collaborate.to_s,
       can_tag: can?(current_user, :push_code, project).to_s,
       can_email_patches: (commit.parents.length < 2).to_s
     }
-  end
-
-  def commit_signature_badge_classes(additional_classes)
-    %w(btn gpg-status-box) + Array(additional_classes)
   end
 
   def conditionally_paginate_diff_files(diffs, paginate:, page:, per:)
@@ -165,17 +161,23 @@ module CommitsHelper
   # This includes a keyed hash for values that can be nil, to prevent invalid cache entries
   # being served if the order should change in future.
   def commit_partial_cache_key(commit, ref:, merge_request:, request:)
+    keyed_hash = {
+      merge_request: merge_request&.cache_key,
+      pipeline_status: commit.detailed_status_for(ref)&.cache_key,
+      xhr: request.xhr?,
+      controller: controller.controller_path,
+      path: @path # referred to in #link_to_browse_code
+    }
+
+    if Feature.enabled?(:show_tags_on_commits_view, commit.project)
+      keyed_hash[:referenced_by] = tag_checksum(commit.referenced_by)
+    end
+
     [
       commit,
       commit.author,
       ref,
-      {
-        merge_request: merge_request&.cache_key,
-        pipeline_status: commit.detailed_status_for(ref)&.cache_key,
-        xhr: request.xhr?,
-        controller: controller.controller_path,
-        path: @path # referred to in #link_to_browse_code
-      }
+      keyed_hash
     ]
   end
 
@@ -201,6 +203,10 @@ module CommitsHelper
   end
 
   protected
+
+  def tag_checksum(tags_array)
+    ::Zlib.crc32(tags_array.sort.join)
+  end
 
   # Private: Returns a link to a person. If the person has a matching user and
   # is a member of the current @project it will link to the team member page.

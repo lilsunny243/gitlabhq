@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # End-to-end Testing
@@ -15,7 +15,7 @@ together.
 
 ## How do we test GitLab?
 
-We use [Omnibus GitLab](https://gitlab.com/gitlab-org/omnibus-gitlab) to build GitLab packages and then we test these packages 
+We use [Omnibus GitLab](https://gitlab.com/gitlab-org/omnibus-gitlab) to build GitLab packages and then we test these packages
 using the [GitLab QA orchestrator](https://gitlab.com/gitlab-org/gitlab-qa) tool to run the end-to-end tests located in the `qa` directory.
 
 ### Testing nightly builds
@@ -97,6 +97,9 @@ This problem was discovered in <https://gitlab.com/gitlab-org/gitlab-qa/-/issues
 work-around was suggested in <https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/4717>.
 A feature proposal to segregate access control regarding running pipelines from ability to push/merge was also created at <https://gitlab.com/gitlab-org/gitlab/-/issues/24585>.
 
+For more technical details on CI/CD setup and documentation on adding new test jobs to `package-and-test` pipeline, see
+[`package_and_test` setup documentation](package_and_test_pipeline.md).
+
 #### With merged results pipelines
 
 In a merged results pipeline, the pipeline runs on a new ref that contains the merge result of the source and target branch.
@@ -123,9 +126,8 @@ test or a group of tests that are different than the groups in any of the existi
 
 For example, when we [dequarantine](https://about.gitlab.com/handbook/engineering/quality/quality-engineering/debugging-qa-test-failures/#dequarantining-tests)
 a flaky test we first want to make sure that it's no longer flaky.
-We can do that using the `ce:custom-parallel` and `ee:custom-parallel` jobs.
-Both are manual jobs that you can configure using custom variables.
-When clicking the name (not the play icon) of one of the parallel jobs,
+We can do that by running `_ee:quarantine` manual job.
+When selecting the name (not the play icon) of manual job,
 you are prompted to enter variables. You can use any of
 [the variables that can be used with `gitlab-qa`](https://gitlab.com/gitlab-org/gitlab-qa/blob/master/docs/what_tests_can_be_run.md#supported-gitlab-environment-variables)
 as well as these:
@@ -134,7 +136,7 @@ as well as these:
 |-|-|
 | `QA_SCENARIO` | The scenario to run (default `Test::Instance::Image`) |
 | `QA_TESTS` | The tests to run (no default, which means run all the tests in the scenario). Use file paths as you would when running tests via RSpec, for example, `qa/specs/features/ee/browser_ui` would include all the `EE` UI tests. |
-| `QA_RSPEC_TAGS` | The RSpec tags to add (no default) |
+| `QA_RSPEC_TAGS` | The RSpec tags to add (default `--tag quarantine`) |
 
 For now,
 [manual jobs with custom variables don't use the same variable when retried](https://gitlab.com/gitlab-org/gitlab/-/issues/31367),
@@ -156,6 +158,19 @@ against the [Review App](../review_apps.md).
 [Cloud Native components](https://gitlab.com/gitlab-org/build/CNG) built from your merge request's changes.**
 
 See [Review Apps](../review_apps.md) for more details about Review Apps.
+
+#### Selective test execution
+
+In order to limit amount of tests executed in a merge request, dynamic selection of which tests to execute is present. Algorithm of which tests to run is based
+on changed files and merge request labels. Following criteria determine which tests will run:
+
+1. Changes in `qa` framework code would execute the full suite
+1. Changes in particular `_spec.rb` file in `qa` folder would execute only that particular test
+1. Merge request with backend changes and label `devops::manage` would execute all e2e tests related to `manage` stage
+
+#### Overriding selective test execution
+
+To override selective test execution and trigger the full suite, label `pipeline:run-all-e2e` should be added to particular merge request.
 
 ### Run tests in parallel
 
@@ -184,7 +199,8 @@ Use these environment variables to configure metrics export:
 | `QA_INFLUXDB_URL` | `true` | Should be set to `https://influxdb.quality.gitlab.net`. No default value. |
 | `QA_INFLUXDB_TOKEN` | `true` | InfluxDB write token that can be found under `Influxdb auth tokens` document in `Gitlab-QA` `1Password` vault. No default value. |
 | `QA_RUN_TYPE` | `false` | Arbitrary name for test execution, like `package-and-test`. Automatically inferred from the project name for live environment test executions. No default value. |
-| `QA_EXPORT_TEST_METRICS` | `false` | Flag to enable or disable metrics export. Defaults to `true`. |
+| `QA_EXPORT_TEST_METRICS` | `false` | Flag to enable or disable metrics export to InfluxDB. Defaults to `false`. |
+| `QA_SAVE_TEST_METRICS` | `false` | Flag to enable or disable saving metrics as JSON file. Defaults to `false`. |
 
 ## Test reports
 
@@ -194,11 +210,10 @@ For additional test results visibility, tests that run on pipelines generate
 and host [Allure](https://github.com/allure-framework/allure2) test reports.
 
 The `QA` framework is using the [Allure RSpec](https://github.com/allure-framework/allure-ruby/blob/master/allure-rspec/README.md)
-gem to generate source files for the `Allure` test report. An additional job
-in the pipeline:
+gem to generate source files for the `Allure` test report. An additional job in the pipeline:
 
 - Fetches these source files from all test jobs.
-- Generates and uploads the report to the `GCS` bucket `gitlab-qa-allure-report` under the project `gitlab-qa-resources`.
+- Generates and uploads the report to the `S3` bucket `gitlab-qa-allure-report` located in `AWS` group project `eng-quality-ops-ci-cd-shared-infra`.
 
 A common CI template for report uploading is stored in
 [`allure-report.yml`](https://gitlab.com/gitlab-org/quality/pipeline-common/-/blob/master/ci/allure-report.yml).
@@ -217,15 +232,15 @@ a link to the current test report.
 
 Each type of scheduled pipeline generates a static link for the latest test report according to its stage:
 
-- [`master`](https://storage.googleapis.com/gitlab-qa-allure-reports/e2e-package-and-test/master/index.html)
-- [`staging-full`](https://storage.googleapis.com/gitlab-qa-allure-reports/staging-full/master/index.html)
-- [`staging-sanity`](https://storage.googleapis.com/gitlab-qa-allure-reports/staging-sanity/master/index.html)
-- [`staging-sanity-no-admin`](https://storage.googleapis.com/gitlab-qa-allure-reports/staging-sanity-no-admin/master/index.html)
-- [`canary-sanity`](https://storage.googleapis.com/gitlab-qa-allure-reports/canary-sanity/master/index.html)
-- [`production`](https://storage.googleapis.com/gitlab-qa-allure-reports/production-full/master/index.html)
-- [`production-sanity`](https://storage.googleapis.com/gitlab-qa-allure-reports/production-sanity/master/index.html)
+- [`master`](http://gitlab-qa-allure-reports.s3.amazonaws.com/e2e-package-and-test/master/index.html)
+- [`staging-full`](http://gitlab-qa-allure-reports.s3.amazonaws.com/staging-full/master/index.html)
+- [`staging-sanity`](http://gitlab-qa-allure-reports.s3.amazonaws.com/staging-sanity/master/index.html)
+- [`staging-sanity-no-admin`](http://gitlab-qa-allure-reports.s3.amazonaws.com/staging-sanity-no-admin/master/index.html)
+- [`canary-sanity`](http://gitlab-qa-allure-reports.s3.amazonaws.com/canary-sanity/master/index.html)
+- [`production`](http://gitlab-qa-allure-reports.s3.amazonaws.com/production-full/master/index.html)
+- [`production-sanity`](http://gitlab-qa-allure-reports.s3.amazonaws.com/production-sanity/master/index.html)
 
-## How do I run the tests?
+## How do you run the tests?
 
 If you are not [testing code in a merge request](#testing-code-in-merge-requests),
 there are two main options for running the tests. If you want to run
@@ -242,12 +257,11 @@ and the section below.
 
 Learn how to perform [tests that require special setup or consideration to run on your local environment](running_tests_that_require_special_setup.md).
 
-## How do I write tests?
+## How do you write tests?
 
-In order to write new tests, you first need to learn more about GitLab QA
-architecture. See the [documentation about it](https://gitlab.com/gitlab-org/gitlab-qa/blob/master/docs/architecture.md).
+Before you write new tests, review the [GitLab QA architecture](https://gitlab.com/gitlab-org/gitlab-qa/blob/master/docs/architecture.md).
 
-Once you decided where to put [test environment orchestration scenarios](https://gitlab.com/gitlab-org/gitlab-qa/tree/master/lib/gitlab/qa/scenario) and
+After you've decided where to put [test environment orchestration scenarios](https://gitlab.com/gitlab-org/gitlab-qa/tree/master/lib/gitlab/qa/scenario) and
 [instance-level scenarios](https://gitlab.com/gitlab-org/gitlab-foss/tree/master/qa/qa/specs/features), take a look at the [GitLab QA README](https://gitlab.com/gitlab-org/gitlab/-/tree/master/qa/README.md),
 the [GitLab QA orchestrator README](https://gitlab.com/gitlab-org/gitlab-qa/tree/master/README.md),
 and [the already existing instance-level scenarios](https://gitlab.com/gitlab-org/gitlab-foss/tree/master/qa/qa/specs/features).
@@ -270,7 +284,7 @@ Continued reading:
 - [Execution context selection](execution_context_selection.md)
 - [Troubleshooting](troubleshooting.md)
 
-## Where can I ask for help?
+## Where can you ask for help?
 
 You can ask question in the `#quality` channel on Slack (GitLab internal) or
 you can find an issue you would like to work on in

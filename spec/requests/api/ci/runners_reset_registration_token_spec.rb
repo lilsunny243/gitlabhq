@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::Runners do
+RSpec.describe API::Ci::Runners, feature_category: :runner_fleet do
   subject { post api("#{prefix}/runners/reset_registration_token", user) }
 
   shared_examples 'bad request' do |result|
@@ -118,7 +118,7 @@ RSpec.describe API::Ci::Runners do
       end
 
       include_context 'when authorized', 'group' do
-        let_it_be(:user) { create_default(:group_member, :owner, user: create(:user), group: group ).user }
+        let_it_be(:user) { create_default(:group_member, :owner, user: create(:user), group: group).user }
 
         def get_token
           group.reload.runners_token

@@ -1,23 +1,38 @@
-import { SwaggerUIBundle } from 'swagger-ui-dist';
-import createFlash from '~/flash';
-import { __ } from '~/locale';
+import { setAttributes } from '~/lib/utils/dom_utils';
+import axios from '~/lib/utils/axios_utils';
+import { getBaseURL, relativePathToAbsolute, joinPaths } from '~/lib/utils/url_utility';
 
-export default () => {
-  const el = document.getElementById('js-openapi-viewer');
+const SANDBOX_FRAME_PATH = '/-/sandbox/swagger';
 
-  Promise.all([import(/* webpackChunkName: 'openapi' */ 'swagger-ui-dist/swagger-ui.css')])
-    .then(() => {
-      SwaggerUIBundle({
-        url: el.dataset.endpoint,
-        dom_id: '#js-openapi-viewer',
-        deepLinking: true,
-        displayOperationId: true,
-      });
-    })
-    .catch((error) => {
-      createFlash({
-        message: __('Something went wrong while initializing the OpenAPI viewer'),
-      });
-      throw error;
-    });
+const getSandboxFrameSrc = () => {
+  const path = joinPaths(gon.relative_url_root || '', SANDBOX_FRAME_PATH);
+  return relativePathToAbsolute(path, getBaseURL());
+};
+
+const createSandbox = () => {
+  const iframeEl = document.createElement('iframe');
+
+  setAttributes(iframeEl, {
+    src: getSandboxFrameSrc(),
+    sandbox: 'allow-scripts allow-popups allow-forms',
+    frameBorder: 0,
+    width: '100%',
+    // The height will be adjusted dynamically.
+    // Follow-up issue: https://gitlab.com/gitlab-org/gitlab/-/issues/377969
+    height: '1000',
+  });
+  return iframeEl;
+};
+
+export default async (el = document.getElementById('js-openapi-viewer')) => {
+  const wrapperEl = el;
+  const sandboxEl = createSandbox();
+
+  const { data } = await axios.get(wrapperEl.dataset.endpoint);
+
+  wrapperEl.appendChild(sandboxEl);
+
+  sandboxEl.addEventListener('load', () => {
+    sandboxEl.contentWindow.postMessage(data, '*');
+  });
 };

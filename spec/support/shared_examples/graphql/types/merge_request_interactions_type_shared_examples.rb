@@ -14,7 +14,10 @@ RSpec.shared_examples "a user type with merge request interaction type" do
       name
       username
       email
+      emails
       publicEmail
+      commitEmail
+      namespaceCommitEmails
       avatarUrl
       webUrl
       webPath
@@ -38,6 +41,8 @@ RSpec.shared_examples "a user type with merge request interaction type" do
       preferencesGitpodPath
       profileEnableGitpodPath
       savedReplies
+      savedReply
+      user_achievements
     ]
 
     expect(described_class).to have_graphql_fields(*expected_fields)

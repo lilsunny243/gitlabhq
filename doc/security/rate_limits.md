@@ -1,14 +1,14 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
 ---
 
 # Rate limits **(FREE SELF)**
 
 NOTE:
-For GitLab.com, please see
+For GitLab.com, see
 [GitLab.com-specific rate limits](../user/gitlab_com/index.md#gitlabcom-specific-rate-limits).
 
 Rate limiting is a common technique used to improve the security and durability
@@ -74,13 +74,7 @@ For configuration information, see
 
 ### Git operations using SSH
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78373) in GitLab 14.7 [with a flag](../administration/feature_flags.md) named `rate_limit_gitlab_shell`. Disabled by default.
-> - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/79419) in GitLab 14.8.
-
-FLAG:
-On self-managed GitLab, by default this feature is available. To disable the feature, ask an administrator to
-[disable the feature flag](../administration/feature_flags.md) named `rate_limit_gitlab_shell`. On GitLab.com, this feature
-is available.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78373) in GitLab 14.7 [with a flag](../administration/feature_flags.md) named `rate_limit_gitlab_shell`. Available by default without a feature flag from 15.8.
 
 GitLab applies rate limits to Git operations that use SSH by user account and project. When the rate limit is exceeded, GitLab rejects
 further connection requests from that user for the project.
@@ -130,7 +124,7 @@ The **rate limit** is 20 calls per minute per IP address.
 There is a rate limit on how frequently a username can be changed. This is enforced to mitigate misuse of the feature. For example, to mass discover
 which usernames are in use.
 
-The **rate limit** is 10 calls per minute per signed-in user.
+The **rate limit** is 10 calls per minute per authenticated user.
 
 ### Username exists
 
@@ -140,6 +134,19 @@ There is a rate limit for the internal endpoint `/users/:username/exists`, used 
 This is to mitigate the risk of misuses, such as mass discovery of usernames in use.
 
 The **rate limit** is 20 calls per minute per IP address.
+
+### Project Jobs API endpoint
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104912) in GitLab 15.7 [with a flag](../administration/feature_flags.md) named `ci_enforce_rate_limits_jobs_api`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available,
+ask an administrator to [enable the feature flag](../administration/feature_flags.md) named `ci_enforce_rate_limits_jobs_api`.
+The feature is not ready for production use.
+
+There is a rate limit for the endpoint `project/:id/jobs`, which is enforced to reduce timeouts when retrieving jobs.
+
+The **rate limit** is 600 calls per minute per authenticated user.
 
 ## Troubleshooting
 

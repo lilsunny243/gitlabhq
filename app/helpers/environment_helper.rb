@@ -58,8 +58,9 @@ module EnvironmentHelper
         s_('Deployment|blocked')
       end
 
-    klass = "ci-status ci-#{status.dasherize}"
-    text = "#{ci_icon_for_status(status)} #{status_text}".html_safe
+    ci_icon_utilities = "gl-display-inline-flex gl-align-items-center gl-line-height-0 gl-px-3 gl-py-2 gl-rounded-base"
+    klass = "ci-status ci-#{status.dasherize} #{ci_icon_utilities}"
+    text = "#{ci_icon_for_status(status)} <span class=\"gl-ml-2\">#{status_text}</span>".html_safe
 
     if deployment.deployable
       link_to(text, deployment_path(deployment), class: klass)
@@ -72,6 +73,7 @@ module EnvironmentHelper
     {
       name: environment.name,
       id: environment.id,
+      project_full_path: project.full_path,
       external_url: environment.external_url,
       can_update_environment: can?(current_user, :update_environment, environment),
       can_destroy_environment: can_destroy_environment?(environment),

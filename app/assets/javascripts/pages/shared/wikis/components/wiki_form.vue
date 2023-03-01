@@ -5,25 +5,22 @@ import {
   GlLink,
   GlButton,
   GlSprintf,
-  GlAlert,
   GlFormGroup,
   GlFormInput,
   GlFormSelect,
-  GlSegmentedControl,
 } from '@gitlab/ui';
-import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
-import axios from '~/lib/utils/axios_utils';
+import { getDraft, clearDraft, updateDraft } from '~/lib/utils/autosave';
 import csrf from '~/lib/utils/csrf';
 import { setUrlFragment } from '~/lib/utils/url_utility';
 import { s__, sprintf } from '~/locale';
 import Tracking from '~/tracking';
-import MarkdownField from '~/vue_shared/components/markdown/field.vue';
+import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
 import {
-  CONTENT_EDITOR_LOADED_ACTION,
   SAVED_USING_CONTENT_EDITOR_ACTION,
   WIKI_CONTENT_EDITOR_TRACKING_LABEL,
   WIKI_FORMAT_LABEL,
   WIKI_FORMAT_UPDATED_ACTION,
+  CONTENT_EDITOR_LOADED_ACTION,
 } from '../constants';
 
 const trackingMixin = Tracking.mixin({
@@ -36,6 +33,29 @@ const MARKDOWN_LINK_TEXT = {
   asciidoc: 'link:page-slug[Link title]',
   org: '[[page-slug]]',
 };
+
+function getPagePath(pageInfo) {
+  return pageInfo.persisted ? pageInfo.path : pageInfo.createPath;
+}
+
+const autosaveKey = (pageInfo, field) => {
+  const path = pageInfo.persisted ? pageInfo.path : pageInfo.createPath;
+
+  return `${path}/${field}`;
+};
+
+const titleAutosaveKey = (pageInfo) => autosaveKey(pageInfo, 'title');
+const formatAutosaveKey = (pageInfo) => autosaveKey(pageInfo, 'format');
+const contentAutosaveKey = (pageInfo) => autosaveKey(pageInfo, 'content');
+const commitAutosaveKey = (pageInfo) => autosaveKey(pageInfo, 'commit');
+
+const getTitle = (pageInfo) => getDraft(titleAutosaveKey(pageInfo)) || pageInfo.title?.trim() || '';
+const getFormat = (pageInfo) =>
+  getDraft(formatAutosaveKey(pageInfo)) || pageInfo.format || 'markdown';
+const getContent = (pageInfo) => getDraft(contentAutosaveKey(pageInfo)) || pageInfo.content || '';
+const getCommitMessage = (pageInfo) =>
+  getDraft(commitAutosaveKey(pageInfo)) || pageInfo.commitMessage || '';
+const getIsFormDirty = (pageInfo) => Boolean(getDraft(titleAutosaveKey(pageInfo)));
 
 export default {
   i18n: {
@@ -59,14 +79,6 @@ export default {
       label: s__('WikiPage|Content'),
       placeholder: s__('WikiPage|Write your content or drag files here…'),
     },
-    contentEditor: {
-      renderFailed: {
-        message: s__(
-          'WikiPage|An error occurred while trying to render the content editor. Please try again later.',
-        ),
-        primaryAction: s__('WikiPage|Retry'),
-      },
-    },
     linksHelpText: s__(
       'WikiPage|To link to a (new) page, simply type %{linkExample}. More examples are in the %{linkStart}documentation%{linkEnd}.',
     ),
@@ -83,12 +95,7 @@ export default {
     },
     cancel: s__('WikiPage|Cancel'),
   },
-  switchEditingControlOptions: [
-    { text: s__('Wiki Page|Source'), value: 'source' },
-    { text: s__('Wiki Page|Rich text'), value: 'richText' },
-  ],
   components: {
-    GlAlert,
     GlIcon,
     GlForm,
     GlFormGroup,
@@ -97,39 +104,38 @@ export default {
     GlSprintf,
     GlLink,
     GlButton,
-    GlSegmentedControl,
-    MarkdownField,
-    LocalStorageSync,
-    ContentEditor: () =>
-      import(
-        /* webpackChunkName: 'content_editor' */ '~/content_editor/components/content_editor.vue'
-      ),
+    MarkdownEditor,
   },
   mixins: [trackingMixin],
   inject: ['formatOptions', 'pageInfo'],
   data() {
     return {
       editingMode: 'source',
-      title: this.pageInfo.title?.trim() || '',
-      format: this.pageInfo.format || 'markdown',
-      content: this.pageInfo.content || '',
-      commitMessage: '',
-      isDirty: false,
-      contentEditorRenderFailed: false,
+      title: getTitle(this.pageInfo),
+      format: getFormat(this.pageInfo),
+      content: getContent(this.pageInfo),
+      commitMessage: getCommitMessage(this.pageInfo),
       contentEditorEmpty: false,
+      isContentEditorActive: false,
       switchEditingControlDisabled: false,
+      isFormDirty: getIsFormDirty(this.pageInfo),
+      formFieldProps: {
+        placeholder: this.$options.i18n.content.placeholder,
+        'aria-label': this.$options.i18n.content.label,
+        id: 'wiki_content',
+        name: 'wiki[content]',
+      },
     };
   },
   computed: {
     noContent() {
-      if (this.isContentEditorActive) return this.contentEditorEmpty;
       return !this.content.trim();
     },
     csrfToken() {
       return csrf.token;
     },
     formAction() {
-      return this.pageInfo.persisted ? this.pageInfo.path : this.pageInfo.createPath;
+      return getPagePath(this.pageInfo);
     },
     helpPath() {
       return setUrlFragment(
@@ -144,11 +150,6 @@ export default {
     },
     linkExample() {
       return MARKDOWN_LINK_TEXT[this.format];
-    },
-    toggleEditingModeButtonText() {
-      return this.isContentEditorActive
-        ? this.$options.i18n.editSourceButtonText
-        : this.$options.i18n.editRichTextButtonText;
     },
     submitButtonText() {
       return this.pageInfo.persisted
@@ -177,17 +178,11 @@ export default {
       return !this.isContentEditorActive;
     },
     disableSubmitButton() {
-      return this.noContent || !this.title || this.contentEditorRenderFailed;
-    },
-    isContentEditorActive() {
-      return this.isMarkdownFormat && this.useContentEditor;
-    },
-    useContentEditor() {
-      return this.editingMode === 'richText';
+      return this.noContent || !this.title;
     },
   },
   mounted() {
-    this.updateCommitMessage();
+    if (!this.commitMessage) this.updateCommitMessage();
 
     window.addEventListener('beforeunload', this.onPageUnload);
   },
@@ -195,80 +190,45 @@ export default {
     window.removeEventListener('beforeunload', this.onPageUnload);
   },
   methods: {
-    renderMarkdown(content) {
-      return axios
-        .post(this.pageInfo.markdownPreviewPath, { text: content })
-        .then(({ data }) => data.body);
-    },
-
-    toggleEditingMode(editingMode) {
-      this.editingMode = editingMode;
-      if (!this.useContentEditor && this.contentEditor) {
-        this.content = this.contentEditor.getSerializedContent();
-      }
-    },
-
-    setEditingMode(value) {
-      this.editingMode = value;
-    },
-
     async handleFormSubmit(e) {
+      this.isFormDirty = false;
+
       e.preventDefault();
 
-      if (this.useContentEditor) {
-        this.content = this.contentEditor.getSerializedContent();
-
-        this.trackFormSubmit();
-      }
-
+      this.trackFormSubmit();
       this.trackWikiFormat();
 
       // Wait until form field values are refreshed
       await this.$nextTick();
 
       e.target.submit();
-
-      this.isDirty = false;
     },
 
-    handleContentChange() {
-      this.isDirty = true;
+    updateDrafts() {
+      updateDraft(titleAutosaveKey(this.pageInfo), this.title);
+      updateDraft(formatAutosaveKey(this.pageInfo), this.format);
+      updateDraft(contentAutosaveKey(this.pageInfo), this.content);
+      updateDraft(commitAutosaveKey(this.pageInfo), this.commitMessage);
     },
 
-    async loadInitialContent(contentEditor) {
-      this.contentEditor = contentEditor;
-
-      try {
-        await this.contentEditor.setSerializedContent(this.content);
-        this.trackContentEditorLoaded();
-      } catch (e) {
-        this.contentEditorRenderFailed = true;
-      }
+    clearDrafts() {
+      clearDraft(titleAutosaveKey(this.pageInfo));
+      clearDraft(formatAutosaveKey(this.pageInfo));
+      clearDraft(contentAutosaveKey(this.pageInfo));
+      clearDraft(commitAutosaveKey(this.pageInfo));
     },
 
-    async retryInitContentEditor() {
-      try {
-        this.contentEditorRenderFailed = false;
-        await this.contentEditor.setSerializedContent(this.content);
-      } catch (e) {
-        this.contentEditorRenderFailed = true;
-      }
-    },
-
-    handleContentEditorChange({ empty }) {
+    handleContentEditorChange({ empty, markdown }) {
       this.contentEditorEmpty = empty;
-      // TODO: Implement a precise mechanism to detect changes in the Content
-      this.isDirty = true;
+      this.content = markdown;
     },
 
-    onPageUnload(event) {
-      if (!this.isDirty) return undefined;
-
-      event.preventDefault();
-
-      // eslint-disable-next-line no-param-reassign
-      event.returnValue = '';
-      return '';
+    onPageUnload() {
+      if (this.isFormDirty) {
+        this.updateDrafts();
+      } else {
+        this.clearDrafts();
+      }
     },
 
     updateCommitMessage() {
@@ -281,8 +241,13 @@ export default {
       this.commitMessage = newCommitMessage;
     },
 
-    trackContentEditorLoaded() {
-      this.track(CONTENT_EDITOR_LOADED_ACTION);
+    notifyContentEditorActive() {
+      this.isContentEditorActive = true;
+      this.trackContentEditorLoaded();
+    },
+
+    notifyContentEditorInactive() {
+      this.isContentEditorActive = false;
     },
 
     trackFormSubmit() {
@@ -302,12 +267,12 @@ export default {
       });
     },
 
-    enableSwitchEditingControl() {
-      this.switchEditingControlDisabled = false;
+    trackContentEditorLoaded() {
+      this.track(CONTENT_EDITOR_LOADED_ACTION);
     },
 
-    disableSwitchEditingControl() {
-      this.switchEditingControlDisabled = true;
+    submitFormWithShortcut() {
+      this.$refs.form.submit();
     },
   },
 };
@@ -315,22 +280,13 @@ export default {
 
 <template>
   <gl-form
+    ref="form"
     :action="formAction"
     method="post"
     class="wiki-form common-note-form gl-mt-3 js-quick-submit"
     @submit="handleFormSubmit"
+    @input="isFormDirty = true"
   >
-    <gl-alert
-      v-if="isContentEditorActive && contentEditorRenderFailed"
-      class="gl-mb-6"
-      :dismissible="false"
-      variant="danger"
-      :primary-button-text="$options.i18n.contentEditor.renderFailed.primaryAction"
-      @primaryAction="retryInitContentEditor"
-    >
-      {{ $options.i18n.contentEditor.renderFailed.message }}
-    </gl-alert>
-
     <input :value="csrfToken" type="hidden" name="authenticity_token" />
     <input v-if="pageInfo.persisted" type="hidden" name="_method" value="put" />
     <input
@@ -350,7 +306,6 @@ export default {
               {{ $options.i18n.title.helpText.learnMore }}
             </gl-link>
           </template>
-
           <gl-form-input
             id="wiki_title"
             v-model="title"
@@ -387,67 +342,21 @@ export default {
     <div class="row" data-testid="wiki-form-content-fieldset">
       <div class="col-sm-12 row-sm-5">
         <gl-form-group>
-          <div v-if="isMarkdownFormat" class="gl-display-flex gl-justify-content-start gl-mb-3">
-            <gl-segmented-control
-              data-testid="toggle-editing-mode-button"
-              data-qa-selector="editing_mode_button"
-              class="gl-display-flex"
-              :checked="editingMode"
-              :options="$options.switchEditingControlOptions"
-              :disabled="switchEditingControlDisabled"
-              @input="toggleEditingMode"
-            />
-          </div>
-          <local-storage-sync
-            storage-key="gl-wiki-content-editor-enabled"
-            :value="editingMode"
-            @input="setEditingMode"
-          />
-          <markdown-field
-            v-if="!isContentEditorActive"
-            :markdown-preview-path="pageInfo.markdownPreviewPath"
-            :can-attach-file="true"
-            :enable-autocomplete="true"
-            :textarea-value="content"
+          <markdown-editor
+            v-model="content"
+            :form-field-props="formFieldProps"
+            :render-markdown-path="pageInfo.markdownPreviewPath"
             :markdown-docs-path="pageInfo.markdownHelpPath"
             :uploads-path="pageInfo.uploadsPath"
+            :enable-content-editor="isMarkdownFormat"
             :enable-preview="isMarkdownFormat"
-            class="bordered-box"
-          >
-            <template #textarea>
-              <textarea
-                id="wiki_content"
-                ref="textarea"
-                v-model="content"
-                name="wiki[content]"
-                class="note-textarea js-gfm-input js-autosize markdown-area"
-                dir="auto"
-                data-supports-quick-actions="false"
-                data-qa-selector="wiki_content_textarea"
-                :autofocus="pageInfo.persisted"
-                :aria-label="$options.i18n.content.label"
-                :placeholder="$options.i18n.content.placeholder"
-                @input="handleContentChange"
-              >
-              </textarea>
-            </template>
-          </markdown-field>
-          <div v-if="isContentEditorActive">
-            <content-editor
-              :render-markdown="renderMarkdown"
-              :uploads-path="pageInfo.uploadsPath"
-              @initialized="loadInitialContent"
-              @change="handleContentEditorChange"
-              @loading="disableSwitchEditingControl"
-              @loadingSuccess="enableSwitchEditingControl"
-              @loadingError="enableSwitchEditingControl"
-            />
-            <input id="wiki_content" v-model.trim="content" type="hidden" name="wiki[content]" />
-          </div>
-
-          <div class="clearfix"></div>
-          <div class="error-alert"></div>
-
+            :autofocus="pageInfo.persisted"
+            :drawio-enabled="true"
+            @contentEditor="notifyContentEditorActive"
+            @markdownField="notifyContentEditorInactive"
+            @keydown.ctrl.enter="submitFormShortcut"
+            @keydown.meta.enter="submitFormShortcut"
+          />
           <div class="form-text gl-text-gray-600">
             <gl-sprintf
               v-if="displayWikiSpecificMarkdownHelp"
@@ -498,9 +407,14 @@ export default {
         :disabled="disableSubmitButton"
         >{{ submitButtonText }}</gl-button
       >
-      <gl-button data-testid="wiki-cancel-button" :href="cancelFormPath" class="float-right">{{
-        $options.i18n.cancel
-      }}</gl-button>
+      <gl-button
+        data-testid="wiki-cancel-button"
+        :href="cancelFormPath"
+        class="float-right"
+        @click="isFormDirty = false"
+      >
+        {{ $options.i18n.cancel }}</gl-button
+      >
     </div>
   </gl-form>
 </template>

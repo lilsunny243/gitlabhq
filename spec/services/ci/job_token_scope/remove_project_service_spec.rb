@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Ci::JobTokenScope::RemoveProjectService do
+RSpec.describe Ci::JobTokenScope::RemoveProjectService, feature_category: :continuous_integration do
   let(:service) { described_class.new(project, current_user) }
 
-  let_it_be(:project) { create(:project, ci_job_token_scope_enabled: true).tap(&:save!) }
+  let_it_be(:project) { create(:project, ci_outbound_job_token_scope_enabled: true).tap(&:save!) }
   let_it_be(:target_project) { create(:project) }
   let_it_be(:current_user) { create(:user) }
 
@@ -14,8 +14,16 @@ RSpec.describe Ci::JobTokenScope::RemoveProjectService do
       target_project: target_project)
   end
 
+  shared_examples 'removes project' do |context|
+    it 'removes the project from the scope' do
+      expect do
+        expect(result).to be_success
+      end.to change { Ci::JobToken::ProjectScopeLink.count }.by(-1)
+    end
+  end
+
   describe '#execute' do
-    subject(:result) { service.execute(target_project) }
+    subject(:result) { service.execute(target_project, :outbound) }
 
     it_behaves_like 'editable job token scope' do
       context 'when user has permissions on source and target project' do
@@ -24,10 +32,14 @@ RSpec.describe Ci::JobTokenScope::RemoveProjectService do
           target_project.add_developer(current_user)
         end
 
-        it 'removes the project from the scope' do
-          expect do
-            expect(result).to be_success
-          end.to change { Ci::JobToken::ProjectScopeLink.count }.by(-1)
+        it_behaves_like 'removes project'
+
+        context 'when token scope is disabled' do
+          before do
+            project.ci_cd_settings.update!(job_token_scope_enabled: false)
+          end
+
+          it_behaves_like 'removes project'
         end
       end
 

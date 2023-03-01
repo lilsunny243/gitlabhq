@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting and debugging the database
@@ -49,9 +49,11 @@ bundle exec rake db:reset RAILS_ENV=test
 
 - `bundle exec rake db:migrate RAILS_ENV=development`: Execute any pending migrations that you may have picked up from a MR
 - `bundle exec rake db:migrate:status RAILS_ENV=development`: Check if all migrations are `up` or `down`
-- `bundle exec rake db:migrate:down VERSION=20170926203418 RAILS_ENV=development`: Tear down a migration
-- `bundle exec rake db:migrate:up VERSION=20170926203418 RAILS_ENV=development`: Set up a migration
-- `bundle exec rake db:migrate:redo VERSION=20170926203418 RAILS_ENV=development`: Re-run a specific migration
+- `bundle exec rake db:migrate:down:main VERSION=20170926203418 RAILS_ENV=development`: Tear down a migration
+- `bundle exec rake db:migrate:up:main VERSION=20170926203418 RAILS_ENV=development`: Set up a migration
+- `bundle exec rake db:migrate:redo:main VERSION=20170926203418 RAILS_ENV=development`: Re-run a specific migration
+
+Replace `main` in the above commands to execute against the `ci` database instead of `main`.
 
 ## Manually access the database
 
@@ -105,7 +107,7 @@ The new connection should be working now.
 Use these instructions for exploring the GitLab database while developing with the GDK:
 
 1. Install or open [Visual Studio Code](https://code.visualstudio.com/download).
-1. Install the [PostgreSQL VSCode Extension](https://marketplace.visualstudio.com/items?itemName=ckolkman.vscode-postgres).
+1. Install the [PostgreSQL VS Code Extension](https://marketplace.visualstudio.com/items?itemName=ckolkman.vscode-postgres).
 1. In Visual Studio Code select **PostgreSQL Explorer** in the left toolbar.
 1. In the top bar of the new window, select `+` to **Add Database Connection**, and follow the prompts to fill in the details:
    1. **Hostname**: the path to the PostgreSQL folder in your GDK directory (for example `/dev/gitlab-development-kit/postgresql`).
@@ -175,3 +177,21 @@ you should set the `SKIP_SCHEMA_VERSION_CHECK` environment variable.
 ```shell
 bundle exec rake db:migrate SKIP_SCHEMA_VERSION_CHECK=true
 ```
+
+## Performance issues
+
+### Reduce connection overhead with connection pooling
+
+Creating new database connections is not free, and in PostgreSQL specifically, it requires
+forking an entire process to handle each new one. In case a connection lives for a very long time,
+this is no problem. However, forking a process for several small queries can turn out to be costly.
+If left unattended, peaks of new database connections can cause performance degradation,
+or even lead to a complete outage.
+
+A proven solution for instances that deal with surges of small, short-lived database connections
+is to implement [PgBouncer](../../administration/postgresql/pgbouncer.md#pgbouncer-as-part-of-a-fault-tolerant-gitlab-installation) as a connection pooler.
+This pool can be used to hold thousands of connections for almost no overhead. The drawback is the addition of
+a small amount of latency, in exchange for up to more than 90% performance improvement, depending on the usage patterns.
+
+PgBouncer can be fine-tuned to fit different installations. See our documentation on
+[fine-tuning PgBouncer](../../administration/postgresql/pgbouncer.md#fine-tuning) for more information.

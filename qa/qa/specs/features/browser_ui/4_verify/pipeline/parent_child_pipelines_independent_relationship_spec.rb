@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner, :reliable do
+  RSpec.describe 'Verify', :runner, :reliable, product_group: :pipeline_execution do
     describe 'Parent-child pipelines independent relationship' do
       let!(:project) do
         Resource::Project.fabricate_via_api! do |project|
@@ -10,7 +10,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate_via_api! do |runner|
+        Resource::ProjectRunner.fabricate_via_api! do |runner|
           runner.project = project
           runner.name = project.name
           runner.tags = [project.name]

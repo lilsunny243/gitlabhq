@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::MergeRequests::DiffsController do
+RSpec.describe Projects::MergeRequests::DiffsController, feature_category: :code_review_workflow do
   include ProjectForksHelper
   include TrackingHelpers
 
@@ -213,7 +213,6 @@ RSpec.describe Projects::MergeRequests::DiffsController do
             commit: nil,
             latest_diff: true,
             only_context_commits: false,
-            allow_tree_conflicts: true,
             merge_ref_head_diff: false
           }
         end
@@ -248,9 +247,11 @@ RSpec.describe Projects::MergeRequests::DiffsController do
                 straight: true)
             end
 
-            go(diff_head: true,
-               diff_id: merge_request.merge_request_diff.id,
-               start_sha: merge_request.merge_request_diff.start_commit_sha)
+            go(
+              diff_head: true,
+              diff_id: merge_request.merge_request_diff.id,
+              start_sha: merge_request.merge_request_diff.start_commit_sha
+            )
           end
         end
       end
@@ -281,7 +282,6 @@ RSpec.describe Projects::MergeRequests::DiffsController do
             commit: nil,
             latest_diff: true,
             only_context_commits: false,
-            allow_tree_conflicts: true,
             merge_ref_head_diff: nil
           }
         end
@@ -303,33 +303,6 @@ RSpec.describe Projects::MergeRequests::DiffsController do
             commit: merge_request.diff_head_commit,
             latest_diff: nil,
             only_context_commits: false,
-            allow_tree_conflicts: true,
-            merge_ref_head_diff: nil
-          }
-        end
-      end
-    end
-
-    context 'when display_merge_conflicts_in_diff is disabled' do
-      subject { go }
-
-      before do
-        stub_feature_flags(display_merge_conflicts_in_diff: false)
-      end
-
-      it_behaves_like 'serializes diffs metadata with expected arguments' do
-        let(:collection) { Gitlab::Diff::FileCollection::MergeRequestDiff }
-        let(:expected_options) do
-          {
-            merge_request: merge_request,
-            merge_request_diff: merge_request.merge_request_diff,
-            merge_request_diffs: merge_request.merge_request_diffs,
-            start_version: nil,
-            start_sha: nil,
-            commit: nil,
-            latest_diff: true,
-            only_context_commits: false,
-            allow_tree_conflicts: false,
             merge_ref_head_diff: nil
           }
         end
@@ -358,9 +331,11 @@ RSpec.describe Projects::MergeRequests::DiffsController do
             diff_for_path(old_path: existing_path, new_path: existing_path)
 
             expect(assigns(:diff_notes_disabled)).to be_falsey
-            expect(assigns(:new_diff_note_attrs)).to eq(noteable_type: 'MergeRequest',
-                                                        noteable_id: merge_request.id,
-                                                        commit_id: nil)
+            expect(assigns(:new_diff_note_attrs)).to eq(
+              noteable_type: 'MergeRequest',
+              noteable_id: merge_request.id,
+              commit_id: nil
+            )
           end
 
           it 'only renders the diffs for the path given' do
@@ -430,6 +405,16 @@ RSpec.describe Projects::MergeRequests::DiffsController do
         expect(response).to have_gitlab_http_status(:ok)
       end
 
+      it 'measures certain parts of the request' do
+        allow(Gitlab::Metrics).to receive(:measure).and_call_original
+        expect(Gitlab::Metrics).to receive(:measure).with(:diffs_unfoldable_positions).and_call_original
+        expect(Gitlab::Metrics).to receive(:measure).with(:diffs_unfold).and_call_original
+        expect(Gitlab::Metrics).to receive(:measure).with(:diffs_write_cache).and_call_original
+        expect(Gitlab::Metrics).to receive(:measure).with(:diffs_render).and_call_original
+
+        subject
+      end
+
       it 'tracks mr_diffs event' do
         expect(Gitlab::UsageDataCounters::MergeRequestActivityUniqueCounter)
           .to receive(:track_mr_diffs_action)
@@ -488,7 +473,6 @@ RSpec.describe Projects::MergeRequests::DiffsController do
         commit: nil,
         diff_view: :inline,
         merge_ref_head_diff: nil,
-        allow_tree_conflicts: true,
         pagination_data: {
           total_pages: nil
         }.merge(pagination_data)
@@ -548,8 +532,7 @@ RSpec.describe Projects::MergeRequests::DiffsController do
 
     context 'with diff_id and start_sha params' do
       subject do
-        go(diff_id: merge_request.merge_request_diff.id,
-           start_sha: merge_request.merge_request_diff.start_commit_sha)
+        go(diff_id: merge_request.merge_request_diff.id, start_sha: merge_request.merge_request_diff.start_commit_sha)
       end
 
       it_behaves_like 'serializes diffs with expected arguments' do
@@ -607,21 +590,6 @@ RSpec.describe Projects::MergeRequests::DiffsController do
       it_behaves_like 'successful request'
     end
 
-    context 'when display_merge_conflicts_in_diff is disabled' do
-      before do
-        stub_feature_flags(display_merge_conflicts_in_diff: false)
-      end
-
-      subject { go }
-
-      it_behaves_like 'serializes diffs with expected arguments' do
-        let(:collection) { Gitlab::Diff::FileCollection::MergeRequestDiffBatch }
-        let(:expected_options) { collection_arguments(total_pages: 20).merge(allow_tree_conflicts: false) }
-      end
-
-      it_behaves_like 'successful request'
-    end
-
     it_behaves_like 'forked project with submodules'
     it_behaves_like 'cached diff collection'
 
@@ -643,6 +611,40 @@ RSpec.describe Projects::MergeRequests::DiffsController do
         end
 
         go
+      end
+    end
+
+    context 'when ck param is present' do
+      let(:cache_key) { merge_request.merge_head_diff.id }
+
+      before do
+        create(:merge_request_diff, :merge_head, merge_request: merge_request)
+      end
+
+      it 'sets Cache-Control with max-age' do
+        go(ck: cache_key, diff_head: true)
+
+        expect(response.headers['Cache-Control']).to eq('max-age=86400, private')
+      end
+
+      context 'when diffs_batch_cache_with_max_age feature flag is disabled' do
+        before do
+          stub_feature_flags(diffs_batch_cache_with_max_age: false)
+        end
+
+        it 'does not set Cache-Control with max-age' do
+          go(ck: cache_key, diff_head: true)
+
+          expect(response.headers['Cache-Control']).not_to eq('max-age=86400, private')
+        end
+      end
+
+      context 'when not rendering merge head diff' do
+        it 'does not set Cache-Control with max-age' do
+          go(ck: cache_key, diff_head: false)
+
+          expect(response.headers['Cache-Control']).not_to eq('max-age=86400, private')
+        end
       end
     end
   end

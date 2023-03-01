@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Releases do
+RSpec.describe API::Releases, feature_category: :release_orchestration do
   let(:project) { create(:project, :repository, :private) }
   let(:maintainer) { create(:user) }
   let(:reporter) { create(:user) }
@@ -573,6 +573,234 @@ RSpec.describe API::Releases do
     end
   end
 
+  describe 'GET /projects/:id/releases/:tag_name/downloads/*direct_asset_path' do
+    let!(:release) { create(:release, project: project, tag: 'v0.1', author: maintainer) }
+    let!(:link) { create(:release_link, release: release, url: "#{url}#{filepath}", filepath: filepath) }
+    let(:filepath) { '/bin/bigfile.exe' }
+    let(:url) { 'https://google.com/-/jobs/140463678/artifacts/download' }
+
+    context 'with an invalid release tag' do
+      it 'returns 404 for maintater' do
+        get api("/projects/#{project.id}/releases/v0.2/downloads#{filepath}", maintainer)
+
+        expect(response).to have_gitlab_http_status(:not_found)
+        expect(json_response['message']).to eq('404 Not Found')
+      end
+
+      it 'returns project not found for no user' do
+        get api("/projects/#{project.id}/releases/v0.2/downloads#{filepath}", nil)
+
+        expect(response).to have_gitlab_http_status(:not_found)
+        expect(json_response['message']).to eq('404 Project Not Found')
+      end
+
+      it 'returns forbidden for guest' do
+        get api("/projects/#{project.id}/releases/v0.2/downloads#{filepath}", guest)
+
+        expect(response).to have_gitlab_http_status(:forbidden)
+      end
+    end
+
+    context 'with a valid release tag' do
+      context 'when filepath is provided' do
+        context 'when filepath exists' do
+          it 'redirects to the file download URL' do
+            get api("/projects/#{project.id}/releases/v0.1/downloads#{filepath}", maintainer)
+
+            expect(response).to redirect_to("#{url}#{filepath}")
+          end
+
+          it 'redirects to the file download URL when using JOB-TOKEN auth' do
+            job = create(:ci_build, :running, project: project, user: maintainer)
+
+            get api("/projects/#{project.id}/releases/v0.1/downloads#{filepath}"), params: { job_token: job.token }
+
+            expect(response).to redirect_to("#{url}#{filepath}")
+          end
+
+          context 'when user is a guest' do
+            it 'responds 403 Forbidden' do
+              get api("/projects/#{project.id}/releases/v0.1/downloads#{filepath}", guest)
+
+              expect(response).to have_gitlab_http_status(:forbidden)
+            end
+
+            context 'when project is public' do
+              let(:project) { create(:project, :repository, :public) }
+
+              it 'responds 200 OK' do
+                get api("/projects/#{project.id}/releases/v0.1/downloads#{filepath}", guest)
+
+                expect(response).to redirect_to("#{url}#{filepath}")
+              end
+            end
+          end
+        end
+
+        context 'when direct_asset_path is used' do
+          let(:direct_asset_path) { filepath }
+
+          it 'redirects to the file download URL successfully' do
+            get api("/projects/#{project.id}/releases/v0.1/downloads#{direct_asset_path}", maintainer)
+
+            expect(response).to redirect_to("#{url}#{direct_asset_path}")
+          end
+        end
+
+        context 'when filepath does not exists' do
+          it 'returns 404 for maintater' do
+            get api("/projects/#{project.id}/releases/v0.1/downloads/bin/not_existing.exe", maintainer)
+
+            expect(response).to have_gitlab_http_status(:not_found)
+            expect(json_response['message']).to eq('404 Not found')
+          end
+
+          it 'returns project not found for no user' do
+            get api("/projects/#{project.id}/releases/v0.1/downloads/bin/not_existing.exe", nil)
+
+            expect(response).to have_gitlab_http_status(:not_found)
+            expect(json_response['message']).to eq('404 Project Not Found')
+          end
+
+          it 'returns forbidden for guest' do
+            get api("/projects/#{project.id}/releases/v0.1/downloads/bin/not_existing.exe", guest)
+
+            expect(response).to have_gitlab_http_status(:forbidden)
+          end
+        end
+      end
+
+      context 'when filepath is not provided' do
+        it 'returns 404 for maintater' do
+          get api("/projects/#{project.id}/releases/v0.1/downloads", maintainer)
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+
+        it 'returns project not found for no user' do
+          get api("/projects/#{project.id}/releases/v0.1/downloads", nil)
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+
+        it 'returns forbidden for guest' do
+          get api("/projects/#{project.id}/releases/v0.1/downloads", guest)
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+    end
+  end
+
+  describe 'GET /projects/:id/releases/permalink/latest' do
+    context 'when there is no release' do
+      it 'returns not found' do
+        get api("/projects/#{project.id}/releases/permalink/latest", maintainer)
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+
+      it 'returns not found when using JOB-TOKEN auth' do
+        job = create(:ci_build, :running, project: project, user: maintainer)
+
+        get api("/projects/#{project.id}/releases/permalink/latest"), params: { job_token: job.token }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
+
+    context 'when there are more than one release' do
+      let!(:release_a) do
+        create(:release,
+                project: project,
+                tag: 'v0.1',
+                author: maintainer,
+                description: 'This is v0.1',
+                released_at: 3.days.ago)
+      end
+
+      let!(:release_b) do
+        create(:release,
+                project: project,
+                tag: 'v0.2',
+                author: maintainer,
+                description: 'This is v0.2',
+                released_at: 2.days.ago)
+      end
+
+      it 'redirects to the latest release tag' do
+        get api("/projects/#{project.id}/releases/permalink/latest", maintainer)
+
+        uri = URI(response.header["Location"])
+
+        expect(response).to have_gitlab_http_status(:redirect)
+        expect(uri.path).to eq("/api/v4/projects/#{project.id}/releases/#{release_b.tag}")
+      end
+
+      it 'redirects to the latest release tag when using JOB-TOKEN auth' do
+        job = create(:ci_build, :running, project: project, user: maintainer)
+
+        get api("/projects/#{project.id}/releases/permalink/latest"), params: { job_token: job.token }
+
+        uri = URI(response.header["Location"])
+
+        expect(response).to have_gitlab_http_status(:redirect)
+        expect(uri.path).to eq("/api/v4/projects/#{project.id}/releases/#{release_b.tag}")
+      end
+
+      context 'when there are query parameters present' do
+        it 'includes the query params on the redirection' do
+          get api("/projects/#{project.id}/releases/permalink/latest", maintainer), params: { include_html_description: true, other_param: "aaa" }
+
+          uri = URI(response.header["Location"])
+          query_params = Rack::Utils.parse_nested_query(uri.query)
+
+          expect(response).to have_gitlab_http_status(:redirect)
+          expect(uri.path).to eq("/api/v4/projects/#{project.id}/releases/#{release_b.tag}")
+          expect(query_params).to include({
+            "include_html_description" => "true",
+            "other_param" => "aaa"
+          })
+        end
+
+        it 'discards the `order_by` query param' do
+          get api("/projects/#{project.id}/releases/permalink/latest", maintainer), params: { order_by: 'something', other_param: "aaa" }
+
+          uri = URI(response.header["Location"])
+          query_params = Rack::Utils.parse_nested_query(uri.query)
+
+          expect(response).to have_gitlab_http_status(:redirect)
+          expect(uri.path).to eq("/api/v4/projects/#{project.id}/releases/#{release_b.tag}")
+          expect(query_params).to include({
+            "other_param" => "aaa"
+          })
+          expect(query_params).not_to include({
+            "order_by" => "something"
+          })
+        end
+      end
+
+      context 'when downloading a release asset' do
+        it 'redirects to the right endpoint keeping the suffix_path' do
+          get api("/projects/#{project.id}/releases/permalink/latest/downloads/bin/example.exe", maintainer)
+
+          uri = URI(response.header["Location"])
+
+          expect(response).to have_gitlab_http_status(:redirect)
+          expect(uri.path).to eq("/api/v4/projects/#{project.id}/releases/#{release_b.tag}/downloads/bin/example.exe")
+        end
+
+        it 'returns error when there is path traversal in suffix path' do
+          get api("/projects/#{project.id}/releases/permalink/latest/downloads/bin/../../../../../../../password.txt", maintainer)
+
+          expect(response).to have_gitlab_http_status(:bad_request)
+
+          expect(json_response['error']).to eq('suffix_path should be a valid file path')
+        end
+      end
+    end
+  end
+
   describe 'POST /projects/:id/releases' do
     let(:params) do
       {
@@ -691,6 +919,22 @@ RSpec.describe API::Releases do
       expect do
         post api("/projects/#{project.id}/releases", maintainer), params: params
       end.not_to change { Project.find_by_id(project.id).repository.tag_count }
+    end
+
+    context 'when using `direct_asset_path` for the asset link' do
+      before do
+        params[:direct_asset_path] = params.delete(:filepath)
+      end
+
+      it 'creates a new release successfully' do
+        expect do
+          post api("/projects/#{project.id}/releases", maintainer), params: params
+        end.to change { Release.count }.by(1)
+
+        release = project.releases.last
+
+        expect(release.links.last.filepath).to eq('/permanent/path/to/runbook')
+      end
     end
 
     context 'with protected tag' do
@@ -971,11 +1215,23 @@ RSpec.describe API::Releases do
       end
 
       context 'with a project milestone' do
-        let(:milestone_params) { { milestones: [milestone.title] } }
+        shared_examples 'adds milestone' do
+          it 'adds the milestone' do
+            expect(response).to have_gitlab_http_status(:created)
+            expect(returned_milestones).to match_array(['v1.0'])
+          end
+        end
 
-        it 'adds the milestone' do
-          expect(response).to have_gitlab_http_status(:created)
-          expect(returned_milestones).to match_array(['v1.0'])
+        context 'by title' do
+          let(:milestone_params) { { milestones: [milestone.title] } }
+
+          it_behaves_like 'adds milestone'
+        end
+
+        context 'by id' do
+          let(:milestone_params) { { milestone_ids: [milestone.id] } }
+
+          it_behaves_like 'adds milestone'
         end
       end
 
@@ -1164,18 +1420,14 @@ RSpec.describe API::Releases do
 
       context 'when a milestone is passed in' do
         let(:milestone) { create(:milestone, project: project, title: 'v1.0') }
-        let(:milestone_title) { milestone.title }
-        let(:params) { { milestones: [milestone_title] } }
+        let!(:milestone2) { create(:milestone, project: project, title: 'v2.0') }
 
         before do
           release.milestones << milestone
         end
 
-        context 'a different milestone' do
-          let(:milestone_title) { 'v2.0' }
-          let!(:milestone2) { create(:milestone, project: project, title: milestone_title) }
-
-          it 'replaces the milestone' do
+        shared_examples 'updates milestone' do
+          it 'updates the milestone' do
             subject
 
             expect(response).to have_gitlab_http_status(:ok)
@@ -1183,8 +1435,20 @@ RSpec.describe API::Releases do
           end
         end
 
+        context 'by title' do
+          let(:params) { { milestones: [milestone2.title] } }
+
+          it_behaves_like 'updates milestone'
+        end
+
+        context 'by id' do
+          let(:params) { { milestone_ids: [milestone2.id] } }
+
+          it_behaves_like 'updates milestone'
+        end
+
         context 'an identical milestone' do
-          let(:milestone_title) { 'v1.0' }
+          let(:params) { { milestones: [milestone.title] } }
 
           it 'does not change the milestone' do
             subject
@@ -1195,7 +1459,7 @@ RSpec.describe API::Releases do
         end
 
         context 'an empty milestone' do
-          let(:milestone_title) { nil }
+          let(:params) { { milestones: [] } }
 
           it 'removes the milestone' do
             subject
@@ -1232,13 +1496,26 @@ RSpec.describe API::Releases do
           context 'with all new' do
             let!(:milestone2) { create(:milestone, project: project, title: 'milestone2') }
             let!(:milestone3) { create(:milestone, project: project, title: 'milestone3') }
-            let(:params) { { milestones: [milestone2.title, milestone3.title] } }
 
-            it 'replaces the milestones' do
-              subject
+            shared_examples 'update milestones' do
+              it 'replaces the milestones' do
+                subject
 
-              expect(response).to have_gitlab_http_status(:ok)
-              expect(returned_milestones).to match_array(%w(milestone2 milestone3))
+                expect(response).to have_gitlab_http_status(:ok)
+                expect(returned_milestones).to match_array(%w(milestone2 milestone3))
+              end
+            end
+
+            context 'by title' do
+              let(:params) { { milestones: [milestone2.title, milestone3.title] } }
+
+              it_behaves_like 'update milestones'
+            end
+
+            context 'by id' do
+              let(:params) { { milestone_ids: [milestone2.id, milestone3.id] } }
+
+              it_behaves_like 'update milestones'
             end
           end
         end

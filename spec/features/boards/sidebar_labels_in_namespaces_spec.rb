@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Issue boards sidebar labels select', :js do
+RSpec.describe 'Issue boards sidebar labels select', :js, feature_category: :team_planning do
   include BoardHelpers
 
   include_context 'labels from nested groups and projects'
@@ -15,6 +15,8 @@ RSpec.describe 'Issue boards sidebar labels select', :js do
       let_it_be(:board_list) { create(:backlog_list, board: group_board) }
 
       before do
+        stub_feature_flags(apollo_boards: false)
+
         load_board group_board_path(group, group_board)
       end
 

@@ -1,6 +1,6 @@
 import axios from '~/lib/utils/axios_utils';
 import { backOff } from '~/lib/utils/common_utils';
-import statusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_ACCEPTED, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { __, s__ } from '~/locale';
 import * as types from './mutation_types';
 
@@ -10,7 +10,7 @@ function backOffRequest(makeRequestCallback) {
   return backOff((next, stop) => {
     makeRequestCallback()
       .then((resp) => {
-        if (resp.status === statusCodes.ACCEPTED) {
+        if (resp.status === HTTP_STATUS_ACCEPTED) {
           next();
         } else {
           stop(resp);
@@ -31,7 +31,7 @@ export const requestCreateProject = ({ dispatch, state, commit }) => {
   axios
     .post(state.createProjectEndpoint)
     .then((resp) => {
-      if (resp.status === statusCodes.ACCEPTED) {
+      if (resp.status === HTTP_STATUS_ACCEPTED) {
         dispatch('requestCreateProjectStatus', resp.data.job_id);
       }
     })
@@ -43,7 +43,7 @@ export const requestCreateProject = ({ dispatch, state, commit }) => {
 export const requestCreateProjectStatus = ({ dispatch, state }, jobId) => {
   backOffRequest(() => axios.get(state.createProjectStatusEndpoint, { params: { job_id: jobId } }))
     .then((resp) => {
-      if (resp.status === statusCodes.OK) {
+      if (resp.status === HTTP_STATUS_OK) {
         dispatch('requestCreateProjectSuccess', resp.data);
       }
     })
@@ -56,7 +56,7 @@ export const requestCreateProjectSuccess = ({ commit, dispatch }, selfMonitorDat
   commit(types.SET_LOADING, false);
   commit(types.SET_PROJECT_URL, selfMonitorData.project_full_path);
   commit(types.SET_ALERT_CONTENT, {
-    message: s__('SelfMonitoring|Self monitoring project successfully created.'),
+    message: s__('SelfMonitoring|Self-monitoring project successfully created.'),
     actionText: __('View project'),
     actionName: 'viewSelfMonitorProject',
   });
@@ -83,7 +83,7 @@ export const requestDeleteProject = ({ dispatch, state, commit }) => {
   axios
     .delete(state.deleteProjectEndpoint)
     .then((resp) => {
-      if (resp.status === statusCodes.ACCEPTED) {
+      if (resp.status === HTTP_STATUS_ACCEPTED) {
         dispatch('requestDeleteProjectStatus', resp.data.job_id);
       }
     })
@@ -95,7 +95,7 @@ export const requestDeleteProject = ({ dispatch, state, commit }) => {
 export const requestDeleteProjectStatus = ({ dispatch, state }, jobId) => {
   backOffRequest(() => axios.get(state.deleteProjectStatusEndpoint, { params: { job_id: jobId } }))
     .then((resp) => {
-      if (resp.status === statusCodes.OK) {
+      if (resp.status === HTTP_STATUS_OK) {
         dispatch('requestDeleteProjectSuccess', resp.data);
       }
     })
@@ -108,7 +108,7 @@ export const requestDeleteProjectSuccess = ({ commit }) => {
   commit(types.SET_PROJECT_URL, '');
   commit(types.SET_PROJECT_CREATED, false);
   commit(types.SET_ALERT_CONTENT, {
-    message: s__('SelfMonitoring|Self monitoring project successfully deleted.'),
+    message: s__('SelfMonitoring|Self-monitoring project successfully deleted.'),
     actionText: __('Undo'),
     actionName: 'createProject',
   });

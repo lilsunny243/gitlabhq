@@ -9,17 +9,27 @@ module QA
         view 'app/views/layouts/header/_current_user_dropdown.html.haml' do
           element :sign_out_link
           element :edit_profile_link
+          element :user_profile_link
         end
 
-        view 'app/views/layouts/header/_default.html.haml' do
-          element :navbar, required: true
-          element :canary_badge_link
-          element :user_avatar, required: !QA::Runtime::Env.mobile_layout?
-          element :user_menu, required: !QA::Runtime::Env.mobile_layout?
-          element :stop_impersonation_link
-          element :issues_shortcut_button, required: !QA::Runtime::Env.mobile_layout?
-          element :merge_requests_shortcut_button, required: !QA::Runtime::Env.mobile_layout?
-          element :todos_shortcut_button, required: !QA::Runtime::Env.mobile_layout?
+        if QA::Runtime::Env.super_sidebar_enabled?
+          # Define alternative navbar (super sidebar) which does not yet implement all the same elements
+          view 'app/assets/javascripts/super_sidebar/components/super_sidebar.vue' do
+            element :navbar, required: true # TODO: rename to sidebar once it's default implementation
+            element :user_menu, required: !QA::Runtime::Env.mobile_layout?
+            element :user_avatar_content, required: !QA::Runtime::Env.mobile_layout?
+          end
+        else
+          view 'app/views/layouts/header/_default.html.haml' do
+            element :navbar, required: true
+            element :canary_badge_link
+            element :user_avatar_content, required: !QA::Runtime::Env.mobile_layout?
+            element :user_menu, required: !QA::Runtime::Env.mobile_layout?
+            element :stop_impersonation_link
+            element :issues_shortcut_button, required: !QA::Runtime::Env.mobile_layout?
+            element :merge_requests_shortcut_button, required: !QA::Runtime::Env.mobile_layout?
+            element :todos_shortcut_button, required: !QA::Runtime::Env.mobile_layout?
+          end
         end
 
         view 'app/assets/javascripts/nav/components/top_nav_app.vue' do
@@ -39,6 +49,7 @@ module QA
           element :projects_dropdown
           element :groups_dropdown
           element :snippets_link
+          element :menu_item_link
         end
 
         view 'app/views/layouts/_search.html.haml' do
@@ -53,28 +64,39 @@ module QA
           element :search_term_field
         end
 
+        view 'app/views/layouts/header/_new_dropdown.html.haml' do
+          element :new_menu_toggle
+        end
+
+        view 'app/helpers/nav/new_dropdown_helper.rb' do
+          element :global_new_group_link
+          element :global_new_project_link
+        end
+
+        view 'app/assets/javascripts/nav/components/new_nav_toggle.vue' do
+          element :new_navigation_toggle
+        end
+
         def go_to_groups
           within_groups_menu do
-            click_element(:menu_item_link, title: 'Your groups')
+            click_element(:menu_item_link, title: 'View all groups')
           end
         end
 
         def go_to_create_group
-          within_groups_menu do
-            click_element(:menu_item_link, title: 'Create group')
-          end
+          click_element(:new_menu_toggle)
+          click_element(:global_new_group_link)
         end
 
         def go_to_projects
           within_projects_menu do
-            click_element(:menu_item_link, title: 'Your projects')
+            click_element(:menu_item_link, title: 'View all projects')
           end
         end
 
         def go_to_create_project
-          within_projects_menu do
-            click_element(:menu_item_link, title: 'Create new project')
-          end
+          click_element(:new_menu_toggle)
+          click_element(:global_new_project_link)
         end
 
         def go_to_menu_dropdown_option(option_name)
@@ -167,11 +189,11 @@ module QA
         end
 
         def has_personal_area?(wait: Capybara.default_max_wait_time)
-          has_element?(:user_avatar, wait: wait)
+          has_element?(:user_avatar_content, wait: wait)
         end
 
         def has_no_personal_area?(wait: Capybara.default_max_wait_time)
-          has_no_element?(:user_avatar, wait: wait)
+          has_no_element?(:user_avatar_content, wait: wait)
         end
 
         def has_admin_area_link?(wait: Capybara.default_max_wait_time)
@@ -202,6 +224,13 @@ module QA
           has_element?(:canary_badge_link)
         end
 
+        def enable_new_navigation
+          Runtime::Logger.info("Enabling super sidebar!")
+          return Runtime::Logger.info("Super sidebar is already enabled") if has_css?('[data-testid="super-sidebar"]')
+
+          within_user_menu { click_element(:new_navigation_toggle) }
+        end
+
         private
 
         def within_top_menu(&block)
@@ -210,7 +239,7 @@ module QA
 
         def within_user_menu(&block)
           within_top_menu do
-            click_element :user_avatar unless has_element?(:user_profile_link, wait: 1)
+            click_element :user_avatar_content unless has_element?(:user_profile_link, wait: 1)
 
             within_element(:user_menu, &block)
           end

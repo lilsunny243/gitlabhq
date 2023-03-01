@@ -8,14 +8,15 @@ import BoardSidebarTimeTracker from '~/boards/components/sidebar/board_sidebar_t
 import BoardSidebarTitle from '~/boards/components/sidebar/board_sidebar_title.vue';
 import { ISSUABLE, INCIDENT } from '~/boards/constants';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
+import { TYPE_ISSUE, WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import SidebarAssigneesWidget from '~/sidebar/components/assignees/sidebar_assignees_widget.vue';
 import SidebarConfidentialityWidget from '~/sidebar/components/confidential/sidebar_confidentiality_widget.vue';
 import SidebarDateWidget from '~/sidebar/components/date/sidebar_date_widget.vue';
-import SidebarSeverity from '~/sidebar/components/severity/sidebar_severity.vue';
+import SidebarSeverityWidget from '~/sidebar/components/severity/sidebar_severity_widget.vue';
 import SidebarSubscriptionsWidget from '~/sidebar/components/subscriptions/sidebar_subscriptions_widget.vue';
 import SidebarTodoWidget from '~/sidebar/components/todo_toggle/sidebar_todo_widget.vue';
-import SidebarLabelsWidget from '~/vue_shared/components/sidebar/labels_select_widget/labels_select_root.vue';
-import { LabelType } from '~/vue_shared/components/sidebar/labels_select_widget/constants';
+import SidebarLabelsWidget from '~/sidebar/components/labels/labels_select_widget/labels_select_root.vue';
+import { LabelType } from '~/sidebar/components/labels/labels_select_widget/constants';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 
 export default {
@@ -30,12 +31,14 @@ export default {
     SidebarSubscriptionsWidget,
     SidebarDropdownWidget,
     SidebarTodoWidget,
-    SidebarSeverity,
+    SidebarSeverityWidget,
     MountingPortal,
+    SidebarHealthStatusWidget: () =>
+      import('ee_component/sidebar/components/health_status/sidebar_health_status_widget.vue'),
+    SidebarIterationWidget: () =>
+      import('ee_component/sidebar/components/iteration/sidebar_iteration_widget.vue'),
     SidebarWeightWidget: () =>
       import('ee_component/sidebar/components/weight/sidebar_weight_widget.vue'),
-    IterationSidebarDropdownWidget: () =>
-      import('ee_component/sidebar/components/iteration_sidebar_dropdown_widget.vue'),
   },
   mixins: [glFeatureFlagMixin()],
   inject: {
@@ -51,6 +54,9 @@ export default {
     weightFeatureAvailable: {
       default: false,
     },
+    healthStatusFeatureAvailable: {
+      default: false,
+    },
     allowLabelEdit: {
       default: false,
     },
@@ -60,17 +66,22 @@ export default {
     canUpdate: {
       default: false,
     },
+    issuableType: {
+      default: TYPE_ISSUE,
+    },
+    isGroupBoard: {
+      default: false,
+    },
   },
   inheritAttrs: false,
   computed: {
     ...mapGetters([
-      'isGroupBoard',
       'isSidebarOpen',
       'activeBoardItem',
       'groupPathForActiveIssue',
       'projectPathForActiveIssue',
     ]),
-    ...mapState(['sidebarType', 'issuableType']),
+    ...mapState(['sidebarType']),
     isIssuableSidebar() {
       return this.sidebarType === ISSUABLE;
     },
@@ -86,14 +97,17 @@ export default {
     fullPath() {
       return this.activeBoardItem?.referencePath?.split('#')[0] || '';
     },
+    parentType() {
+      return this.isGroupBoard ? WORKSPACE_GROUP : WORKSPACE_PROJECT;
+    },
     createLabelTitle() {
       return sprintf(__('Create %{workspace} label'), {
-        workspace: this.isGroupBoard ? 'group' : 'project',
+        workspace: this.parentType,
       });
     },
     manageLabelTitle() {
       return sprintf(__('Manage %{workspace} labels'), {
-        workspace: this.isGroupBoard ? 'group' : 'project',
+        workspace: this.parentType,
       });
     },
     attrWorkspacePath() {
@@ -115,6 +129,7 @@ export default {
       'setActiveItemConfidential',
       'setActiveBoardItemLabels',
       'setActiveItemWeight',
+      'setActiveItemHealthStatus',
     ]),
     handleClose() {
       this.toggleBoardItem({ boardItem: this.activeBoardItem, sidebarType: this.sidebarType });
@@ -143,7 +158,7 @@ export default {
     <gl-drawer
       v-bind="$attrs"
       :open="showSidebar"
-      class="boards-sidebar gl-absolute"
+      class="boards-sidebar"
       variant="sidebar"
       @close="handleClose"
     >
@@ -160,7 +175,7 @@ export default {
         />
       </template>
       <template #default>
-        <board-sidebar-title />
+        <board-sidebar-title data-testid="sidebar-title" />
         <sidebar-assignees-widget
           :iid="activeBoardItem.iid"
           :full-path="fullPath"
@@ -187,7 +202,7 @@ export default {
             :issuable-type="issuableType"
             data-testid="sidebar-milestones"
           />
-          <iteration-sidebar-dropdown-widget
+          <sidebar-iteration-widget
             v-if="iterationFeatureAvailable && !isIncidentSidebar"
             :iid="activeBoardItem.iid"
             :workspace-path="projectPathForActiveIssue"
@@ -223,7 +238,7 @@ export default {
         >
           {{ __('None') }}
         </sidebar-labels-widget>
-        <sidebar-severity
+        <sidebar-severity-widget
           v-if="isIncidentSidebar"
           :iid="activeBoardItem.iid"
           :project-path="fullPath"
@@ -235,6 +250,13 @@ export default {
           :full-path="fullPath"
           :issuable-type="issuableType"
           @weightUpdated="setActiveItemWeight($event)"
+        />
+        <sidebar-health-status-widget
+          v-if="healthStatusFeatureAvailable"
+          :iid="activeBoardItem.iid"
+          :full-path="fullPath"
+          :issuable-type="issuableType"
+          @statusUpdated="setActiveItemHealthStatus($event)"
         />
         <sidebar-confidentiality-widget
           :iid="activeBoardItem.iid"

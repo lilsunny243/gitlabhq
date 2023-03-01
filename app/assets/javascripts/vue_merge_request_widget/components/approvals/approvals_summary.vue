@@ -7,32 +7,40 @@ import {
   APPROVED_BY_OTHERS,
 } from '~/vue_merge_request_widget/components/approvals/messages';
 import UserAvatarList from '~/vue_shared/components/user_avatar/user_avatar_list.vue';
+import { getIdFromGraphQLId } from '~/graphql_shared/utils';
+import { getApprovalRuleNamesLeft } from 'ee_else_ce/vue_merge_request_widget/mappers';
 
 export default {
   components: {
     UserAvatarList,
   },
   props: {
-    approved: {
+    multipleApprovalRulesAvailable: {
       type: Boolean,
-      required: true,
-    },
-    approvalsLeft: {
-      type: Number,
-      required: true,
-    },
-    rulesLeft: {
-      type: Array,
       required: false,
-      default: () => [],
+      default: false,
     },
-    approvers: {
-      type: Array,
-      required: false,
-      default: () => [],
+    approvalState: {
+      type: Object,
+      required: true,
     },
   },
   computed: {
+    approvers() {
+      return this.approvalState.approvedBy?.nodes || [];
+    },
+    approved() {
+      return this.approvalState.approved || this.approvalState.approvedBy?.nodes.length > 0;
+    },
+    approvalsLeft() {
+      return this.approvalState.approvalsLeft || 0;
+    },
+    rulesLeft() {
+      return getApprovalRuleNamesLeft(
+        this.multipleApprovalRulesAvailable,
+        (this.approvalState.approvalState?.rules || []).filter((r) => !r.approved),
+      );
+    },
     approvalLeftMessage() {
       if (this.rulesLeft.length) {
         return sprintf(
@@ -81,13 +89,17 @@ export default {
       if (!this.currentUserId) {
         return false;
       }
-      return this.approvers.some((approver) => approver.id === this.currentUserId);
+      return this.approvers.some(
+        (approver) => getIdFromGraphQLId(approver.id) === this.currentUserId,
+      );
     },
     approvedByOthers() {
       if (!this.currentUserId) {
         return false;
       }
-      return this.approvers.some((approver) => approver.id !== this.currentUserId);
+      return this.approvers.some(
+        (approver) => getIdFromGraphQLId(approver.id) !== this.currentUserId,
+      );
     },
     currentUserId() {
       return gon.current_user_id;
@@ -103,7 +115,7 @@ export default {
       <span v-if="approvalLeftMessage">{{ message }}</span>
       <span v-else class="gl-font-weight-bold">{{ message }}</span>
       <user-avatar-list
-        class="gl-display-inline-block gl-vertical-align-middle"
+        class="gl-display-inline-block gl-vertical-align-middle gl-pt-1"
         :img-size="24"
         :items="approvers"
       />

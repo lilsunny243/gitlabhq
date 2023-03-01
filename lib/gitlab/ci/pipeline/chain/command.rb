@@ -13,7 +13,8 @@ module Gitlab
           :seeds_block, :variables_attributes, :push_options,
           :chat_data, :allow_mirror_update, :bridge, :content, :dry_run, :logger,
           # These attributes are set by Chains during processing:
-          :config_content, :yaml_processor_result, :workflow_rules_result, :pipeline_seed
+          :config_content, :yaml_processor_result, :workflow_rules_result, :pipeline_seed,
+          :pipeline_config
         ) do
           include Gitlab::Utils::StrongMemoize
 
@@ -80,6 +81,10 @@ module Gitlab
             bridge&.parent_pipeline
           end
 
+          def parent_pipeline_partition_id
+            parent_pipeline.partition_id if creates_child_pipeline?
+          end
+
           def creates_child_pipeline?
             bridge&.triggers_child_pipeline?
           end
@@ -94,7 +99,7 @@ module Gitlab
 
           def observe_step_duration(step_class, duration)
             step = step_class.name.underscore.parameterize(separator: '_')
-            logger.observe("pipeline_step_#{step}_duration_s", duration)
+            logger.observe("pipeline_step_#{step}_duration_s", duration, once: true)
 
             if Feature.enabled?(:ci_pipeline_creation_step_duration_tracking, type: :ops)
               metrics.pipeline_creation_step_duration_histogram
@@ -103,22 +108,28 @@ module Gitlab
           end
 
           def observe_creation_duration(duration)
-            logger.observe(:pipeline_creation_duration_s, duration)
+            logger.observe(:pipeline_creation_duration_s, duration, once: true)
 
             metrics.pipeline_creation_duration_histogram
-              .observe({}, duration.seconds)
+              .observe({ gitlab: gitlab_org_project?.to_s }, duration.seconds)
           end
 
           def observe_pipeline_size(pipeline)
-            logger.observe(:pipeline_size_count, pipeline.total_size)
+            logger.observe(:pipeline_size_count, pipeline.total_size, once: true)
 
             metrics.pipeline_size_histogram
-              .observe({ source: pipeline.source.to_s }, pipeline.total_size)
+              .observe({ source: pipeline.source.to_s, plan: project.actual_plan_name }, pipeline.total_size)
           end
 
           def observe_jobs_count_in_alive_pipelines
+            jobs_count = project.all_pipelines.jobs_count_in_alive_pipelines
+
             metrics.active_jobs_histogram
-              .observe({ plan: project.actual_plan_name }, project.all_pipelines.jobs_count_in_alive_pipelines)
+              .observe({ plan: project.actual_plan_name }, jobs_count)
+          end
+
+          def observe_pipeline_includes_count(pipeline)
+            logger.observe(:pipeline_includes_count, pipeline.config_metadata&.[](:includes)&.count, once: true)
           end
 
           def increment_pipeline_failure_reason_counter(reason)
@@ -150,6 +161,10 @@ module Gitlab
 
           def full_git_ref_name_unavailable?
             ref == origin_ref
+          end
+
+          def gitlab_org_project?
+            project.full_path == 'gitlab-org/gitlab'
           end
         end
       end

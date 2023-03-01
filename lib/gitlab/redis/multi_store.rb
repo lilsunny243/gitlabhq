@@ -5,11 +5,6 @@ module Gitlab
     class MultiStore
       include Gitlab::Utils::StrongMemoize
 
-      class ReadFromPrimaryError < StandardError
-        def message
-          'Value not found on the redis primary store. Read from the redis secondary store successful.'
-        end
-      end
       class PipelinedDiffError < StandardError
         def initialize(result_primary, result_secondary)
           @result_primary = result_primary
@@ -22,42 +17,66 @@ module Gitlab
             "Result from the secondary: #{@result_secondary.inspect}."
         end
       end
+
       class MethodMissingError < StandardError
         def message
-          'Method missing. Falling back to execute method on the redis secondary store.'
+          'Method missing. Falling back to execute method on the redis default store in Rails.env.production.'
         end
       end
 
       attr_reader :primary_store, :secondary_store, :instance_name
 
-      FAILED_TO_READ_ERROR_MESSAGE = 'Failed to read from the redis primary_store.'
+      FAILED_TO_READ_ERROR_MESSAGE = 'Failed to read from the redis default_store.'
       FAILED_TO_WRITE_ERROR_MESSAGE = 'Failed to write to the redis primary_store.'
       FAILED_TO_RUN_PIPELINE = 'Failed to execute pipeline on the redis primary_store.'
 
-      SKIP_LOG_METHOD_MISSING_FOR_COMMANDS = %i(info).freeze
+      SKIP_LOG_METHOD_MISSING_FOR_COMMANDS = %i[info].freeze
 
-      READ_COMMANDS = %i(
+      READ_COMMANDS = %i[
+        exists
+        exists?
         get
+        hexists
+        hget
+        hgetall
+        hlen
+        hmget
+        hscan_each
+        mapped_hmget
         mget
-        smembers
+        scan_each
         scard
-      ).freeze
+        sismember
+        smembers
+        sscan
+        sscan_each
+        ttl
+        zscan_each
+      ].freeze
 
-      WRITE_COMMANDS = %i(
-        set
-        setnx
-        setex
-        sadd
-        srem
+      WRITE_COMMANDS = %i[
         del
+        eval
+        expire
         flushdb
+        hdel
+        hset
+        incr
+        incrby
+        mapped_hmset
         rpush
-      ).freeze
+        sadd
+        set
+        setex
+        setnx
+        srem
+        unlink
+      ].freeze
 
-      PIPELINED_COMMANDS = %i(
+      PIPELINED_COMMANDS = %i[
         pipelined
         multi
-      ).freeze
+      ].freeze
 
       # To transition between two Redis store, `primary_store` should be the target store,
       # and `secondary_store` should be the current store. Transition is controlled with feature flags:
@@ -79,11 +98,11 @@ module Gitlab
 
       # rubocop:disable GitlabSecurity/PublicSend
       READ_COMMANDS.each do |name|
-        define_method(name) do |*args, &block|
+        define_method(name) do |*args, **kwargs, &block|
           if use_primary_and_secondary_stores?
-            read_command(name, *args, &block)
+            read_command(name, *args, **kwargs, &block)
           else
-            default_store.send(name, *args, &block)
+            default_store.send(name, *args, **kwargs, &block)
           end
         end
       end
@@ -136,23 +155,21 @@ module Gitlab
       end
 
       def use_primary_and_secondary_stores?
-        feature_enabled?("use_primary_and_secondary_stores_for")
+        feature_table_exists? &&
+          Feature.enabled?("use_primary_and_secondary_stores_for_#{instance_name.underscore}") && # rubocop:disable Cop/FeatureFlagUsage
+          !same_redis_store?
       end
 
       def use_primary_store_as_default?
-        feature_enabled?("use_primary_store_as_default_for")
+        feature_table_exists? &&
+          Feature.enabled?("use_primary_store_as_default_for_#{instance_name.underscore}") && # rubocop:disable Cop/FeatureFlagUsage
+          !same_redis_store?
       end
 
       def increment_pipelined_command_error_count(command_name)
         @pipelined_command_error ||= Gitlab::Metrics.counter(:gitlab_redis_multi_store_pipelined_diff_error_total,
                                                              'Redis MultiStore pipelined command diff between stores')
         @pipelined_command_error.increment(command: command_name, instance_name: instance_name)
-      end
-
-      def increment_read_fallback_count(command_name)
-        @read_fallback_counter ||= Gitlab::Metrics.counter(:gitlab_redis_multi_store_read_fallback_total,
-                                                           'Client side Redis MultiStore reading fallback')
-        @read_fallback_counter.increment(command: command_name, instance_name: instance_name)
       end
 
       def increment_method_missing_count(command_name)
@@ -167,38 +184,50 @@ module Gitlab
           extra.merge(command_name: command_name, instance_name: instance_name))
       end
 
+      def default_store
+        use_primary_store_as_default? ? primary_store : secondary_store
+      end
+
+      def fallback_store
+        use_primary_store_as_default? ? secondary_store : primary_store
+      end
+
+      def ping(message = nil)
+        if use_primary_and_secondary_stores?
+          # Both stores have to response success for the ping to be considered success.
+          # We assume both stores cannot return different responses (only both "PONG" or both echo the message).
+          # If either store is not reachable, an Error will be raised anyway thus taking any response works.
+          [primary_store, secondary_store].map { |store| store.ping(message) }.first
+        else
+          default_store.ping(message)
+        end
+      end
+
       private
 
       # @return [Boolean]
-      def feature_enabled?(prefix)
-        feature_table_exists? &&
-          Feature.enabled?("#{prefix}_#{instance_name.underscore}") &&
-          !same_redis_store?
-      end
-
-      # @return [Boolean]
       def feature_table_exists?
+        # Use table_exists? (which uses ActiveRecord's schema cache) instead of Feature.feature_flags_available?
+        # as the latter runs a ';' SQL query which causes a connection to be checked out.
         Feature::FlipperFeature.table_exists?
       rescue StandardError
         false
       end
 
-      def default_store
-        use_primary_store_as_default? ? primary_store : secondary_store
-      end
-
       def log_method_missing(command_name, *_args)
         return if SKIP_LOG_METHOD_MISSING_FOR_COMMANDS.include?(command_name)
+
+        raise MethodMissingError if Rails.env.test? || Rails.env.development?
 
         log_error(MethodMissingError.new, command_name)
         increment_method_missing_count(command_name)
       end
 
-      def read_command(command_name, *args, &block)
+      def read_command(command_name, *args, **kwargs, &block)
         if @instance
-          send_command(@instance, command_name, *args, &block)
+          send_command(@instance, command_name, *args, **kwargs, &block)
         else
-          read_one_with_fallback(command_name, *args, &block)
+          read_from_default(command_name, *args, **kwargs, &block)
         end
       end
 
@@ -210,26 +239,12 @@ module Gitlab
         end
       end
 
-      def read_one_with_fallback(command_name, *args, &block)
-        begin
-          value = send_command(primary_store, command_name, *args, &block)
-        rescue StandardError => e
-          log_error(e, command_name,
-            multi_store_error_message: FAILED_TO_READ_ERROR_MESSAGE)
-        end
-
-        value || fallback_read(command_name, *args, &block)
-      end
-
-      def fallback_read(command_name, *args, &block)
-        value = send_command(secondary_store, command_name, *args, &block)
-
-        if value
-          log_error(ReadFromPrimaryError.new, command_name)
-          increment_read_fallback_count(command_name)
-        end
-
-        value
+      def read_from_default(command_name, *args, **kwargs, &block)
+        send_command(default_store, command_name, *args, **kwargs, &block)
+      rescue StandardError => e
+        log_error(e, command_name,
+          multi_store_error_message: FAILED_TO_READ_ERROR_MESSAGE)
+        raise
       end
 
       def write_both(command_name, *args, **kwargs, &block)

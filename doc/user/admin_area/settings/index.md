@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index
 ---
 
@@ -19,7 +19,7 @@ read [GitLab.com settings](../../gitlab_com/index.md).
 To access the **Admin Area**:
 
 1. Sign in to your GitLab instance as an administrator.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings**, and the group of settings to view:
    - [General](#general)
    - [Geo](#geo)
@@ -49,7 +49,6 @@ The **General** settings contain:
 - [External Authentication](external_authorization.md#configuration) - External Classification Policy Authorization.
 - [Web terminal](../../../administration/integration/terminal.md#limiting-websocket-connection-time) -
  Set max session time for web terminal.
-- [Web IDE](../../project/web_ide/index.md#enable-live-preview) - Manage Web IDE features.
 - [FLoC](floc.md) - Enable or disable
  [Federated Learning of Cohorts (FLoC)](https://en.wikipedia.org/wiki/Federated_Learning_of_Cohorts) tracking.
 
@@ -87,7 +86,7 @@ The **Integrations** settings contain:
   to receive invite email bounce events from Mailgun, if it is your email provider.
 - [PlantUML](../../../administration/integration/plantuml.md) - Allow rendering of PlantUML
   diagrams in documents.
-- [Slack application](../../../user/project/integrations/gitlab_slack_application.md#configuration) -
+- [Slack application](../../../user/project/integrations/gitlab_slack_application.md) -
   Slack integration allows you to interact with GitLab via slash commands in a chat window.
   This option is only available on GitLab.com, though it may be
   [available for self-managed instances in the future](https://gitlab.com/gitlab-org/gitlab/-/issues/28164).
@@ -109,8 +108,8 @@ The **Metrics and profiling** settings contain:
   Enable and configure Grafana.
 - [Profiling - Performance bar](../../../administration/monitoring/performance/performance_bar.md#enable-the-performance-bar-for-non-administrators) -
   Enable access to the Performance Bar for non-administrator users in a given group.
-- [Self monitoring](../../../administration/monitoring/gitlab_self_monitoring_project/index.md#create-the-self-monitoring-project) -
-  Enable or disable instance self monitoring.
+- [Self-monitoring](../../../administration/monitoring/gitlab_self_monitoring_project/index.md#create-the-self-monitoring-project) -
+  Enable or disable instance self-monitoring.
 - [Usage statistics](usage_statistics.md) - Enable or disable version check and Service Ping.
 
 ### Network
@@ -118,7 +117,7 @@ The **Metrics and profiling** settings contain:
 The **Network** settings contain:
 
 - Performance optimization - Various settings that affect GitLab performance, including:
-  - [Write to `authorized_keys` file](../../../administration/operations/fast_ssh_key_lookup.md#setting-up-fast-lookup-via-gitlab-shell).
+  - [Write to `authorized_keys` file](../../../administration/operations/fast_ssh_key_lookup.md#set-up-fast-lookup).
   - [Push event activities limit and bulk push events](push_event_activities_limit.md).
 - [User and IP rate limits](user_and_ip_rate_limits.md) - Configure limits for web and API requests.
   These rate limits can be overridden:
@@ -197,6 +196,15 @@ The **Templates** settings contain:
 You can change the [Default first day of the week](../../profile/preferences.md)
 for the entire GitLab instance:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Scroll to the **Localization** section, and select your desired first day of the week.
+
+## Default language
+
+You can change the [Default language](../../profile/preferences.md)
+for the entire GitLab instance:
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > Preferences**.
+1. Scroll to the **Localization** section, and select your desired default language.

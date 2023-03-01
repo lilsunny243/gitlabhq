@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Insights
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Execution
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Fail Fast Testing **(PREMIUM)**
@@ -12,7 +12,7 @@ For applications that use RSpec for running tests, we've introduced the `Verify/
 [template to run subsets of your test suite](https://gitlab.com/gitlab-org/gitlab/-/tree/master/lib/gitlab/ci/templates/Verify/FailFast.gitlab-ci.yml),
 based on the changes in your merge request.
 
-The template uses the [test_file_finder (`tff`) gem](https://gitlab.com/gitlab-org/ci-cd/test_file_finder/)
+The template uses the [`test_file_finder` (`tff`) gem](https://gitlab.com/gitlab-org/ci-cd/test_file_finder/)
 that accepts a list of files as input, and returns a list of spec (test) files
 that it believes to be relevant to the input files.
 
@@ -27,7 +27,7 @@ Fail fast testing is useful when adding new functionality to a project and addin
 new automated tests.
 
 Your project could have hundreds of thousands of tests that take a long time to complete.
-You may be confident that a new test will pass, but you have to wait for all the tests
+You may expect a new test to pass, but you have to wait for all the tests
 to complete to verify it. This could take an hour or more, even when using parallelization.
 
 Fail fast testing gives you a faster feedback loop from the pipeline. It lets you

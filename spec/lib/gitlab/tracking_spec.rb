@@ -10,11 +10,11 @@ RSpec.describe Gitlab::Tracking do
     stub_application_setting(snowplow_cookie_domain: '.gitfoo.com')
     stub_application_setting(snowplow_app_id: '_abc123_')
 
-    described_class.instance_variable_set("@tracker", nil)
+    described_class.instance_variable_set(:@tracker, nil)
   end
 
   after do
-    described_class.instance_variable_set("@tracker", nil)
+    described_class.instance_variable_set(:@tracker, nil)
   end
 
   describe '.options' do
@@ -179,15 +179,6 @@ RSpec.describe Gitlab::Tracking do
       end
 
       it_behaves_like 'delegates to destination', Gitlab::Tracking::Destinations::SnowplowMicro
-    end
-
-    it 'tracks errors' do
-      expect(Gitlab::ErrorTracking).to receive(:track_and_raise_for_dev_exception).with(
-        an_instance_of(ContractError),
-        snowplow_category: nil, snowplow_action: 'some_action'
-      )
-
-      described_class.event(nil, 'some_action')
     end
   end
 

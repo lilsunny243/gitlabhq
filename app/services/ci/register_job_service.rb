@@ -6,7 +6,7 @@ module Ci
   class RegisterJobService
     include ::Gitlab::Ci::Artifacts::Logger
 
-    attr_reader :runner, :metrics
+    attr_reader :runner, :runner_machine, :metrics
 
     TEMPORARY_LOCK_TIMEOUT = 3.seconds
 
@@ -18,8 +18,9 @@ module Ci
     # affect 5% of the worst case scenarios.
     MAX_QUEUE_DEPTH = 45
 
-    def initialize(runner)
+    def initialize(runner, runner_machine)
       @runner = runner
+      @runner_machine = runner_machine
       @metrics = ::Gitlab::Ci::Queue::Metrics.new(runner)
     end
 
@@ -42,7 +43,7 @@ module Ci
       if !db_all_caught_up && !result.build
         metrics.increment_queue_operation(:queue_replication_lag)
 
-        ::Ci::RegisterJobService::Result.new(nil, false) # rubocop:disable Cop/AvoidReturnFromBlocks
+        ::Ci::RegisterJobService::Result.new(nil, nil, false) # rubocop:disable Cop/AvoidReturnFromBlocks
       else
         result
       end
@@ -108,15 +109,13 @@ module Ci
     def each_build(params, &blk)
       queue = ::Ci::Queue::BuildQueueService.new(runner)
 
-      builds = begin
-        if runner.instance_type?
-          queue.builds_for_shared_runner
-        elsif runner.group_type?
-          queue.builds_for_group_runner
-        else
-          queue.builds_for_project_runner
-        end
-      end
+      builds = if runner.instance_type?
+                 queue.builds_for_shared_runner
+               elsif runner.group_type?
+                 queue.builds_for_group_runner
+               else
+                 queue.builds_for_project_runner
+               end
 
       if runner.ref_protected?
         builds = queue.builds_for_protected_runner(builds)
@@ -226,7 +225,7 @@ module Ci
       log_artifacts_context(build)
       log_build_dependencies_size(presented_build)
 
-      build_json = ::API::Entities::Ci::JobRequest::Response.new(presented_build).to_json
+      build_json = Gitlab::Json.dump(::API::Entities::Ci::JobRequest::Response.new(presented_build))
       Result.new(build, build_json, true)
     end
 
@@ -245,6 +244,7 @@ module Ci
     def assign_runner!(build, params)
       build.runner_id = runner.id
       build.runner_session_attributes = params[:session] if params[:session].present?
+      build.runner_machine = runner_machine if runner_machine
 
       failure_reason, _ = pre_assign_runner_checks.find { |_, check| check.call(build, params) }
 
@@ -262,7 +262,7 @@ module Ci
     end
 
     def acquire_temporary_lock(build_id)
-      return true unless Feature.enabled?(:ci_register_job_temporary_lock, runner)
+      return true if Feature.disabled?(:ci_register_job_temporary_lock, runner, type: :ops)
 
       key = "build/register/#{build_id}"
 

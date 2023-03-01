@@ -25,7 +25,7 @@ describe('~/nav/components/top_nav_dropdown_menu.vue', () => {
   };
 
   const findMenuItems = () => wrapper.findAllComponents(TopNavMenuItem);
-  const findMenuSections = () => wrapper.find(TopNavMenuSections);
+  const findMenuSections = () => wrapper.findComponent(TopNavMenuSections);
   const findMenuSidebar = () => wrapper.find('[data-testid="menu-sidebar"]');
   const findMenuSubview = () => wrapper.findComponent(KeepAliveSlots);
   const hasFullWidthMenuSidebar = () => findMenuSidebar().classes('gl-w-full');
@@ -56,6 +56,7 @@ describe('~/nav/components/top_nav_dropdown_menu.vue', () => {
           { id: 'secondary', menuItems: TEST_NAV_DATA.secondary },
         ],
         withTopBorder: false,
+        isPrimarySection: true,
       });
     });
 

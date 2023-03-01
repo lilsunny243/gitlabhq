@@ -183,6 +183,22 @@ production: &base
     # plaintext. This can be a security risk.
     # display_initial_root_password: false
 
+  # Allows delivery of emails using Microsoft Graph API with OAuth 2.0 client credentials flow.
+  microsoft_graph_mailer:
+    enabled: false
+    # The unique identifier for the user. To use Microsoft Graph on behalf of the user.
+    # user_id: "YOUR-USER-ID"
+    # The directory tenant the application plans to operate against, in GUID or domain-name format.
+    # tenant: "YOUR-TENANT-ID"
+    # The application ID that's assigned to your app. You can find this information in the portal where you registered your app.
+    # client_id: "YOUR-CLIENT-ID"
+    # The client secret that you generated for your app in the app registration portal.
+    # client_secret: "YOUR-CLIENT-SECRET-ID"
+    # Defaults to "https://login.microsoftonline.com".
+    # azure_ad_endpoint:
+    # Defaults to "https://graph.microsoft.com".
+    # graph_endpoint:
+
   ## Reply by email
   # Allow users to comment on issues and merge requests by replying to notification emails.
   # For documentation on how to set this up, see https://docs.gitlab.com/ee/administration/reply_by_email.html
@@ -220,7 +236,12 @@ production: &base
     #
     # log_path: log/mail_room_json.log
 
+    # If you are using Microsoft Graph instead of IMAP, set this to false to retain
+    # messages in the inbox since deleted messages are auto-expunged after some time.
+    delete_after_delivery: true
+
     # Whether to expunge (permanently remove) messages from the mailbox when they are marked as deleted after delivery
+    # Only applies to IMAP. Microsoft Graph will auto-expunge any deleted messages.
     expunge_deleted: false
 
     # For Microsoft Graph support
@@ -249,6 +270,10 @@ production: &base
     # incoming_email.
     # Default is '.gitlab_mailroom_secret' relative to Rails.root (i.e. root of the GitLab app).
     # secret_file: /home/git/gitlab/.gitlab_mailroom_secret
+
+    # File location to read encrypted incoming email secrets from
+    # encrypted_secret_file: /mnt/gitlab/smtp.yaml.enc 
+    # Default: shared/encrypted_settings/incoming_email.yaml.enc
 
   ## Consolidated object store config
   ## This will only take effect if the object_store sections are not defined
@@ -466,6 +491,13 @@ production: &base
     enabled: false
     host: 'https://mattermost.example.com'
 
+  ## Jira connect
+  ## To switch to a Jira connect development environment
+  jira_connect:
+    # atlassian_js_url: 'http://localhost:9292/atlassian.js'
+    # enforce_jira_base_url_https: false
+    # additional_iframe_ancestors: ['localhost:*']
+
   ## Gravatar
   ## If using gravatar.com, there's nothing to change here. For Libravatar
   ## you'll need to provide the custom URLs. For more information,
@@ -489,6 +521,11 @@ production: &base
   # Periodically executed jobs, to self-heal GitLab, do external synchronizations, etc.
   # Please read here for more information: https://github.com/ondrejbartas/sidekiq-cron#adding-cron-job
   cron_jobs:
+    # Interval, in seconds, for each Sidekiq process to check for scheduled cron jobs that need to be enqueued. If not
+    # set, the interval scales dynamically with the number of Sidekiq processes. If set to 0, disable polling for cron
+    # jobs entirely.
+    # poll_interval: 30
+
     # Flag stuck CI jobs as failed
     stuck_ci_jobs_worker:
       cron: "0 * * * *"
@@ -543,6 +580,10 @@ production: &base
     # Periodically update ci_runner_versions table with up-to-date versions and status.
     ci_runner_versions_reconciliation_worker:
       cron: "@daily"
+
+    # Periodically clean up stale runner machines.
+    ci_runners_stale_machines_cleanup_worker:
+      cron: "36 4 * * *"
 
   # GitLab EE only jobs. These jobs are automatically enabled for an EE
   # installation, and ignored for a CE installation.
@@ -826,7 +867,7 @@ production: &base
 
         # Filter LDAP users
         #
-        #   Format: RFC 4515 https://tools.ietf.org/search/rfc4515
+        #   Format: RFC 4515 https://www.rfc-editor.org/rfc/rfc4515
         #   Ex. (employeeType=developer)
         #
         #   Note: GitLab does not support omniauth-ldap's custom filter syntax.
@@ -1029,17 +1070,7 @@ production: &base
       #             disable_ssl_verification: false,
       #             login_url: '/cas/login',
       #             service_validate_url: '/cas/p3/serviceValidate',
-      #             logout_url: '/cas/logout'} }
-      # - { name: 'authentiq',
-      #     # for client credentials (client ID and secret), go to https://www.authentiq.com/developers
-      #     app_id: 'YOUR_CLIENT_ID',
-      #     app_secret: 'YOUR_CLIENT_SECRET',
-      #     args: {
-      #             scope: 'aq:name email~rs address aq:push'
-      #             # callback_url parameter is optional except when 'gitlab.host' in this file is set to 'localhost'
-      #             # callback_url: 'YOUR_CALLBACK_URL'
-      #           }
-      #   }
+      #             logout_url: '/cas/logout' } }
       # - { name: 'github',
       #     app_id: 'YOUR_APP_ID',
       #     app_secret: 'YOUR_APP_SECRET',
@@ -1236,6 +1267,11 @@ production: &base
 
     # The URL to the Kubernetes API proxy (used by GitLab users)
     # external_k8s_proxy_url: https://localhost:8154 # default: nil
+
+  suggested_reviewers:
+    # File that contains the secret key for verifying access to GitLab internal API for Suggested Reviewers.
+    # Default is '.gitlab_suggested_reviewers_secret' relative to Rails.root (i.e. root of the GitLab app).
+    # secret_file: /home/git/gitlab/.gitlab_suggested_reviewers_secret
 
   ## GitLab Elasticsearch settings
   elasticsearch:
@@ -1538,7 +1574,7 @@ test:
                   disable_ssl_verification: false,
                   login_url: '/cas/login',
                   service_validate_url: '/cas/p3/serviceValidate',
-                  logout_url: '/cas/logout'} }
+                  logout_url: '/cas/logout' } }
       - { name: 'github',
           app_id: 'YOUR_APP_ID',
           app_secret: 'YOUR_APP_SECRET',
@@ -1581,10 +1617,6 @@ test:
             client_id: 'YOUR_AUTH0_CLIENT_ID',
             client_secret: 'YOUR_AUTH0_CLIENT_SECRET',
             namespace: 'YOUR_AUTH0_DOMAIN' } }
-      - { name: 'authentiq',
-          app_id: 'YOUR_CLIENT_ID',
-          app_secret: 'YOUR_CLIENT_SECRET',
-          args: { scope: 'aq:name email~rs address aq:push' } }
       - { name: 'salesforce',
           app_id: 'YOUR_CLIENT_ID',
           app_secret: 'YOUR_CLIENT_SECRET'

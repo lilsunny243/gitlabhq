@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Insights
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Execution
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Test coverage visualization **(FREE)**
@@ -11,7 +11,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 With the help of [GitLab CI/CD](../index.md), you can collect the test
 coverage information of your favorite testing or coverage-analysis tool, and visualize
-this information inside the file diff view of your merge requests (MRs). This will allow you
+this information inside the file diff view of your merge requests (MRs). This allows you
 to see which lines are covered by tests, and which lines still require coverage, before the
 MR is merged.
 
@@ -64,7 +64,7 @@ You must configure these separately.
 A limit of 100 `<source>` nodes for Cobertura format XML files applies. If your Cobertura report exceeds
 100 nodes, there can be mismatches or no matches in the merge request diff view.
 
-A single Cobertura XML file can be no more than 10MiB. For large projects, split the Cobertura XML into
+A single Cobertura XML file can be no more than 10 MiB. For large projects, split the Cobertura XML into
 smaller files. See [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/328772) for more details.
 When submitting many files, it can take a few minutes for coverage to show on a merge request.
 
@@ -360,7 +360,7 @@ The following [`.gitlab-ci.yml`](../yaml/index.md) example for Go uses:
 - [`gocover-cobertura`](https://github.com/boumenot/gocover-cobertura) to convert Go's coverage profile into the Cobertura XML format.
 
 This example assumes that [Go modules](https://go.dev/ref/mod)
-are being used. Please note that the `-covermode count` option does not work with the `-race` flag.
+are being used. The `-covermode count` option does not work with the `-race` flag.
 If you want to generate code coverage while also using the `-race` flag, you must switch to
 `-covermode atomic` which is slower than `-covermode count`. See [this blog post](https://go.dev/blog/cover)
 for more details.

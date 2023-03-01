@@ -9,13 +9,14 @@ import {
 } from '@gitlab/ui';
 import { __, s__ } from '~/locale';
 
+import { GITLAB_COM_BASE_PATH } from '~/jira_connect/subscriptions/constants';
+
 const RADIO_OPTIONS = {
   saas: 'saas',
   selfManaged: 'selfManaged',
 };
 
 const DEFAULT_RADIO_OPTION = RADIO_OPTIONS.saas;
-const GITLAB_COM_BASE_PATH = 'https://gitlab.com';
 
 export default {
   name: 'VersionSelectForm',
@@ -26,6 +27,13 @@ export default {
     GlFormInput,
     GlFormRadio,
     GlButton,
+  },
+  props: {
+    loading: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     return {
@@ -47,7 +55,6 @@ export default {
   },
   radioOptions: RADIO_OPTIONS,
   i18n: {
-    title: s__('JiraService|Welcome to GitLab for Jira'),
     saasRadioLabel: __('GitLab.com (SaaS)'),
     saasRadioHelp: __('Most common'),
     selfManagedRadioLabel: __('GitLab (self-managed)'),
@@ -82,7 +89,7 @@ export default {
     </gl-form-group>
 
     <div class="gl-display-flex gl-justify-content-end">
-      <gl-button variant="confirm" type="submit">{{ __('Save') }}</gl-button>
+      <gl-button variant="confirm" type="submit" :loading="loading">{{ __('Save') }}</gl-button>
     </div>
   </gl-form>
 </template>

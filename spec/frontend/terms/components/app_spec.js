@@ -1,19 +1,18 @@
-import $ from 'jquery';
 import { merge } from 'lodash';
 import { GlIntersectionObserver } from '@gitlab/ui';
 import { nextTick } from 'vue';
 
 import { mountExtended } from 'helpers/vue_test_utils_helper';
-import { FLASH_TYPES, FLASH_CLOSED_EVENT } from '~/flash';
 import { isLoggedIn } from '~/lib/utils/common_utils';
 import TermsApp from '~/terms/components/app.vue';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 
 jest.mock('~/lib/utils/csrf', () => ({ token: 'mock-csrf-token' }));
 jest.mock('~/lib/utils/common_utils');
+jest.mock('~/behaviors/markdown/render_gfm');
 
 describe('TermsApp', () => {
   let wrapper;
-  let renderGFMSpy;
 
   const defaultProvide = {
     terms: 'foo bar',
@@ -35,7 +34,6 @@ describe('TermsApp', () => {
   };
 
   beforeEach(() => {
-    renderGFMSpy = jest.spyOn($.fn, 'renderGFM');
     isLoggedIn.mockReturnValue(true);
   });
 
@@ -65,7 +63,7 @@ describe('TermsApp', () => {
     createComponent();
 
     expect(wrapper.findByText(defaultProvide.terms).exists()).toBe(true);
-    expect(renderGFMSpy).toHaveBeenCalled();
+    expect(renderGFM).toHaveBeenCalled();
   });
 
   describe('accept button', () => {
@@ -74,7 +72,7 @@ describe('TermsApp', () => {
 
       expect(findButton(defaultProvide.paths.accept).attributes('disabled')).toBe('disabled');
 
-      wrapper.find(GlIntersectionObserver).vm.$emit('appear');
+      wrapper.findComponent(GlIntersectionObserver).vm.$emit('appear');
 
       await nextTick();
 
@@ -130,7 +128,6 @@ describe('TermsApp', () => {
 
     beforeEach(() => {
       flashEl = document.createElement('div');
-      flashEl.classList.add(`flash-${FLASH_TYPES.ALERT}`);
       document.body.appendChild(flashEl);
     });
 
@@ -138,7 +135,7 @@ describe('TermsApp', () => {
       document.body.innerHTML = '';
     });
 
-    it('recalculates height of scrollable viewport', () => {
+    it('recalculates height of scrollable viewport', async () => {
       jest.spyOn(document.documentElement, 'scrollHeight', 'get').mockImplementation(() => 800);
       jest.spyOn(document.documentElement, 'clientHeight', 'get').mockImplementation(() => 600);
 
@@ -149,7 +146,8 @@ describe('TermsApp', () => {
       jest.spyOn(document.documentElement, 'scrollHeight', 'get').mockImplementation(() => 700);
       jest.spyOn(document.documentElement, 'clientHeight', 'get').mockImplementation(() => 600);
 
-      flashEl.dispatchEvent(new Event(FLASH_CLOSED_EVENT));
+      flashEl.remove();
+      await nextTick();
 
       expect(findScrollableViewport().attributes('style')).toBe('max-height: calc(100vh - 100px);');
     });

@@ -10,6 +10,60 @@ RSpec.describe SortingHelper do
     allow(self).to receive(:request).and_return(double(path: 'http://test.com', query_parameters: { label_name: option }))
   end
 
+  describe '#issuable_sort_options' do
+    let(:viewing_issues) { false }
+    let(:viewing_merge_requests) { false }
+    let(:params) { {} }
+
+    subject(:options) { helper.issuable_sort_options(viewing_issues, viewing_merge_requests) }
+
+    before do
+      allow(helper).to receive(:params).and_return(params)
+    end
+
+    shared_examples 'with merged date option' do
+      it 'adds merged date option' do
+        expect(options).to include(
+          a_hash_including(
+            value: 'merged_at',
+            text: 'Merged date'
+          )
+        )
+      end
+    end
+
+    shared_examples 'without merged date option' do
+      it 'does not set merged date option' do
+        expect(options).not_to include(
+          a_hash_including(
+            value: 'merged_at',
+            text: 'Merged date'
+          )
+        )
+      end
+    end
+
+    it_behaves_like 'without merged date option'
+
+    context 'when viewing_merge_requests is true' do
+      let(:viewing_merge_requests) { true }
+
+      it_behaves_like 'without merged date option'
+
+      context 'when state param is all' do
+        let(:params) { { state: 'all' } }
+
+        it_behaves_like 'with merged date option'
+      end
+
+      context 'when state param is merged' do
+        let(:params) { { state: 'merged' } }
+
+        it_behaves_like 'with merged date option'
+      end
+    end
+  end
+
   describe '#admin_users_sort_options' do
     it 'returns correct link attributes in array' do
       options = admin_users_sort_options(filter: 'filter', search_query: 'search')
@@ -109,104 +163,27 @@ RSpec.describe SortingHelper do
 
     describe '#projects_sort_options_hash' do
       it 'returns a hash of available sorting options' do
-        expect(projects_sort_options_hash).to include(project_common_options)
-      end
-    end
-
-    describe '#projects_reverse_sort_options_hash' do
-      context 'returns a reversed hash of available sorting options' do
-        using RSpec::Parameterized::TableSyntax
-
-        where(:sort_key, :reverse_sort_title) do
-          sort_value_latest_activity  | sort_value_oldest_activity
-          sort_value_recently_created | sort_value_oldest_created
-          sort_value_name             | sort_value_name_desc
-          sort_value_stars_desc       | sort_value_stars_asc
-          sort_value_oldest_activity  | sort_value_latest_activity
-          sort_value_oldest_created   | sort_value_recently_created
-          sort_value_name_desc        | sort_value_name
-          sort_value_stars_asc        | sort_value_stars_desc
-        end
-
-        with_them do
-          it do
-            reverse_hash = projects_reverse_sort_options_hash
-
-            expect(reverse_hash).to include(sort_key)
-            expect(reverse_hash[sort_key]).to eq(reverse_sort_title)
-          end
-        end
-      end
-    end
-
-    describe '#project_sort_direction_button' do
-      context 'returns the correct icon for each sort option' do
-        using RSpec::Parameterized::TableSyntax
-
-        sort_lowest_icon = 'sort-lowest'
-        sort_highest_icon = 'sort-highest'
-
-        where(:selected_sort, :icon) do
-          sort_value_latest_activity  | sort_highest_icon
-          sort_value_recently_created | sort_highest_icon
-          sort_value_name_desc        | sort_highest_icon
-          sort_value_stars_desc       | sort_highest_icon
-          sort_value_oldest_activity  | sort_lowest_icon
-          sort_value_oldest_created   | sort_lowest_icon
-          sort_value_name             | sort_lowest_icon
-          sort_value_stars_asc        | sort_lowest_icon
-        end
-
-        with_them do
-          it do
-            set_sorting_url selected_sort
-
-            expect(project_sort_direction_button(selected_sort)).to include(icon)
-          end
-        end
-      end
-
-      it 'returns the correct link to reverse the current sort option' do
-        sort_options_links = projects_reverse_sort_options_hash
-
-        sort_options_links.each do |selected_sort, reverse_sort|
-          set_sorting_url selected_sort
-
-          expect(project_sort_direction_button(selected_sort)).to include(reverse_sort)
-        end
-      end
-    end
-
-    describe '#projects_sort_option_titles' do
-      it 'returns a hash of titles for the sorting options' do
         options = project_common_options.merge({
-          sort_value_oldest_activity => sort_title_latest_activity,
-          sort_value_oldest_created => sort_title_created_date,
-          sort_value_name_desc => sort_title_name,
-          sort_value_stars_asc => sort_title_stars
+          sort_value_oldest_activity => sort_title_oldest_activity,
+          sort_value_oldest_created => sort_title_oldest_created,
+          sort_value_recently_created => sort_title_recently_created,
+          sort_value_stars_desc => sort_title_most_stars
         })
 
-        expect(projects_sort_option_titles).to eq(options)
+        expect(projects_sort_options_hash).to eq(options)
       end
     end
+  end
 
-    describe 'with project_list_filter_bar off' do
-      before do
-        stub_feature_flags(project_list_filter_bar: false)
-      end
-
-      describe '#projects_sort_options_hash' do
-        it 'returns a hash of available sorting options' do
-          options = project_common_options.merge({
-            sort_value_oldest_activity => sort_title_oldest_activity,
-            sort_value_oldest_created => sort_title_oldest_created,
-            sort_value_recently_created => sort_title_recently_created,
-            sort_value_stars_desc => sort_title_most_stars
-          })
-
-          expect(projects_sort_options_hash).to eq(options)
-        end
-      end
+  describe '#tags_sort_options_hash' do
+    it 'returns a hash of available sorting options' do
+      expect(tags_sort_options_hash).to include({
+        sort_value_name => sort_title_name,
+        sort_value_oldest_updated => sort_title_oldest_updated,
+        sort_value_recently_updated => sort_title_recently_updated,
+        sort_value_version_desc => sort_title_version_desc,
+        sort_value_version_asc => sort_title_version_asc
+      })
     end
   end
 

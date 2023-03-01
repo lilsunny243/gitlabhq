@@ -12,8 +12,6 @@ end
 namespace :import do
   resources :history, only: [:index], controller: :history
 
-  resources :available_namespaces, only: [:index], controller: :available_namespaces
-
   namespace :url do
     post :validate
   end
@@ -23,6 +21,8 @@ namespace :import do
     get :status
     get :callback
     get :realtime_changes
+    post :cancel
+    post :cancel_all
   end
 
   resource :gitea, only: [:create, :new], controller: :gitea do
@@ -66,6 +66,10 @@ namespace :import do
 
   resource :gitlab_group, only: [:create] do
     post :authorize
+  end
+
+  resource :github_group, only: [] do
+    get :status
   end
 
   resource :bulk_imports, only: [:create] do

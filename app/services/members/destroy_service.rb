@@ -2,6 +2,8 @@
 
 module Members
   class DestroyService < Members::BaseService
+    include Gitlab::ExclusiveLeaseHelpers
+
     def execute(member, skip_authorization: false, skip_subresources: false, unassign_issuables: false, destroy_bot: false)
       unless skip_authorization
         raise Gitlab::Access::AccessDeniedError unless authorized?(member, destroy_bot)
@@ -12,30 +14,68 @@ module Members
 
       @skip_auth = skip_authorization
 
-      return member if member.is_a?(GroupMember) && member.source.last_owner?(member.user)
-
-      member.destroy
-
-      member.user&.invalidate_cache_counts
-
-      if member.request? && member.user != current_user
-        notification_service.decline_access_request(member)
+      if a_group_owner?(member)
+        process_destroy_of_group_owner_member(member, skip_subresources, unassign_issuables)
+      else
+        destroy_member(member)
+        destroy_data_related_to_member(member, skip_subresources, unassign_issuables)
       end
-
-      delete_subresources(member) unless skip_subresources
-      delete_project_invitations_by(member) unless skip_subresources
-      enqueue_delete_todos(member)
-      enqueue_unassign_issuables(member) if unassign_issuables
-
-      after_execute(member: member)
 
       member
     end
 
     private
 
+    def process_destroy_of_group_owner_member(member, skip_subresources, unassign_issuables)
+      # Deleting 2 different group owners via the API in quick succession could lead to
+      # wrong results for the `last_owner?` check due to race conditions. To prevent this
+      # we wrap both the last_owner? check and the deletes of owners within a lock.
+      last_group_owner = true
+
+      in_lock("delete_members:#{member.source.class}:#{member.source.id}", sleep_sec: 0.1.seconds) do
+        break if member.source.last_owner?(member.user)
+
+        last_group_owner = false
+        destroy_member(member)
+      end
+
+      # deletion of related data does not have to be within the lock.
+      destroy_data_related_to_member(member, skip_subresources, unassign_issuables) unless last_group_owner
+    end
+
+    def destroy_member(member)
+      member.destroy
+    end
+
+    def destroy_data_related_to_member(member, skip_subresources, unassign_issuables)
+      member.user&.invalidate_cache_counts
+      delete_member_associations(member, skip_subresources, unassign_issuables)
+    end
+
+    def a_group_owner?(member)
+      member.is_a?(GroupMember) && member.owner?
+    end
+
+    def delete_member_associations(member, skip_subresources, unassign_issuables)
+      if member.request? && member.user != current_user
+        notification_service.decline_access_request(member)
+      end
+
+      delete_subresources(member) unless skip_subresources
+      delete_project_invitations_by(member) unless skip_subresources
+      resolve_access_request_todos(current_user, member)
+      enqueue_delete_todos(member)
+      enqueue_unassign_issuables(member) if unassign_issuables
+
+      after_execute(member: member)
+    end
+
     def authorized?(member, destroy_bot)
       return can_destroy_bot_member?(member) if destroy_bot
+
+      if member.request?
+        return can_destroy_member_access_request?(member) || can_withdraw_member_access_request?(member)
+      end
 
       can_destroy_member?(member)
     end
@@ -93,6 +133,14 @@ module Members
 
     def can_destroy_bot_member?(member)
       can?(current_user, destroy_bot_member_permission(member), member)
+    end
+
+    def can_destroy_member_access_request?(member)
+      can?(current_user, :admin_member_access_request, member.source)
+    end
+
+    def can_withdraw_member_access_request?(member)
+      can?(current_user, :withdraw_member_access_request, member)
     end
 
     def destroying_member_with_owner_access_level?(member)

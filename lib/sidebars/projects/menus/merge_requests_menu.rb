@@ -59,10 +59,20 @@ module Sidebars
         override :active_routes
         def active_routes
           if context.project.issues_enabled?
-            { controller: :merge_requests }
+            { controller: 'projects/merge_requests' }
           else
-            { controller: [:merge_requests, :milestones] }
+            { controller: ['projects/merge_requests', :milestones] }
           end
+        end
+
+        override :serialize_as_menu_item_args
+        def serialize_as_menu_item_args
+          super.merge({
+            sprite_icon: sprite_icon,
+            pill_count: pill_count,
+            has_pill: has_pill?,
+            super_sidebar_parent: ::Sidebars::StaticMenu
+          })
         end
       end
     end

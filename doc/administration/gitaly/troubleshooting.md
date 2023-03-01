@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Gitaly and Gitaly Cluster **(FREE SELF)**
@@ -20,7 +20,7 @@ and our advice on [parsing the `gitaly/current` file](../logs/log_parsing.md#par
 When using standalone Gitaly servers, you must make sure they are the same version
 as GitLab to ensure full compatibility:
 
-1. On the top bar, select **Menu > Admin** on your GitLab instance.
+1. On the top bar, select **Main menu > Admin** on your GitLab instance.
 1. On the left sidebar, select **Overview > Gitaly Servers**.
 1. Confirm all Gitaly servers indicate that they are up to date.
 
@@ -41,17 +41,6 @@ The `gitaly-debug` command provides "production debugging" tools for Gitaly and 
 performance. It is intended to help production engineers and support
 engineers investigate Gitaly performance problems.
 
-If you're using GitLab 11.6 or newer, this tool should be installed on
-your GitLab or Gitaly server already at `/opt/gitlab/embedded/bin/gitaly-debug`.
-If you're investigating an older GitLab version you can compile this
-tool offline and copy the executable to your server:
-
-```shell
-git clone https://gitlab.com/gitlab-org/gitaly.git
-cd cmd/gitaly-debug
-GOOS=linux GOARCH=amd64 go build -o gitaly-debug
-```
-
 To see the help page of `gitaly-debug` for a list of supported sub-commands, run:
 
 ```shell
@@ -67,6 +56,13 @@ remote: GitLab: 401 Unauthorized
 You need to sync your `gitlab-secrets.json` file with your GitLab
 application nodes.
 
+### 500 and `fetching folder content` errors on repository pages
+
+`Fetching folder content`, and in some cases `500`, errors indicate
+connectivity problems between GitLab and Gitaly.
+Consult the [client-side gRPC logs](#client-side-grpc-logs)
+for details.
+
 ### Client side gRPC logs
 
 Gitaly uses the [gRPC](https://grpc.io/) RPC framework. The Ruby gRPC
@@ -80,6 +76,19 @@ You can run a gRPC trace with:
 ```shell
 sudo GRPC_TRACE=all GRPC_VERBOSITY=DEBUG gitlab-rake gitlab:gitaly:check
 ```
+
+If this command fails with a `failed to connect to all addresses` error,
+check for an SSL or TLS problem:
+
+```shell
+/opt/gitlab/embedded/bin/openssl s_client -connect <gitaly-ipaddress>:<port> -verify_return_error
+```
+
+Check whether `Verify return code` field indicates a
+[known Omnibus GitLab configuration problem](https://docs.gitlab.com/omnibus/settings/ssl.html).
+
+If `openssl` succeeds but `gitlab-rake gitlab:gitaly:check` fails,
+check [certificate requirements](configure_gitaly.md#certificate-requirements) for Gitaly.
 
 ### Server side gRPC logs
 
@@ -124,9 +133,8 @@ If you have Prometheus set up to scrape your Gitaly process, you can see
 request rates and error codes for individual RPCs in `gitaly-ruby` by
 querying `grpc_client_handled_total`.
 
-- In theory, this metric does not differentiate between `gitaly-ruby` and other RPCs.
-- In practice from GitLab 11.9, all gRPC calls made by Gitaly itself are internal calls from the
-  main Gitaly process to one of its `gitaly-ruby` sidecars.
+All gRPC calls made by `gitaly-ruby` itself are internal calls from the main Gitaly process to one of its `gitaly-ruby`
+sidecars.
 
 Assuming your `grpc_client_handled_total` counter only observes Gitaly,
 the following query shows you RPCs are (most likely) internally
@@ -161,7 +169,7 @@ Confirm the following are all true:
 
 - When any user adds or modifies a file from the repository using the GitLab
   UI, it immediately fails with a red `401 Unauthorized` banner.
-- Creating a new project and [initializing it with a README](../../user/project/working_with_projects.md#create-a-blank-project)
+- Creating a new project and [initializing it with a README](../../user/project/index.md#create-a-blank-project)
   successfully creates the project but doesn't create the README.
 - When [tailing the logs](https://docs.gitlab.com/omnibus/settings/logs.html#tail-logs-in-a-console-on-the-server)
   on a Gitaly client and reproducing the error, you get `401` errors
@@ -236,6 +244,28 @@ the application might be fetching this secret from a different file. Your Gitaly
 `config.toml file` indicates the secrets file in use.
 If that setting is missing, GitLab defaults to using `.gitlab_shell_secret` under
 `/opt/gitlab/embedded/service/gitlab-rails/.gitlab_shell_secret`.
+
+### Repository pushes fail
+
+When attempting `git push`, you can see:
+
+- `401 Unauthorized` errors.
+- The following in server logs:
+
+  ```json
+  {
+    ...
+    "exception.class":"JWT::VerificationError",
+    "exception.message":"Signature verification raised",
+    ...
+  }
+  ```
+
+This error occurs when the GitLab server has been upgraded to GitLab 15.5 or later but Gitaly has not yet been upgraded.
+
+From GitLab 15.5, GitLab [authenticates with GitLab Shell using a JWT token instead of a shared secret](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/86148).
+You should follow the [recommendations on upgrading external Gitaly](../../update/plan_your_upgrade.md#external-gitaly) and upgrade Gitaly before the GitLab
+server.
 
 ### Repository pushes fail with a `deny updating a hidden ref` error
 
@@ -315,7 +345,7 @@ You might see the following in Gitaly and Praefect logs:
 }
 ```
 
-This is a GRPC call
+This is a gRPC call
 [error response code](https://grpc.github.io/grpc/core/md_doc_statuscodes.html).
 
 If this error occurs, even though
@@ -339,7 +369,7 @@ necessary because [this issue](https://gitlab.com/gitlab-org/gitaly/-/issues/252
 If this error occurs even though file permissions are correct, it's likely that the Gitaly node is
 experiencing [clock drift](https://en.wikipedia.org/wiki/Clock_drift).
 
-Please ensure that the GitLab and Gitaly nodes are synchronized and use an NTP time
+Ensure that the GitLab and Gitaly nodes are synchronized and use an NTP time
 server to keep them synchronized if possible.
 
 ### Health check warnings
@@ -370,6 +400,20 @@ to take several seconds to start up and shut down. `gitaly-hooks` is executed tw
 push, which causes a significant delay.
 
 If Git pushes are too slow when Dynatrace is enabled, disable Dynatrace.
+
+## Gitaly fails to fork processes stored on `noexec` file systems
+
+Because of changes [introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5999) in GitLab 14.10, applying the `noexec` option to a mount
+point (for example, `/var`) causes Gitaly to throw `permission denied` errors related to forking processes. For example:
+
+```shell
+fork/exec /var/opt/gitlab/gitaly/run/gitaly-2057/gitaly-git2go: permission denied
+```
+
+To resolve this, remove the `noexec` option from the file system mount. An alternative is to change the Gitaly runtime directory:
+
+1. Add `gitaly['runtime_dir'] = '<PATH_WITH_EXEC_PERM>'` to `/etc/gitlab/gitlab.rb` and specify a location without `noexec` set.
+1. Run `sudo gitlab-ctl reconfigure`.
 
 ## Troubleshoot Praefect (Gitaly Cluster)
 
@@ -448,6 +492,20 @@ in sync so the token check succeeds.
 This check helps identify the root cause of `permission denied`
 [errors being logged by Praefect](#permission-denied-errors-appearing-in-gitaly-or-praefect-logs-when-accessing-repositories).
 
+For offline environments where access to public [`pool.ntp.org`](https://pool.ntp.org) servers is not possible, the Praefect `check` sub-command fails this
+check with an error message similar to:
+
+```plaintext
+checking with NTP service at  and allowed clock drift 60000ms [correlation_id: <XXX>]
+Failed (fatal) error: gitaly node at tcp://[gitlab.example-instance.com]:8075: rpc error: code = DeadlineExceeded desc = context deadline exceeded
+```
+
+To resolve this issue, set an environment variable on all Praefect servers to point to an accessible internal NTP server. For example:
+
+```shell
+export NTP_HOST=ntp.example.com
+```
+
 ### Praefect errors in logs
 
 If you receive an error, check `/var/log/gitlab/gitlab-rails/production.log`.
@@ -456,9 +514,9 @@ Here are common errors and potential causes:
 
 - 500 response code
   - `ActionView::Template::Error (7:permission denied)`
-    - `praefect['auth_token']` and `gitlab_rails['gitaly_token']` do not match on the GitLab server.
+    - `praefect['configuration'][:auth][:token]` and `gitlab_rails['gitaly_token']` do not match on the GitLab server.
   - `Unable to save project. Error: 7:permission denied`
-    - Secret token in `praefect['storage_nodes']` on GitLab server does not match the
+    - Secret token in `praefect['configuration'][:virtual_storage]` on GitLab server does not match the
       value in `gitaly['auth_token']` on one or more Gitaly servers.
 - 503 response code
   - `GRPC::Unavailable (14:failed to connect to all addresses)`
@@ -472,7 +530,7 @@ Here are common errors and potential causes:
 Some common reasons for the Praefect database to experience elevated CPU usage include:
 
 - Prometheus metrics scrapes [running an expensive query](https://gitlab.com/gitlab-org/gitaly/-/issues/3796). If you have GitLab 14.2
-  or above, set `praefect['separate_database_metrics'] = true` in `gitlab.rb`.
+  or above, set `praefect['configuration'][:prometheus_exclude_database_from_default_metrics] = true` in `gitlab.rb`.
 - [Read distribution caching](praefect.md#reads-distribution-caching) is disabled, increasing the number of queries made to the
   database when user traffic is high. Ensure read distribution caching is enabled.
 
@@ -584,13 +642,23 @@ For each replica, the following metadata is available:
 | `Valid Primary`  | Indicates whether the replica is fit to serve as the primary node. If the repository's primary is not a valid primary, a failover occurs on the next write to the repository if there is another replica that is a valid primary. A replica is a valid primary if:<br><br>- It is stored on a healthy Gitaly node.<br>- It is fully up to date.<br>- It is not targeted by a pending deletion job from decreasing replication factor.<br>- It is assigned. |
 | `Verified At` | Indicates last successful verification of the replica by the [verification worker](praefect.md#repository-verification). If the replica has not yet been verified, `unverified` is displayed in place of the last successful verification time. Introduced in GitLab 15.0. |
 
+#### Command fails with 'repository not found'
+
+If the supplied value for `-virtual-storage` is incorrect, the command returns the following error:
+
+```plaintext
+get metadata: rpc error: code = NotFound desc = repository not found
+```
+
+The documented examples specify `-virtual-storage default`. Check the Praefect server setting `praefect['configuration'][:virtual_storage]` in `/etc/gitlab/gitlab.rb`.
+
 ### Check that repositories are in sync
 
 Is [some cases](index.md#known-issues) the Praefect database can get out of sync with the underlying Gitaly nodes. To check that
 a given repository is fully synced on all nodes, run the [`gitlab:praefect:replicas` Rake task](../raketasks/praefect.md#replica-checksums)
 that checksums the repository on all Gitaly nodes.
 
-The [Praefect dataloss](recovery.md#check-for-data-loss) command only checks the state of the repository in the Praefect database, and cannot
+The [Praefect `dataloss`](recovery.md#check-for-data-loss) command only checks the state of the repository in the Praefect database, and cannot
 be relied to detect sync problems in this scenario.
 
 ### Relation does not exist errors
@@ -649,7 +717,7 @@ Possible solutions:
 
 ## Profiling Gitaly
 
-Gitaly exposes several of Golang's built-in performance profiling tools on the Prometheus listen port. For example, if Prometheus is listening
+Gitaly exposes several of the Golang built-in performance profiling tools on the Prometheus listen port. For example, if Prometheus is listening
 on port `9236` of the GitLab server:
 
 - Get a list of running `goroutines` and their backtraces:
@@ -670,7 +738,7 @@ on port `9236` of the GitLab server:
   curl --output heap.bin "http://<gitaly_server>:9236/debug/pprof/heap"
   ```
 
-- Record a 5 second execution trace. This will impact Gitaly's performance while running:
+- Record a 5 second execution trace. This impacts the Gitaly performance while running:
 
   ```shell
   curl --output trace.bin "http://<gitaly_server>:9236/debug/pprof/trace?seconds=5"

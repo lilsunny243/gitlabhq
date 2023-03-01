@@ -1,15 +1,14 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, howto
 ---
 
-# PlantUML and GitLab **(FREE)**
+# PlantUML **(FREE)**
 
-When the [PlantUML](https://plantuml.com) integration is enabled and configured in
-GitLab, you can create diagrams in snippets, wikis, and repositories. This integration
-is enabled on GitLab.com for all SaaS users and does not require any additional configuration.
+With the [PlantUML](https://plantuml.com) integration, you can create diagrams in snippets, wikis, and repositories.
+This integration is enabled on GitLab.com for all SaaS users and does not require any additional configuration.
 
 To set up the integration on a self-managed instance, you must:
 
@@ -148,7 +147,7 @@ using Tomcat:
    ```
 
 The Tomcat service should restart. After the restart is complete, the
-PlantUML service is ready and listening for requests on port 8080:
+PlantUML integration is ready and listening for requests on port 8080:
 `http://localhost:8080/plantuml`
 
 To change these defaults, edit the `/etc/tomcat8/server.xml` file.
@@ -211,7 +210,7 @@ stop;
 After configuring your local PlantUML server, you're ready to enable the PlantUML integration:
 
 1. Sign in to GitLab as an [Administrator](../../user/permissions.md) user.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, go to **Settings > General** and expand the **PlantUML** section.
 1. Select the **Enable PlantUML** checkbox.
 1. Set the PlantUML instance as `https://gitlab.example.com/-/plantuml/`,

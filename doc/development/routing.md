@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Routing
@@ -39,7 +39,7 @@ You can view and find routes from the console by running:
 rails routes | grep crm
 ```
 
-You can also view routes in your browser by going to [http://gdk.test:3000/rails/info/routes](http://gdk.test:3000/rails/info/routes).
+You can also view routes in your browser by going to `http://gdk.test:3000/rails/info/routes`.
 
 ## Global routes
 

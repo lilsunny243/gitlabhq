@@ -5,20 +5,16 @@ module Ci
     def execute(build, job_variables_attributes = nil)
       check_access!(build, job_variables_attributes)
 
-      # Try to enqueue the build, otherwise create a duplicate.
-      #
-      if build.enqueue
-        build.tap do |build|
-          build.update!(user: current_user, job_variables_attributes: job_variables_attributes || [])
-
-          AfterRequeueJobService.new(project, current_user).execute(build)
-        end
-      else
-        Ci::RetryJobService.new(project, current_user).execute(build)[:job]
-      end
+      Ci::EnqueueJobService.new(build, current_user: current_user, variables: job_variables_attributes || []).execute
+    rescue StateMachines::InvalidTransition
+      retry_build(build.reset)
     end
 
     private
+
+    def retry_build(build)
+      Ci::RetryJobService.new(project, current_user).execute(build)[:job]
+    end
 
     def check_access!(build, job_variables_attributes)
       raise Gitlab::Access::AccessDeniedError unless can?(current_user, :play_job, build)

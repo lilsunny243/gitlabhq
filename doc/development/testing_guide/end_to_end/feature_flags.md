@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Testing with feature flags
@@ -30,7 +30,7 @@ feature flag is under test.
 
 - Format: `feature_flag: { name: 'feature_flag_name', scope: :project }`
 - When `scope` is set to `:global`, the test will be **skipped on all live .com environments**. This is to avoid issues with feature flag changes affecting other tests or users on that environment.
-- When `scope` is set to any other value (such as `:project`, `:group` or `:user`), or if no `scope` is specified, the test will only be **skipped on canary, production, and preprod**.
+- When `scope` is set to any other value (such as `:project`, `:group` or `:user`), or if no `scope` is specified, the test will only be **skipped on canary, production, and pre-production**.
 This is due to the fact that administrator access is not available there.
 
 **WARNING:** You are strongly advised to first try and [enable feature flags only for a group, project, user](../../feature_flags/index.md#feature-actors),
@@ -42,7 +42,7 @@ or [feature group](../../feature_flags/index.md#feature-groups).
   with administrator access, such as staging.
 
 **Note on `requires_admin`:** This tag should still be applied if there are other actions within the test that require administrator access that are unrelated to updating a
-feature flag (ex: creating a user via the API).
+feature flag (like creating a user via the API).
 
 The code below would enable a feature flag named `:feature_flag_name` for the project
 created by the test:
@@ -160,7 +160,7 @@ For example:
 
 ```ruby
 def initialize
-  name_of_the_future_flag_activated = false
+  name_of_the_feature_flag_activated = false
   ...
 end
 ```
@@ -195,7 +195,7 @@ End-to-end tests should pass with a feature flag enabled before it is enabled on
 There are two ways to confirm that end-to-end tests pass:
 
 - If a merge request adds or edits a [feature flag definition file](../../feature_flags/index.md#feature-flag-definition-and-validation),
-  two `e2e:package-and-test` jobs (`ee:instance-parallel` and `ee:instance-parallel-ff-inverse`) are included automatically in the merge request pipeline. 
+  two `e2e:package-and-test` jobs (`ee:instance-parallel` and `ee:instance-parallel-ff-inverse`) are included automatically in the merge request pipeline.
   One job runs the application with default feature flag state and another sets it to inverse value. The jobs execute the same suite of tests to confirm that they pass with the feature flag either enabled or disabled.
 - In some cases, if end-to-end test jobs didn't trigger automatically, or if it has run the tests with the default feature flag values (which might not be desired),
   you can create a Draft MR that enables the feature flag to ensure that all E2E tests pass with the feature flag enabled and disabled.

@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Configuring runners **(FREE)**
@@ -28,7 +28,7 @@ On GitLab.com, you cannot override the job timeout for shared runners and must u
 To set the maximum job timeout:
 
 1. In a project, go to **Settings > CI/CD > Runners**.
-1. Select your specific runner to edit the settings.
+1. Select your project runner to edit the settings.
 1. Enter a value under **Maximum job timeout**. Must be 10 minutes or more. If not
    defined, the [project's job timeout setting](../pipelines/settings.md#set-a-limit-for-how-long-jobs-can-run)
    is used.
@@ -62,7 +62,7 @@ How this feature works:
 With some [runner executors](https://docs.gitlab.com/runner/executors/),
 if you can run a job on the runner, you can get full access to the file system,
 and thus any code it runs as well as the token of the runner. With shared runners, this means that anyone
-that runs jobs on the runner, can access anyone else's code that runs on the
+that runs jobs on the runner, can access another user's code that runs on the
 runner.
 
 In addition, because you can get access to the runner token, it is possible
@@ -89,13 +89,20 @@ To protect or unprotect a runner:
 1. Check the **Protected** option.
 1. Select **Save changes**.
 
-![specific runners edit icon](img/protected_runners_check_box_v14_1.png)
+![Protect project runners checkbox](img/protected_runners_check_box_v14_1.png)
 
 ### Forks
 
 Whenever a project is forked, it copies the settings of the jobs that relate
 to it. This means that if you have shared runners set up for a project and
 someone forks that project, the shared runners serve jobs of this project.
+
+Because of a [known issue](https://gitlab.com/gitlab-org/gitlab/-/issues/364303), you might encounter the message `An error occurred while forking the project. Please try again.` if the runner settings of the project you are forking does not match the new project namespace.
+
+To work around this issue, you should make sure that the shared runner settings are consistent in the forked project and the new namespace.
+
+- If shared runners are **enabled** on the forked project, then this should also be **enabled** on the new namespace.
+- If shared runners are **disabled** on the forked project, then this should also be **disabled** on the new namespace.
 
 ### Attack vectors in runners
 
@@ -143,7 +150,7 @@ the source of the HTTP requests it makes to GitLab when polling for jobs. The
 IP address is always kept up to date so if the runner IP changes it
 automatically updates in GitLab.
 
-The IP address for shared runners and specific runners can be found in
+The IP address for shared runners and project runners can be found in
 different places.
 
 ### Determine the IP address of a shared runner
@@ -151,22 +158,22 @@ different places.
 To view the IP address of a shared runner you must have administrator access to
 the GitLab instance. To determine this:
 
-1. On the top bar, select **Menu > Admin**.
-1. On the left sidebar, select **Overview > Runners**.
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **CI/CD > Runners**.
 1. Find the runner in the table and view the **IP Address** column.
 
 ![shared runner IP address](img/shared_runner_ip_address_14_5.png)
 
-### Determine the IP address of a specific runner
+### Determine the IP address of a project runner
 
-To can find the IP address of a runner for a specific project,
+To can find the IP address of a runner for a project project,
 you must have the Owner role for the
 project.
 
 1. Go to the project's **Settings > CI/CD** and expand the **Runners** section.
 1. On the details page you should see a row for **IP Address**.
 
-![specific runner IP address](img/specific_runner_ip_address.png)
+![Project runner IP address](img/project_runner_ip_address.png)
 
 ## Use tags to control which jobs a runner can run
 
@@ -198,7 +205,7 @@ To make a runner pick untagged jobs:
 1. Select **Save changes** for the changes to take effect.
 
 NOTE:
-The runner tags list can not be empty when it's not allowed to pick untagged jobs.
+The runner tags list cannot be empty when it's not allowed to pick untagged jobs.
 
 Below are some example scenarios of different variations.
 
@@ -285,12 +292,12 @@ variables:
 
 A runner can have one of the following statuses.
 
-| Status | Description |
-|--------|-------------|
-| **online** | The runner has contacted GitLab within the last 2 hours and is available to run jobs. |
-| **offline** | The runner has not contacted GitLab in more than 2 hours and is not available to run jobs. Check the runner to see if you can bring it online. |
-| **stale** | The runner has not contacted GitLab in more than 3 months. If the runner was created more than 3 months ago, but it never contacted the instance, it is also considered **stale**. |
-| **never_contacted** | The runner has never contacted GitLab. To make the runner contact GitLab, run `gitlab-runner run`. |
+| Status  | Description |
+|---------|-------------|
+| `online`  | The runner has contacted GitLab within the last 2 hours and is available to run jobs. |
+| `offline` | The runner has not contacted GitLab in more than 2 hours and is not available to run jobs. Check the runner to see if you can bring it online. |
+| `stale`   | The runner has not contacted GitLab in more than 3 months. If the runner was created more than 3 months ago, but it never contacted the instance, it is also considered **stale**. |
+| `never_contacted` | The runner has never contacted GitLab. To make the runner contact GitLab, run `gitlab-runner run`. |
 
 ## Configure runner behavior with variables
 
@@ -304,6 +311,7 @@ globally or for individual jobs:
 - [`GIT_FETCH_EXTRA_FLAGS`](#git-fetch-extra-flags)
 - [`GIT_SUBMODULE_UPDATE_FLAGS`](#git-submodule-update-flags)
 - [`GIT_DEPTH`](#shallow-cloning) (shallow cloning)
+- [`GIT_SUBMODULE_DEPTH`](#git-submodule-depth)
 - [`GIT_CLONE_PATH`](#custom-build-directories) (custom build directories)
 - [`TRANSFER_METER_FREQUENCY`](#artifact-and-cache-settings) (artifact/cache meter update frequency)
 - [`ARTIFACT_COMPRESSION_LEVEL`](#artifact-and-cache-settings) (artifact archiver compression level)
@@ -347,7 +355,7 @@ try to preserve worktrees and try to re-use them by default.
 This has limitations when using the [Docker Machine executor](https://docs.gitlab.com/runner/executors/docker_machine.html).
 
 A Git strategy of `none` also re-uses the local working copy, but skips all Git
-operations normally done by GitLab. GitLab Runner pre-clone scripts are also skipped,
+operations usually done by GitLab. GitLab Runner pre-clone scripts are also skipped,
 if present. This strategy could mean you need to add `fetch` and `checkout` commands
 to [your `.gitlab-ci.yml` script](../yaml/index.md#script).
 
@@ -488,6 +496,35 @@ git fetch origin $REFSPECS --depth 50  --prune
 
 Where `$REFSPECS` is a value provided to the runner internally by GitLab.
 
+### Sync or exclude specific submodules from CI jobs
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/2249) in GitLab Runner 14.0.
+
+Use the `GIT_SUBMODULE_PATHS` variable to control which submodules have to be synced or updated.
+You can set it globally or per-job in the [`variables`](../yaml/index.md#variables) section.
+
+The path syntax is the same as [`git submodule`](https://git-scm.com/docs/git-submodule#Documentation/git-submodule.txt-ltpathgt82308203):
+
+- To sync and update specific paths:
+
+   ```yaml
+   variables:
+      GIT_SUBMODULE_PATHS: submoduleA submoduleB
+   ```
+
+- To exclude specific paths:
+
+   ```yaml
+   variables:
+      GIT_SUBMODULE_PATHS: :(exclude)submoduleA :(exclude)submoduleB
+   ```
+
+WARNING:
+Git ignores nested paths. To ignore a nested submodule, exclude
+the parent submodule and then manually clone it in the job's scripts. For example,
+ `git clone <repo> --recurse-submodules=':(exclude)nested-submodule'`. Make sure
+to wrap the string in single quotes so the YAML can be parsed successfully.
+
 ### Git submodule update flags
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/3192) in GitLab Runner 14.8.
@@ -498,14 +535,14 @@ You can set it globally or per-job in the [`variables`](../yaml/index.md#variabl
 
 `GIT_SUBMODULE_UPDATE_FLAGS` accepts all options of the
 [`git submodule update`](https://git-scm.com/docs/git-submodule#Documentation/git-submodule.txt-update--init--remote-N--no-fetch--no-recommend-shallow-f--force--checkout--rebase--merge--referenceltrepositorygt--depthltdepthgt--recursive--jobsltngt--no-single-branch--ltpathgt82308203)
-subcommand. However, note that `GIT_SUBMODULE_UPDATE_FLAGS` flags are appended after a few default flags:
+subcommand. However, `GIT_SUBMODULE_UPDATE_FLAGS` flags are appended after a few default flags:
 
 - `--init`, if [`GIT_SUBMODULE_STRATEGY`](#git-submodule-strategy) was set to `normal` or `recursive`.
 - `--recursive`, if [`GIT_SUBMODULE_STRATEGY`](#git-submodule-strategy) was set to `recursive`.
 - [`GIT_DEPTH`](#shallow-cloning). See the default value below.
 
 Git honors the last occurrence of a flag in the list of arguments, so manually
-providing them in `GIT_SUBMODULE_UPDATE_FLAGS` will also override these default flags.
+providing them in `GIT_SUBMODULE_UPDATE_FLAGS` overrides these default flags.
 
 You can use this variable to fetch the latest remote `HEAD` instead of the commit tracked,
 in the repository, or to speed up the checkout by fetching submodules in multiple parallel jobs:
@@ -563,6 +600,24 @@ variables:
 
 You can set it globally or per-job in the [`variables`](../yaml/index.md#variables) section.
 
+### Git submodule depth
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/3651) in GitLab Runner 15.5.
+
+Use the `GIT_SUBMODULE_DEPTH` variable to specify the depth of fetching and cloning submodules
+when [`GIT_SUBMODULE_STRATEGY`](#git-submodule-strategy) is set to either `normal` or `recursive`.
+You can set it globally or for a specific job in the [`variables`](../yaml/index.md#variables) section.
+
+When you set the `GIT_SUBMODULE_DEPTH` variable, it overwrites the [`GIT_DEPTH`](#shallow-cloning) setting
+for the submodules only.
+
+To fetch or clone only the last 3 commits:
+
+```yaml
+variables:
+  GIT_SUBMODULE_DEPTH: 3
+```
+
 ### Custom build directories
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab-runner/-/issues/2211) in GitLab Runner 11.10.
@@ -582,13 +637,12 @@ test:
     - pwd
 ```
 
-The `GIT_CLONE_PATH` has to always be within `$CI_BUILDS_DIR`. The directory set in `$CI_BUILDS_DIR`
+The `GIT_CLONE_PATH` must always be within `$CI_BUILDS_DIR`. The directory set in `$CI_BUILDS_DIR`
 is dependent on executor and configuration of [runners.builds_dir](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section)
 setting.
 
 This can only be used when `custom_build_dir` is enabled in the
 [runner's configuration](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runnerscustom_build_dir-section).
-This is the default configuration for the `docker` and `kubernetes` executors.
 
 #### Handling concurrency
 
@@ -614,7 +668,7 @@ variables:
 
 test:
   script:
-    - pwd
+    - pwd -P
 ```
 
 The `$CI_CONCURRENT_PROJECT_ID` should be used in conjunction with `$CI_PROJECT_PATH`
@@ -626,7 +680,7 @@ variables:
 
 test:
   script:
-    - pwd
+    - pwd -P
 ```
 
 #### Nested paths
@@ -725,7 +779,7 @@ variables:
 NOTE:
 Zip archives are the only supported artifact type. Follow [the issue for details](https://gitlab.com/gitlab-org/gitlab/-/issues/367203).
 
-GitLab Runner can generate and produce attestation metadata for all build artifacts. To enable this feature, you must set the `RUNNER_GENERATE_ARTIFACTS_METADATA` environment variable to `true`. This variable can either be set globally or it can be set for individual jobs. The metadata is in rendered in a plain text `.json` file that's stored with the artifact. The file name is as follows: `{JOB_ID}-artifacts-metadata.json`.
+GitLab Runner can generate and produce attestation metadata for all build artifacts. To enable this feature, you must set the `RUNNER_GENERATE_ARTIFACTS_METADATA` environment variable to `true`. This variable can either be set globally or it can be set for individual jobs. The metadata is in rendered in a plain text `.json` file that's stored with the artifact. The filename is as follows: `{ARTIFACT_NAME}-metadata.json` where `ARTIFACT_NAME` is what was defined as the [name for the artifact](../pipelines/job_artifacts.md#use-cicd-variables-to-define-the-artifacts-name) in the CI file. The filename, however, defaults to `artifacts-metadata.json` if no name was given to the build artifacts.
 
 ### Attestation format
 
@@ -747,7 +801,7 @@ The attestation metadata is generated in the [in-toto attestation format](https:
 | `predicate.invocation.environment.architecture` | The architecture on which the CI job is run. |
 | `predicate.invocation.parameters` | The names of any CI/CD or environment variables that were present when the build command was run. The value is always represented as an empty string to avoid leaking any secrets. |
 | `metadata.buildStartedOn` | The time when the build was started. `RFC3339` formatted. |
-| `metadata.buildEndedOn` | The time when the build ended. Since metadata generation happens during the build this moment in time will be slightly earlier than the one reported in GitLab. `RFC3339` formatted. |
+| `metadata.buildEndedOn` | The time when the build ended. Since metadata generation happens during the build this moment in time is slightly earlier than the one reported in GitLab. `RFC3339` formatted. |
 | `metadata.reproducible` | Whether the build is reproducible by gathering all the generated metadata. Always `false`. |
 | `metadata.completeness.parameters` | Whether the parameters are supplied. Always `true`. |
 | `metadata.completeness.environment` | Whether the builder's environment is reported. Always `true`. |
@@ -839,7 +893,7 @@ sequentially.
 
 To avoid writing to disk and reading the contents back for smaller files, a small buffer per concurrency is used. This setting
 can be controlled with `FASTZIP_ARCHIVER_BUFFER_SIZE`. The default size for this buffer is 2 MiB, therefore, a
-concurrency of 16 will allocate 32 MiB. Data that exceeds the buffer size will be written to and read back from disk.
+concurrency of 16 allocates 32 MiB. Data that exceeds the buffer size is written to and read back from disk.
 Therefore, using no buffer, `FASTZIP_ARCHIVER_BUFFER_SIZE: 0`, and only scratch space is a valid option.
 
 `FASTZIP_ARCHIVER_CONCURRENCY` controls how many files are compressed concurrency. As mentioned above, this setting
@@ -848,7 +902,7 @@ The default is the number of CPUs available, but given the memory ramifications,
 setting.
 
 `FASTZIP_EXTRACTOR_CONCURRENCY` controls how many files are decompressed at once. Files from a zip archive can natively
-be read from concurrency, so no additional memory is allocated in additional to what the decompressor requires. This
+be read from concurrency, so no additional memory is allocated in addition to what the decompressor requires. This
 defaults to the number of CPUs available.
 
 ## Clean up stale runners **(ULTIMATE)**
@@ -859,7 +913,7 @@ You can clean up group runners that have been inactive for more than three month
 
 Group runners are those that were created at the group level.
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Runners**.
 1. Turn on the **Enable stale runner cleanup** toggle.
@@ -903,8 +957,8 @@ The version of GitLab Runner used by your runners should be
 To determine which runners need to be upgraded:
 
 1. View the list of runners:
-   - For a group, on the top bar, select **Menu > Groups** and on the left sidebar, select **CI/CD > Runners**.
-   - For the instance, select **Menu > Admin** and on the left sidebar, select **Runners**.
+   - For a group, on the top bar, select **Main menu > Groups**, find your group, and on the left sidebar select **CI/CD > Runners**.
+   - For the instance, select **Main menu > Admin** and on the left sidebar, select **Runners**.
 
 1. Above the list of runners, view the status:
    - **Outdated - recommended**: The runner does not have the latest `PATCH` version, which may make it vulnerable
@@ -912,3 +966,57 @@ To determine which runners need to be upgraded:
    - **Outdated - available**: Newer versions are available but upgrading is not critical.
 
 1. Filter the list by status to view which individual runners need to be upgraded.
+
+## View statistics for runner performance **(ULTIMATE)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/377963) in GitLab 15.8.
+
+As an administrator, you can view runner statistics to learn about the performance of your runner fleet.
+
+1. Select **Main menu > Admin**.
+1. On the left sidebar, select **CI/CD > Runners**.
+1. Select **View metrics**.
+
+The **Median job queued time** value is calculated by sampling the queue duration of the
+most recent 100 jobs that were run by Instance runners. Jobs from only the latest 5000
+runners are considered.
+
+The median is a value that falls into the 50th percentile: half of the jobs
+queued for longer than the median value, and half of the jobs queued for less than the
+median value.
+
+## Authentication token security
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/30942) in GitLab 15.3 [with a flag](../../administration/feature_flags.md) named `enforce_runner_token_expires_at`. Disabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/377902) in GitLab 15.5. Feature flag `enforce_runner_token_expires_at` removed.
+
+Each runner has an [authentication token](../../api/runners.md#registration-and-authentication-tokens)
+to connect with the GitLab instance.
+
+To help prevent the token from being compromised, you can have the
+token rotate automatically at specified intervals. When the tokens are rotated,
+they are updated for each runner, regardless of the runner's status (`online` or `offline`).
+
+No manual intervention should be required, and no running jobs should be affected.
+
+If you need to manually update the authentication token, you can run a
+command to [reset the token](https://docs.gitlab.com/runner/commands/#gitlab-runner-reset-token).
+
+### Automatically rotate authentication tokens
+
+You can specify an interval for authentication tokens to rotate.
+This rotation helps ensure the security of the tokens assigned to your runners.
+
+Prerequisites:
+
+- Ensure your runners are using [GitLab Runner 15.3 or later](https://docs.gitlab.com/runner/#gitlab-runner-versions).
+
+To automatically rotate runner authentication tokens:
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > CI/CD**.
+1. Expand **Continuous Integration and Deployment**
+1. Set a **Runners expiration** time for runners, leave empty for no expiration.
+1. Select **Save**.
+
+Before the interval expires, runners automatically request a new authentication token.

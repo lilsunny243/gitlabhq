@@ -15,7 +15,7 @@ module Gitlab
             def available?(&block)
               return @metric_available = block if block
 
-              return @metric_available.call if instance_variable_defined?('@metric_available')
+              return @metric_available.call if instance_variable_defined?(:@metric_available)
 
               true
             end
@@ -23,9 +23,9 @@ module Gitlab
             attr_reader :metric_available
           end
 
-          def initialize(time_frame:, options: {})
-            @time_frame = time_frame
-            @options = options
+          def initialize(metric_definition)
+            @time_frame = metric_definition.fetch(:time_frame)
+            @options = metric_definition.fetch(:options, {})
           end
 
           def instrumentation

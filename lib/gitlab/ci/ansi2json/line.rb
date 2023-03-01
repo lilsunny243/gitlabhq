@@ -26,7 +26,7 @@ module Gitlab
             # Without forcing the encoding to UTF-8 and then replacing
             # invalid UTF-8 sequences we can get an error when serializing
             # the Hash to JSON.
-            # Encoding::UndefinedConversionError:
+            # Encoding::UndefinedConversionError (or possibly JSON::GeneratorError in json 2.6.1+):
             #   "\xE2" from ASCII-8BIT to UTF-8
             { text: encode_utf8_no_detect(text) }.tap do |result|
               result[:style] = style.to_s if style.set?
@@ -80,7 +80,8 @@ module Gitlab
         end
 
         def set_section_duration(duration_in_seconds)
-          duration = ActiveSupport::Duration.build(duration_in_seconds.to_i)
+          normalized_duration_in_seconds = duration_in_seconds.to_i.clamp(0, 1.year)
+          duration = ActiveSupport::Duration.build(normalized_duration_in_seconds)
           hours = duration.in_hours.floor
           hours = hours > 0 ? "%02d" % hours : nil
           minutes = "%02d" % duration.parts[:minutes].to_i

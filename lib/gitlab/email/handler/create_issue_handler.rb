@@ -36,8 +36,14 @@ module Gitlab
 
           validate_permission!(:create_issue)
 
+          result = create_issue
+          issue = result[:issue]
+
+          # issue won't be present only on unrecoverable errors
+          raise InvalidIssueError, result.errors.join(', ') if result.error? && issue.blank?
+
           verify_record!(
-            record: create_issue,
+            record: issue,
             invalid_exception: InvalidIssueError,
             record_name: 'issue')
         end
@@ -56,7 +62,7 @@ module Gitlab
 
         def create_issue
           ::Issues::CreateService.new(
-            project: project,
+            container: project,
             current_user: author,
             params: {
               title: mail.subject,
@@ -67,7 +73,7 @@ module Gitlab
         end
 
         def can_handle_legacy_format?
-          project_path && !incoming_email_token.include?('+') && !mail_key.include?(Gitlab::IncomingEmail::UNSUBSCRIBE_SUFFIX_LEGACY)
+          project_path && !incoming_email_token.include?('+') && !mail_key.include?(Gitlab::Email::Common::UNSUBSCRIBE_SUFFIX_LEGACY)
         end
       end
     end

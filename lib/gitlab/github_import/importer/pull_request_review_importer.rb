@@ -4,6 +4,9 @@ module Gitlab
   module GithubImport
     module Importer
       class PullRequestReviewImporter
+        # review - An instance of `Gitlab::GithubImport::Representation::PullRequestReview`
+        # project - An instance of `Project`
+        # client - An instance of `Gitlab::GithubImport::Client`
         def initialize(review, project, client)
           @review = review
           @project = project
@@ -13,11 +16,17 @@ module Gitlab
 
         def execute
           user_finder = GithubImport::UserFinder.new(project, client)
-          gitlab_user_id = user_finder.user_id_for(review.author)
+
+          gitlab_user_id = begin
+            user_finder.user_id_for(review.author)
+          rescue ::Octokit::NotFound
+            nil
+          end
 
           if gitlab_user_id
             add_review_note!(gitlab_user_id)
             add_approval!(gitlab_user_id)
+            add_reviewer!(gitlab_user_id)
           else
             add_complementary_review_note!(project.creator_id)
           end
@@ -94,6 +103,27 @@ module Gitlab
             add_approval_system_note!(user_id)
           end
         end
+
+        def add_reviewer!(user_id)
+          return if review_re_requested?(user_id)
+
+          ::MergeRequestReviewer.create!(
+            merge_request_id: merge_request.id,
+            user_id: user_id,
+            state: ::MergeRequestReviewer.states['reviewed'],
+            created_at: submitted_at
+          )
+        rescue ActiveRecord::RecordNotUnique
+          # multiple reviews from single person could make a SQL concurrency issue here
+          nil
+        end
+
+        # rubocop:disable CodeReuse/ActiveRecord
+        def review_re_requested?(user_id)
+          # records that were imported on previous stage with "unreviewed" status
+          MergeRequestReviewer.where(merge_request_id: merge_request.id, user_id: user_id).exists?
+        end
+        # rubocop:enable CodeReuse/ActiveRecord
 
         def add_approval_system_note!(user_id)
           attributes = note_attributes(

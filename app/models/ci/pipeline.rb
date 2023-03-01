@@ -2,6 +2,7 @@
 
 module Ci
   class Pipeline < Ci::ApplicationRecord
+    include Ci::Partitionable
     include Ci::HasStatus
     include Importable
     include AfterCommitQueue
@@ -31,7 +32,7 @@ module Ci
 
     sha_attribute :source_sha
     sha_attribute :target_sha
-
+    partitionable scope: ->(_) { Ci::Pipeline.current_partition_value }
     # Ci::CreatePipelineService returns Ci::Pipeline so this is the only place
     # where we can pass additional information from the service. This accessor
     # is used for storing the processed metadata for linting purposes.
@@ -111,6 +112,8 @@ module Ci
 
     has_one :pipeline_config, class_name: 'Ci::PipelineConfig', inverse_of: :pipeline
 
+    has_one :pipeline_metadata, class_name: 'Ci::PipelineMetadata', inverse_of: :pipeline
+
     has_many :daily_build_group_report_results, class_name: 'Ci::DailyBuildGroupReportResult', foreign_key: :last_pipeline_id
     has_many :latest_builds_report_results, through: :latest_builds, source: :report_results
     has_many :pipeline_artifacts, class_name: 'Ci::PipelineArtifact', inverse_of: :pipeline, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
@@ -118,6 +121,7 @@ module Ci
     accepts_nested_attributes_for :variables, reject_if: :persisted?
 
     delegate :full_path, to: :project, prefix: true
+    delegate :name, to: :pipeline_metadata, allow_nil: true
 
     validates :sha, presence: { unless: :importing? }
     validates :ref, presence: { unless: :importing? }
@@ -179,7 +183,11 @@ module Ci
       end
 
       event :succeed do
-        transition any - [:success] => :success
+        # A success pipeline can also be retried, for example; a pipeline with a failed manual job.
+        # When retrying the pipeline, the status of the pipeline is not changed because the failed
+        # manual job transitions to the `manual` status.
+        # More info: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/98967#note_1144718316
+        transition any => :success
       end
 
       event :cancel do
@@ -342,9 +350,13 @@ module Ci
     scope :for_sha_or_source_sha, -> (sha) { for_sha(sha).or(for_source_sha(sha)) }
     scope :for_ref, -> (ref) { where(ref: ref) }
     scope :for_branch, -> (branch) { for_ref(branch).where(tag: false) }
-    scope :for_id, -> (id) { where(id: id) }
     scope :for_iid, -> (iid) { where(iid: iid) }
     scope :for_project, -> (project_id) { where(project_id: project_id) }
+    scope :for_name, -> (name) do
+      name_column = Ci::PipelineMetadata.arel_table[:name]
+
+      joins(:pipeline_metadata).where(name_column.eq(name))
+    end
     scope :created_after, -> (time) { where(arel_table[:created_at].gt(time)) }
     scope :created_before_id, -> (id) { where(arel_table[:id].lt(id)) }
     scope :before_pipeline, -> (pipeline) { created_before_id(pipeline.id).outside_pipeline_family(pipeline) }
@@ -428,6 +440,10 @@ module Ci
     end
 
     def self.jobs_count_in_alive_pipelines
+      created_after(24.hours.ago).alive.joins(:statuses).count
+    end
+
+    def self.builds_count_in_alive_pipelines
       created_after(24.hours.ago).alive.joins(:builds).count
     end
 
@@ -476,6 +492,14 @@ module Ci
 
     def self.auto_devops_pipelines_completed_total
       @auto_devops_pipelines_completed_total ||= Gitlab::Metrics.counter(:auto_devops_pipelines_completed_total, 'Number of completed auto devops pipelines')
+    end
+
+    def self.current_partition_value
+      100
+    end
+
+    def self.object_hierarchy(relation, options = {})
+      ::Gitlab::Ci::PipelineObjectHierarchy.new(relation, options: options)
     end
 
     def uses_needs?
@@ -605,13 +629,22 @@ module Ci
     # auto_canceled_by_pipeline_id - store the pipeline_id of the pipeline that triggered cancellation
     # execute_async - if true cancel the children asyncronously
     def cancel_running(retries: 1, cascade_to_children: true, auto_canceled_by_pipeline_id: nil, execute_async: true)
+      Gitlab::AppJsonLogger.info(
+        event: 'pipeline_cancel_running',
+        pipeline_id: id,
+        auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id,
+        cascade_to_children: cascade_to_children,
+        execute_async: execute_async,
+        **Gitlab::ApplicationContext.current
+      )
+
       update(auto_canceled_by_id: auto_canceled_by_pipeline_id) if auto_canceled_by_pipeline_id
 
       cancel_jobs(cancelable_statuses, retries: retries, auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id)
 
       if cascade_to_children
         # cancel any bridges that could spin up new child pipelines
-        cancel_jobs(bridges_in_self_and_descendants.cancelable, retries: retries, auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id)
+        cancel_jobs(bridges_in_self_and_project_descendants.cancelable, retries: retries, auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id)
         cancel_children(auto_canceled_by_pipeline_id: auto_canceled_by_pipeline_id, execute_async: execute_async)
       end
     end
@@ -696,7 +729,7 @@ module Ci
 
     def freeze_period?
       strong_memoize(:freeze_period) do
-        Ci::FreezePeriodStatus.new(project: project).execute
+        project.freeze_periods.any?(&:active?)
       end
     end
 
@@ -751,8 +784,14 @@ module Ci
     # There is no ActiveRecord relation between Ci::Pipeline and notes
     # as they are related to a commit sha. This method helps importing
     # them using the +Gitlab::ImportExport::Project::RelationFactory+ class.
-    def notes=(notes)
-      notes.each do |note|
+    def notes=(notes_to_save)
+      notes_to_save.reject! do |note_to_save|
+        notes.any? do |note|
+          [note_to_save.note, note_to_save.created_at.to_i] == [note.note, note.created_at.to_i]
+        end
+      end
+
+      notes_to_save.each do |note|
         note[:id] = nil
         note[:commit_id] = sha
         note[:noteable_id] = self['id']
@@ -803,79 +842,6 @@ module Ci
 
         variables.append(key: 'CI_PIPELINE_ID', value: id.to_s)
         variables.append(key: 'CI_PIPELINE_URL', value: Gitlab::Routing.url_helpers.project_pipeline_url(project, self))
-      end
-    end
-
-    def predefined_variables
-      Gitlab::Ci::Variables::Collection.new.tap do |variables|
-        variables.append(key: 'CI_PIPELINE_IID', value: iid.to_s)
-        variables.append(key: 'CI_PIPELINE_SOURCE', value: source.to_s)
-        variables.append(key: 'CI_PIPELINE_CREATED_AT', value: created_at&.iso8601)
-
-        variables.concat(predefined_commit_variables)
-        variables.concat(predefined_merge_request_variables)
-
-        if open_merge_requests_refs.any?
-          variables.append(key: 'CI_OPEN_MERGE_REQUESTS', value: open_merge_requests_refs.join(','))
-        end
-
-        variables.append(key: 'CI_GITLAB_FIPS_MODE', value: 'true') if Gitlab::FIPS.enabled?
-
-        variables.append(key: 'CI_KUBERNETES_ACTIVE', value: 'true') if has_kubernetes_active?
-        variables.append(key: 'CI_DEPLOY_FREEZE', value: 'true') if freeze_period?
-
-        if external_pull_request_event? && external_pull_request
-          variables.concat(external_pull_request.predefined_variables)
-        end
-      end
-    end
-
-    def predefined_commit_variables
-      strong_memoize(:predefined_commit_variables) do
-        Gitlab::Ci::Variables::Collection.new.tap do |variables|
-          next variables unless sha.present?
-
-          variables.append(key: 'CI_COMMIT_SHA', value: sha)
-          variables.append(key: 'CI_COMMIT_SHORT_SHA', value: short_sha)
-          variables.append(key: 'CI_COMMIT_BEFORE_SHA', value: before_sha)
-          variables.append(key: 'CI_COMMIT_REF_NAME', value: source_ref)
-          variables.append(key: 'CI_COMMIT_REF_SLUG', value: source_ref_slug)
-          variables.append(key: 'CI_COMMIT_BRANCH', value: ref) if branch?
-          variables.append(key: 'CI_COMMIT_TAG', value: ref) if tag?
-          variables.append(key: 'CI_COMMIT_MESSAGE', value: git_commit_message.to_s)
-          variables.append(key: 'CI_COMMIT_TITLE', value: git_commit_full_title.to_s)
-          variables.append(key: 'CI_COMMIT_DESCRIPTION', value: git_commit_description.to_s)
-          variables.append(key: 'CI_COMMIT_REF_PROTECTED', value: (!!protected_ref?).to_s)
-          variables.append(key: 'CI_COMMIT_TIMESTAMP', value: git_commit_timestamp.to_s)
-          variables.append(key: 'CI_COMMIT_AUTHOR', value: git_author_full_text.to_s)
-
-          # legacy variables
-          variables.append(key: 'CI_BUILD_REF', value: sha)
-          variables.append(key: 'CI_BUILD_BEFORE_SHA', value: before_sha)
-          variables.append(key: 'CI_BUILD_REF_NAME', value: source_ref)
-          variables.append(key: 'CI_BUILD_REF_SLUG', value: source_ref_slug)
-          variables.append(key: 'CI_BUILD_TAG', value: ref) if tag?
-        end
-      end
-    end
-
-    def predefined_merge_request_variables
-      strong_memoize(:predefined_merge_request_variables) do
-        Gitlab::Ci::Variables::Collection.new.tap do |variables|
-          next variables unless merge_request?
-
-          variables.append(key: 'CI_MERGE_REQUEST_EVENT_TYPE', value: merge_request_event_type.to_s)
-          variables.append(key: 'CI_MERGE_REQUEST_SOURCE_BRANCH_SHA', value: source_sha.to_s)
-          variables.append(key: 'CI_MERGE_REQUEST_TARGET_BRANCH_SHA', value: target_sha.to_s)
-
-          diff = self.merge_request_diff
-          if diff.present?
-            variables.append(key: 'CI_MERGE_REQUEST_DIFF_ID', value: diff.id.to_s)
-            variables.append(key: 'CI_MERGE_REQUEST_DIFF_BASE_SHA', value: diff.base_commit_sha)
-          end
-
-          variables.concat(merge_request.predefined_variables)
-        end
       end
     end
 
@@ -943,28 +909,28 @@ module Ci
       ).base_and_descendants.select(:id)
     end
 
-    def build_with_artifacts_in_self_and_descendants(name)
-      builds_in_self_and_descendants
+    def build_with_artifacts_in_self_and_project_descendants(name)
+      builds_in_self_and_project_descendants
         .ordered_by_pipeline # find job in hierarchical order
         .with_downloadable_artifacts
         .find_by_name(name)
     end
 
-    def builds_in_self_and_descendants
-      Ci::Build.latest.where(pipeline: self_and_descendants)
+    def builds_in_self_and_project_descendants
+      Ci::Build.latest.where(pipeline: self_and_project_descendants)
     end
 
-    def bridges_in_self_and_descendants
-      Ci::Bridge.latest.where(pipeline: self_and_descendants)
+    def bridges_in_self_and_project_descendants
+      Ci::Bridge.latest.where(pipeline: self_and_project_descendants)
     end
 
-    def environments_in_self_and_descendants(deployment_status: nil)
+    def environments_in_self_and_project_descendants(deployment_status: nil)
       # We limit to 100 unique environments for application safety.
       # See: https://gitlab.com/gitlab-org/gitlab/-/issues/340781#note_699114700
       expanded_environment_names =
-        builds_in_self_and_descendants.joins(:metadata)
-                                      .where.not('ci_builds_metadata.expanded_environment_name' => nil)
-                                      .distinct('ci_builds_metadata.expanded_environment_name')
+        builds_in_self_and_project_descendants.joins(:metadata)
+                                      .where.not(Ci::BuildMetadata.table_name => { expanded_environment_name: nil })
+                                      .distinct("#{Ci::BuildMetadata.quoted_table_name}.expanded_environment_name")
                                       .limit(100)
                                       .pluck(:expanded_environment_name)
 
@@ -977,17 +943,22 @@ module Ci
     end
 
     # With multi-project and parent-child pipelines
-    def all_pipelines_in_hierarchy
+    def self_and_downstreams
+      object_hierarchy.base_and_descendants
+    end
+
+    # With multi-project and parent-child pipelines
+    def upstream_and_all_downstreams
       object_hierarchy.all_objects
     end
 
     # With only parent-child pipelines
-    def self_and_ancestors
+    def self_and_project_ancestors
       object_hierarchy(project_condition: :same).base_and_ancestors
     end
 
     # With only parent-child pipelines
-    def self_and_descendants
+    def self_and_project_descendants
       object_hierarchy(project_condition: :same).base_and_descendants
     end
 
@@ -996,8 +967,8 @@ module Ci
       object_hierarchy(project_condition: :same).descendants
     end
 
-    def self_and_descendants_complete?
-      self_and_descendants.all?(&:complete?)
+    def self_and_project_descendants_complete?
+      self_and_project_descendants.all?(&:complete?)
     end
 
     # Follow the parent-child relationships and return the top-level parent
@@ -1012,7 +983,12 @@ module Ci
     # Follow the upstream pipeline relationships, regardless of multi-project or
     # parent-child, and return the top-level ancestor.
     def upstream_root
-      object_hierarchy.base_and_ancestors(hierarchy_order: :desc).first
+      @upstream_root ||= object_hierarchy.base_and_ancestors(hierarchy_order: :desc).first
+    end
+
+    # Applies to all parent-child and multi-project pipelines
+    def complete_hierarchy_count
+      upstream_root.self_and_downstreams.count
     end
 
     def bridge_triggered?
@@ -1061,8 +1037,8 @@ module Ci
       latest_report_builds(Ci::JobArtifact.of_report_type(:test)).preload(:project, :metadata)
     end
 
-    def latest_report_builds_in_self_and_descendants(reports_scope = ::Ci::JobArtifact.all_reports)
-      builds_in_self_and_descendants.with_artifacts(reports_scope)
+    def latest_report_builds_in_self_and_project_descendants(reports_scope = ::Ci::JobArtifact.all_reports)
+      builds_in_self_and_project_descendants.with_artifacts(reports_scope)
     end
 
     def builds_with_coverage
@@ -1074,10 +1050,14 @@ module Ci
     end
 
     def has_reports?(reports_scope)
+      latest_report_builds(reports_scope).exists?
+    end
+
+    def complete_and_has_reports?(reports_scope)
       if Feature.enabled?(:mr_show_reports_immediately, project, type: :development)
         latest_report_builds(reports_scope).exists?
       else
-        complete? && latest_report_builds(reports_scope).exists?
+        complete? && has_reports?(reports_scope)
       end
     end
 
@@ -1090,7 +1070,7 @@ module Ci
     end
 
     def can_generate_codequality_reports?
-      has_reports?(Ci::JobArtifact.of_report_type(:codequality))
+      complete_and_has_reports?(Ci::JobArtifact.of_report_type(:codequality))
     end
 
     def test_report_summary
@@ -1137,6 +1117,10 @@ module Ci
 
     def has_exposed_artifacts?
       complete? && builds.latest.with_exposed_artifacts.exists?
+    end
+
+    def has_erasable_artifacts?
+      complete? && builds.latest.with_erasable_artifacts.exists?
     end
 
     def branch_updated?
@@ -1278,11 +1262,14 @@ module Ci
       persistent_ref.create
     end
 
+    # For dependent bridge jobs we reset the upstream bridge recursively
+    # to reflect that a downstream pipeline is running again
     def reset_source_bridge!(current_user)
+      # break recursion when no source_pipeline bridge (first upstream pipeline)
       return unless bridge_waiting?
+      return unless current_user.can?(:update_pipeline, source_bridge.pipeline)
 
-      source_bridge.pending!
-      Ci::AfterRequeueJobService.new(project, current_user).execute(source_bridge) # rubocop:disable CodeReuse/ServiceClass
+      Ci::EnqueueJobService.new(source_bridge, current_user: current_user).execute(&:pending!) # rubocop:disable CodeReuse/ServiceClass
     end
 
     # EE-only
@@ -1305,9 +1292,9 @@ module Ci
       self.builds.latest.build_matchers(project)
     end
 
-    def authorized_cluster_agents
-      strong_memoize(:authorized_cluster_agents) do
-        ::Clusters::AgentAuthorizationsFinder.new(project).execute.map(&:agent)
+    def cluster_agent_authorizations
+      strong_memoize(:cluster_agent_authorizations) do
+        ::Clusters::AgentAuthorizationsFinder.new(project).execute
       end
     end
 
@@ -1327,6 +1314,12 @@ module Ci
       return 0 unless created_at
 
       (Time.current - created_at).ceil / 60
+    end
+
+    def merge_request_diff
+      return unless merge_request?
+
+      merge_request.merge_request_diff_for(merge_request_diff_sha)
     end
 
     private
@@ -1379,12 +1372,6 @@ module Ci
       else
         sha
       end
-    end
-
-    def merge_request_diff
-      return unless merge_request?
-
-      merge_request.merge_request_diff_for(merge_request_diff_sha)
     end
 
     def push_details

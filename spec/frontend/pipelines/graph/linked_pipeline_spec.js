@@ -5,10 +5,10 @@ import { mount } from '@vue/test-utils';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
+import { TYPENAME_CI_PIPELINE } from '~/graphql_shared/constants';
 import { BV_HIDE_TOOLTIP } from '~/lib/utils/constants';
 import { ACTION_FAILURE, UPSTREAM, DOWNSTREAM } from '~/pipelines/components/graph/constants';
 import LinkedPipelineComponent from '~/pipelines/components/graph/linked_pipeline.vue';
-import { PIPELINE_GRAPHQL_TYPE } from '~/pipelines/constants';
 import CancelPipelineMutation from '~/pipelines/graphql/mutations/cancel_pipeline.mutation.graphql';
 import RetryPipelineMutation from '~/pipelines/graphql/mutations/retry_pipeline.mutation.graphql';
 import CiStatus from '~/vue_shared/components/ci_icon.vue';
@@ -36,13 +36,13 @@ describe('Linked pipeline', () => {
     type: UPSTREAM,
   };
 
-  const findButton = () => wrapper.find(GlButton);
+  const findButton = () => wrapper.findComponent(GlButton);
   const findCancelButton = () => wrapper.findByLabelText('Cancel downstream pipeline');
   const findCardTooltip = () => wrapper.findComponent(GlTooltip);
   const findDownstreamPipelineTitle = () => wrapper.findByTestId('downstream-title');
   const findExpandButton = () => wrapper.findByTestId('expand-pipeline-button');
-  const findLinkedPipeline = () => wrapper.find({ ref: 'linkedPipeline' });
-  const findLoadingIcon = () => wrapper.find(GlLoadingIcon);
+  const findLinkedPipeline = () => wrapper.findComponent({ ref: 'linkedPipeline' });
+  const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findPipelineLabel = () => wrapper.findByTestId('downstream-pipeline-label');
   const findPipelineLink = () => wrapper.findByTestId('pipelineLink');
   const findRetryButton = () => wrapper.findByLabelText('Retry downstream pipeline');
@@ -80,7 +80,7 @@ describe('Linked pipeline', () => {
     });
 
     it('should render an svg within the status container', () => {
-      const pipelineStatusElement = wrapper.find(CiStatus);
+      const pipelineStatusElement = wrapper.findComponent(CiStatus);
 
       expect(pipelineStatusElement.find('svg').exists()).toBe(true);
     });
@@ -90,7 +90,7 @@ describe('Linked pipeline', () => {
     });
 
     it('should have a ci-status child component', () => {
-      expect(wrapper.find(CiStatus).exists()).toBe(true);
+      expect(wrapper.findComponent(CiStatus).exists()).toBe(true);
     });
 
     it('should render the pipeline id', () => {
@@ -214,12 +214,12 @@ describe('Linked pipeline', () => {
                   await findRetryButton().trigger('click');
                 });
 
-                it('calls the retry mutation ', () => {
+                it('calls the retry mutation', () => {
                   expect(wrapper.vm.$apollo.mutate).toHaveBeenCalledTimes(1);
                   expect(wrapper.vm.$apollo.mutate).toHaveBeenCalledWith({
                     mutation: RetryPipelineMutation,
                     variables: {
-                      id: convertToGraphQLId(PIPELINE_GRAPHQL_TYPE, mockPipeline.id),
+                      id: convertToGraphQLId(TYPENAME_CI_PIPELINE, mockPipeline.id),
                     },
                   });
                 });
@@ -255,7 +255,7 @@ describe('Linked pipeline', () => {
               createWrapper({ propsData: cancelablePipeline });
             });
 
-            it('shows only the cancel button ', () => {
+            it('shows only the cancel button', () => {
               expect(findCancelButton().exists()).toBe(true);
               expect(findRetryButton().exists()).toBe(false);
             });
@@ -285,7 +285,7 @@ describe('Linked pipeline', () => {
                   expect(wrapper.vm.$apollo.mutate).toHaveBeenCalledWith({
                     mutation: CancelPipelineMutation,
                     variables: {
-                      id: convertToGraphQLId(PIPELINE_GRAPHQL_TYPE, mockPipeline.id),
+                      id: convertToGraphQLId(TYPENAME_CI_PIPELINE, mockPipeline.id),
                     },
                   });
                 });
@@ -375,7 +375,7 @@ describe('Linked pipeline', () => {
         ${'mouseover'}    | ${'mouseout'}
         ${'focus'}        | ${'blur'}
       `(
-        'applies the class on $activateEventName and removes it on $deactivateEventName ',
+        'applies the class on $activateEventName and removes it on $deactivateEventName',
         async ({ activateEventName, deactivateEventName }) => {
           const shadowClass = 'gl-shadow-none!';
 

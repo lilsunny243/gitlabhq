@@ -1,15 +1,17 @@
 import initArtifactsSettings from '~/artifacts_settings';
 import SecretValues from '~/behaviors/secret_values';
 import initSettingsPipelinesTriggers from '~/ci_settings_pipeline_triggers';
-import initVariableList from '~/ci_variable_list';
+import initVariableList from '~/ci/ci_variable_list';
 import initDeployFreeze from '~/deploy_freeze';
 import registrySettingsApp from '~/packages_and_registries/settings/project/registry_settings_bundle';
-import { initRunnerAwsDeployments } from '~/pages/shared/mount_runner_aws_deployments';
 import { initInstallRunner } from '~/pages/shared/mount_runner_instructions';
 import initSharedRunnersToggle from '~/projects/settings/mount_shared_runners_toggle';
+import initRefSwitcherBadges from '~/projects/settings/mount_ref_switcher_badges';
 import initSettingsPanels from '~/settings_panels';
 import { initTokenAccess } from '~/token_access';
 import { initCiSecureFiles } from '~/ci_secure_files';
+import initDeployTokens from '~/deploy_tokens';
+import { initProjectRunners } from '~/ci/runner/project_runners';
 
 // Initialize expandable settings panels
 initSettingsPanels();
@@ -34,12 +36,14 @@ document.querySelector('.js-toggle-extra-settings').addEventListener('click', (e
 });
 
 registrySettingsApp();
+initDeployTokens();
 initDeployFreeze();
-
 initSettingsPipelinesTriggers();
 initArtifactsSettings();
+
+initProjectRunners();
 initSharedRunnersToggle();
+initRefSwitcherBadges();
 initInstallRunner();
-initRunnerAwsDeployments();
 initTokenAccess();
 initCiSecureFiles();

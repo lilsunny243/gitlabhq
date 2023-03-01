@@ -9,31 +9,43 @@ module QA
         def self.included(base)
           super
 
-          base.view 'app/views/shared/groups/_search_form.html.haml' do
+          base.view 'app/assets/javascripts/groups/components/overview_tabs.vue' do
             element :groups_filter_field
           end
 
           base.view 'app/assets/javascripts/groups/components/groups.vue' do
             element :groups_list_tree_container
           end
+
+          base.view 'app/views/dashboard/_groups_head.html.haml' do
+            element :public_groups_tab
+          end
         end
 
         private
 
+        # Check if a group exists in private or public tab
+        # @param name [String] group name
+        # @return [Boolean] whether a group with given name exists
         def has_filtered_group?(name)
-          # Filter and submit to reload the page and only retrieve the filtered results
-          find_element(:groups_filter_field).set(name).send_keys(:return)
+          filter_group(name)
+          return true if page.has_link?(name, wait: 0) # element containing link to group
 
-          # Since we submitted after filtering, the presence of
-          # groups_list_tree_container means we have the complete filtered list
-          # of groups
-          has_element?(:groups_list_tree_container, wait: QA::Support::Repeater::DEFAULT_MAX_WAIT_TIME)
+          return false unless has_element?(:public_groups_tab, wait: 0)
 
-          # If there are no groups we'll know immediately because we filtered the list
-          return false if page.has_text?('No groups or projects matched your search', wait: 0)
-
-          # The name will be present as filter input so we check for a link, not text
+          # Check public groups
+          click_element(:public_groups_tab)
+          filter_group(name)
           page.has_link?(name, wait: 0)
+        end
+
+        # Filter by group name
+        # @param name [String] group name
+        # @return [Boolean] whether the filter returned any group
+        def filter_group(name)
+          fill_element(:groups_filter_field, name).send_keys(:return)
+          finished_loading?
+          has_element?(:groups_list_tree_container, wait: 1)
         end
       end
     end

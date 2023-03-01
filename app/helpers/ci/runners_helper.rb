@@ -63,6 +63,7 @@ module Ci
         # Runner install help page is external, located at
         # https://gitlab.com/gitlab-org/gitlab-runner
         runner_install_help_page: 'https://docs.gitlab.com/runner/install/',
+        new_runner_path: new_admin_runner_path,
         registration_token: Gitlab::CurrentSettings.runners_registration_token,
         online_contact_timeout_secs: ::Ci::Runner::ONLINE_CONTACT_TIMEOUT.to_i,
         stale_timeout_secs: ::Ci::Runner::STALE_TIMEOUT.to_i,
@@ -78,7 +79,7 @@ module Ci
         parent_shared_runners_setting: group.parent&.shared_runners_setting,
         runner_enabled_value: Namespace::SR_ENABLED,
         runner_disabled_value: Namespace::SR_DISABLED_AND_UNOVERRIDABLE,
-        runner_allow_override_value: Namespace::SR_DISABLED_WITH_OVERRIDE
+        runner_allow_override_value: Namespace::SR_DISABLED_AND_OVERRIDABLE
       }
     end
 
@@ -96,8 +97,8 @@ module Ci
 
     def toggle_shared_runners_settings_data(project)
       {
-        is_enabled: "#{project.shared_runners_enabled?}",
-        is_disabled_and_unoverridable: "#{project.group&.shared_runners_setting == Namespace::SR_DISABLED_AND_UNOVERRIDABLE}",
+        is_enabled: project.shared_runners_enabled?.to_s,
+        is_disabled_and_unoverridable: (project.group&.shared_runners_setting == Namespace::SR_DISABLED_AND_UNOVERRIDABLE).to_s,
         update_path: toggle_shared_runners_project_runners_path(project)
       }
     end

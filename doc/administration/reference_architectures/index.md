@@ -2,45 +2,21 @@
 type: reference, concepts
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Reference architectures **(FREE SELF)**
 
-You can set up GitLab on a single server or scale it up to serve many users.
-This page details the recommended Reference Architectures that were built and
-verified by the GitLab Quality and Support teams.
-
-Below is a chart representing each architecture tier and the number of users
-they can handle. As your number of users grow with time, it's recommended that
-you scale GitLab accordingly.
-
-![Reference Architectures](img/reference-architectures.png)
-<!-- Internal link: https://docs.google.com/spreadsheets/d/1obYP4fLKkVVDOljaI3-ozhmCiPtEeMblbBKkf2OADKs/edit#gid=1403207183 -->
-
-For GitLab instances with less than 2,000 users, it's recommended that you use
-the [default setup](#automated-backups) by
-[installing GitLab](../../install/index.md) on a single machine to minimize
-maintenance and resource costs.
-
-If your organization has more than 2,000 users, the recommendation is to scale the
-GitLab components to multiple machine nodes. The machine nodes are grouped by
-components. The addition of these nodes increases the performance and
-scalability of to your GitLab instance.
-
-When scaling GitLab, there are several factors to consider:
-
-- Multiple application nodes to handle frontend traffic.
-- A load balancer is added in front to distribute traffic across the application nodes.
-- The application nodes connects to a shared file server and PostgreSQL and Redis services on the backend.
+The GitLab Reference Architectures have been designed and tested by the
+GitLab Quality and Support teams to provide recommended deployments at scale.
 
 ## Available reference architectures
 
 Depending on your workflow, the following recommended reference architectures
 may need to be adapted accordingly. Your workload is influenced by factors
 including how active your users are, how much automation you use, mirroring,
-and repository/change size. Additionally the displayed memory values are
-provided by [GCP machine types](https://cloud.google.com/compute/docs/machine-types).
+and repository/change size. Additionally, the displayed memory values are
+provided by [GCP machine types](https://cloud.google.com/compute/docs/machine-resource).
 For different cloud vendors, attempt to select options that best match the
 provided architecture.
 
@@ -67,10 +43,303 @@ The following Cloud Native Hybrid reference architectures, where select recommen
 - [Up to 25,000 users](25k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative)
 - [Up to 50,000 users](50k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative)
 
-A GitLab [Premium or Ultimate](https://about.gitlab.com/pricing/#self-managed) license is required
-to get assistance from Support with troubleshooting the [2,000 users](2k_users.md)
-and higher reference architectures.
-[Read more about our definition of scaled architectures](https://about.gitlab.com/support/#definition-of-scaled-architecture).
+## Before you start
+
+The first choice to consider is whether a Self Managed approach is correct for you and your requirements.
+
+Running any application in production is complex, and the same applies for GitLab. While we aim to make this as smooth as possible, there are still the general complexities. This depends on the design chosen, but typically you'll need to manage all aspects such as hardware, operating systems, networking, storage, security, GitLab itself, and more.
+
+As such, it's recommended that you have a working knowledge of running applications in production when deciding on going down this route. For users who want a more managed solution it's recommended to instead explore our other offerings such as [GitLab SaaS](../../subscriptions/gitlab_com/index.md) or [GitLab Dedicated](../../subscriptions/gitlab_dedicated/index.md).
+
+## Deciding which architecture to use
+
+The Reference Architectures are designed to strike a balance between two important factors--performance and resilience.
+
+While they are designed to make it easier to set up GitLab at scale, it can still be a challenge to know which one meets your requirements.
+
+As a general guide, **the more performant and/or resilient you want your environment to be, the more complex it is**.
+
+This section explains the designs you can choose from. It begins with the least complexity, goes to the most, and ends with a decision tree.
+
+### Standalone (non-HA)
+
+For environments serving 2,000 or fewer users, we generally recommend a standalone approach by deploying a non-highly available single or multi-node environment. With this approach, you can employ strategies such as [automated backups](../../raketasks/backup_gitlab.md#configuring-cron-to-make-daily-backups) for recovery to provide a good level of RPO / RTO while avoiding the complexities that come with HA.
+
+*[RTO]: Recovery time objective
+*[RPO]: Recovery point objective
+
+With standalone setups, especially single node environments, there are [various options available for installation](../../install/index.md) and management including [the ability to deploy directly via select cloud provider marketplaces](https://page.gitlab.com/cloud-partner-marketplaces.html) that reduce the complexity a little further.
+
+### High Availability (HA)
+
+High Availability ensures every component in the GitLab setup can handle failures through various mechanisms. To achieve this however is complex, and the environments required can be sizable.
+
+For environments serving 3,000 or more users we generally recommend that a HA strategy is used as at this level outages have a bigger impact against more users. All the architectures in this range have HA built in by design for this reason.
+
+For users who still need to have HA for a lower number of users this can also be achieved with an adjusted [3K architecture](3k_users.md#supported-modifications-for-lower-user-counts-ha).
+
+#### Do you need High Availability (HA)?
+
+As mentioned above, achieving HA does come at a cost. The environment's required are sizable as each component needs to be multiplied, which comes with additional actual and maintenance costs.
+
+For a lot of our customers with fewer than 3,000 users, we've found a backup strategy is sufficient and even preferable. While this does have a slower recovery time, it also means you have a much smaller architecture and less maintenance costs as a result.
+
+In general then, we'd only recommend you employ HA in the following scenarios:
+
+- When you have 3,000 or more users.
+- When GitLab being down would critically impact your workflow.
+
+#### Zero Downtime Upgrades
+
+[Zero Downtime Upgrades](../../update/zero_downtime.md) are available for standard Reference Architecture environments with HA (Cloud Native Hybrid is not supported at this time). This allows for an environment to stay up during an upgrade, but the process is more complex as a result and has some limitations as detailed in the documentation.
+
+When going through this process it's worth noting that there may still be brief moments of downtime when the HA mechanisms tale effect.
+
+In most cases the downtime required for doing an upgrade in general shouldn't be substantial, so this is only recommended if it's a key requirement for you.
+
+### Cloud Native Hybrid (Kubernetes HA)
+
+As an additional layer of HA resilience you can deploy select components in Kubernetes, known as a Cloud Native Hybrid Reference Architecture.
+
+This is an alternative and more **advanced** setup compared to a standard Reference Architecture. Running services in Kubernetes is well known to be complex. **This setup is only recommended** if you have strong working knowledge and experience in Kubernetes.
+
+### GitLab Geo (Cross Regional Distribution / Disaster Recovery)
+
+With [GitLab Geo](../geo/index.md) you can have both distributed environments in different regions and a full Disaster Recovery (DR) setup in place. With this setup you would have 2 or more separate environments, with one being a primary that gets replicated to the others. In the rare event the primary site went down completely you could fail over to one of the other environments.
+
+This is an **advanced and complex** setup and should only be undertaken if you have DR as a key requirement. Decisions then on how each environment are configured would also need to be taken, such as if each environment itself would be the full size and / or have HA.
+
+### Cloud provider services
+
+For all the previously described strategies, you can run select GitLab components on equivalent cloud provider services such as the PostgreSQL database or Redis.
+
+[For more information, see the recommended cloud providers and services](#recommended-cloud-providers-and-services).
+
+### Decision Tree
+
+Below you can find the above guidance in the form of a decision tree. It's recommended you read through the above guidance in full first before though.
+
+```mermaid
+%%{init: { 'theme': 'base' } }%%
+graph TD
+   L1A(<b>What Reference Architecture should I use?</b>)
+
+   L2A(3,000 users or more?)
+   L2B(2,000 users or less?)
+
+   L3A("<a href=#do-you-need-high-availability-ha>Do you need HA?</a><br>(or Zero-Downtime Upgrades)")
+   L3B[Do you have experience with<br/>and want additional resilience<br/>with select components in Kubernetes?]
+
+   L4A><b>Recommendation</b><br><br>3K architecture with HA<br>and supported reductions]
+   L4B><b>Recommendation</b><br><br>Architecture closest to user<br>count with HA]
+   L4C><b>Recommendation</b><br><br>Cloud Native Hybrid architecture<br>closest to user count]
+   L4D>"<b>Recommendation</b><br><br>Standalone 1K or 2K<br/>architecture with Backups"]
+
+   L1A --> L2A
+   L1A --> L2B
+   L2A -->|Yes| L3B
+   L3B -->|Yes| L4C
+   L3B -->|No| L4B
+
+   L2B --> L3A
+   L3A -->|Yes| L4A
+   L3A -->|No| L4D
+
+   L5A("<a href=#gitlab-geo-cross-regional-distribution-disaster--recovery>Do you need cross regional distribution or disaster recovery?"</a>) --> |Yes| L6A><b>Additional Recommendation</b><br><br> GitLab Geo]
+   L4A -.- L5A
+   L4B -.- L5A
+   L4C -.- L5A
+   L4D -.- L5A
+
+classDef default fill:#FCA326
+linkStyle default fill:none,stroke:#7759C2
+```
+
+## Requirements
+
+Before implementing a reference architecture, refer to the following requirements and guidance.
+
+### Supported CPUs
+
+These reference architectures were built and tested on Google Cloud Platform (GCP) using the
+[Intel Xeon E5 v3 (Haswell)](https://cloud.google.com/compute/docs/cpu-platforms)
+CPU platform as a baseline ([Sysbench benchmark](https://gitlab.com/gitlab-org/quality/performance/-/wikis/Reference-Architectures/GCP-CPU-Benchmarks)).
+
+Newer, similarly-sized CPUs are supported and may have improved performance as a result. For Omnibus GitLab environments,
+ARM-based equivalents are also supported.
+
+NOTE:
+Any "burstable" instance types are not recommended due to inconsistent performance.
+
+### Supported infrastructure
+
+As a general guidance, GitLab should run on most infrastructure such as reputable Cloud Providers (AWS, GCP, Azure) and
+their services, or self managed (ESXi) that meet both:
+
+- The specifications detailed in each reference architecture.
+- Any requirements in this section.
+
+However, this does not constitute a guarantee for every potential permutation.
+
+See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+
+### Additional workloads
+
+These reference architectures have been [designed and tested](index.md#validation-and-test-results) for standard GitLab
+setups with good headroom in mind to cover most scenarios.
+
+However, additional workloads can multiply the impact of operations by triggering follow-up actions.
+You may need to adjust the suggested specifications to compensate if you use, for example:
+
+- Security software on the nodes.
+- Hundreds of concurrent CI jobs for [large repositories](../../ci/large_repositories/index.md).
+- Custom scripts that [run at high frequency](../logs/log_parsing.md#print-top-api-user-agents).
+- [Integrations](../../integration/index.md) in many large projects.
+- [Server hooks](../server_hooks.md).
+- [System hooks](../system_hooks.md).
+
+As a general rule, you should have robust monitoring in place to measure the impact of any additional workloads to
+inform any changes needed to be made.
+
+### No swap
+
+Swap is not recommended in the reference architectures. It's a failsafe that impacts performance greatly. The
+reference architectures are designed to have memory headroom to avoid needing swap.
+
+### Large repositories
+
+The relevant reference architectures were tested with repositories of varying sizes that follow best practices.
+
+However, large repositories or monorepos (several gigabytes or more) can **significantly** impact the performance
+of Git and in turn the environment itself if best practices aren't being followed such as not storing binary or blob
+files in LFS.
+
+Repositories are at the core of any environment and the consequences can be wide-ranging when they are not optimized.
+Some examples of this impact include:
+
+- [Git packing operations](https://git-scm.com/book/en/v2/Git-Internals-Packfiles) taking longer and consuming high CPU
+  and memory resources.
+- Git checkouts taking longer that affect both users and CI/CD pipelines alike.
+
+As such, large repositories come with notable cost and typically require more resources to handle, (significantly more
+in some cases). You should review large repositories to ensure they maintain good health and reduce their size wherever
+possible.
+
+NOTE:
+If best practices aren't followed and large repositories are present on the environment, increased Gitaly specs may be
+required to ensure stable performance.
+
+Refer to the [Managing large repositories documentation](../../user/project/repository/managing_large_repositories.md)
+for more information and guidance.
+
+### Praefect PostgreSQL
+
+[Praefect requires its own database server](../gitaly/praefect.md#postgresql) and
+that to achieve full High Availability, a third-party PostgreSQL database solution is required.
+
+We hope to offer a built in solutions for these restrictions in the future but, in the meantime, a non HA PostgreSQL server
+can be set up using Omnibus GitLab, the specifications reflect. Refer to the following issues for more information:
+
+- [`omnibus-gitlab#5919`](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/5919).
+- [`gitaly#3398`](https://gitlab.com/gitlab-org/gitaly/-/issues/3398).
+
+## Recommended cloud providers and services
+
+NOTE:
+The following lists are non-exhaustive. Generally, other cloud providers not listed
+here likely work with the same specs, but this hasn't been validated.
+Additionally, when it comes to other cloud provider services not listed here,
+it's advised to be cautious as each implementation can be notably different
+and should be tested thoroughly before production use.
+
+Through testing and real life usage, the Reference Architectures are validated and supported on the following cloud providers:
+
+<table>
+<thead>
+  <tr>
+    <th>Reference Architecture</th>
+    <th>GCP</th>
+    <th>AWS</th>
+    <th>Azure</th>
+    <th>Bare Metal</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>Omnibus</td>
+    <td>🟢</td>
+    <td>🟢</td>
+    <td>🟡<sup>1</sup></td>
+    <td>🟢</td>
+  </tr>
+  <tr>
+    <td>Cloud Native Hybrid</td>
+    <td>🟢</td>
+    <td>🟢</td>
+    <td></td>
+    <td></td>
+  </tr>
+</tbody>
+</table>
+
+1. We only recommend smaller setups (up to 2k) at this time on Azure due to performance issues at larger scales. See the [Recommendation Notes for Azure](#recommendation-notes-for-azure) section for more info.
+
+Additionally, the following cloud provider services are validated and supported for use as part of the Reference Architectures:
+
+<table>
+<thead>
+  <tr>
+    <th>Cloud Service</th>
+    <th>GCP</th>
+    <th>AWS</th>
+    <th>Bare Metal</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>Object Storage</td>
+    <td>🟢 &nbsp; <a href="https://cloud.google.com/storage" target="_blank">Cloud Storage</a></td>
+    <td>🟢 &nbsp; <a href="https://aws.amazon.com/s3/" target="_blank">S3</a></td>
+    <td>🟢 &nbsp; <a href="https://min.io/" target="_blank">MinIO</a></td>
+  </tr>
+  <tr>
+    <td>Database</td>
+    <td>🟢 &nbsp; <a href="https://cloud.google.com/sql" target="_blank" rel="noopener noreferrer">Cloud SQL</a></td>
+    <td>🟢 &nbsp; <a href="https://aws.amazon.com/rds/" target="_blank" rel="noopener noreferrer">RDS</a></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Redis</td>
+    <td></td>
+    <td>🟢 &nbsp; <a href="https://aws.amazon.com/elasticache/" target="_blank" rel="noopener noreferrer">ElastiCache</a></td>
+    <td></td>
+  </tr>
+</tbody>
+</table>
+
+### Recommendation notes for the database services
+
+When selecting a database service, it should run a standard, performant, and [supported version](../../install/requirements.md#postgresql-requirements) of PostgreSQL with the following features:
+
+- Read Replicas for [Database Load Balancing](../postgresql/database_load_balancing.md).
+- Cross Region replication for [GitLab Geo](../geo/index.md).
+
+Several cloud provider services are known not to support the above or have been found to have other issues and aren't recommended:
+
+- [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is incompatible and not supported. See [14.4.0](../../update/index.md#1440) for more details.
+- [Azure Database for PostgreSQL Single Server](https://azure.microsoft.com/en-gb/products/postgresql/#overview) (Single / Flexible) is **strongly not recommended** for use due to notable performance / stability issues or missing functionality. See [Recommendation Notes for Azure](#recommendation-notes-for-azure) for more details.
+- [Google AlloyDB](https://cloud.google.com/alloydb) and [Amazon RDS Multi-AZ DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html) have not been tested and are not recommended. Both solutions are specifically not expected to work with GitLab Geo.
+  - [Amazon RDS Multi-AZ DB instance](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html) is a separate product and is supported.
+
+### Recommendation notes for Azure
+
+Due to performance issues that we found with several key Azure services, we only recommend smaller architectures (up to 2k) to be deployed to Azure. For larger architectures, we recommend using another cloud provider.
+
+In addition to the above, you should be aware of the additional specific guidance for Azure:
+
+- **We outright strongly do not recommend [Azure Database for PostgreSQL Single Server](https://learn.microsoft.com/en-us/azure/postgresql/single-server/overview-single-server)** specifically due to significant performance and stability issues found. **For GitLab 14.0 and higher the service is not supported** due to it only supporting up to PostgreSQL 11.
+  - A new service, [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/) has been released. [Internal testing](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/91) has shown that it does look to perform as expected, but this hasn't been validated in production, so generally isn't recommended at this time. Additionally, as it's a new service, you may find that it's missing some functionality depending on your requirements.
+- [Azure Blob Storage](https://azure.microsoft.com/en-gb/products/storage/blobs/) has been found to have [performance limits that can impact production use at certain times](https://gitlab.com/gitlab-org/gitlab/-/issues/344861). However, this has only been seen in our largest architectures (25k+) so far.
 
 ## Validation and test results
 
@@ -93,11 +362,11 @@ Testing occurs against all reference architectures and cloud providers in an aut
 - The [GitLab Environment Toolkit](https://gitlab.com/gitlab-org/gitlab-environment-toolkit) for building the environments.
 - The [GitLab Performance Tool](https://gitlab.com/gitlab-org/quality/performance) for performance testing.
 
-Network latency on the test environments between components on all Cloud Providers were measured at <5ms. Note that this is shared as an observation and not as an implicit recommendation.
+Network latency on the test environments between components on all Cloud Providers were measured at <5 ms. This is shared as an observation and not as an implicit recommendation.
 
 We aim to have a "test smart" approach where architectures tested have a good range that can also apply to others. Testing focuses on 10k Omnibus on GCP as the testing has shown this is a good bellwether for the other architectures and cloud providers as well as Cloud Native Hybrids.
 
-The Standard Reference Architectures are designed to be platform agnostic, with everything being run on VMs via [Omnibus GitLab](https://docs.gitlab.com/omnibus/). While testing occurs primarily on GCP, ad-hoc testing has shown that they perform similarly on equivalently specced hardware on other Cloud Providers or if run on premises (bare-metal).
+The Standard Reference Architectures are designed to be platform-agnostic, with everything being run on VMs via [Omnibus GitLab](https://docs.gitlab.com/omnibus/). While testing occurs primarily on GCP, ad-hoc testing has shown that they perform similarly on hardware with equivalent specs on other Cloud Providers or if run on premises (bare-metal).
 
 Testing on these reference architectures is performed with the
 [GitLab Performance Tool](https://gitlab.com/gitlab-org/quality/performance)
@@ -111,14 +380,14 @@ per 1,000 users:
 - API: 20 RPS
 - Web: 2 RPS
 - Git (Pull): 2 RPS
-- Git (Push): 0.4 RPS (rounded to nearest integer)
+- Git (Push): 0.4 RPS (rounded to the nearest integer)
 
 ### How to interpret the results
 
 NOTE:
 Read our blog post on [how our QA team leverages GitLab performance testing tool](https://about.gitlab.com/blog/2020/02/18/how-were-building-up-performance-testing-of-gitlab/).
 
-Testing is done publicly and all results are shared.
+Testing is done publicly, and all results are shared.
 
 The following table details the testing done against the reference architectures along with the frequency and results. Additional testing is continuously evaluated, and the table is updated accordingly.
 
@@ -292,170 +561,6 @@ The following table details the cost to run the different reference architecture
   </tr>
 </table>
 
-## Recommended cloud providers and services
-
-NOTE:
-The following lists are non exhaustive. Generally, other cloud providers not listed
-here likely work with the same specs, but this hasn't been validated.
-Additionally, when it comes to other cloud provider services not listed here,
-it's advised to be cautious as each implementation can be notably different
-and should be tested thoroughly before production use.
-
-Through testing and real life usage, the Reference Architectures are validated and supported on the following cloud providers:
-
-<table>
-<thead>
-  <tr>
-    <th>Reference Architecture</th>
-    <th>GCP</th>
-    <th>AWS</th>
-    <th>Azure</th>
-    <th>Bare Metal</th>
-  </tr>
-</thead>
-<tbody>
-  <tr>
-    <td>Omnibus</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td>✅</td>
-  </tr>
-  <tr>
-    <td>Cloud Native Hybrid</td>
-    <td>✅</td>
-    <td>✅</td>
-    <td></td>
-    <td></td>
-  </tr>
-</tbody>
-</table>
-
-Additionally, the following cloud provider services are validated and supported for use as part of the Reference Architectures:
-
-<table>
-<thead>
-  <tr>
-    <th>Cloud Service</th>
-    <th>GCP</th>
-    <th>AWS</th>
-    <th>Bare Metal</th>
-  </tr>
-</thead>
-<tbody>
-  <tr>
-    <td>Object Storage</td>
-    <td>✅ &nbsp; <a href="https://cloud.google.com/storage" target="_blank">Cloud Storage</a></td>
-    <td>✅ &nbsp; <a href="https://aws.amazon.com/s3/" target="_blank">S3</a></td>
-    <td>✅ &nbsp; <a href="https://min.io/" target="_blank">MinIO</a></td>
-  </tr>
-  <tr>
-    <td>Database</td>
-    <td>✅ &nbsp; <a href="https://cloud.google.com/sql" target="_blank" rel="noopener noreferrer">Cloud SQL</a></td>
-    <td>✅ &nbsp; <a href="https://aws.amazon.com/rds/" target="_blank" rel="noopener noreferrer">RDS</a></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>Redis</td>
-    <td></td>
-    <td>✅ &nbsp; <a href="https://aws.amazon.com/elasticache/" target="_blank" rel="noopener noreferrer">ElastiCache</a></td>
-    <td></td>
-  </tr>
-</tbody>
-</table>
-
-The following specific cloud provider services have been found to have issues in terms of either functionality or performance. As such, they either have caveats that should be considered or are not recommended:
-
-- [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is incompatible. See [14.4.0](../../update/index.md#1440) for more details.
-- [Azure Blob Storage](https://azure.microsoft.com/en-gb/services/storage/blobs/) has been found to have performance limits that can impact production use at certain times. For larger Reference Architectures the service may not be sufficient for production use and an alternative is recommended for use instead.
-- [Azure Database for PostgreSQL Server](https://azure.microsoft.com/en-gb/services/postgresql/#overview) (Single / Flexible) is not recommended for use due to notable performance issues or missing functionality.
-
-NOTE:
-As a general rule we unfortunately don't recommend Azure Services at this time.
-If required, we advise thorough testing is done at your intended scale
-over a sustained period to validate if the service is suitable.
-
-## Availability Components
-
-GitLab comes with the following components for your use, listed from least to
-most complex:
-
-- [Automated backups](#automated-backups)
-- [Traffic load balancer](#traffic-load-balancer)
-- [Zero downtime updates](#zero-downtime-updates)
-- [Automated database failover](#automated-database-failover)
-- [Instance level replication with GitLab Geo](#instance-level-replication-with-gitlab-geo)
-
-As you implement these components, begin with a single server and then do
-backups. Only after completing the first server should you proceed to the next.
-
-Also, not implementing extra servers for GitLab doesn't necessarily mean that you have
-more downtime. Depending on your needs and experience level, single servers can
-have more actual perceived uptime for your users.
-
-### Automated backups
-
-> - Level of complexity: **Low**
-> - Required domain knowledge: PostgreSQL, GitLab configurations, Git
-
-This solution is appropriate for many teams that have the default GitLab installation.
-With automatic backups of the GitLab repositories, configuration, and the database,
-this can be an optimal solution if you don't have strict requirements.
-[Automated backups](../../raketasks/backup_gitlab.md#configuring-cron-to-make-daily-backups)
-is the least complex to setup. This provides a point-in-time recovery of a predetermined schedule.
-
-### Traffic load balancer **(PREMIUM SELF)**
-
-> - Level of complexity: **Medium**
-> - Required domain knowledge: HAProxy, shared storage, distributed systems
-
-This requires separating out GitLab into multiple application nodes with an added
-[load balancer](../load_balancer.md). The load balancer distributes traffic
-across GitLab application nodes. Meanwhile, each application node connects to a
-shared file server and database systems on the back end. This way, if one of the
-application servers fails, the workflow is not interrupted.
-[HAProxy](https://www.haproxy.org/) is recommended as the load balancer.
-
-With this added component you have a number of advantages compared
-to the default installation:
-
-- Increase the number of users.
-- Enable zero-downtime upgrades.
-- Increase availability.
-
-For more details on how to configure a traffic load balancer with GitLab, you can refer
-to any of the [available reference architectures](#available-reference-architectures) with more than 1,000 users.
-
-### Zero downtime updates **(PREMIUM SELF)**
-
-> - Level of complexity: **Medium**
-> - Required domain knowledge: PostgreSQL, HAProxy, shared storage, distributed systems
-
-GitLab supports [zero-downtime upgrades](../../update/zero_downtime.md).
-Single GitLab nodes can be updated with only a [few minutes of downtime](../../update/index.md#upgrade-based-on-installation-method).
-To avoid this, we recommend to separate GitLab into several application nodes.
-As long as at least one of each component is online and capable of handling the instance's usage load, your team's productivity is not interrupted during the update.
-
-### Automated database failover **(PREMIUM SELF)**
-
-> - Level of complexity: **High**
-> - Required domain knowledge: PgBouncer, Patroni, shared storage, distributed systems
-
-By adding automatic failover for database systems, you can enable higher uptime
-with additional database nodes. This extends the default database with
-cluster management and failover policies.
-[PgBouncer in conjunction with Patroni](../postgresql/replication_and_failover.md)
-is recommended.
-
-### Instance level replication with GitLab Geo **(PREMIUM SELF)**
-
-> - Level of complexity: **Very High**
-> - Required domain knowledge: Storage replication
-
-[GitLab Geo](../geo/index.md) allows you to replicate your GitLab
-instance to other geographical locations as a read-only fully operational instance
-that can also be promoted in case of disaster.
-
 ## Deviating from the suggested reference architectures
 
 As a general guideline, the further away you move from the Reference Architectures,
@@ -475,11 +580,3 @@ However, it is still an additional layer and may still add some support complexi
 Other technologies, like [Docker swarm](https://docs.docker.com/engine/swarm/)
 are not officially supported, but can be implemented at your own risk. In that
 case, GitLab Support is not able to help you.
-
-## Supported modifications for lower user count HA reference architectures
-
-The reference architectures for user counts [3,000](3k_users.md) and up support High Availability (HA).
-
-In the specific case you have the requirement to achieve HA but have a lower user count, select modifications to the [3,000 user](3k_users.md) architecture are supported.
-
-For more details, [refer to this section in the architecture's documentation](3k_users.md#supported-modifications-for-lower-user-counts-ha).

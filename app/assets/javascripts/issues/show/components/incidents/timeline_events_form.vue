@@ -1,9 +1,11 @@
 <script>
-import { GlDatepicker, GlFormInput, GlFormGroup, GlButton } from '@gitlab/ui';
+import { GlDatepicker, GlFormInput, GlFormGroup, GlButton, GlCollapsibleListbox } from '@gitlab/ui';
 import MarkdownField from '~/vue_shared/components/markdown/field.vue';
-import autofocusonshow from '~/vue_shared/directives/autofocusonshow';
-import { timelineFormI18n } from './constants';
-import { getUtcShiftedDate } from './utils';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { __, sprintf } from '~/locale';
+import TimelineEventsTagsPopover from './timeline_events_tags_popover.vue';
+import { MAX_TEXT_LENGTH, TIMELINE_EVENT_TAGS, timelineFormI18n } from './constants';
+import { getUtcShiftedDate, getPreviousEventTags } from './utils';
 
 export default {
   name: 'TimelineEventsForm',
@@ -15,21 +17,28 @@ export default {
     'task-list',
     'collapsible-section',
     'table',
+    'attach-file',
     'full-screen',
   ],
   components: {
     MarkdownField,
+    TimelineEventsTagsPopover,
     GlDatepicker,
     GlFormInput,
     GlFormGroup,
     GlButton,
+    GlCollapsibleListbox,
   },
+  mixins: [glFeatureFlagsMixin()],
   i18n: timelineFormI18n,
-  directives: {
-    autofocusonshow,
-  },
+  MAX_TEXT_LENGTH,
   props: {
     showSaveAndAdd: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    isEditing: {
       type: Boolean,
       required: false,
       default: false,
@@ -48,6 +57,16 @@ export default {
       required: false,
       default: '',
     },
+    previousTags: {
+      type: Array,
+      required: false,
+      default: () => [],
+    },
+    tags: {
+      type: Array,
+      required: false,
+      default: () => TIMELINE_EVENT_TAGS,
+    },
   },
   data() {
     // if occurredAt is null, returns "now" in UTC
@@ -55,13 +74,18 @@ export default {
 
     return {
       timelineText: this.previousNote,
+      timelineTextIsDirty: this.isEditing,
       placeholderDate,
       hourPickerInput: placeholderDate.getHours(),
       minutePickerInput: placeholderDate.getMinutes(),
       datePickerInput: placeholderDate,
+      selectedTags: getPreviousEventTags(this.previousTags),
     };
   },
   computed: {
+    isTimelineTextValid() {
+      return this.timelineTextCount > 0 && this.timelineTextRemainingCount >= 0;
+    },
     occurredAtString() {
       const year = this.datePickerInput.getFullYear();
       const month = this.datePickerInput.getMonth();
@@ -72,6 +96,26 @@ export default {
       );
 
       return utcDate.toISOString();
+    },
+    timelineTextRemainingCount() {
+      return MAX_TEXT_LENGTH - this.timelineTextCount;
+    },
+    timelineTextCount() {
+      return this.timelineText.length;
+    },
+    listboxText() {
+      if (!this.selectedTags.length) {
+        return timelineFormI18n.selectTags;
+      }
+
+      const listboxText =
+        this.selectedTags.length === 1
+          ? this.selectedTags[0]
+          : sprintf(__('%{numberOfSelectedTags} tags'), {
+              numberOfSelectedTags: this.selectedTags.length,
+            });
+
+      return listboxText;
     },
   },
   mounted() {
@@ -84,14 +128,35 @@ export default {
       this.hourPickerInput = newPlaceholderDate.getHours();
       this.minutePickerInput = newPlaceholderDate.getMinutes();
       this.timelineText = '';
+      this.selectedTags = [];
     },
     focusDate() {
-      this.$refs.datepicker.$el.querySelector('input').focus();
+      this.$refs.datepicker.$el.querySelector('input')?.focus();
+    },
+    setTimelineTextDirty() {
+      this.timelineTextIsDirty = true;
+    },
+    onTagsChange(tagValue) {
+      this.selectedTags = [...tagValue];
+
+      if (!this.timelineTextIsDirty) {
+        this.timelineText = this.generateTimelineTextFromTags(this.selectedTags);
+      }
+    },
+    generateTimelineTextFromTags(tags) {
+      if (!tags.length) {
+        return '';
+      }
+
+      const tagsMessage = tags.map((tag) => tag.toLocaleLowerCase()).join(', ');
+
+      return `${timelineFormI18n.areaDefaultMessage} ${tagsMessage}`;
     },
     handleSave(addAnotherEvent) {
       const event = {
         note: this.timelineText,
         occurredAt: this.occurredAtString,
+        timelineEventTags: this.selectedTags,
       };
       this.$emit('save-event', event, addAnotherEvent);
     },
@@ -101,11 +166,11 @@ export default {
 
 <template>
   <form class="gl-flex-grow-1 gl-border-gray-50">
-    <div class="gl-display-flex gl-flex-direction-column gl-sm-flex-direction-row">
-      <gl-form-group :label="__('Date')" class="gl-mt-5 gl-mr-5">
+    <div class="gl-display-flex gl-flex-direction-column gl-sm-flex-direction-row gl-mt-3">
+      <gl-form-group :label="__('Date')" class="gl-mr-5">
         <gl-datepicker id="incident-date" ref="datepicker" v-model="datePickerInput" />
       </gl-form-group>
-      <div class="gl-display-flex gl-mt-5">
+      <div class="gl-display-flex">
         <gl-form-group :label="__('Time')">
           <div class="gl-display-flex">
             <label label-for="timeline-input-hours" class="sr-only"></label>
@@ -134,6 +199,21 @@ export default {
         <p class="gl-ml-3 gl-align-self-end gl-line-height-32">{{ __('UTC') }}</p>
       </div>
     </div>
+    <gl-form-group v-if="glFeatures.incidentEventTags">
+      <label class="gl-display-flex gl-align-items-center gl-gap-3" for="timeline-input-tags">
+        {{ $options.i18n.tagsLabel }}
+        <timeline-events-tags-popover />
+      </label>
+      <gl-collapsible-listbox
+        id="timeline-input-tags"
+        :selected="selectedTags"
+        :toggle-text="listboxText"
+        :items="tags"
+        :is-check-centered="true"
+        :multiple="true"
+        @select="onTagsChange"
+      />
+    </gl-form-group>
     <div class="common-note-form">
       <gl-form-group class="gl-mb-3" :label="$options.i18n.areaLabel">
         <markdown-field
@@ -154,36 +234,63 @@ export default {
               dir="auto"
               data-supports-quick-actions="false"
               :aria-label="$options.i18n.description"
+              aria-describedby="timeline-form-hint"
               :placeholder="$options.i18n.areaPlaceholder"
+              :maxlength="$options.MAX_TEXT_LENGTH"
+              @input="setTimelineTextDirty"
             >
             </textarea>
+            <div id="timeline-form-hint" class="gl-sr-only">{{ $options.i18n.hint }}</div>
+            <div
+              aria-hidden="true"
+              class="gl-absolute gl-text-gray-500 gl-font-sm gl-line-height-14 gl-right-4 gl-bottom-3"
+            >
+              {{ timelineTextRemainingCount }}
+            </div>
+            <div role="status" class="gl-sr-only">
+              {{ $options.i18n.textRemaining(timelineTextRemainingCount) }}
+            </div>
           </template>
         </markdown-field>
       </gl-form-group>
     </div>
     <gl-form-group class="gl-mb-0">
-      <gl-button
-        variant="confirm"
-        category="primary"
-        class="gl-mr-3"
-        :loading="isEventProcessed"
-        @click="handleSave(false)"
-      >
-        {{ $options.i18n.save }}
-      </gl-button>
-      <gl-button
-        v-if="showSaveAndAdd"
-        variant="confirm"
-        category="secondary"
-        class="gl-mr-3 gl-ml-n2"
-        :loading="isEventProcessed"
-        @click="handleSave(true)"
-      >
-        {{ $options.i18n.saveAndAdd }}
-      </gl-button>
-      <gl-button class="gl-ml-n2" :disabled="isEventProcessed" @click="$emit('cancel')">
-        {{ $options.i18n.cancel }}
-      </gl-button>
+      <div class="gl-display-flex">
+        <gl-button
+          variant="confirm"
+          category="primary"
+          class="gl-mr-3"
+          data-testid="save-button"
+          :disabled="!isTimelineTextValid"
+          :loading="isEventProcessed"
+          @click="handleSave(false)"
+        >
+          {{ $options.i18n.save }}
+        </gl-button>
+        <gl-button
+          v-if="showSaveAndAdd"
+          variant="confirm"
+          category="secondary"
+          class="gl-mr-3 gl-ml-n2"
+          data-testid="save-and-add-button"
+          :disabled="!isTimelineTextValid"
+          :loading="isEventProcessed"
+          @click="handleSave(true)"
+        >
+          {{ $options.i18n.saveAndAdd }}
+        </gl-button>
+        <gl-button class="gl-ml-n2" :disabled="isEventProcessed" @click="$emit('cancel')">
+          {{ $options.i18n.cancel }}
+        </gl-button>
+        <gl-button
+          v-if="isEditing"
+          class="gl-ml-auto btn-danger"
+          :disabled="isEventProcessed"
+          @click="$emit('delete')"
+        >
+          {{ $options.i18n.delete }}
+        </gl-button>
+      </div>
       <div class="timeline-event-bottom-border"></div>
     </gl-form-group>
   </form>

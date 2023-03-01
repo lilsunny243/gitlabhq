@@ -9,19 +9,19 @@ export default {
     BoardListHeader,
     BoardList,
   },
-  inject: {
-    boardId: {
-      default: '',
-    },
-  },
+  inject: ['isApolloBoard'],
   props: {
     list: {
       type: Object,
       default: () => ({}),
       required: false,
     },
-    disabled: {
-      type: Boolean,
+    boardId: {
+      type: String,
+      required: true,
+    },
+    filters: {
+      type: Object,
       required: true,
     },
   },
@@ -32,16 +32,19 @@ export default {
       return this.highlightedLists.includes(this.list.id);
     },
     listItems() {
-      return this.getBoardItemsByList(this.list.id);
+      return this.isApolloBoard ? [] : this.getBoardItemsByList(this.list.id);
     },
     isListDraggable() {
       return isListDraggable(this.list);
+    },
+    filtersToUse() {
+      return this.isApolloBoard ? this.filters : this.filterParams;
     },
   },
   watch: {
     filterParams: {
       handler() {
-        if (this.list.id && !this.list.collapsed) {
+        if (!this.isApolloBoard && this.list.id && !this.list.collapsed) {
           this.fetchItemsForList({ listId: this.list.id });
         }
       },
@@ -50,7 +53,7 @@ export default {
     },
     'list.id': {
       handler(id) {
-        if (id) {
+        if (!this.isApolloBoard && id) {
           this.fetchItemsForList({ listId: this.list.id });
         }
       },
@@ -87,8 +90,14 @@ export default {
       class="board-inner gl-display-flex gl-flex-direction-column gl-relative gl-h-full gl-rounded-base gl-bg-gray-50"
       :class="{ 'board-column-highlighted': highlighted }"
     >
-      <board-list-header :list="list" :disabled="disabled" />
-      <board-list ref="board-list" :disabled="disabled" :board-items="listItems" :list="list" />
+      <board-list-header :list="list" :filter-params="filtersToUse" />
+      <board-list
+        ref="board-list"
+        :board-id="boardId"
+        :board-items="listItems"
+        :list="list"
+        :filter-params="filtersToUse"
+      />
     </div>
   </div>
 </template>

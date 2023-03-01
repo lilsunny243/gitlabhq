@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Proofread Translations
@@ -58,6 +58,7 @@ are very appreciative of the work done by translators and proofreaders!
 - French
   - Davy Defaud - [GitLab](https://gitlab.com/DevDef), [Crowdin](https://crowdin.com/profile/DevDef)
   - Germain Gorisse - [GitLab](https://gitlab.com/ggorisse), [Crowdin](https://crowdin.com/profile/germaingorisse)
+  - Xavier Delatour - [GitLab](https://gitlab.com/xdelatour), [Crowdin](https://crowdin.com/profile/xdelatour)
 - Galician
   - Antón Méixome - [Crowdin](https://crowdin.com/profile/meixome)
   - Pedro Garcia - [GitLab](https://gitlab.com/pedgarrod), [Crowdin](https://crowdin.com/profile/breaking_pitt)
@@ -65,6 +66,7 @@ are very appreciative of the work done by translators and proofreaders!
   - Michael Hahnle - [GitLab](https://gitlab.com/mhah), [Crowdin](https://crowdin.com/profile/mhah)
   - Katrin Leinweber - [GitLab](https://gitlab.com/katrinleinweber), [Crowdin](https://crowdin.com/profile/katrinleinweber)
   - Vladislav Wanner - [GitLab](https://gitlab.com/RumBugen), [Crowdin](https://crowdin.com/profile/RumBugen)
+  - Daniel Ziegenberg - [GitLab](https://gitlab.com/ziegenberg), [Crowdin](https://crowdin.com/profile/ziegenberg)
 - Greek
   - Proofreaders needed.
 - Hebrew
@@ -84,6 +86,7 @@ are very appreciative of the work done by translators and proofreaders!
   - Tomo Dote - [GitLab](https://gitlab.com/fu7mu4), [Crowdin](https://crowdin.com/profile/fu7mu4)
   - Hiromi Nozawa - [GitLab](https://gitlab.com/hir0mi), [Crowdin](https://crowdin.com/profile/hir0mi)
   - Takuya Noguchi - [GitLab](https://gitlab.com/tnir), [Crowdin](https://crowdin.com/profile/tnir)
+  - Tsukasa Komatsubara - [GitLab](https://gitlab.com/tkomatsubara), [Crowdin](https://crowdin.com/profile/tkomatsubara)
 - Korean
   - Chang-Ho Cha - [GitLab](https://gitlab.com/changho-cha), [Crowdin](https://crowdin.com/profile/zzazang)
   - Ji Hun Oh - [GitLab](https://gitlab.com/Baw-Appie), [Crowdin](https://crowdin.com/profile/BawAppie)
@@ -100,7 +103,7 @@ are very appreciative of the work done by translators and proofreaders!
 - Portuguese
   - Diogo Trindade - [GitLab](https://gitlab.com/luisdiogo2071317), [Crowdin](https://crowdin.com/profile/ldiogotrindade)
 - Portuguese, Brazilian
-  - Paulo George Gomes Bezerra - [GitLab](https://gitlab.com/paulobezerra), [Crowdin](https://crowdin.com/profile/paulogomes.rep)
+  - Paulo George Gomes Bezerra - [GitLab](https://gitlab.com/paulobezerra)
   - André Gama - [GitLab](https://gitlab.com/andregamma), [Crowdin](https://crowdin.com/profile/ToeOficial)
   - Eduardo Addad de Oliveira - [GitLab](https://gitlab.com/eduardoaddad), [Crowdin](https://crowdin.com/profile/eduardoaddad)
   - Horberlan Brito - [GitLab](https://gitlab.com/horberlan), [Crowdin](https://crowdin.com/profile/horberlan)

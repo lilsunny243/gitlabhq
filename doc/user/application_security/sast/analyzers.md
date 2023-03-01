@@ -1,7 +1,7 @@
 ---
 stage: Secure
 group: Static Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # SAST analyzers **(FREE)**
@@ -12,7 +12,7 @@ Static Application Security Testing (SAST) uses analyzers
 to detect vulnerabilities in source code. Each analyzer is a wrapper around a [scanner](../terminology/index.md#scanner), a third-party code analysis tool.
 
 The analyzers are published as Docker images that SAST uses to launch dedicated containers for each
-analysis.
+analysis. We recommend a minimum of 4 GB RAM to ensure consistent performance of the analyzers.
 
 SAST default images are maintained by GitLab, but you can also integrate your own custom image.
 
@@ -26,11 +26,8 @@ For each scanner, an analyzer:
 
 SAST supports the following official analyzers:
 
-- [`bandit`](https://gitlab.com/gitlab-org/security-products/analyzers/bandit) (Bandit)
 - [`brakeman`](https://gitlab.com/gitlab-org/security-products/analyzers/brakeman) (Brakeman)
-- [`eslint`](https://gitlab.com/gitlab-org/security-products/analyzers/eslint) (ESLint (JavaScript and React))
 - [`flawfinder`](https://gitlab.com/gitlab-org/security-products/analyzers/flawfinder) (Flawfinder)
-- [`gosec`](https://gitlab.com/gitlab-org/security-products/analyzers/gosec) (Gosec)
 - [`kubesec`](https://gitlab.com/gitlab-org/security-products/analyzers/kubesec) (Kubesec)
 - [`mobsf`](https://gitlab.com/gitlab-org/security-products/analyzers/mobsf) (MobSF (beta))
 - [`nodejs-scan`](https://gitlab.com/gitlab-org/security-products/analyzers/nodejs-scan) (NodeJsScan)
@@ -40,6 +37,12 @@ SAST supports the following official analyzers:
 - [`semgrep`](https://gitlab.com/gitlab-org/security-products/analyzers/semgrep) (Semgrep)
 - [`sobelow`](https://gitlab.com/gitlab-org/security-products/analyzers/sobelow) (Sobelow (Elixir Phoenix))
 - [`spotbugs`](https://gitlab.com/gitlab-org/security-products/analyzers/spotbugs) (SpotBugs with the Find Sec Bugs plugin (Ant, Gradle and wrapper, Grails, Maven and wrapper, SBT))
+
+SAST has used other analyzers in previous versions. These analyzers reached End of Support status and do not receive updates:
+
+- [`bandit`](https://gitlab.com/gitlab-org/security-products/analyzers/bandit) (Bandit); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) in GitLab 15.4. Replaced by the `semgrep` analyzer with GitLab-managed rules.
+- [`eslint`](https://gitlab.com/gitlab-org/security-products/analyzers/eslint) (ESLint (JavaScript and React)); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) in GitLab 15.4. Replaced by the `semgrep` analyzer with GitLab-managed rules.
+- [`gosec`](https://gitlab.com/gitlab-org/security-products/analyzers/gosec) (Gosec); [End of Support](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) in GitLab 15.4. Replaced by the `semgrep` analyzer with GitLab-managed rules.
 
 ## SAST analyzer features
 
@@ -70,12 +73,12 @@ GitLab maintains the analyzer and writes detection rules for it.
 
 If you use the [GitLab-managed CI/CD template](index.md#configuration), the Semgrep-based analyzer operates alongside other language-specific analyzers.
 It runs with GitLab-managed detection rules that mimic the other analyzers' detection rules.
-Work to remove language-specific analyzers and replace them with the Semgrep-based analyzer is tracked in [this epic](https://gitlab.com/groups/gitlab-org/-/epics/5245).
+Work to remove language-specific analyzers and replace them with the Semgrep-based analyzer is tracked in [epic 5245](https://gitlab.com/groups/gitlab-org/-/epics/5245). In case of duplicate findings, the [analyzer order](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/reports/security/scanner.rb#L15) determines which analyzer's findings are preferred.
 
 You can choose to disable the other analyzers early and use Semgrep-based scanning for supported languages before the default behavior changes. If you do so:
 
-- You'll enjoy significantly faster scanning, reduced CI minutes usage, and more customizable scanning rules.
-- However, vulnerabilities previously reported by language-specific analyzers will be reported again under certain conditions, including if you've dismissed the vulnerabilities before. The system behavior depends on:
+- You enjoy significantly faster scanning, reduced CI minutes usage, and more customizable scanning rules.
+- However, vulnerabilities previously reported by language-specific analyzers are reported again under certain conditions, including if you've dismissed the vulnerabilities before. The system behavior depends on:
   - whether you've excluded the Semgrep-based analyzer from running in the past.
   - which analyzer first discovered the vulnerabilities shown in the project's [Vulnerability Report](../vulnerability_report/index.md).
 
@@ -89,7 +92,7 @@ The Vulnerability Management system automatically moves vulnerabilities from the
 - For Go, a vulnerability is moved if it has only ever been detected by Gosec in pipelines where Semgrep also detected it. Semgrep coverage for Go was introduced by default into the CI/CD template in GitLab 14.2 (August 2021).
 - For JavaScript and TypeScript, a vulnerability is moved if it has only ever been detected by ESLint in pipelines where Semgrep also detected it. Semgrep coverage for these languages was introduced into the CI/CD template in GitLab 13.12 (May 2021).
 
-However, you'll see old vulnerabilities re-created based on Semgrep results if:
+However, old vulnerabilities re-created based on Semgrep results are visible if:
 
 - A vulnerability was created by Bandit or SpotBugs and you disable those analyzers. We only recommend disabling Bandit and SpotBugs now if the analyzers aren't working. Work to automatically translate Bandit and SpotBugs vulnerabilities to Semgrep is tracked in [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/328062).
 - A vulnerability was created by ESLint, Gosec, or Flawfinder in a default-branch pipeline where Semgrep scanning did not run successfully (before Semgrep coverage was introduced for the language, because you disabled Semgrep explicitly, or because the Semgrep scan failed in that pipeline). We do not currently plan to combine these vulnerabilities if they already exist.
@@ -116,39 +119,39 @@ To switch to Semgrep-based scanning early, you can:
 1. Create a merge request (MR) to set the [`SAST_EXCLUDED_ANALYZERS` CI/CD variable](#disable-specific-default-analyzers) to `"bandit,gosec,eslint"`.
     - If you also want to disable SpotBugs scanning, add `spotbugs` to the list. We only recommend this for Java projects. SpotBugs is the only current analyzer that can scan Groovy, Kotlin, and Scala.
     - If you also want to disable Flawfinder scanning, add `flawfinder` to the list. We only recommend this for C projects. Flawfinder is the only current analyzer that can scan C++.
-1. Verify that scanning jobs succeed in the MR. You'll notice findings from the removed analyzers in _Fixed_ and findings from Semgrep in _New_. (Some findings may show different names, descriptions, and severities, since GitLab manages and edits the Semgrep rulesets.)
+1. Verify that scanning jobs succeed in the MR. Findings from the removed analyzers are available in _Fixed_ and findings from Semgrep in _New_. (Some findings may show different names, descriptions, and severities, since GitLab manages and edits the Semgrep rulesets.)
 1. Merge the MR and wait for the default-branch pipeline to run.
 1. Use the Vulnerability Report to dismiss the findings that are no longer detected by the language-specific analyzers.
 
 #### Preview Semgrep-based scanning
 
-You can see how Semgrep-based scanning will work in your projects before the GitLab-managed Stable CI/CD template for SAST is updated.
+You can see how Semgrep-based scanning works in your projects before the GitLab-managed Stable CI/CD template for SAST is updated.
 We recommend that you test this change in a merge request but continue using the Stable template in your default branch pipeline configuration.
 
 In GitLab 15.3, we [activated a feature flag](https://gitlab.com/gitlab-org/gitlab/-/issues/362179) to migrate security findings on the default branch from other analyzers to Semgrep.
-We plan to [plan to remove the deprecated analyzers](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) from the Stable CI/CD template in GitLab 15.4.
+In GitLab 15.4, we [removed the deprecated analyzers](https://gitlab.com/gitlab-org/gitlab/-/issues/352554) from the Stable CI/CD template.
 
-To preview the upcoming changes to the CI/CD configuration:
+To preview the upcoming changes to the CI/CD configuration in GitLab 15.3 or earlier:
 
 1. Open an MR to switch from the Stable CI/CD template, `SAST.gitlab-ci.yaml`, to [the Latest template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/SAST.latest.gitlab-ci.yml), `SAST.latest.gitlab-ci.yaml`.
     - On GitLab.com, use the latest template directly:
 
       ```yaml
       include:
-        template: 'SAST.latest.gitlab-ci.yaml'
+        template: 'Jobs/SAST.latest.gitlab-ci.yaml'
       ```
 
     - On a Self-Managed instance, download the template from GitLab.com:
 
       ```yaml
       include:
-        remote: 'https://gitlab.com/gitlab-org/gitlab/-/blob/2851f4d5/lib/gitlab/ci/templates/Jobs/SAST.latest.gitlab-ci.yml'
+        remote: 'https://gitlab.com/gitlab-org/gitlab/-/raw/2851f4d5/lib/gitlab/ci/templates/Jobs/SAST.latest.gitlab-ci.yml'
       ```
 
-1. Verify that scanning jobs succeed in the MR. You'll notice findings from the removed analyzers in _Fixed_ and findings from Semgrep in _New_. (Some findings may show different names, descriptions, and severities, since GitLab manages and edits the Semgrep rulesets.)
+1. Verify that scanning jobs succeed in the MR. You notice findings from the removed analyzers in _Fixed_ and findings from Semgrep in _New_. (Some findings may show different names, descriptions, and severities, since GitLab manages and edits the Semgrep rulesets.)
 1. Close the MR.
 
-To learn more about Stable and Latest templates, see documentation on [CI/CD template versioning](../../../development/cicd/templates.md#versioning).
+For more information about Stable and Latest templates, see [CI/CD template versioning](../../../development/cicd/templates.md#versioning).
 
 ## Customize analyzers
 
@@ -169,8 +172,8 @@ This variable affects all Secure analyzers, not just the analyzers for SAST.
 To have GitLab download the analyzers' images from a custom Docker registry, define the prefix with
 the `SECURE_ANALYZERS_PREFIX` CI/CD variable.
 
-For example, the following instructs SAST to pull `my-docker-registry/gitlab-images/bandit` instead
-of `registry.gitlab.com/security-products/bandit`:
+For example, the following instructs SAST to pull `my-docker-registry/gitlab-images/semgrep` instead
+of `registry.gitlab.com/security-products/semgrep`:
 
 ```yaml
 include:
@@ -206,14 +209,14 @@ source code languages detected. However, you can disable select analyzers.
 To disable select analyzers, set the CI/CD variable `SAST_EXCLUDED_ANALYZERS` to a comma-delimited
 string listing the analyzers that you want to prevent running.
 
-For example, to disable the `eslint` analyzer:
+For example, to disable the `spotbugs` analyzer:
 
 ```yaml
 include:
   - template: Security/SAST.gitlab-ci.yml
 
 variables:
-  SAST_EXCLUDED_ANALYZERS: "eslint"
+  SAST_EXCLUDED_ANALYZERS: "spotbugs"
 ```
 
 ### Custom analyzers
@@ -249,25 +252,27 @@ Each analyzer provides data about the vulnerabilities it detects. The following 
 data available from each analyzer. The values provided by these tools are heterogeneous so they are sometimes
 normalized into common values, for example, `severity` and `confidence`.
 
-| Property / tool                | Apex | Bandit | Brakeman | ESLint security | SpotBugs | Flawfinder | Gosec | Kubesec Scanner | MobSF | NodeJsScan | PHP CS Security Audit | Security code Scan (.NET) | Semgrep | Sobelow |
+| Property / tool                | Apex | Bandit<sup>1</sup> | Brakeman | ESLint security<sup>1</sup> | SpotBugs | Flawfinder | Gosec<sup>1</sup> | Kubesec Scanner | MobSF | NodeJsScan | PHP CS Security Audit | Security code Scan (.NET) | Semgrep | Sobelow |
 |--------------------------------|------|--------|----------|-----------------|----------|------------|-------|-----------------|-------|------------|-----------------------|---------------------------|---------|---------|
 | Affected item (for example, class or package) | ✓ | ✗ | ✓ | ✗               | ✓        | ✓          | ✗     | ✓               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
-| Confidence                     | ✗    | ✓      | ✓        | ✗               | ✓        | x          | ✓     | ✓               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✓       |
-| Description                    | ✓    | ✗      | ✗        | ✓               | ✓        | ✗          | ✗     | ✓               | ✓     | ✓          | ✗                     | ✗                         | ✓       | ✓       |
-| End column                     | ✓    | ✗      | ✗        | ✓               | ✓        | ✗          | ✗     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
-| End line                       | ✓    | ✓      | ✗        | ✓               | ✓        | ✗          | ✗     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
-| External ID (for example, CVE) | ✗    | ✗      | ⚠        | ✗               | ⚠        | ✓          | ✗     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✗       |
-| File                           | ✓    | ✓      | ✓        | ✓               | ✓        | ✓          | ✓     | ✓               | ✓     | ✓          | ✓                     | ✓                         | ✓       | ✓       |
-| Internal doc/explanation       | ✓    | ⚠      | ✓        | ✗               | ✓        | ✗          | ✗     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✓       |
-| Internal ID                    | ✓    | ✓      | ✓        | ✓               | ✓        | ✓          | ✓     | ✗               | ✗     | ✗          | ✓                     | ✓                         | ✓       | ✓       |
-| Severity                       | ✓    | ✓      | ✓        | ✓               | ✓        | ✓          | ✓     | ✓               | ✓     | ✓          | ✓                     | ✗                         | ⚠       | ✗       |
-| Solution                       | ✓    | ✗      | ✗        | ✗               | ⚠        | ✓          | ✗     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✗       |
-| Source code extract            | ✗    | ✓      | ✓        | ✓               | ✗        | ✓          | ✓     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
-| Start column                   | ✓    | ✗      | ✗        | ✓               | ✓        | ✓          | ✓     | ✗               | ✗     | ✗          | ✓                     | ✓                         | ✓       | ✗       |
-| Start line                     | ✓    | ✓      | ✓        | ✓               | ✓        | ✓          | ✓     | ✗               | ✓     | ✓          | ✓                     | ✓                         | ✓       | ✓       |
-| Title                          | ✓    | ✓      | ✓        | ✓               | ✓        | ✓          | ✓     | ✓               | ✓     | ✓          | ✓                     | ✓                         | ✓       | ✓       |
-| URLs                           | ✓    | ✗      | ✓        | ✗               | ⚠        | ✗          | ⚠     | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
+| Confidence                     | ✗    | ✓                  | ✓        | ✗                           | ✓        | x          | ✓                 | ✓               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✓       |
+| Description                    | ✓    | ✗                  | ✗        | ✓                           | ✓        | ✗          | ✗                 | ✓               | ✓     | ✓          | ✗                     | ✗                         | ✓       | ✓       |
+| End column                     | ✓    | ✗                  | ✗        | ✓                           | ✓        | ✗          | ✗                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
+| End line                       | ✓    | ✓                  | ✗        | ✓                           | ✓        | ✗          | ✗                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
+| External ID (for example, CVE) | ✗    | ✗                  | ⚠        | ✗                           | ⚠        | ✓          | ✗                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✗       |
+| File                           | ✓    | ✓                  | ✓        | ✓                           | ✓        | ✓          | ✓                 | ✓               | ✓     | ✓          | ✓                     | ✓                         | ✓       | ✓       |
+| Internal doc/explanation       | ✓    | ⚠                  | ✓        | ✗                           | ✓        | ✗          | ✗                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✓       |
+| Internal ID                    | ✓    | ✓                  | ✓        | ✓                           | ✓        | ✓          | ✓                 | ✗               | ✗     | ✗          | ✓                     | ✓                         | ✓       | ✓       |
+| Severity                       | ✓    | ✓                  | ✓        | ✓                           | ✓        | ✓          | ✓                 | ✓               | ✓     | ✓          | ✓                     | ✗                         | ⚠       | ✗       |
+| Solution                       | ✓    | ✗                  | ✗        | ✗                           | ⚠        | ✓          | ✗                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ⚠       | ✗       |
+| Source code extract            | ✗    | ✓                  | ✓        | ✓                           | ✗        | ✓          | ✓                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
+| Start column                   | ✓    | ✗                  | ✗        | ✓                           | ✓        | ✓          | ✓                 | ✗               | ✗     | ✗          | ✓                     | ✓                         | ✓       | ✗       |
+| Start line                     | ✓    | ✓                  | ✓        | ✓                           | ✓        | ✓          | ✓                 | ✗               | ✓     | ✓          | ✓                     | ✓                         | ✓       | ✓       |
+| Title                          | ✓    | ✓                  | ✓        | ✓                           | ✓        | ✓          | ✓                 | ✓               | ✓     | ✓          | ✓                     | ✓                         | ✓       | ✓       |
+| URLs                           | ✓    | ✗                  | ✓        | ✗                           | ⚠        | ✗          | ⚠                 | ✗               | ✗     | ✗          | ✗                     | ✗                         | ✗       | ✗       |
 
 - ✓ => Data is available.
 - ⚠ => Data is available, but it's partially reliable, or it has to be extracted from unstructured content.
 - ✗ => Data is not available or it would require specific, inefficient or unreliable, logic to obtain it.
+
+1. This analyzer has reached [End of Support](https://about.gitlab.com/handbook/product/gitlab-the-product/#end-of-support). For more information, see the [SAST analyzers](#sast-analyzers) section.

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class CommitStatus < Ci::ApplicationRecord
+  include Ci::Partitionable
   include Ci::HasStatus
   include Importable
   include AfterCommitQueue
@@ -10,6 +11,7 @@ class CommitStatus < Ci::ApplicationRecord
   include TaggableQueries
 
   self.table_name = 'ci_builds'
+  partitionable scope: :pipeline
 
   belongs_to :user
   belongs_to :project
@@ -19,7 +21,12 @@ class CommitStatus < Ci::ApplicationRecord
 
   has_many :needs, class_name: 'Ci::BuildNeed', foreign_key: :build_id, inverse_of: :build
 
+  attribute :retried, default: false
+
   enum scheduling_type: { stage: 0, dag: 1 }, _prefix: true
+  # We use `Enums::Ci::CommitStatus.failure_reasons` here so that EE can more easily
+  # extend this `Hash` with new values.
+  enum_with_nil failure_reason: Enums::Ci::CommitStatus.failure_reasons
 
   delegate :commit, to: :pipeline
   delegate :sha, :short_sha, :before_sha, to: :pipeline
@@ -64,6 +71,7 @@ class CommitStatus < Ci::ApplicationRecord
   scope :scheduled_at_before, ->(date) {
     where('ci_builds.scheduled_at IS NOT NULL AND ci_builds.scheduled_at < ?', date)
   }
+  scope :with_when_executed, ->(when_executed) { where(when: when_executed) }
 
   # The scope applies `pluck` to split the queries. Use with care.
   scope :for_project_paths, -> (paths) do
@@ -94,18 +102,14 @@ class CommitStatus < Ci::ApplicationRecord
     merge(or_conditions)
   end
 
-  # We use `Enums::Ci::CommitStatus.failure_reasons` here so that EE can more easily
-  # extend this `Hash` with new values.
-  enum_with_nil failure_reason: Enums::Ci::CommitStatus.failure_reasons
-
-  default_value_for :retried, false
-
   ##
   # We still create some CommitStatuses outside of CreatePipelineService.
   #
   # These are pages deployments and external statuses.
   #
   before_create unless: :importing? do
+    next if Feature.enabled?(:ci_remove_ensure_stage_service, project)
+
     # rubocop: disable CodeReuse/ServiceClass
     Ci::EnsureStageService.new(project, user).execute(self) do |stage|
       self.run_after_commit { StageUpdateWorker.perform_async(stage.id) }
@@ -317,11 +321,7 @@ class CommitStatus < Ci::ApplicationRecord
   end
 
   def stage_name
-    if Feature.enabled?(:ci_read_stage_records, project)
-      ci_stage&.name
-    else
-      stage
-    end
+    ci_stage&.name
   end
 
   private

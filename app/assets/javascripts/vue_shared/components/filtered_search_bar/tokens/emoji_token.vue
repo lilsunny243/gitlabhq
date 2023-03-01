@@ -1,9 +1,9 @@
 <script>
 import { GlFilteredSearchSuggestion } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { __ } from '~/locale';
 import BaseToken from '~/vue_shared/components/filtered_search_bar/tokens/base_token.vue';
-import { DEFAULT_NONE_ANY } from '../constants';
+import { OPTIONS_NONE_ANY } from '../constants';
 import { stripQuotes } from '../filtered_search_utils';
 
 export default {
@@ -33,7 +33,7 @@ export default {
   },
   computed: {
     defaultEmojis() {
-      return this.config.defaultEmojis || DEFAULT_NONE_ANY;
+      return this.config.defaultEmojis || OPTIONS_NONE_ANY;
     },
   },
   methods: {
@@ -48,7 +48,7 @@ export default {
           this.emojis = Array.isArray(response) ? response : response.data;
         })
         .catch(() => {
-          createFlash({ message: __('There was a problem fetching emojis.') });
+          createAlert({ message: __('There was a problem fetching emojis.') });
         })
         .finally(() => {
           this.loading = false;
@@ -67,6 +67,7 @@ export default {
     :suggestions="emojis"
     :suggestions-loading="loading"
     :get-active-token-value="getActiveEmoji"
+    value-identifier="name"
     v-bind="$attrs"
     @fetch-suggestions="fetchEmojis"
     v-on="$listeners"

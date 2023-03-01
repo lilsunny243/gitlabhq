@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
 description: "Documentation on Git file history."
 ---
@@ -12,7 +12,7 @@ Git file History provides information about the commit history associated
 with a file. To use it:
 
 1. Go to your project's **Repository > Files**.
-1. In the upper right corner, select **History**.
+1. In the upper-right corner, select **History**.
 
 When you select **History**, this information is displayed:
 
@@ -20,6 +20,10 @@ When you select **History**, this information is displayed:
 
 If you hover over a commit in the UI, the precise date and time of the commit modification
 are shown.
+
+The name and email information provided are retrieved from the
+[Git configuration](https://git-scm.com/book/en/v2/Customizing-Git-Git-Configuration)
+of the contributor when a commit is made.
 
 ## Associated `git` command
 

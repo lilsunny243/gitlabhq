@@ -35,10 +35,7 @@ module Milestones
 
     # rubocop: disable CodeReuse/ActiveRecord
     def milestones_to_transfer
-      Milestone.from_union([
-          group_milestones_applied_to_issues,
-          group_milestones_applied_to_merge_requests
-        ])
+      Milestone.from_union([group_milestones_applied_to_issues, group_milestones_applied_to_merge_requests])
         .reorder(nil)
         .distinct
     end
@@ -65,7 +62,7 @@ module Milestones
     # rubocop: enable CodeReuse/ActiveRecord
 
     def find_or_create_milestone(milestone)
-      params = milestone.attributes.slice('title', 'description', 'start_date', 'due_date')
+      params = milestone.attributes.slice('title', 'description', 'start_date', 'due_date', 'state')
 
       FindOrCreateService.new(project, current_user, params).execute
     end

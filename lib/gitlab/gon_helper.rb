@@ -15,10 +15,19 @@ module Gitlab
       gon.relative_url_root       = Gitlab.config.gitlab.relative_url_root
       gon.user_color_scheme       = Gitlab::ColorSchemes.for_user(current_user).css_class
       gon.markdown_surround_selection = current_user&.markdown_surround_selection
+      gon.markdown_automatic_lists = current_user&.markdown_automatic_lists
 
       if Gitlab.config.sentry.enabled
-        gon.sentry_dsn           = Gitlab.config.sentry.clientside_dsn
-        gon.sentry_environment   = Gitlab.config.sentry.environment
+        gon.sentry_dsn         = Gitlab.config.sentry.clientside_dsn
+        gon.sentry_environment = Gitlab.config.sentry.environment
+      end
+
+      # Support for Sentry setup via configuration files will be removed in 16.0
+      # in favor of Gitlab::CurrentSettings.
+      if Feature.enabled?(:enable_new_sentry_clientside_integration,
+                          current_user) && Gitlab::CurrentSettings.sentry_enabled
+        gon.sentry_dsn           = Gitlab::CurrentSettings.sentry_clientside_dsn
+        gon.sentry_environment   = Gitlab::CurrentSettings.sentry_environment
       end
 
       gon.recaptcha_api_server_url = ::Recaptcha.configuration.api_server_url
@@ -31,7 +40,7 @@ module Gitlab
       gon.sprite_icons           = IconsHelper.sprite_icon_path
       gon.sprite_file_icons      = IconsHelper.sprite_file_icons_path
       gon.emoji_sprites_css_path = ActionController::Base.helpers.stylesheet_path('emoji_sprites')
-      gon.select2_css_path       = ActionController::Base.helpers.stylesheet_path('lazy_bundles/select2.css')
+      gon.gridstack_css_path     = ActionController::Base.helpers.stylesheet_path('lazy_bundles/gridstack.css')
       gon.test_env               = Rails.env.test?
       gon.disable_animations     = Gitlab.config.gitlab['disable_animations']
       gon.suggested_label_colors = LabelsHelper.suggested_colors
@@ -47,6 +56,7 @@ module Gitlab
         gon.current_user_fullname = current_user.name
         gon.current_user_avatar_url = current_user.avatar_url
         gon.time_display_relative = current_user.time_display_relative
+        gon.use_new_navigation = Feature.enabled?(:super_sidebar_nav, current_user) && current_user&.use_new_navigation
       end
 
       # Initialize gon.features with any flags that should be
@@ -55,7 +65,8 @@ module Gitlab
       push_frontend_feature_flag(:security_auto_fix)
       push_frontend_feature_flag(:new_header_search)
       push_frontend_feature_flag(:source_editor_toolbar)
-      push_frontend_feature_flag(:gl_avatar_for_all_user_avatars)
+      push_frontend_feature_flag(:vscode_web_ide, current_user)
+      push_frontend_feature_flag(:full_path_project_search, current_user)
     end
 
     # Exposes the state of a feature flag to the frontend code.

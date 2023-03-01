@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # SaaS runners on macOS (Beta) **(PREMIUM SAAS)**
@@ -14,17 +14,15 @@ Use these runners to build, test, and deploy apps for the Apple ecosystem (macOS
 of all the capabilities of the GitLab single DevOps platform and not have to manage or operate a
 build environment.
 
-CI/CD minutes used on GitLab SaaS macOS runners are included in your CI/CD minute consumption totals. CI jobs that run on macOS **will** consume CI minutes at a faster rate than CI jobs on the GitLab SaaS runners on Linux.
-
-Refer to the CI/CD minutes [cost factor](../../../ci/pipelines/cicd_minutes.md#cost-factor) for the cost factor applied to the GitLab SaaS macOS runners.
-
-Jobs handled by macOS shared runners on GitLab.com **time out after 2 hours**, regardless of the timeout configured in a project.
+Jobs handled by macOS shared runners on GitLab.com **time out after 3 hours**, regardless of the timeout configured in a project.
 
 ## Access request process
 
-While in beta, to run CI jobs on the macOS runners, GitLab SaaS customer namespaces must be explicitly added to the macOS `allow-list`.
+While in beta, to run CI jobs on the macOS runners, you must specify the GitLab SaaS customer personal or group [namespaces](../../../user/namespace/index.md) in the macOS `allow-list`. These are the namespaces that use the macOS runners.
 
-After you have been added, you can use the macOS runners for any projects in your namespace.
+When you specify a personal or group namespace, the top level group is not added unless you specify it.
+
+After you add your namespace, you can use the macOS runners for any projects under the namespace you included.
 
 To request access, open an [access request](https://gitlab.com/gitlab-com/runner-saas-macos-limited-availability/-/issues/new).
 The expected turnaround for activation is two business days.
@@ -86,3 +84,4 @@ In SaaS runners on macOS, the objective is to make 90% of CI jobs start executin
 
 - If the VM image does not include the specific software version you need for your job, then the job execution time will increase as the required software needs to be fetched and installed.
 - At this time, it is not possible to bring your own OS image.
+- The keychain for user `gitlab` is not publicly available. You must create a keychain instead.

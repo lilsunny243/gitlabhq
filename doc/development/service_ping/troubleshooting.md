@@ -1,7 +1,7 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Service Ping
@@ -30,7 +30,7 @@ For results about an investigation conducted into an unexpected drop in Service 
 
 Check if the [export jobs](https://gitlab.com/gitlab-services/version-gitlab-com#data-export-using-pipeline-schedules) are successful.
 
-Check [Service Ping errors](https://app.periscopedata.com/app/gitlab/968489/Product-Intelligence---Service-Ping-Health?widget=14609989&udv=0) in the [Service Ping Health Dahsboard](https://app.periscopedata.com/app/gitlab/968489/Product-Intelligence---Service-Ping-Health).
+Check [Service Ping errors](https://app.periscopedata.com/app/gitlab/968489/Product-Intelligence---Service-Ping-Health?widget=14609989&udv=0) in the [Service Ping Health Dashboard](https://app.periscopedata.com/app/gitlab/968489/Product-Intelligence---Service-Ping-Health).
 
 ### Troubleshoot Google Storage layer
 
@@ -58,7 +58,7 @@ checking the configuration file of your GitLab instance:
 
 - Using the Admin Area:
 
-  1. On the top bar, select **Menu > Admin**.
+  1. On the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Settings > Metrics and profiling**.
   1. Expand **Usage Statistics**.
   1. Are you able to check or uncheck the checkbox to disable Service Ping?
@@ -115,8 +115,50 @@ To work around this bug, you have two options:
      sudo gitlab-ctl reconfigure
      ```
 
-  1. In GitLab, on the top bar, select **Menu > Admin**.
+  1. In GitLab, on the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Settings > Metrics and profiling**.
   1. Expand **Usage Statistics**.
   1. Clear the **Enable Service Ping** checkbox.
   1. Select **Save Changes**.
+
+## Generate Service Ping
+
+### Generate or get the cached Service Ping in rails console
+
+Use the following method in the [rails console](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+```ruby
+Gitlab::Usage::ServicePingReport.for(output: :all_metrics_values, cached: true)
+```
+
+### Generate a fresh new Service Ping
+
+Use the following method in the [rails console](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+This also refreshes the cached Service Ping displayed in the Admin Area.
+
+```ruby
+Gitlab::Usage::ServicePingReport.for(output: :all_metrics_values)
+```
+
+### Generate and print
+
+Generates Service Ping data in JSON format.
+
+```shell
+gitlab-rake gitlab:usage_data:generate
+```
+
+Generates Service Ping data in YAML format:
+
+```shell
+gitlab-rake gitlab:usage_data:dump_sql_in_yaml
+```
+
+### Generate and send Service Ping
+
+Prints the metrics saved in `conversational_development_index_metrics`.
+
+```shell
+gitlab-rake gitlab:usage_data:generate_and_send
+```

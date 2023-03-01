@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'ThemeKit.gitlab-ci.yml' do
+RSpec.describe 'ThemeKit.gitlab-ci.yml', feature_category: :continuous_integration do
   before do
     allow(Gitlab::Template::GitlabCiYmlTemplate).to receive(:excluded_patterns).and_return([])
   end
@@ -14,7 +14,7 @@ RSpec.describe 'ThemeKit.gitlab-ci.yml' do
     let(:project) { create(:project, :custom_repo, files: { 'README.md' => '' }) }
     let(:user) { project.first_owner }
     let(:service) { Ci::CreatePipelineService.new(project, user, ref: pipeline_ref) }
-    let(:pipeline) { service.execute!(:push).payload }
+    let(:pipeline) { service.execute(:push).payload }
     let(:build_names) { pipeline.builds.pluck(:name) }
 
     before do
@@ -51,9 +51,9 @@ RSpec.describe 'ThemeKit.gitlab-ci.yml' do
       end
 
       it 'has no jobs' do
-        expect { pipeline }.to raise_error(
-          Ci::CreatePipelineService::CreateError, 'No stages / jobs for this pipeline.'
-        )
+        expect(build_names).to be_empty
+        expect(pipeline.errors.full_messages).to match_array(['Pipeline will not run for the selected trigger. ' \
+          'The rules configuration prevented any jobs from being added to the pipeline.'])
       end
     end
   end

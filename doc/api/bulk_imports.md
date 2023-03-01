@@ -1,17 +1,17 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitLab Migrations (Bulk Imports) API **(FREE)**
+# Group migration by direct transfer API **(FREE)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/64335) in GitLab 14.1.
 
-With the GitLab Migrations API, you can view the progress of migrations initiated with
-[GitLab Group Migration](../user/group/import/index.md).
+With the group migration by direct transfer API, you can start and view the progress of migrations initiated with
+[group migration by direct transfer](../user/group/import/index.md#migrate-groups-by-direct-transfer-recommended).
 
-## Start a new GitLab migration
+## Start a new group migration
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66353) in GitLab 14.2.
 
@@ -29,10 +29,11 @@ POST /bulk_imports
 | `entities[source_full_path]`      | String | yes      | Source full path of the entity to import. |
 | `entities[destination_name]`      | String | yes      | Deprecated: Use :destination_slug instead. Destination slug for the entity. |
 | `entities[destination_slug]`      | String | yes      | Destination slug for the entity. |
-| `entities[destination_namespace]` | String | no       | Destination namespace for the entity. |
+| `entities[destination_namespace]` | String | yes      | Destination namespace for the entity. |
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/bulk_imports" \
+  --header "Content-Type: application/json" \
   --data '{
     "configuration": {
       "url": "http://gitlab.example/",
@@ -53,7 +54,7 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitla
 { "id": 1, "status": "created", "source_type": "gitlab", "created_at": "2021-06-18T09:45:55.358Z", "updated_at": "2021-06-18T09:46:27.003Z" }
 ```
 
-## List all GitLab migrations
+## List all group migrations
 
 ```plaintext
 GET /bulk_imports
@@ -96,7 +97,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 ]
 ```
 
-## List all GitLab migrations' entities
+## List all group migrations' entities
 
 ```plaintext
 GET /bulk_imports/entities
@@ -150,18 +151,21 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
         "updated_at": "2021-06-24T10:40:46.590Z",
         "failures": [
             {
-                "pipeline_class": "BulkImports::Groups::Pipelines::GroupPipeline",
-                "pipeline_step": "extractor",
+                "relation": "group",
+                "step": "extractor",
+                "exception_message": "Error!",
                 "exception_class": "Exception",
                 "correlation_id_value": "dfcf583058ed4508e4c7c617bd7f0edd",
-                "created_at": "2021-06-24T10:40:46.495Z"
+                "created_at": "2021-06-24T10:40:46.495Z",
+                "pipeline_class": "BulkImports::Groups::Pipelines::GroupPipeline",
+                "pipeline_step": "extractor"
             }
         ]
     }
 ]
 ```
 
-## Get GitLab migration details
+## Get group migration details
 
 ```plaintext
 GET /bulk_imports/:id
@@ -181,7 +185,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 }
 ```
 
-## List GitLab migration entities
+## List group migration entities
 
 ```plaintext
 GET /bulk_imports/:id/entities
@@ -217,7 +221,7 @@ curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab
 ]
 ```
 
-## Get GitLab migration entity details
+## Get group migration entity details
 
 ```plaintext
 GET /bulk_imports/:id/entities/:entity_id

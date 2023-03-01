@@ -86,6 +86,10 @@ module ProjectFeaturesCompatibility
     write_feature_attribute_string(:operations_access_level, value)
   end
 
+  def monitor_access_level=(value)
+    write_feature_attribute_string(:monitor_access_level, value)
+  end
+
   def security_and_compliance_access_level=(value)
     write_feature_attribute_string(:security_and_compliance_access_level, value)
   end
@@ -106,6 +110,10 @@ module ProjectFeaturesCompatibility
     write_feature_attribute_string(:releases_access_level, value)
   end
 
+  def infrastructure_access_level=(value)
+    write_feature_attribute_string(:infrastructure_access_level, value)
+  end
+
   # TODO: Remove this method after we drop support for project create/edit APIs to set the
   # container_registry_enabled attribute. They can instead set the container_registry_access_level
   # attribute.
@@ -116,8 +124,13 @@ module ProjectFeaturesCompatibility
   private
 
   def write_feature_attribute_boolean(field, value)
-    access_level = Gitlab::Utils.to_boolean(value) ? ProjectFeature::ENABLED : ProjectFeature::DISABLED
-    write_feature_attribute_raw(field, access_level)
+    value_type = Gitlab::Utils.to_boolean(value)
+    if value_type.in?([true, false])
+      access_level = value_type ? ProjectFeature::ENABLED : ProjectFeature::DISABLED
+      write_feature_attribute_raw(field, access_level)
+    else
+      write_feature_attribute_string(field, value)
+    end
   end
 
   def write_feature_attribute_string(field, value)

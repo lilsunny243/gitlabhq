@@ -133,6 +133,22 @@ class Commit
     def parent_class
       ::Project
     end
+
+    def build_from_sidekiq_hash(project, hash)
+      hash = hash.dup
+      date_suffix = '_date'
+
+      # When processing Sidekiq payloads various timestamps are stored as Strings.
+      # Commit in turn expects Time-like instances upon input, so we have to
+      # manually parse these values.
+      hash.each do |key, value|
+        if key.to_s.end_with?(date_suffix) && value.is_a?(String)
+          hash[key] = Time.zone.parse(value)
+        end
+      end
+
+      from_hash(hash, project)
+    end
   end
 
   attr_accessor :raw
@@ -369,6 +385,8 @@ class Commit
         gpg_commit.signature
       when :X509
         Gitlab::X509::Commit.new(self).signature
+      when :SSH
+        Gitlab::Ssh::Commit.new(self).signature
       else
         nil
       end
@@ -483,8 +501,8 @@ class Commit
     end
   end
 
-  def raw_diffs(*args)
-    raw.diffs(*args)
+  def raw_diffs(...)
+    raw.diffs(...)
   end
 
   def raw_deltas
@@ -558,9 +576,7 @@ class Commit
   private
 
   def expire_note_etag_cache_for_related_mrs
-    MergeRequest.includes(target_project: :namespace).by_commit_sha(id).find_each do |mr|
-      mr.expire_note_etag_cache
-    end
+    MergeRequest.includes(target_project: :namespace).by_commit_sha(id).find_each(&:expire_note_etag_cache)
   end
 
   def commit_reference(from, referable_commit_id, full: false)

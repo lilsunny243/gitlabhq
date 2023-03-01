@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Global search' do
+RSpec.describe 'Global search', :js, feature_category: :global_search do
   include AfterNextHelpers
 
-  let(:user) { create(:user) }
-  let(:project) { create(:project, namespace: user.namespace) }
+  let_it_be(:user) { create(:user) }
+  let_it_be(:project) { create(:project, namespace: user.namespace) }
 
   before do
     project.add_maintainer(user)
@@ -41,7 +41,7 @@ RSpec.describe 'Global search' do
       end
     end
 
-    it 'closes the dropdown on blur', :js do
+    it 'closes the dropdown on blur' do
       find('#search').click
       fill_in 'search', with: "a"
 
@@ -58,7 +58,7 @@ RSpec.describe 'Global search' do
       expect(page).to have_no_selector('#js-header-search')
     end
 
-    it 'focuses search input when shortcut "s" is pressed', :js do
+    it 'focuses search input when shortcut "s" is pressed' do
       expect(page).not_to have_selector('#search:focus')
 
       find('body').native.send_key('s')
@@ -72,10 +72,6 @@ RSpec.describe 'Global search' do
       # TODO: Remove this along with feature flag #339348
       stub_feature_flags(new_header_search: true)
       visit dashboard_projects_path
-
-      # intialize javascript loaded input search input field
-      find('#search').click
-      find('body').click
     end
 
     it 'renders updated search bar' do
@@ -83,7 +79,7 @@ RSpec.describe 'Global search' do
       expect(page).to have_selector('#js-header-search')
     end
 
-    it 'focuses search input when shortcut "s" is pressed', :js do
+    it 'focuses search input when shortcut "s" is pressed' do
       expect(page).not_to have_selector('#search:focus')
 
       find('body').native.send_key('s')

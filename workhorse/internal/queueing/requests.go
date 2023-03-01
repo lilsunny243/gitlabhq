@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/gitlab-org/gitlab/workhorse/internal/helper"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"gitlab.com/gitlab-org/gitlab/workhorse/internal/helper/fail"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 // limit specifies number of requests run concurrently
 // queueLimit specifies maximum number of requests that can be queued
 // queueTimeout specifies the time limit of storing the request in the queue
-func QueueRequests(name string, h http.Handler, limit, queueLimit uint, queueTimeout time.Duration) http.Handler {
+func QueueRequests(name string, h http.Handler, limit, queueLimit uint, queueTimeout time.Duration, reg prometheus.Registerer) http.Handler {
 	if limit == 0 {
 		return h
 	}
@@ -27,7 +29,7 @@ func QueueRequests(name string, h http.Handler, limit, queueLimit uint, queueTim
 		queueTimeout = DefaultTimeout
 	}
 
-	queue := newQueue(name, limit, queueLimit, queueTimeout)
+	queue := newQueue(name, limit, queueLimit, queueTimeout, reg)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := queue.Acquire()
@@ -44,7 +46,7 @@ func QueueRequests(name string, h http.Handler, limit, queueLimit uint, queueTim
 			http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 
 		default:
-			helper.Fail500(w, r, err)
+			fail.Request(w, r, err)
 		}
 
 	})

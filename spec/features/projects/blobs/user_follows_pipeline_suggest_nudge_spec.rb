@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled', :js do
+RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled', :js, feature_category: :projects do
   include CookieHelper
 
   let(:project) { create(:project, :empty_repo) }
@@ -22,12 +22,6 @@ RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled
         file_name = page.find_by_id('file_name')
 
         expect(file_name.value).to have_content('.gitlab-ci.yml')
-      end
-
-      it 'chooses the .gitlab-ci.yml Template Type' do
-        template_type = page.find(:css, '.template-type-selector .dropdown-toggle-text')
-
-        expect(template_type.text).to have_content('.gitlab-ci.yml')
       end
 
       it 'displays suggest_gitlab_ci_yml popover' do
@@ -58,12 +52,6 @@ RSpec.describe 'User follows pipeline suggest nudge spec when feature is enabled
         file_name = page.find_by_id('file_name')
 
         expect(file_name.value).not_to have_content('.gitlab-ci.yml')
-      end
-
-      it 'does not choose the .gitlab-ci.yml Template Type' do
-        template_type = page.find(:css, '.template-type-selector .dropdown-toggle-text')
-
-        expect(template_type.text).to have_content('Select a template type')
       end
 
       it 'does not display suggest_gitlab_ci_yml popover' do

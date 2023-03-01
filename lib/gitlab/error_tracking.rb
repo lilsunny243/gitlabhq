@@ -57,6 +57,7 @@ module Gitlab
           config.before_send = method(:before_send_sentry)
           config.background_worker_threads = 0
           config.send_default_pii = true
+          config.traces_sample_rate = 0.2 if Gitlab::Utils.to_boolean(ENV['ENABLE_SENTRY_PERFORMANCE_MONITORING'])
 
           yield config if block_given?
         end
@@ -116,6 +117,20 @@ module Gitlab
         process_exception(exception, extra: extra, trackers: [Logger])
       end
 
+      # This should be used when you want to log the exception and passthrough
+      # exception handling: rescue and raise to be catched in upper layers of
+      # the application.
+      #
+      # If the exception implements the method `sentry_extra_data` and that method
+      # returns a Hash, then the return value of that method will be merged into
+      # `extra`. Exceptions can use this mechanism to provide structured data
+      # to sentry in addition to their message and back-trace.
+      def log_and_raise_exception(exception, extra = {})
+        process_exception(exception, extra: extra, trackers: [Logger])
+
+        raise exception
+      end
+
       private
 
       def before_send_raven(event, hint)
@@ -131,6 +146,9 @@ module Gitlab
       end
 
       def before_send(event, hint)
+        # Don't report Sidekiq retry errors to Sentry
+        return if hint[:exception].is_a?(Gitlab::SidekiqMiddleware::RetryError)
+
         inject_context_for_exception(event, hint[:exception])
         custom_fingerprinting(event, hint[:exception])
 

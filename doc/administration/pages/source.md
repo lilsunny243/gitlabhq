@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Pages administration for source installations **(FREE SELF)**
@@ -445,7 +445,7 @@ Pages access control is disabled by default. To enable it:
    ```
 
 1. [Restart GitLab](../restart_gitlab.md#installations-from-source).
-1. Create a new [system OAuth application](../../integration/oauth_provider.md#user-owned-applications).
+1. Create a new [system OAuth application](../../integration/oauth_provider.md#create-a-user-owned-application).
    This should be called `GitLab Pages` and have a `Redirect URL` of
    `https://projects.example.io/auth`. It does not need to be a "trusted"
    application, but it does need the `api` scope.
@@ -459,7 +459,7 @@ Pages access control is disabled by default. To enable it:
      auth-server=<URL of the GitLab instance>
    ```
 
-1. Users can now configure it in their [projects' settings](../../user/project/pages/introduction.md#gitlab-pages-access-control).
+1. Users can now configure it in their [projects' settings](../../user/project/pages/pages_access_control.md).
 
 ## Change storage path
 
@@ -485,7 +485,7 @@ The default for the maximum size of unpacked archives per project is 100 MB.
 
 To change this value:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Pages**.
 1. Update the value for **Maximum size of pages (MB)**.

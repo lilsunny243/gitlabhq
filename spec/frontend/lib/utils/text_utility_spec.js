@@ -45,29 +45,18 @@ describe('text_utility', () => {
   });
 
   describe('slugify', () => {
-    it('should remove accents and convert to lower case', () => {
-      expect(textUtils.slugify('João')).toEqual('jo-o');
-    });
-    it('should replaces whitespaces with hyphens and convert to lower case', () => {
-      expect(textUtils.slugify('My Input String')).toEqual('my-input-string');
-    });
-    it('should remove trailing whitespace and replace whitespaces within string with a hyphen', () => {
-      expect(textUtils.slugify(' a new project ')).toEqual('a-new-project');
-    });
-    it('should only remove non-allowed special characters', () => {
-      expect(textUtils.slugify('test!_pro-ject~')).toEqual('test-_pro-ject');
-    });
-    it('should squash multiple hypens', () => {
-      expect(textUtils.slugify('test!!!!_pro-ject~')).toEqual('test-_pro-ject');
-    });
-    it('should return empty string if only non-allowed characters', () => {
-      expect(textUtils.slugify('здрасти')).toEqual('');
-    });
-    it('should squash multiple separators', () => {
-      expect(textUtils.slugify('Test:-)')).toEqual('test');
-    });
-    it('should trim any separators from the beginning and end of the slug', () => {
-      expect(textUtils.slugify('-Test:-)-')).toEqual('test');
+    it.each`
+      title                                                                                      | input                   | output
+      ${'should remove accents and convert to lower case'}                                       | ${'João'}               | ${'jo-o'}
+      ${'should replaces whitespaces with hyphens and convert to lower case'}                    | ${'My Input String'}    | ${'my-input-string'}
+      ${'should remove trailing whitespace and replace whitespaces within string with a hyphen'} | ${' a new project '}    | ${'a-new-project'}
+      ${'should only remove non-allowed special characters'}                                     | ${'test!_pro-ject~'}    | ${'test-_pro-ject'}
+      ${'should squash to multiple non-allowed special characters'}                              | ${'test!!!!_pro-ject~'} | ${'test-_pro-ject'}
+      ${'should return empty string if only non-allowed characters'}                             | ${'дружба'}             | ${''}
+      ${'should squash multiple separators'}                                                     | ${'Test:-)'}            | ${'test'}
+      ${'should trim any separators from the beginning and end of the slug'}                     | ${'-Test:-)-'}          | ${'test'}
+    `('$title', ({ input, output }) => {
+      expect(textUtils.slugify(input)).toBe(output);
     });
   });
 
@@ -395,6 +384,18 @@ describe('text_utility', () => {
 
     it('returns exact number for count less than 1000', () => {
       expect(textUtils.limitedCounterWithDelimiter(120)).toBe(120);
+    });
+  });
+
+  describe('base64EncodeUnicode', () => {
+    it('encodes unicode characters', () => {
+      expect(textUtils.base64EncodeUnicode('😀')).toBe('8J+YgA==');
+    });
+  });
+
+  describe('base64DecodeUnicode', () => {
+    it('decodes unicode characters', () => {
+      expect(textUtils.base64DecodeUnicode('8J+YgA==')).toBe('😀');
     });
   });
 });

@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
 description: "Documentation on Git file blame."
 ---
@@ -14,7 +14,7 @@ commit hash. To view it for a file:
 
 1. Go to your project's **Repository > Files**.
 1. Select the file you want to review.
-1. In the upper right corner, select **Blame**.
+1. In the upper-right corner, select **Blame**.
 
 When you select **Blame**, this information is displayed:
 

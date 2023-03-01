@@ -8,7 +8,7 @@ class GroupsController < Groups::ApplicationController
   include RecordUserLastActivity
   include SendFileUpload
   include FiltersEvents
-  include Recaptcha::Verify
+  include Recaptcha::Adapters::ControllerMethods
   extend ::Gitlab::Utils::Override
 
   respond_to :html
@@ -35,13 +35,18 @@ class GroupsController < Groups::ApplicationController
   before_action :track_experiment_event, only: [:new]
 
   before_action only: :issues do
+    push_frontend_feature_flag(:or_issuable_queries, group)
+    push_frontend_feature_flag(:frontend_caching, group)
     push_force_frontend_feature_flag(:work_items, group.work_items_feature_flag_enabled?)
+  end
+
+  before_action only: :show do
+    push_frontend_feature_flag(:show_group_readme, group)
   end
 
   helper_method :captcha_required?
 
-  skip_cross_project_access_check :index, :new, :create, :edit, :update,
-                                  :destroy, :projects
+  skip_cross_project_access_check :index, :new, :create, :edit, :update, :destroy, :projects
   # When loading show as an atom feed, we render events that could leak cross
   # project information
   skip_cross_project_access_check :show, if: -> { request.format.html? }
@@ -49,12 +54,12 @@ class GroupsController < Groups::ApplicationController
   layout :determine_layout
 
   feature_category :subgroups, [
-                     :index, :new, :create, :show, :edit, :update,
-                     :destroy, :details, :transfer, :activity
-                   ]
+    :index, :new, :create, :show, :edit, :update,
+    :destroy, :details, :transfer, :activity
+  ]
 
   feature_category :team_planning, [:issues, :issues_calendar, :preview_markdown]
-  feature_category :code_review, [:merge_requests, :unfoldered_environment_names]
+  feature_category :code_review_workflow, [:merge_requests, :unfoldered_environment_names]
   feature_category :projects, [:projects]
   feature_category :importers, [:export, :download_export]
   urgency :low, [:export, :download_export]
@@ -70,6 +75,7 @@ class GroupsController < Groups::ApplicationController
   end
 
   def new
+    @parent_group = Group.find_by_id(params[:parent_id])
     @group = Group.new(params.permit(:parent_id))
     @group.build_namespace_settings
   end
@@ -81,9 +87,9 @@ class GroupsController < Groups::ApplicationController
       successful_creation_hooks
 
       notice = if @group.chat_team.present?
-                 "Group '#{@group.name}' and its Mattermost team were successfully created."
+                 format(_("Group %{group_name} and its Mattermost team were successfully created."), group_name: @group.name)
                else
-                 "Group '#{@group.name}' was successfully created."
+                 format(_("Group %{group_name} was successfully created."), group_name: @group.name)
                end
 
       redirect_to @group, notice: notice
@@ -111,7 +117,7 @@ class GroupsController < Groups::ApplicationController
   def details
     respond_to do |format|
       format.html do
-        render_details_html
+        redirect_to group_path(group)
       end
 
       format.atom do
@@ -195,7 +201,7 @@ class GroupsController < Groups::ApplicationController
         send_upload(@group.export_file, attachment: @group.export_file.filename)
       else
         redirect_to edit_group_path(@group),
-                    alert: _('The file containing the export is not available yet; it may still be transferring. Please try again later.')
+          alert: _('The file containing the export is not available yet; it may still be transferring. Please try again later.')
       end
     else
       redirect_to edit_group_path(@group),
@@ -235,10 +241,6 @@ class GroupsController < Groups::ApplicationController
     render 'groups/show', locals: { trial: params[:trial] }
   end
 
-  def render_details_html
-    render 'groups/show'
-  end
-
   def render_details_view_atom
     load_events
     render layout: 'xml', template: 'groups/show'
@@ -259,7 +261,7 @@ class GroupsController < Groups::ApplicationController
 
   def determine_layout
     if [:new, :create].include?(action_name.to_sym)
-      'application'
+      'dashboard'
     elsif [:edit, :update, :projects].include?(action_name.to_sym)
       'group_settings'
     else
@@ -276,6 +278,7 @@ class GroupsController < Groups::ApplicationController
       :avatar,
       :description,
       :emails_disabled,
+      :show_diff_preview_in_email,
       :mentions_disabled,
       :lfs_enabled,
       :name,
@@ -388,11 +391,11 @@ class GroupsController < Groups::ApplicationController
 
   override :has_project_list?
   def has_project_list?
-    %w(details show index).include?(action_name)
+    %w[details show index].include?(action_name)
   end
 
   def captcha_enabled?
-    Gitlab::Recaptcha.enabled? && Feature.enabled?(:recaptcha_on_top_level_group_creation, type: :ops)
+    helpers.recaptcha_enabled? && Feature.enabled?(:recaptcha_on_top_level_group_creation, type: :ops)
   end
 
   def captcha_required?

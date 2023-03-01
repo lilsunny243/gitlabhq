@@ -3,7 +3,7 @@ import { shallowMount } from '@vue/test-utils';
 import AxiosMockAdapter from 'axios-mock-adapter';
 import waitForPromises from 'helpers/wait_for_promises';
 import axios from '~/lib/utils/axios_utils';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import ServiceDeskRoot from '~/projects/settings_service_desk/components/service_desk_root.vue';
 import ServiceDeskSetting from '~/projects/settings_service_desk/components/service_desk_setting.vue';
 
@@ -26,7 +26,7 @@ describe('ServiceDeskRoot', () => {
     publicProject: false,
   };
 
-  const getAlertText = () => wrapper.find(GlAlert).text();
+  const getAlertText = () => wrapper.findComponent(GlAlert).text();
 
   const createComponent = (customInject = {}) =>
     shallowMount(ServiceDeskRoot, {
@@ -51,7 +51,7 @@ describe('ServiceDeskRoot', () => {
     it('is rendered', () => {
       wrapper = createComponent();
 
-      expect(wrapper.find(ServiceDeskSetting).props()).toEqual({
+      expect(wrapper.findComponent(ServiceDeskSetting).props()).toEqual({
         customEmail: provideData.customEmail,
         customEmailEnabled: provideData.customEmailEnabled,
         incomingEmail: provideData.initialIncomingEmail,
@@ -89,13 +89,13 @@ describe('ServiceDeskRoot', () => {
         beforeEach(async () => {
           wrapper = createComponent();
 
-          wrapper.find(ServiceDeskSetting).vm.$emit('toggle', true);
+          wrapper.findComponent(ServiceDeskSetting).vm.$emit('toggle', true);
 
           await waitForPromises();
         });
 
         it('sends a request to turn service desk on', () => {
-          axiosMock.onPut(provideData.endpoint).replyOnce(httpStatusCodes.OK);
+          axiosMock.onPut(provideData.endpoint).replyOnce(HTTP_STATUS_OK);
 
           expect(spy).toHaveBeenCalledWith(provideData.endpoint, { service_desk_enabled: true });
         });
@@ -111,13 +111,13 @@ describe('ServiceDeskRoot', () => {
         beforeEach(async () => {
           wrapper = createComponent();
 
-          wrapper.find(ServiceDeskSetting).vm.$emit('toggle', false);
+          wrapper.findComponent(ServiceDeskSetting).vm.$emit('toggle', false);
 
           await waitForPromises();
         });
 
         it('sends a request to turn service desk off', () => {
-          axiosMock.onPut(provideData.endpoint).replyOnce(httpStatusCodes.OK);
+          axiosMock.onPut(provideData.endpoint).replyOnce(HTTP_STATUS_OK);
 
           expect(spy).toHaveBeenCalledWith(provideData.endpoint, { service_desk_enabled: false });
         });
@@ -133,7 +133,7 @@ describe('ServiceDeskRoot', () => {
     describe('save event', () => {
       describe('successful request', () => {
         beforeEach(async () => {
-          axiosMock.onPut(provideData.endpoint).replyOnce(httpStatusCodes.OK);
+          axiosMock.onPut(provideData.endpoint).replyOnce(HTTP_STATUS_OK);
 
           wrapper = createComponent();
 
@@ -143,7 +143,7 @@ describe('ServiceDeskRoot', () => {
             projectKey: 'key',
           };
 
-          wrapper.find(ServiceDeskSetting).vm.$emit('save', payload);
+          wrapper.findComponent(ServiceDeskSetting).vm.$emit('save', payload);
 
           await waitForPromises();
         });
@@ -174,7 +174,7 @@ describe('ServiceDeskRoot', () => {
             projectKey: 'key',
           };
 
-          wrapper.find(ServiceDeskSetting).vm.$emit('save', payload);
+          wrapper.findComponent(ServiceDeskSetting).vm.$emit('save', payload);
 
           await waitForPromises();
         });

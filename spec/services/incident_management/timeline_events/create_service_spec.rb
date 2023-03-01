@@ -8,6 +8,9 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
   let_it_be(:project) { create(:project) }
   let_it_be_with_refind(:incident) { create(:incident, project: project) }
   let_it_be(:comment) { create(:note, project: project, noteable: incident) }
+  let_it_be(:timeline_event_tag) do
+    create(:incident_management_timeline_event_tag, name: 'Test tag 1', project: project)
+  end
 
   let(:args) do
     {
@@ -52,6 +55,14 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
       end
 
       it_behaves_like 'an incident management tracked event', :incident_management_timeline_event_created
+
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        let(:namespace) { project.namespace.reload }
+        let(:category) { described_class.to_s }
+        let(:user) { current_user }
+        let(:action) { 'incident_management_timeline_event_created' }
+        let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
+      end
     end
 
     subject(:execute) { service.execute }
@@ -71,7 +82,7 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
     context 'when error occurs during creation' do
       let(:args) { {} }
 
-      it_behaves_like 'error response', "Occurred at can't be blank, Note can't be blank, and Note html can't be blank"
+      it_behaves_like 'error response', "Occurred at can't be blank and Timeline text can't be blank"
     end
 
     context 'with default action' do
@@ -83,50 +94,6 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
         result = execute.payload[:timeline_event]
 
         expect(result.action).to eq(IncidentManagement::TimelineEvents::DEFAULT_ACTION)
-      end
-    end
-
-    context 'with non_default action' do
-      it_behaves_like 'success response'
-
-      it 'matches the action from arguments', :aggregate_failures do
-        result = execute.payload[:timeline_event]
-
-        expect(result.action).to eq(args[:action])
-      end
-    end
-
-    context 'with editable param' do
-      let(:args) do
-        {
-          note: 'note',
-          occurred_at: Time.current,
-          action: 'new comment',
-          promoted_from_note: comment,
-          editable: editable
-        }
-      end
-
-      context 'when editable is true' do
-        let(:editable) { true }
-
-        it_behaves_like 'success response'
-      end
-
-      context 'when editable is false' do
-        let(:editable) { false }
-
-        it_behaves_like 'success response'
-      end
-    end
-
-    it 'successfully creates a database record', :aggregate_failures do
-      expect { execute }.to change { ::IncidentManagement::TimelineEvent.count }.by(1)
-    end
-
-    context 'when incident_timeline feature flag is enabled' do
-      before do
-        stub_feature_flags(incident_timeline: project)
       end
 
       it 'creates a system note' do
@@ -168,13 +135,134 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
       end
     end
 
-    context 'when incident_timeline feature flag is disabled' do
-      before do
-        stub_feature_flags(incident_timeline: false)
+    context 'with non_default action' do
+      it_behaves_like 'success response'
+
+      it 'matches the action from arguments', :aggregate_failures do
+        result = execute.payload[:timeline_event]
+
+        expect(result.action).to eq(args[:action])
+      end
+    end
+
+    context 'when timeline event tag names are passed' do
+      let(:args) do
+        {
+          note: 'note',
+          occurred_at: Time.current,
+          action: 'new comment',
+          promoted_from_note: comment,
+          timeline_event_tag_names: ['Test tag 1']
+        }
       end
 
-      it 'does not create a system note' do
-        expect { execute }.not_to change { incident.notes.reload.count }
+      it_behaves_like 'success response'
+
+      it 'matches the tag name' do
+        result = execute.payload[:timeline_event]
+        expect(result.timeline_event_tags.first).to eq(timeline_event_tag)
+      end
+
+      context 'when predefined tags are passed' do
+        let(:args) do
+          {
+            note: 'note',
+            occurred_at: Time.current,
+            action: 'new comment',
+            promoted_from_note: comment,
+            timeline_event_tag_names: ['start time', 'end time', 'Impact mitigated']
+          }
+        end
+
+        it_behaves_like 'success response'
+
+        it 'matches the two tags on the event and creates on project' do
+          result = execute.payload[:timeline_event]
+
+          expect(result.timeline_event_tags.count).to eq(3)
+          expect(result.timeline_event_tags.by_names(['Start time', 'End time', 'Impact mitigated']).pluck_names)
+            .to match_array(['Start time', 'End time', 'Impact mitigated'])
+          expect(project.incident_management_timeline_event_tags.pluck_names)
+            .to include('Start time', 'End time', 'Impact mitigated')
+        end
+      end
+
+      context 'when invalid tag names are passed' do
+        let(:args) do
+          {
+            note: 'note',
+            occurred_at: Time.current,
+            action: 'new comment',
+            promoted_from_note: comment,
+            timeline_event_tag_names: ['some other time']
+          }
+        end
+
+        it_behaves_like 'error response', "Following tags don't exist: [\"some other time\"]"
+
+        it 'does not create timeline event' do
+          expect { execute }.not_to change(IncidentManagement::TimelineEvent, :count)
+        end
+      end
+    end
+
+    context 'with editable param' do
+      let(:args) do
+        {
+          note: 'note',
+          occurred_at: Time.current,
+          action: 'new comment',
+          promoted_from_note: comment,
+          editable: editable
+        }
+      end
+
+      context 'when editable is true' do
+        let(:editable) { true }
+
+        it_behaves_like 'success response'
+      end
+
+      context 'when editable is false' do
+        let(:editable) { false }
+
+        it_behaves_like 'success response'
+      end
+    end
+
+    it 'successfully creates a database record', :aggregate_failures do
+      expect { execute }.to change { ::IncidentManagement::TimelineEvent.count }.by(1)
+    end
+
+    context 'when note is more than 280 characters long' do
+      let(:args) do
+        {
+          note: 'a' * 281,
+          occurred_at: Time.current,
+          action: 'new comment',
+          promoted_from_note: comment,
+          auto_created: auto_created
+        }
+      end
+
+      let(:auto_created) { false }
+
+      context 'when was not promoted from note' do
+        let(:comment) { nil }
+
+        context 'when auto_created is true' do
+          let(:auto_created) { true }
+
+          it_behaves_like 'success response'
+        end
+
+        context 'when auto_created is false' do
+          it_behaves_like 'error response', 'Timeline text is too long (maximum is 280 characters)'
+        end
+      end
+
+      context 'when promoted from note' do
+        it_behaves_like 'success response'
       end
     end
   end
@@ -195,6 +283,14 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
       end
 
       it_behaves_like 'an incident management tracked event', :incident_management_timeline_event_created
+
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        let(:namespace) { project.namespace.reload }
+        let(:category) { described_class.to_s }
+        let(:user) { current_user }
+        let(:action) { 'incident_management_timeline_event_created' }
+        let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
+      end
 
       it 'successfully creates a database record', :aggregate_failures do
         expect { execute }.to change { ::IncidentManagement::TimelineEvent.count }.by(1)
@@ -241,6 +337,17 @@ RSpec.describe IncidentManagement::TimelineEvents::CreateService do
 
       let(:expected_note) { "@#{current_user.username} changed the incident status to **Acknowledged**" }
       let(:expected_action) { 'status' }
+
+      it_behaves_like 'successfully created timeline event'
+    end
+
+    describe '.change_severity' do
+      subject(:execute) { described_class.change_severity(incident, current_user) }
+
+      let_it_be(:severity) { create(:issuable_severity, severity: :critical, issue: incident) }
+
+      let(:expected_note) { "@#{current_user.username} changed the incident severity to **Critical - S1**" }
+      let(:expected_action) { 'severity' }
 
       it_behaves_like 'successfully created timeline event'
     end

@@ -1,7 +1,7 @@
 ---
 stage: Growth
 group: Acquisition
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
 ---
 
@@ -57,7 +57,7 @@ To display messages to users on your GitLab instance, add a broadcast message.
 
 To add a broadcast message:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Messages**.
 1. Add the text for the message to the **Message** field. You can style a message's content using Markdown, emoji, and the `a` and `br` HTML tags.
    The `br` tag inserts a line break. The `a` HTML tag accepts `class` and `style` attributes with the following CSS properties:
@@ -83,7 +83,7 @@ If you must make changes to a broadcast message, you can edit it.
 
 To edit a broadcast message:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Messages**.
 1. From the list of broadcast messages, select the edit button for the message.
 1. After making the required changes, select **Update broadcast message**.
@@ -97,7 +97,7 @@ You can delete a broadcast message while it's active.
 
 To delete a broadcast message:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Messages**.
 1. From the list of broadcast messages, select the delete button for the message.
 
@@ -111,6 +111,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

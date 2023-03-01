@@ -8,6 +8,7 @@
 # 2. Allow `prepended do; end` work like `included do; end`
 # If we don't need anything above, we don't need this patch nor the concern!
 
+require_dependency 'gitlab/environment'
 # rubocop:disable Gitlab/ModuleWithInstanceVariables
 module Gitlab
   module Patch
@@ -26,7 +27,7 @@ module Gitlab
         # https://github.com/rails/rails/pull/42067
         #
         # Let's keep our own implementation, until the issue is fixed
-        Module.instance_method(:prepend_features).bind(self).call(base)
+        Module.instance_method(:prepend_features).bind_call(self, base)
 
         if const_defined?(:ClassMethods)
           klass_methods = const_get(:ClassMethods, false)
@@ -51,7 +52,7 @@ module Gitlab
         end
 
         # Hack to resolve https://gitlab.com/gitlab-org/gitlab/-/issues/23932
-        extend class_methods_module if ENV['STATIC_VERIFICATION']
+        extend class_methods_module if Gitlab::Environment.static_verification?
       end
 
       def prepended(base = nil, &block)

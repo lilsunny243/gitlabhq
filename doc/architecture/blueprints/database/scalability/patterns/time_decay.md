@@ -1,14 +1,14 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 description: 'Learn how to operate on large time-decay data'
 ---
 
 # Time-decay data
 
-[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/326035) in GitLab 14.0.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/326035) in GitLab 14.0.
 
 This document describes the *time-decay pattern* introduced in the
 [Database Scalability Working Group](https://about.gitlab.com/company/team/structure/working-groups/database-scalability/#time-decay-data).
@@ -27,7 +27,7 @@ application.
 Let's first consider entities with no inherent time-related bias for their data.
 
 A record for a user or a project may be equally important and frequently accessed, irrelevant to when
-it was created. We can not predict by using a user's `id` or `created_at` how often the related
+it was created. We cannot predict by using a user's `id` or `created_at` how often the related
 record is accessed or updated.
 
 On the other hand, a good example for datasets with extreme time-decay effects are logs and time
@@ -91,7 +91,7 @@ a maximum of a month of events, restricted to 6 months in the past.
 ### Immutability
 
 The third characteristic of time-decay data is that their **time-decay status does not change**.
-Once they are considered "old", they can not switch back to "new" or relevant again.
+Once they are considered "old", they cannot switch back to "new" or relevant again.
 
 This definition may sound trivial, but we have to be able to make operations over "old" data **more**
 expensive (for example, by archiving or moving them to less expensive storage) without having to worry about
@@ -154,7 +154,7 @@ factors:
 The perfect partitioning scheme keeps **all queries over a dataset almost always over a single partition**,
 with some cases going over two partitions and seldom over multiple partitions being
 an acceptable balance. We should also target for **partitions that are as small as possible**, below
-5-10M records and/or 10GB each maximum.
+5-10M records and/or 10 GB each maximum.
 
 Partitioning can be combined with other strategies to either prune (drop) old partitions, move them
 to cheaper storage inside the database or move them outside of the database (archive or use of other
@@ -241,7 +241,7 @@ Related epic: [Partitioning: `web_hook_logs` table](https://gitlab.com/groups/gi
 The important characteristics of `web_hook_logs` are the following:
 
 1. Size of the dataset: it is a really large table. At the moment we decided to
-   partition it (`2021-03-01`), it had roughly 527M records and a total size of roughly 1TB
+   partition it (`2021-03-01`), it had roughly 527M records and a total size of roughly 1 TB
 
    - Table: `web_hook_logs`
    - Rows: approximately 527M
@@ -261,7 +261,7 @@ As a result, on March 2021 there were still not deleted records since July 2020 
 increasing in size by more than 2 million records per day instead of staying at a more or less
 stable size.
 
-Finally, the rate of inserts has grown to more than 170GB of data per month by March 2021 and keeps
+Finally, the rate of inserts has grown to more than 170 GB of data per month by March 2021 and keeps
 on growing, so the only viable solution to pruning old data was through partitioning.
 
 Our approach was to partition the table per month as it aligned with the 90 days retention policy.

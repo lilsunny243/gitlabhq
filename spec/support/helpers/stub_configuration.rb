@@ -20,6 +20,17 @@ module StubConfiguration
     allow_any_instance_of(ApplicationSetting).to receive(:cached_html_up_to_date?).and_return(false)
   end
 
+  # For enums with `_prefix: true`, this allows us to stub the application setting properly
+  def stub_application_setting_enum(setting, value)
+    stub_application_setting(setting.to_sym => value)
+
+    ApplicationSetting.send(setting.pluralize.to_sym).each_key do |key|
+      stub_application_setting("#{setting}_#{key}".to_sym => key == value)
+    end
+
+    Gitlab::CurrentSettings.send(setting)
+  end
+
   def stub_not_protect_default_branch
     stub_application_setting(
       default_branch_protection: Gitlab::Access::PROTECTION_NONE)
@@ -36,6 +47,10 @@ module StubConfiguration
   def stub_default_url_options(host: "localhost", protocol: "http", script_name: nil)
     url_options = { host: host, protocol: protocol, script_name: script_name }
     allow(Rails.application.routes).to receive(:default_url_options).and_return(url_options)
+  end
+
+  def stub_dependency_proxy_setting(messages)
+    allow(Gitlab.config.dependency_proxy).to receive_messages(to_settings(messages))
   end
 
   def stub_gravatar_setting(messages)
@@ -81,7 +96,7 @@ module StubConfiguration
     messages['default'] ||= Gitlab.config.repositories.storages.default
     messages.each do |storage_name, storage_hash|
       if !storage_hash.key?('path') || storage_hash['path'] == Gitlab::GitalyClient::StorageSettings::Deprecated
-        storage_hash['path'] = TestEnv.repos_path
+        storage_hash['path'] = Gitlab::GitalyClient::StorageSettings.allow_disk_access { TestEnv.repos_path }
       end
 
       messages[storage_name] = Gitlab::GitalyClient::StorageSettings.new(storage_hash.to_h)
@@ -102,6 +117,10 @@ module StubConfiguration
     allow(Gitlab.config.sentry).to receive(:clientside_dsn) { clientside_dsn }
     allow(Gitlab::CurrentSettings)
       .to receive(:sentry_clientside_dsn) { clientside_dsn }
+  end
+
+  def stub_microsoft_graph_mailer_setting(messages)
+    allow(Gitlab.config.microsoft_graph_mailer).to receive_messages(to_settings(messages))
   end
 
   def stub_kerberos_setting(messages)

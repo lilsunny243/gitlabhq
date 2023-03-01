@@ -8,7 +8,8 @@ module VerifiesWithEmail
   include ActionView::Helpers::DateHelper
 
   included do
-    prepend_before_action :verify_with_email, only: :create, unless: -> { two_factor_enabled? }
+    prepend_before_action :verify_with_email, only: :create, unless: -> { skip_verify_with_email? }
+    skip_before_action :required_signup_info, only: :successful_verification
   end
 
   def verify_with_email
@@ -27,7 +28,7 @@ module VerifiesWithEmail
         if user.unlock_token
           # Prompt for the token if it already has been set
           prompt_for_email_verification(user)
-        elsif user.access_locked? || !AuthenticationEvent.initial_login_or_known_ip_address?(user, request.ip)
+        elsif user.access_locked? || !trusted_ip_address?(user)
           # require email verification if:
           # - their account has been locked because of too many failed login attempts, or
           # - they have logged in before, but never from the current ip address
@@ -54,6 +55,10 @@ module VerifiesWithEmail
 
   private
 
+  def skip_verify_with_email?
+    two_factor_enabled? || Gitlab::Qa.request?(request.user_agent)
+  end
+
   def find_verification_user
     return unless session[:verification_user_id]
 
@@ -63,7 +68,7 @@ module VerifiesWithEmail
   # After successful verification and calling sign_in, devise redirects the
   # user to this path. Override it to show the successful verified page.
   def after_sign_in_path_for(resource)
-    if action_name == 'create' && session[:verification_user_id]
+    if action_name == 'create' && session[:verification_user_id] == resource.id
       return users_successful_verification_path
     end
 
@@ -83,10 +88,7 @@ module VerifiesWithEmail
   def send_verification_instructions_email(user, token)
     return unless user.can?(:receive_notifications)
 
-    Notify.verification_instructions_email(
-      user.id,
-      token: token,
-      expires_in: Users::EmailVerification::ValidateTokenService::TOKEN_VALID_FOR_MINUTES).deliver_later
+    Notify.verification_instructions_email(user.email, token: token).deliver_later
 
     log_verification(user, :instructions_sent)
   end
@@ -103,8 +105,10 @@ module VerifiesWithEmail
   end
 
   def render_sign_in_rate_limited
-    message = s_('IdentityVerification|Maximum login attempts exceeded. '\
-      'Wait %{interval} and try again.') % { interval: user_sign_in_interval }
+    message = format(
+      s_('IdentityVerification|Maximum login attempts exceeded. Wait %{interval} and try again.'),
+      interval: user_sign_in_interval
+    )
     redirect_to new_user_session_path, alert: message
   end
 
@@ -131,6 +135,12 @@ module VerifiesWithEmail
     sign_in(user)
   end
 
+  def trusted_ip_address?(user)
+    return true if Feature.disabled?(:check_ip_address_for_email_verification)
+
+    AuthenticationEvent.initial_login_or_known_ip_address?(user, request.ip)
+  end
+
   def prompt_for_email_verification(user)
     session[:verification_user_id] = user.id
     self.resource = user
@@ -153,6 +163,7 @@ module VerifiesWithEmail
   end
 
   def require_email_verification_enabled?(user)
-    Feature.enabled?(:require_email_verification, user)
+    Feature.enabled?(:require_email_verification, user) &&
+      Feature.disabled?(:skip_require_email_verification, user, type: :ops)
   end
 end

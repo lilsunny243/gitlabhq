@@ -61,6 +61,16 @@ module Sidebars
       @renderable_menus ||= @menus.select(&:render?)
     end
 
+    # Serializes every renderable menu and returns a flattened result
+    def super_sidebar_menu_items
+      @super_sidebar_menu_items ||= renderable_menus
+        .flat_map(&:serialize_for_super_sidebar)
+    end
+
+    def super_sidebar_context_header
+      raise NotImplementedError
+    end
+
     def container
       context.container
     end

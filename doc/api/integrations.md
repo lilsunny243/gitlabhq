@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Integrations API **(FREE)**
@@ -70,6 +70,44 @@ Example response:
     "comment_on_event_enabled": true
   }
 ]
+```
+
+## Apple App Store
+
+Use GitLab to build and release an app in the Apple App Store.
+
+See also the [Apple App Store integration documentation](../user/project/integrations/apple_app_store.md).
+
+### Create/Edit Apple App Store integration
+
+Set Apple App Store integration for a project.
+
+```plaintext
+PUT /projects/:id/integrations/apple_app_store
+```
+
+Parameters:
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `app_store_issuer_id` | string | true | The Apple App Store Connect Issuer ID. |
+| `app_store_key_id` | string | true | The Apple App Store Connect Key ID. |
+| `app_store_private_key` | string | true | The Apple App Store Connect Private Key. |
+
+### Disable Apple App Store integration
+
+Disable the Apple App Store integration for a project. Integration settings are preserved.
+
+```plaintext
+DELETE /projects/:id/integrations/apple_app_store
+```
+
+### Get Apple App Store integration settings
+
+Get Apple App Store integration settings for a project.
+
+```plaintext
+GET /projects/:id/integrations/apple_app_store
 ```
 
 ## Asana
@@ -262,7 +300,7 @@ GET /projects/:id/integrations/buildkite
 ## Campfire
 
 Send notifications about push events to Campfire chat rooms.
-[New users can no longer sign up for Campfire](https://basecamp.com/retired/campfire).
+[New users can no longer sign up for Campfire](https://basecamp.com/handbook/05-product-histories#campfire).
 
 ### Create/Edit Campfire integration
 
@@ -276,7 +314,7 @@ Parameters:
 
 | Parameter     | Type    | Required | Description                                                                                 |
 |---------------|---------|----------|---------------------------------------------------------------------------------------------|
-| `token`       | string  | true     | Campfire API token. To find it, log into Campfire and select **My info**.                   |
+| `token`       | string  | true     | Campfire API token. To find it, sign in to Campfire and select **My info**.                   |
 | `subdomain`   | string  | false    | Campfire subdomain. Text between `https://` and `.campfirenow.com` when you're logged in. |
 | `room`        | string  | false    | Campfire room. The last part of the URL when you're in a room.                              |
 
@@ -354,7 +392,7 @@ Parameters:
 | --------- | ---- | -------- | ----------- |
 | `webhook` | string | true | The Unify Circuit webhook. For example, `https://circuit.com/rest/v2/webhooks/incoming/...`. |
 | `notify_only_broken_pipelines` | boolean | false | Send notifications for broken pipelines |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `push_events` | boolean | false | Enable notifications for push events |
 | `issues_events` | boolean | false | Enable notifications for issue events |
 | `confidential_issues_events` | boolean | false | Enable notifications for confidential issue events |
@@ -444,7 +482,7 @@ Parameters:
 | --------- | ---- | -------- | ----------- |
 | `webhook` | string | true | The Webex Teams webhook. For example, `https://api.ciscospark.com/v1/webhooks/incoming/...`. |
 | `notify_only_broken_pipelines` | boolean | false | Send notifications for broken pipelines |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `push_events` | boolean | false | Enable notifications for push events |
 | `issues_events` | boolean | false | Enable notifications for issue events |
 | `confidential_issues_events` | boolean | false | Enable notifications for confidential issue events |
@@ -601,7 +639,7 @@ Parameters:
 | `send_from_committer_email` | boolean | false | Send from committer |
 | `push_events` | boolean | false | Enable notifications for push events |
 | `tag_push_events` | boolean | false | Enable notifications for tag push events |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". Notifications are always fired for tag pushes. The default value is "all" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. Notifications are always fired for tag pushes. The default value is "all" |
 
 ### Disable Emails on Push integration
 
@@ -691,6 +729,36 @@ Get Confluence integration settings for a project.
 GET /projects/:id/integrations/confluence
 ```
 
+## Shimo integration
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/343386) in GitLab 14.5 [with a flag](../administration/feature_flags.md) named `shimo_integration`. Disabled by default.
+> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/343386) in GitLab 15.4.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/343386) in GitLab 15.4. [Feature flag `shimo_integration`](https://gitlab.com/gitlab-org/gitlab/-/issues/345356) removed.
+
+Replaces the link to the internal wiki with a link to a Shimo Workspace.
+
+### Create/Edit Shimo integration
+
+Set Shimo integration for a project.
+
+```plaintext
+PUT /projects/:id/integrations/shimo
+```
+
+Parameters:
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `external_wiki_url` | string | true | Shimo Workspace URL  |
+
+### Disable Shimo integration
+
+Disable the Shimo integration for a project. Integration settings are preserved.
+
+```plaintext
+DELETE /projects/:id/integrations/shimo
+```
+
 ## External wiki
 
 Replaces the link to the internal wiki with a link to an external wiki.
@@ -723,42 +791,6 @@ Get External wiki integration settings for a project.
 
 ```plaintext
 GET /projects/:id/integrations/external-wiki
-```
-
-## Flowdock
-
-Flowdock is a ChatOps application for collaboration in software engineering
-companies. You can send notifications from GitLab events to Flowdock flows.
-For integration instructions, see the [Flowdock documentation](https://www.flowdock.com/help/gitlab).
-
-### Create/Edit Flowdock integration
-
-Set Flowdock integration for a project.
-
-```plaintext
-PUT /projects/:id/integrations/flowdock
-```
-
-Parameters:
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `token` | string | true | Flowdock Git source token |
-
-### Disable Flowdock integration
-
-Disable the Flowdock integration for a project. Integration settings are preserved.
-
-```plaintext
-DELETE /projects/:id/integrations/flowdock
-```
-
-### Get Flowdock integration settings
-
-Get Flowdock integration settings for a project.
-
-```plaintext
-GET /projects/:id/integrations/flowdock
 ```
 
 ## GitHub **(PREMIUM)**
@@ -816,7 +848,7 @@ Parameters:
 | `webhook` | string | true | The Hangouts Chat webhook. For example, `https://chat.googleapis.com/v1/spaces...`. |
 | `notify_only_broken_pipelines` | boolean | false | Send notifications for broken pipelines |
 | `notify_only_default_branch` | boolean | false | DEPRECATED: This parameter has been replaced with `branches_to_be_notified` |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `push_events` | boolean | false | Enable notifications for push events |
 | `issues_events` | boolean | false | Enable notifications for issue events |
 | `confidential_issues_events` | boolean | false | Enable notifications for confidential issue events |
@@ -1076,7 +1108,7 @@ Parameters:
 | --------- | ---- | -------- | ----------- |
 | `recipients` | string | yes | Comma-separated list of recipient email addresses |
 | `notify_only_broken_pipelines` | boolean | no | Notify only broken pipelines |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected. The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `notify_only_default_branch` | boolean | no | Send notifications only for the default branch ([introduced in GitLab 12.0](https://gitlab.com/gitlab-org/gitlab-foss/-/merge_requests/28271)) |
 | `pipeline_events` | boolean | false | Enable notifications for pipeline events |
 
@@ -1151,7 +1183,7 @@ Parameters:
 | --------- | ---- | -------- | ----------- |
 | `api_url` | string | true | Prometheus API Base URL. For example, `http://prometheus.example.com/`. |
 | `google_iap_audience_client_id` | string | false | Client ID of the IAP secured resource (looks like IAP_CLIENT_ID.apps.googleusercontent.com) |
-| `google_iap_service_account_json` | string | false | `credentials.json` file for your service account, like { "type": "service_account", "project_id": ... } |
+| `google_iap_service_account_json` | string | false | `credentials.json` file for your service account, like { `"type": "service_account", "project_id": ... }` |
 
 ### Disable Prometheus integration
 
@@ -1264,7 +1296,7 @@ Parameters:
 | `channel` | string | false | Default channel to use if others are not configured |
 | `notify_only_broken_pipelines` | boolean | false | Send notifications for broken pipelines |
 | `notify_only_default_branch` | boolean | false | DEPRECATED: This parameter has been replaced with `branches_to_be_notified` |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `commit_events` | boolean | false | Enable notifications for commit events |
 | `confidential_issue_channel` | string | false | The name of the channel to receive confidential issues events notifications |
 | `confidential_issues_events` | boolean | false | Enable notifications for confidential issue events |
@@ -1323,7 +1355,7 @@ Parameters:
 | `webhook` | string | true | The Microsoft Teams webhook. For example, `https://outlook.office.com/webhook/...` |
 | `notify_only_broken_pipelines` | boolean | false | Send notifications for broken pipelines |
 | `notify_only_default_branch` | boolean | false | DEPRECATED: This parameter has been replaced with `branches_to_be_notified` |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `push_events` | boolean | false | Enable notifications for push events |
 | `issues_events` | boolean | false | Enable notifications for issue events |
 | `confidential_issues_events` | boolean | false | Enable notifications for confidential issue events |
@@ -1371,7 +1403,7 @@ Parameters:
 | `channel` | string | false | Default channel to use if others are not configured |
 | `notify_only_broken_pipelines` | boolean | false | Send notifications for broken pipelines |
 | `notify_only_default_branch` | boolean | false | DEPRECATED: This parameter has been replaced with `branches_to_be_notified` |
-| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are "all", "default", "protected", and "default_and_protected". The default value is "default" |
+| `branches_to_be_notified` | string | false | Branches to send notifications for. Valid options are `all`, `default`, `protected`, and `default_and_protected`. The default value is "default" |
 | `push_events` | boolean | false | Enable notifications for push events |
 | `issues_events` | boolean | false | Enable notifications for issue events |
 | `confidential_issues_events` | boolean | false | Enable notifications for confidential issue events |

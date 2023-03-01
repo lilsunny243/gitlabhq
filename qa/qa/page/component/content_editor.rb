@@ -15,11 +15,14 @@ module QA
 
           base.view 'app/assets/javascripts/content_editor/components/toolbar_text_style_dropdown.vue' do
             element :text_style_dropdown
-            element :text_style_menu_item
           end
 
           base.view 'app/assets/javascripts/content_editor/components/toolbar_image_button.vue' do
             element :file_upload_field
+          end
+
+          base.view 'app/assets/javascripts/vue_shared/components/markdown/markdown_editor.vue' do
+            element :markdown_editor_form_field
           end
         end
 
@@ -29,9 +32,7 @@ module QA
             # wait for text style option to become active after typing
             has_active_element?(:text_style_dropdown, wait: 1)
             click_element(:text_style_dropdown)
-            within_element(:text_style_dropdown) do
-              click_element(:text_style_menu_item, text_style: heading)
-            end
+            find_element(:text_style_dropdown).find('li', text: heading).click
           end
         end
 
@@ -40,6 +41,11 @@ module QA
             # add image on a new line
             text_area.send_keys(:return)
             find_element(:file_upload_field, visible: false).send_keys(image_path)
+          end
+
+          QA::Support::Retrier.retry_on_exception do
+            source = find_element(:markdown_editor_form_field, visible: false)
+            source.value =~ %r{uploads/.*#{::File.basename(image_path)}}
           end
         end
 

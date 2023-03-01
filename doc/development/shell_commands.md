@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Guidelines for shell commands in the GitLab codebase
@@ -70,6 +70,8 @@ FileUtils.touch myfile
 ```
 
 This coding style could have prevented CVE-2013-4546.
+
+See also <https://gitlab.com/gitlab-org/gitlab/-/merge_requests/93030>, and <https://starlabs.sg/blog/2022/07-gitlab-project-import-rce-analysis-cve-2022-2185/> for another example.
 
 ## Separate options from arguments with --
 

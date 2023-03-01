@@ -1,5 +1,18 @@
+- if show_super_sidebar?
+  - @left_sidebar = true
 .layout-page.hide-when-top-nav-responsive-open{ class: page_with_sidebar_class }
-  - if defined?(nav) && nav
+  - if show_super_sidebar?
+    -# Render the parent group sidebar while creating a new subgroup/project, see GroupsController#new.
+    - group = @parent_group || @group
+
+    - sidebar_panel = super_sidebar_nav_panel(nav: nav, user: current_user, group: group, project: @project, current_ref: current_ref, ref_type: @ref_type)
+    - sidebar_data = super_sidebar_context(current_user, group: group, project: @project, panel: sidebar_panel).to_json
+    %aside.js-super-sidebar.super-sidebar.super-sidebar-loading{ data: { root_path: root_path, sidebar: sidebar_data, toggle_new_nav_endpoint: profile_preferences_url } }
+
+    - if display_whats_new?
+      #whats-new-app{ data: { version_digest: whats_new_version_digest } }
+
+  - elsif defined?(nav) && nav
     = render "layouts/nav/sidebar/#{nav}"
   .content-wrapper.content-wrapper-margin{ class: "#{@content_wrapper_class}" }
     .mobile-overlay
@@ -14,6 +27,7 @@
       = dispensable_render "layouts/header/registration_enabled_callout"
       = dispensable_render "layouts/nav/classification_level_banner"
       = yield :flash_message
+      = dispensable_render "shared/gitlab_version/security_patch_upgrade_alert"
       = dispensable_render "shared/service_ping_consent"
       = dispensable_render_if_exists "layouts/header/ee_subscribable_banner"
       = dispensable_render_if_exists "layouts/header/seat_count_alert"
@@ -24,7 +38,7 @@
       = yield :group_invite_members_banner
       - unless @hide_breadcrumbs
         = render "layouts/nav/breadcrumbs"
-    %div{ class: "#{(container_class unless @no_container)} #{@content_class}" }
+    %div{ class: "#{container_class unless @no_container} #{@content_class}" }
       %main.content{ id: "content-body", **page_itemtype }
         = render "layouts/flash", extra_flash_class: 'limit-container-width'
         = yield :after_flash_content

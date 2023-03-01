@@ -7,7 +7,12 @@ import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import Api from '~/api';
 import PipelinesTable from '~/commit/pipelines/pipelines_table.vue';
-import httpStatusCodes from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_OK,
+  HTTP_STATUS_UNAUTHORIZED,
+} from '~/lib/utils/http_status';
 import { createAlert } from '~/flash';
 import { TOAST_MESSAGE } from '~/pipelines/constants';
 import axios from '~/lib/utils/axios_utils';
@@ -65,7 +70,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
   describe('successful request', () => {
     describe('without pipelines', () => {
       beforeEach(async () => {
-        mock.onGet('endpoint.json').reply(200, []);
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, []);
 
         createComponent();
 
@@ -92,7 +97,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
 
     describe('with pipelines', () => {
       beforeEach(async () => {
-        mock.onGet('endpoint.json').reply(200, [pipeline], { 'x-total': 10 });
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, [pipeline], { 'x-total': 10 });
 
         createComponent();
 
@@ -164,7 +169,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
         pipelineCopy.flags.detached_merge_request_pipeline = true;
         pipelineCopy.flags.merge_request_pipeline = true;
 
-        mock.onGet('endpoint.json').reply(200, [pipelineCopy]);
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, [pipelineCopy]);
 
         createComponent();
 
@@ -180,7 +185,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
         pipelineCopy.flags.detached_merge_request_pipeline = false;
         pipelineCopy.flags.merge_request_pipeline = false;
 
-        mock.onGet('endpoint.json').reply(200, [pipelineCopy]);
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, [pipelineCopy]);
 
         createComponent();
 
@@ -195,7 +200,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
       beforeEach(async () => {
         pipelineCopy.flags.detached_merge_request_pipeline = true;
 
-        mock.onGet('endpoint.json').reply(200, [pipelineCopy]);
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, [pipelineCopy]);
 
         createComponent({
           canRunPipeline: true,
@@ -243,10 +248,10 @@ describe('Pipelines table in Commits and Merge requests', () => {
           'An error occurred while trying to run a new pipeline for this merge request.';
 
         it.each`
-          status                                   | message
-          ${httpStatusCodes.BAD_REQUEST}           | ${defaultMsg}
-          ${httpStatusCodes.UNAUTHORIZED}          | ${permissionsMsg}
-          ${httpStatusCodes.INTERNAL_SERVER_ERROR} | ${defaultMsg}
+          status                               | message
+          ${HTTP_STATUS_BAD_REQUEST}           | ${defaultMsg}
+          ${HTTP_STATUS_UNAUTHORIZED}          | ${permissionsMsg}
+          ${HTTP_STATUS_INTERNAL_SERVER_ERROR} | ${defaultMsg}
         `('displays permissions error message', async ({ status, message }) => {
           const response = { response: { status } };
 
@@ -273,7 +278,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
       beforeEach(async () => {
         pipelineCopy.flags.detached_merge_request_pipeline = true;
 
-        mock.onGet('endpoint.json').reply(200, [pipelineCopy]);
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, [pipelineCopy]);
 
         createComponent({
           projectId: '5',
@@ -305,7 +310,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
 
     describe('when no pipelines were created on a forked merge request', () => {
       beforeEach(async () => {
-        mock.onGet('endpoint.json').reply(200, []);
+        mock.onGet('endpoint.json').reply(HTTP_STATUS_OK, []);
 
         createComponent({
           projectId: '5',
@@ -333,7 +338,7 @@ describe('Pipelines table in Commits and Merge requests', () => {
 
   describe('unsuccessfull request', () => {
     beforeEach(async () => {
-      mock.onGet('endpoint.json').reply(500, []);
+      mock.onGet('endpoint.json').reply(HTTP_STATUS_INTERNAL_SERVER_ERROR, []);
 
       createComponent();
 

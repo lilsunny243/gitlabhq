@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Import your project from Bitbucket Server **(FREE)**
@@ -24,10 +24,13 @@ created as private in GitLab as well.
 
 ## Import your Bitbucket repositories
 
-Prerequisite:
+> Ability to re-import projects [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23905) in GitLab 15.9.
 
-- An administrator must have enabled the **Bitbucket Server** in
-  **Admin > Settings > General > Visibility and access controls > Import sources**.
+Prerequisites:
+
+- An administrator must enable **Bitbucket Server** in  **Admin > Settings > General > Visibility and access controls > Import sources**.
+- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
+  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
 
 To import your Bitbucket repositories:
 
@@ -39,6 +42,9 @@ To import your Bitbucket repositories:
 1. Log in to Bitbucket and grant GitLab access to your Bitbucket account.
 1. Select the projects to import, or import all projects. You can filter projects by name and select
    the namespace for which to import each project.
+1. To import a project:
+   - For the first time: Select **Import**.
+   - Again: Select **Re-import**. Specify a new name and select **Re-import** again. Re-importing creates a new copy of the source project.
 
 ### Items that are not imported
 
@@ -62,6 +68,10 @@ The following items are changed when they are imported:
   supported.
 
 ## User assignment
+
+Prerequisite:
+
+- Authentication token with administrator access.
 
 When issues and pull requests are importing, the importer tries to find the author's email address
 with a confirmed email address in the GitLab user database. If no such user is available, the

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Triggers', :js do
+RSpec.describe 'Triggers', :js, feature_category: :continuous_integration do
   include Spec::Support::Helpers::ModalHelpers
 
   let(:trigger_title) { 'trigger desc' }
@@ -23,7 +23,7 @@ RSpec.describe 'Triggers', :js do
     wait_for_requests
   end
 
-  shared_examples 'triggers page' do
+  describe 'triggers page' do
     describe 'create trigger workflow' do
       it 'prevents adding new trigger with no description' do
         fill_in 'trigger_description', with: ''
@@ -113,10 +113,23 @@ RSpec.describe 'Triggers', :js do
         end
       end
 
+      it 'hides the token value and reveals when clicking the "reveal values" button', :aggregate_failures do
+        create(:ci_trigger, owner: user, project: @project, description: trigger_title)
+        visit project_settings_ci_cd_path(@project)
+
+        expect(page.find('.triggers-list')).to have_content('*' * 47)
+
+        page.find('[data-testid="reveal-hide-values-button"]').click
+
+        expect(page.find('.triggers-list')).to have_content(@project.triggers.first.token)
+      end
+
       it 'do not show "Edit" or full token for not owned trigger' do
         # Create trigger with user different from current_user
         create(:ci_trigger, owner: user2, project: @project, description: trigger_title)
         visit project_settings_ci_cd_path(@project)
+
+        page.find('[data-testid="reveal-hide-values-button"]').click
 
         aggregate_failures 'shows truncated token, no clipboard button and no edit link' do
           expect(page.find('.triggers-list')).to have_content(@project.triggers.first.token[0..3])
@@ -130,6 +143,8 @@ RSpec.describe 'Triggers', :js do
         create(:ci_trigger, owner: user, project: @project, description: trigger_title)
         visit project_settings_ci_cd_path(@project)
 
+        page.find('[data-testid="reveal-hide-values-button"]').click
+
         aggregate_failures 'shows full token, clipboard button and edit link' do
           expect(page.find('.triggers-list')).to have_content @project.triggers.first.token
           expect(page.find('.triggers-list')).to have_selector('[data-testid="clipboard-btn"]')
@@ -138,17 +153,5 @@ RSpec.describe 'Triggers', :js do
         end
       end
     end
-  end
-
-  context 'when ci_pipeline_triggers_settings_vue_ui is enabled' do
-    it_behaves_like 'triggers page'
-  end
-
-  context 'when ci_pipeline_triggers_settings_vue_ui is disabled' do
-    before do
-      stub_feature_flags(ci_pipeline_triggers_settings_vue_ui: false)
-    end
-
-    it_behaves_like 'triggers page'
   end
 end

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'rainbow/ext/string'
-require_dependency 'gitlab/utils/strong_memoize'
+require_relative 'utils/strong_memoize'
 
 # rubocop:disable Rails/Output
 module Gitlab
@@ -146,18 +146,6 @@ module Gitlab
         puts "  Things may work\/fail for the wrong reasons."
         puts "  For correct results you should run this as user #{gitlab_user.color(:magenta)}."
         puts ""
-      end
-    end
-
-    def all_repos
-      Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-        Gitlab.config.repositories.storages.each_value do |repository_storage|
-          IO.popen(%W(find #{repository_storage.legacy_disk_path} -mindepth 2 -type d -name *.git)) do |find|
-            find.each_line do |path|
-              yield path.chomp
-            end
-          end
-        end
       end
     end
 

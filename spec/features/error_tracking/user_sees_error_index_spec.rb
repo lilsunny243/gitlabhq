@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'View error index page', :js, :use_clean_rails_memory_store_caching, :sidekiq_inline do
+RSpec.describe 'View error index page', :js, :use_clean_rails_memory_store_caching, :sidekiq_inline,
+feature_category: :error_tracking do
   include_context 'sentry error tracking context feature'
 
   let_it_be(:issues_response_body) { fixture_file('sentry/issues_sample_response.json') }
@@ -49,7 +50,7 @@ RSpec.describe 'View error index page', :js, :use_clean_rails_memory_store_cachi
     end
 
     it 'renders call to action' do
-      expect(page).to have_content('Enable error tracking')
+      expect(page).to have_content('Monitor your errors directly in GitLab.')
     end
   end
 

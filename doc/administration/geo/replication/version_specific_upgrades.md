@@ -1,14 +1,27 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Version-specific upgrade instructions **(PREMIUM SELF)**
 
+NOTE:
+We're in the process of merging all the version-specific upgrade information
+into a single page. For more information,
+see [epic 9581](https://gitlab.com/groups/gitlab-org/-/epics/9581).
+For the latest Geo version-specific upgrade instructions,
+see the [general upgrade page](../../../update/index.md).
+
 Review this page for upgrade instructions for your version. These steps
 accompany the [general steps](upgrading_the_geo_sites.md#general-upgrade-steps)
 for upgrading Geo sites.
+
+## Upgrading to 15.1
+
+[Geo proxying](../secondary_proxy/index.md) was [enabled by default for different URLs](https://gitlab.com/gitlab-org/gitlab/-/issues/346112) in 15.1. This may be a breaking change. If needed, you may [disable Geo proxying](../secondary_proxy/index.md#disable-geo-proxying).
+
+If you are using SAML with different URLs, you must modify your SAML configuration and your Identity Provider configuration. For more information, see the [Geo with Single Sign-On (SSO) documentation](single_sign_on.md).
 
 ## Upgrading to 14.9
 
@@ -80,9 +93,9 @@ GitLab 13.9 through GitLab 14.3 are affected by a bug in which enabling [GitLab 
 
 ## Upgrading to GitLab 14.0/14.1
 
-### Primary sites can not be removed from the UI
+### Primary sites cannot be removed from the UI
 
-We found an issue where [Primary sites can not be removed from the UI](https://gitlab.com/gitlab-org/gitlab/-/issues/338231).
+We found an issue where [Primary sites cannot be removed from the UI](https://gitlab.com/gitlab-org/gitlab/-/issues/338231).
 
 This bug only exists in the UI and does not block the removal of Primary sites using any other method.
 
@@ -134,7 +147,7 @@ GitLab 13.9 through GitLab 14.3 are affected by a bug in which enabling [GitLab 
 
 ## Upgrading to GitLab 13.9
 
-### Error during zero-downtime upgrade: "cannot drop column asset_proxy_whitelist"
+### Error during zero-downtime upgrade: `cannot drop column asset_proxy_whitelist`
 
 We've detected an issue [with a column rename](https://gitlab.com/gitlab-org/gitlab/-/issues/324160)
 that prevents upgrades to GitLab 13.9.0, 13.9.1, 13.9.2 and 13.9.3 when following the zero-downtime steps. It is necessary
@@ -155,6 +168,13 @@ to perform the following additional steps for the zero-downtime upgrade:
 
    ```shell
    sudo gitlab-rake db:migrate
+   ```
+
+1. Hot reload `puma` and `sidekiq` services:
+
+   ```shell
+   sudo gitlab-ctl hup puma
+   sudo gitlab-ctl restart sidekiq
    ```
 
 If you have already run the final `sudo gitlab-rake db:migrate` command on the deploy node and have

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Package Licensing **(FREE SELF)**
@@ -25,8 +25,7 @@ Starting with version 9.2, the Omnibus GitLab package ships a
 `dependency_licenses.json` file containing version and license information of
 all bundled software, including software libraries, Ruby gems that the rails
 application uses, and JavaScript libraries that is required for the frontend
-components. This file, being in JSON format, is easily machine parseable and
-can be used for automated checks or validations. The file may be found at
+components. Because it's in JSON format, GitLab can parse this file easily and use it for automated checks or validations. The file may be found at
 `/opt/gitlab/dependency_licenses.json`.
 
 Starting with version 11.3, we have also made the license information available
@@ -42,7 +41,7 @@ Starting with version 8.13, GitLab has placed an additional step into
 Omnibus GitLab. The `license_check` step calls
 `lib/gitlab/tasks/license_check.rake`, which checks the compiled `LICENSE` file
 against the current list of approved and questionable licenses as denoted in the
-arrays at the top of the script. This script will output one of `Good`,
+arrays at the top of the script. This script outputs one of `Good`,
 `Unknown` or `Check` for each piece of software that is a part of the
 Omnibus GitLab package.
 
@@ -71,7 +70,7 @@ All trademarks, materials, documentation, and other intellectual property remain
 
 ### Trademark Requirements
 
-Use of GitLab Trademarks must be in compliance with the standards set forth in [our guidelines](https://about.gitlab.com/handbook/marketing/corporate-marketing/brand-activation/trademark-guidelines/) (as updated from time to time).
+Use of GitLab Trademarks must be in compliance with the standards set forth in [our guidelines](https://about.gitlab.com/handbook/marketing/brand-and-product-marketing/brand/brand-activation/trademark-guidelines/) (as updated from time to time).
 CHEF® and all Chef marks are owned by Progress Software Corporation and must be used in accordance with the [Progress Software Trademark Usage Policy](https://www.progress.com/legal/trademarks).
 
 When using a GitLab or 3rd party trademark in documentation, include the (R) symbol in the first instance, for example, "Chef(R) is used for configuring...." You may omit the symbol in subsequent instances.

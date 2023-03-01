@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Secure
 group: Static Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Offline environments **(ULTIMATE SELF)**
@@ -117,7 +117,7 @@ This template should be used in a new, empty project, with a `.gitlab-ci.yml` fi
 
 ```yaml
 include:
-  - template: Secure-Binaries.gitlab-ci.yml
+  - template: Security/Secure-Binaries.gitlab-ci.yml
 ```
 
 The pipeline downloads the Docker images needed for the Security Scanners and saves them as
@@ -131,7 +131,7 @@ to be able to use the `docker` command inside the jobs. This runner can be insta
 a bastion, and used only for this specific project.
 
 WARNING:
-This template does not include updates for the container scanning analyzer. Please see
+This template does not include updates for the container scanning analyzer. See
 [Container scanning offline directions](../container_scanning/index.md#running-container-scanning-in-an-offline-environment).
 
 #### Scheduling the updates
@@ -151,7 +151,7 @@ GitLab.com. To do so, set the CI/CD variable `SECURE_ANALYZERS_PREFIX` with the 
 project [container registry](../../packages/container_registry/index.md).
 
 You can set this variable in the projects' `.gitlab-ci.yml`, or
-in the GitLab UI at the project or group level. See the [GitLab CI/CD variables page](../../../ci/variables/index.md#custom-cicd-variables)
+in the GitLab UI at the project or group level. See the [GitLab CI/CD variables page](../../../ci/variables/index.md#define-a-cicd-variable-in-the-ui)
 for more information.
 
 #### Variables
@@ -227,13 +227,13 @@ these steps:
    The AutoDevOps templates leverage the `SECURE_ANALYZERS_PREFIX` variable to identify the location
    of analyzer images. This variable is discussed above in [Using the secure bundle created](#using-the-secure-bundle-created).
    Ensure that you set this variable to the correct value for where you loaded the analyzer images.
-   You could consider doing this with a project CI/CD variable or by [modifying](../../../topics/autodevops/customize.md#customizing-gitlab-ciyml)
+   You could consider doing this with a project CI/CD variable or by [modifying](../../../topics/autodevops/customize.md#customize-gitlab-ciyml)
    the `.gitlab-ci.yml` file directly.
 
 Once these steps are complete, GitLab has local copies of the Secure analyzers and is set up to use
 them instead of an Internet-hosted container image. This allows you to run Secure in AutoDevOps in
 an offline environment.
 
-Note that these steps are specific to GitLab Secure with AutoDevOps. Using other stages with
+These steps are specific to GitLab Secure with AutoDevOps. Using other stages with
 AutoDevOps may require other steps covered in the
 [Auto DevOps documentation](../../../topics/autodevops/index.md).

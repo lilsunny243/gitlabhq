@@ -8,27 +8,15 @@ import {
   GlFormInputGroup,
   GlDropdown,
   GlDropdownItem,
-  GlSprintf,
-  GlSafeHtmlDirective,
+  GlFormGroup,
 } from '@gitlab/ui';
 import $ from 'jquery';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import GfmAutoComplete from 'ee_else_ce/gfm_auto_complete';
 import * as Emoji from '~/emoji';
-import { __, s__ } from '~/locale';
-import { timeRanges } from '~/vue_shared/constants';
-
-export const AVAILABILITY_STATUS = {
-  BUSY: 'busy',
-  NOT_SET: 'not_set',
-};
-
-const statusTimeRanges = [
-  {
-    label: __('Never'),
-    name: 'never',
-  },
-  ...timeRanges,
-];
+import { s__ } from '~/locale';
+import { formatDate, newDate, nSecondsAfter, isToday } from '~/lib/utils/datetime_utility';
+import { TIME_RANGES_WITH_NEVER, AVAILABILITY_STATUS, NEVER_TIME_RANGE } from './constants';
 
 export default {
   components: {
@@ -39,12 +27,12 @@ export default {
     GlFormInputGroup,
     GlDropdown,
     GlDropdownItem,
-    GlSprintf,
+    GlFormGroup,
     EmojiPicker: () => import('~/emoji/components/picker.vue'),
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   props: {
     defaultEmoji: {
@@ -67,7 +55,7 @@ export default {
     clearStatusAfter: {
       type: Object,
       required: false,
-      default: () => ({}),
+      default: null,
     },
     currentClearStatusAfter: {
       type: String,
@@ -90,6 +78,21 @@ export default {
     },
     noEmoji() {
       return this.emojiTag === '';
+    },
+    clearStatusAfterDropdownText() {
+      if (this.clearStatusAfter === null && this.currentClearStatusAfter.length) {
+        return this.formatClearStatusAfterDate(new Date(this.currentClearStatusAfter));
+      }
+
+      if (this.clearStatusAfter?.duration?.seconds) {
+        const clearStatusAfterDate = nSecondsAfter(
+          newDate(),
+          this.clearStatusAfter.duration.seconds,
+        );
+        return this.formatClearStatusAfterDate(clearStatusAfterDate);
+      }
+
+      return NEVER_TIME_RANGE.label;
     },
   },
   mounted() {
@@ -135,15 +138,23 @@ export default {
       this.$emit('message-input', '');
       this.clearEmoji();
     },
+    formatClearStatusAfterDate(date) {
+      if (isToday(date)) {
+        return formatDate(date, 'h:MMtt');
+      }
+
+      return formatDate(date, 'mmm d, yyyy h:MMtt');
+    },
   },
-  statusTimeRanges,
+  TIME_RANGES_WITH_NEVER,
+  AVAILABILITY_STATUS,
   safeHtmlConfig: { ADD_TAGS: ['gl-emoji'] },
   i18n: {
     statusMessagePlaceholder: s__(`SetStatusModal|What's your status?`),
     clearStatusButtonLabel: s__('SetStatusModal|Clear status'),
-    availabilityCheckboxLabel: s__('SetStatusModal|Busy'),
+    availabilityCheckboxLabel: s__('SetStatusModal|Set yourself as busy'),
     availabilityCheckboxHelpText: s__(
-      'SetStatusModal|An indicator appears next to your name and avatar',
+      'SetStatusModal|Displays that you are busy or not able to respond',
     ),
     clearStatusAfterDropdownLabel: s__('SetStatusModal|Clear status after'),
     clearStatusAfterMessage: s__('SetStatusModal|Your status resets on %{date}.'),
@@ -153,14 +164,11 @@ export default {
 
 <template>
   <div>
-    <input :value="emoji" class="js-status-emoji-field" type="hidden" name="user[status][emoji]" />
     <gl-form-input-group class="gl-mb-5">
       <gl-form-input
         ref="statusMessageField"
         :value="message"
         :placeholder="$options.i18n.statusMessagePlaceholder"
-        class="js-status-message-field"
-        name="user[status][message]"
         @keyup="setDefaultEmoji"
         @input="$emit('message-input', $event)"
         @keyup.enter.prevent
@@ -174,11 +182,7 @@ export default {
           @click="handleEmojiClick"
         >
           <template #button-content>
-            <span
-              v-if="noEmoji"
-              class="no-emoji-placeholder position-relative"
-              data-testid="no-emoji-placeholder"
-            >
+            <span v-if="noEmoji" class="gl-relative" data-testid="no-emoji-placeholder">
               <gl-icon name="slight-smile" class="award-control-icon-neutral" />
               <gl-icon name="smiley" class="award-control-icon-positive" />
               <gl-icon name="smile" class="award-control-icon-super-positive" />
@@ -216,28 +220,21 @@ export default {
       </template>
     </gl-form-checkbox>
 
-    <div class="form-group">
-      <div class="gl-display-flex gl-align-items-baseline">
-        <span class="gl-mr-3">{{ $options.i18n.clearStatusAfterDropdownLabel }}</span>
-        <gl-dropdown :text="clearStatusAfter.label" data-testid="clear-status-at-dropdown">
-          <gl-dropdown-item
-            v-for="after in $options.statusTimeRanges"
-            :key="after.name"
-            :data-testid="after.name"
-            @click="$emit('clear-status-after-click', after)"
-            >{{ after.label }}</gl-dropdown-item
-          >
-        </gl-dropdown>
-      </div>
-      <p
-        v-if="currentClearStatusAfter.length"
-        class="gl-mt-3 gl-text-gray-400 gl-font-sm"
-        data-testid="clear-status-at-message"
+    <gl-form-group :label="$options.i18n.clearStatusAfterDropdownLabel" class="gl-mb-0">
+      <gl-dropdown
+        block
+        :text="clearStatusAfterDropdownText"
+        data-testid="clear-status-at-dropdown"
+        toggle-class="gl-mb-0 gl-form-input-md"
       >
-        <gl-sprintf :message="$options.i18n.clearStatusAfterMessage">
-          <template #date>{{ currentClearStatusAfter }}</template>
-        </gl-sprintf>
-      </p>
-    </div>
+        <gl-dropdown-item
+          v-for="after in $options.TIME_RANGES_WITH_NEVER"
+          :key="after.name"
+          :data-testid="after.name"
+          @click="$emit('clear-status-after-click', after)"
+          >{{ after.label }}</gl-dropdown-item
+        >
+      </gl-dropdown>
+    </gl-form-group>
   </div>
 </template>

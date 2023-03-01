@@ -1,10 +1,9 @@
-import { shallowMount } from '@vue/test-utils';
+import { GlDisclosureDropdown, GlDisclosureDropdownItem } from '@gitlab/ui';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import Vuex from 'vuex';
 import createMockApollo from 'helpers/mock_apollo_helper';
-import { extendedWrapper } from 'helpers/vue_test_utils_helper';
-
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { boardListQueryResponse, mockLabelList } from 'jest/boards/mock_data';
 import BoardListHeader from '~/boards/components/board_list_header.vue';
 import { ListType } from '~/boards/constants';
@@ -35,6 +34,7 @@ describe('Board List Header Component', () => {
     withLocalStorage = true,
     currentUserId = 1,
     listQueryHandler = jest.fn().mockResolvedValue(boardListQueryResponse()),
+    injectedProps = {},
   } = {}) => {
     const boardId = '1';
 
@@ -59,33 +59,38 @@ describe('Board List Header Component', () => {
     store = new Vuex.Store({
       state: {},
       actions: { updateList: updateListSpy, toggleListCollapsed: toggleListCollapsedSpy },
-      getters: { isEpicBoard: () => false },
     });
 
     fakeApollo = createMockApollo([[listQuery, listQueryHandler]]);
 
-    wrapper = extendedWrapper(
-      shallowMount(BoardListHeader, {
-        apolloProvider: fakeApollo,
-        store,
-        propsData: {
-          disabled: false,
-          list: listMock,
-        },
-        provide: {
-          boardId,
-          weightFeatureAvailable: false,
-          currentUserId,
-        },
-      }),
-    );
+    wrapper = shallowMountExtended(BoardListHeader, {
+      apolloProvider: fakeApollo,
+      store,
+      propsData: {
+        list: listMock,
+        filterParams: {},
+      },
+      provide: {
+        boardId,
+        weightFeatureAvailable: false,
+        currentUserId,
+        isEpicBoard: false,
+        disabled: false,
+        ...injectedProps,
+      },
+      stubs: {
+        GlDisclosureDropdown,
+        GlDisclosureDropdownItem,
+      },
+    });
   };
 
+  const findDropdown = () => wrapper.findComponent(GlDisclosureDropdown);
   const isCollapsed = () => wrapper.vm.list.collapsed;
-
-  const findAddIssueButton = () => wrapper.findComponent({ ref: 'newIssueBtn' });
   const findTitle = () => wrapper.find('.board-title');
   const findCaret = () => wrapper.findByTestId('board-title-caret');
+  const findNewIssueButton = () => wrapper.findByTestId('newIssueBtn');
+  const findSettingsButton = () => wrapper.findByTestId('settingsBtn');
 
   describe('Add issue button', () => {
     const hasNoAddButton = [ListType.closed];
@@ -97,32 +102,49 @@ describe('Board List Header Component', () => {
       ListType.assignee,
     ];
 
-    it.each(hasNoAddButton)('does not render when List Type is `%s`', (listType) => {
+    it.each(hasNoAddButton)('does not render dropdown when List Type is `%s`', (listType) => {
       createComponent({ listType });
 
-      expect(findAddIssueButton().exists()).toBe(false);
+      expect(findDropdown().exists()).toBe(false);
     });
 
     it.each(hasAddButton)('does render when List Type is `%s`', (listType) => {
       createComponent({ listType });
 
-      expect(findAddIssueButton().exists()).toBe(true);
+      expect(findDropdown().exists()).toBe(true);
+      expect(findNewIssueButton().exists()).toBe(true);
     });
 
-    it('has a test for each list type', () => {
-      createComponent();
-
-      Object.values(ListType).forEach((value) => {
-        expect([...hasAddButton, ...hasNoAddButton]).toContain(value);
-      });
-    });
-
-    it('does not render when logged out', () => {
+    it('does not render dropdown when logged out', () => {
       createComponent({
         currentUserId: null,
       });
 
-      expect(findAddIssueButton().exists()).toBe(false);
+      expect(findDropdown().exists()).toBe(false);
+    });
+  });
+
+  describe('Settings Button', () => {
+    const hasSettings = [ListType.assignee, ListType.milestone, ListType.iteration, ListType.label];
+
+    it.each(hasSettings)('does render for List Type `%s`', (listType) => {
+      createComponent({ listType });
+
+      expect(findDropdown().exists()).toBe(true);
+      expect(findSettingsButton().exists()).toBe(true);
+    });
+
+    it('does not render dropdown when ListType `closed`', () => {
+      createComponent({ listType: ListType.closed });
+
+      expect(findDropdown().exists()).toBe(false);
+    });
+
+    it('renders dropdown but not the Settings button when ListType `backlog`', () => {
+      createComponent({ listType: ListType.backlog });
+
+      expect(findDropdown().exists()).toBe(true);
+      expect(findSettingsButton().exists()).toBe(false);
     });
   });
 
@@ -132,7 +154,7 @@ describe('Board List Header Component', () => {
 
       const icon = findCaret();
 
-      expect(icon.props('icon')).toBe('chevron-down');
+      expect(icon.props('icon')).toBe('chevron-lg-down');
     });
 
     it('should display expand icon when column is collapsed', async () => {
@@ -140,7 +162,7 @@ describe('Board List Header Component', () => {
 
       const icon = findCaret();
 
-      expect(icon.props('icon')).toBe('chevron-right');
+      expect(icon.props('icon')).toBe('chevron-lg-right');
     });
 
     it('should dispatch toggleListCollapse when clicking the collapse icon', async () => {

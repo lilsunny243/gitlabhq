@@ -2,7 +2,7 @@
 
 module QA
   RSpec.describe 'Create' do
-    describe 'Cherry picking a commit' do
+    describe 'Cherry picking a commit', product_group: :code_review do
       let(:file_name) { "secret_file.md" }
 
       let(:project) do
@@ -18,9 +18,7 @@ module QA
           commit.branch = "development"
           commit.start_branch = project.default_branch
           commit.commit_message = 'Add new file'
-          commit.add_files([
-            { file_path: file_name, content: 'pssst!' }
-          ])
+          commit.add_files([{ file_path: file_name, content: 'pssst!' }])
         end
       end
 

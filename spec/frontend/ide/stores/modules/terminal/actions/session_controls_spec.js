@@ -1,12 +1,17 @@
 import MockAdapter from 'axios-mock-adapter';
 import testAction from 'helpers/vuex_action_helper';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import * as actions from '~/ide/stores/modules/terminal/actions/session_controls';
 import { STARTING, PENDING, STOPPING, STOPPED } from '~/ide/stores/modules/terminal/constants';
 import * as messages from '~/ide/stores/modules/terminal/messages';
 import * as mutationTypes from '~/ide/stores/modules/terminal/mutation_types';
 import axios from '~/lib/utils/axios_utils';
-import httpStatus from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_NOT_FOUND,
+  HTTP_STATUS_OK,
+  HTTP_STATUS_UNPROCESSABLE_ENTITY,
+} from '~/lib/utils/http_status';
 
 jest.mock('~/flash');
 
@@ -89,7 +94,7 @@ describe('IDE store terminal session controls actions', () => {
     it('flashes message', () => {
       actions.receiveStartSessionError({ dispatch });
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: messages.UNEXPECTED_ERROR_STARTING,
       });
     });
@@ -111,7 +116,7 @@ describe('IDE store terminal session controls actions', () => {
     });
 
     it('dispatches request and receive on success', () => {
-      mock.onPost(/.*\/ide_terminals/).reply(200, TEST_SESSION);
+      mock.onPost(/.*\/ide_terminals/).reply(HTTP_STATUS_OK, TEST_SESSION);
 
       return testAction(
         actions.startSession,
@@ -126,7 +131,7 @@ describe('IDE store terminal session controls actions', () => {
     });
 
     it('dispatches request and receive on error', () => {
-      mock.onPost(/.*\/ide_terminals/).reply(400);
+      mock.onPost(/.*\/ide_terminals/).reply(HTTP_STATUS_BAD_REQUEST);
 
       return testAction(
         actions.startSession,
@@ -163,7 +168,7 @@ describe('IDE store terminal session controls actions', () => {
     it('flashes message', () => {
       actions.receiveStopSessionError({ dispatch });
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: messages.UNEXPECTED_ERROR_STOPPING,
       });
     });
@@ -175,7 +180,7 @@ describe('IDE store terminal session controls actions', () => {
 
   describe('stopSession', () => {
     it('dispatches request and receive on success', () => {
-      mock.onPost(TEST_SESSION.cancel_path).reply(200, {});
+      mock.onPost(TEST_SESSION.cancel_path).reply(HTTP_STATUS_OK, {});
 
       const state = {
         session: { cancelPath: TEST_SESSION.cancel_path },
@@ -191,7 +196,7 @@ describe('IDE store terminal session controls actions', () => {
     });
 
     it('dispatches request and receive on error', () => {
-      mock.onPost(TEST_SESSION.cancel_path).reply(400);
+      mock.onPost(TEST_SESSION.cancel_path).reply(HTTP_STATUS_BAD_REQUEST);
 
       const state = {
         session: { cancelPath: TEST_SESSION.cancel_path },
@@ -254,7 +259,7 @@ describe('IDE store terminal session controls actions', () => {
     it('dispatches request and receive on success', () => {
       mock
         .onPost(state.session.retryPath, { branch: rootState.currentBranchId, format: 'json' })
-        .reply(200, TEST_SESSION);
+        .reply(HTTP_STATUS_OK, TEST_SESSION);
 
       return testAction(
         actions.restartSession,
@@ -271,7 +276,7 @@ describe('IDE store terminal session controls actions', () => {
     it('dispatches request and receive on error', () => {
       mock
         .onPost(state.session.retryPath, { branch: rootState.currentBranchId, format: 'json' })
-        .reply(400);
+        .reply(HTTP_STATUS_BAD_REQUEST);
 
       return testAction(
         actions.restartSession,
@@ -285,7 +290,7 @@ describe('IDE store terminal session controls actions', () => {
       );
     });
 
-    [httpStatus.NOT_FOUND, httpStatus.UNPROCESSABLE_ENTITY].forEach((status) => {
+    [HTTP_STATUS_NOT_FOUND, HTTP_STATUS_UNPROCESSABLE_ENTITY].forEach((status) => {
       it(`dispatches request and startSession on ${status}`, () => {
         mock
           .onPost(state.session.retryPath, { branch: rootState.currentBranchId, format: 'json' })

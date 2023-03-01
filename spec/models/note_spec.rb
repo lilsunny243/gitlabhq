@@ -23,6 +23,10 @@ RSpec.describe Note do
     it { is_expected.to include_module(Sortable) }
   end
 
+  describe 'default values' do
+    it { expect(described_class.new).not_to be_system }
+  end
+
   describe 'validation' do
     it { is_expected.to validate_length_of(:note).is_at_most(1_000_000) }
     it { is_expected.to validate_presence_of(:note) }
@@ -278,6 +282,32 @@ RSpec.describe Note do
         expect(note).to receive(:notify_after_destroy).and_call_original
         expect(note).to receive(:noteable).at_least(:once).and_return(nil)
         expect { note.destroy! }.not_to raise_error
+      end
+    end
+
+    describe 'sets internal flag' do
+      subject(:internal) { note.reload.internal }
+
+      let(:note) { create(:note, confidential: confidential, project: issue.project, noteable: issue) }
+
+      let_it_be(:issue) { create(:issue) }
+
+      context 'when confidential is `true`' do
+        let(:confidential) { true }
+
+        it { is_expected.to be true }
+      end
+
+      context 'when confidential is `false`' do
+        let(:confidential) { false }
+
+        it { is_expected.to be false }
+      end
+
+      context 'when confidential is `nil`' do
+        let(:confidential) { nil }
+
+        it { is_expected.to be false }
       end
     end
   end
@@ -549,6 +579,7 @@ RSpec.describe Note do
         expect(commit_note.confidential?).to be_falsy
       end
     end
+
     context 'when note is confidential' do
       it 'is true even when a noteable is not confidential' do
         issue = create(:issue, confidential: false)
@@ -1451,6 +1482,7 @@ RSpec.describe Note do
     end
 
     it "expires cache for note's issue when note is destroyed" do
+      note.save!
       expect_expiration(note.noteable)
 
       note.destroy!
@@ -1591,69 +1623,38 @@ RSpec.describe Note do
         expect(described_class.with_suggestions).not_to include(note_without_suggestion)
       end
     end
-  end
 
-  describe '#noteable_assignee_or_author?' do
-    let(:user) { create(:user) }
-    let(:noteable) { create(:issue) }
-    let(:note) { create(:note, project: noteable.project, noteable: noteable) }
+    describe '.inc_relations_for_view' do
+      subject { note.noteable.notes.inc_relations_for_view(noteable) }
 
-    subject { note.noteable_assignee_or_author?(user) }
+      context 'when noteable can not have diffs' do
+        let_it_be(:note) { create(:note_on_issue) }
+        let(:noteable) { note.noteable }
 
-    shared_examples 'assignee check' do
-      context 'when the provided user is one of the assignees' do
-        before do
-          note.noteable.update!(assignees: [user, create(:user)])
+        it 'does not include additional associations' do
+          expect { subject.reload }.to match_query_count(0).for_model(NoteDiffFile).and(
+            match_query_count(0).for_model(DiffNotePosition))
         end
 
-        it 'returns true' do
-          expect(subject).to be_truthy
-        end
-      end
-    end
+        context 'when noteable is not set' do
+          let(:noteable) { nil }
 
-    shared_examples 'author check' do
-      context 'when the provided user is the author' do
-        before do
-          note.noteable.update!(author: user)
-        end
-
-        it 'returns true' do
-          expect(subject).to be_truthy
+          it 'includes additional diff associations' do
+            expect { subject.reload }.to match_query_count(1).for_model(NoteDiffFile).and(
+              match_query_count(1).for_model(DiffNotePosition))
+          end
         end
       end
 
-      context 'when the provided user is neither author nor assignee' do
-        it 'returns true' do
-          expect(subject).to be_falsey
+      context 'when noteable can have diffs' do
+        let_it_be(:note) { create(:note_on_commit) }
+        let(:noteable) { note.noteable }
+
+        it 'includes additional diff associations' do
+          expect { subject.reload }.to match_query_count(1).for_model(NoteDiffFile).and(
+            match_query_count(1).for_model(DiffNotePosition))
         end
       end
-    end
-
-    context 'when user is nil' do
-      let(:user) { nil }
-
-      it 'returns false' do
-        expect(subject).to be_falsey
-      end
-    end
-
-    context 'when noteable is an issue' do
-      it_behaves_like 'author check'
-      it_behaves_like 'assignee check'
-    end
-
-    context 'when noteable is a merge request' do
-      let(:noteable) { create(:merge_request) }
-
-      it_behaves_like 'author check'
-      it_behaves_like 'assignee check'
-    end
-
-    context 'when noteable is a snippet' do
-      let(:noteable) { create(:personal_snippet) }
-
-      it_behaves_like 'author check'
     end
   end
 
@@ -1813,6 +1814,12 @@ RSpec.describe Note do
         let(:note) { create(:note, :system, :on_issue, note: original_note_body) }
 
         it { is_expected.to eq(expected_text_replacement) }
+
+        context 'context when note and cache are null (happens in bulk insert)' do
+          let(:note) { build(:note, :system, :on_issue, note: nil, note_html: nil).tap { |note| note.save!(validate: false) } }
+
+          it { is_expected.to be_in([nil, '']) }
+        end
       end
     end
   end
@@ -1842,7 +1849,7 @@ RSpec.describe Note do
       let(:expected_text_replacement) { '<p data-sourcepos="1:1-1:48" dir="auto">marked the checklist item <strong>task 1</strong> as completed</p>' }
 
       before do
-        note.update_columns(note_html: unchanged_note_body)
+        note.update_columns(note_html: unchanged_note_body) unless note.note.nil?
       end
     end
 
@@ -1852,7 +1859,53 @@ RSpec.describe Note do
       let(:expected_text_replacement) { '<p data-sourcepos="1:1-1:48" dir="auto">marked the checklist item <strong>task 1</strong> as incomplete</p>' }
 
       before do
-        note.update_columns(note_html: unchanged_note_body)
+        note.update_columns(note_html: unchanged_note_body) unless note.note.nil?
+      end
+    end
+  end
+
+  describe '#issuable_ability_name' do
+    subject { note.issuable_ability_name }
+
+    context 'when not confidential note' do
+      let(:note) { build(:note) }
+
+      it { is_expected.to eq :read_note }
+    end
+
+    context 'when confidential note' do
+      let(:note) { build(:note, :confidential) }
+
+      it { is_expected.to eq :read_internal_note }
+    end
+  end
+
+  describe '#exportable_record?' do
+    let_it_be(:user) { create(:user) }
+    let_it_be(:project) { create(:project, :private) }
+    let_it_be(:noteable) { create(:issue, project: project) }
+
+    subject { note.exportable_record?(user) }
+
+    context 'when not a system note' do
+      let(:note) { build(:note, noteable: noteable) }
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'with system note' do
+      let(:note) { build(:system_note, project: project, noteable: noteable) }
+
+      it 'returns `false` when the user cannot read the note' do
+        is_expected.to be_falsey
+      end
+
+      context 'when user can read the note' do
+        before do
+          project.add_developer(user)
+        end
+
+        it { is_expected.to be_truthy }
       end
     end
   end

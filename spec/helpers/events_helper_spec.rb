@@ -4,6 +4,30 @@ require 'spec_helper'
 
 RSpec.describe EventsHelper do
   include Gitlab::Routing
+  include Banzai::Filter::OutputSafety
+
+  describe '#link_to_author' do
+    let(:user) { create(:user) }
+    let(:event) { create(:event, author: user) }
+
+    it 'returns a link to the author' do
+      name = user.name
+      expect(helper.link_to_author(event)).to eq(link_to(name, user_path(user.username), title: name))
+    end
+
+    it 'returns the author name if the author is not present' do
+      event.author = nil
+
+      expect(helper.link_to_author(event)).to eq(escape_once(event.author_name))
+    end
+
+    it 'returns "You" if the author is the current user' do
+      allow(helper).to receive(:current_user).and_return(user)
+
+      name = _('You')
+      expect(helper.link_to_author(event, self_added: true)).to eq(link_to(name, user_path(user.username), title: name))
+    end
+  end
 
   describe '#event_target_path' do
     subject { helper.event_target_path(event.present) }
@@ -21,6 +45,45 @@ RSpec.describe EventsHelper do
       let(:event) { create(:event, target: issue, project: project) }
 
       it { is_expected.to eq([project, issue]) }
+    end
+  end
+
+  describe '#localized_action_name' do
+    it 'handles all valid design events' do
+      created, updated, destroyed = %i[created updated destroyed].map do |trait|
+        event = build(:design_event, trait)
+        helper.localized_action_name(event)
+      end
+
+      expect(created).to eq(_('added'))
+      expect(updated).to eq(_('updated'))
+      expect(destroyed).to eq(_('removed'))
+    end
+
+    context 'handles correct base actions' do
+      using RSpec::Parameterized::TableSyntax
+
+      where(:trait, :localized_action_name) do
+        :created   | s_('Event|created')
+        :updated   | s_('Event|opened')
+        :closed    | s_('Event|closed')
+        :reopened  | s_('Event|opened')
+        :commented | s_('Event|commented on')
+        :merged    | s_('Event|accepted')
+        :joined    | s_('Event|joined')
+        :left      | s_('Event|left')
+        :destroyed | s_('Event|destroyed')
+        :expired | s_('Event|removed due to membership expiration from')
+        :approved | s_('Event|approved')
+      end
+
+      with_them do
+        it 'with correct name and method' do
+          event = build(:event, trait)
+
+          expect(helper.localized_action_name(event)).to eq(localized_action_name)
+        end
+      end
     end
   end
 

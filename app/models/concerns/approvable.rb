@@ -47,14 +47,14 @@ module Approvable
   def approved_by?(user)
     return false unless user
 
-    approved_by_users.include?(user)
+    approvals.where(user: user).any?
   end
 
-  def can_be_approved_by?(user)
+  def eligible_for_approval_by?(user)
     user && !approved_by?(user) && user.can?(:approve_merge_request, self)
   end
 
-  def can_be_unapproved_by?(user)
+  def eligible_for_unapproval_by?(user)
     user && approved_by?(user) && user.can?(:approve_merge_request, self)
   end
 end

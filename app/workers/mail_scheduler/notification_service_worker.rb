@@ -18,6 +18,10 @@ module MailScheduler
     def perform(meth, *args)
       check_arguments!(args)
 
+      if NotificationService.permitted_actions.exclude?(meth.to_sym)
+        raise(ArgumentError, "#{meth} not allowed for #{self.class.name}")
+      end
+
       deserialized_args = ActiveJob::Arguments.deserialize(args)
       notification_service.public_send(meth, *deserialized_args) # rubocop:disable GitlabSecurity/PublicSend
     rescue ActiveJob::DeserializationError

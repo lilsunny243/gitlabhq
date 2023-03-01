@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab CI/CD `workflow` keyword **(FREE)**
@@ -29,7 +29,7 @@ See the [common `if` clauses for `rules`](../jobs/job_control.md#common-if-claus
 In the following example:
 
 - Pipelines run for all `push` events (changes to branches and new tags).
-- Pipelines for push events with `-draft` in the commit message don't run, because
+- Pipelines for push events with commit messages that end with `-draft` don't run, because
   they are set to `when: never`.
 - Pipelines for schedules or merge requests don't run either, because no rules evaluate to true for them.
 
@@ -176,7 +176,7 @@ include:
 
 If a merge request displays `Checking pipeline status.`, but the message never goes
 away (the "spinner" never stops spinning), it might be due to `workflow:rules`.
-This issue can happen if a project has [**Pipelines must succeed**](../../user/project/merge_requests/merge_when_pipeline_succeeds.md#only-allow-merge-requests-to-be-merged-if-the-pipeline-succeeds)
+This issue can happen if a project has [**Pipelines must succeed**](../../user/project/merge_requests/merge_when_pipeline_succeeds.md#require-a-successful-pipeline-for-merge)
 enabled, but the `workflow:rules` prevent a pipeline from running for the merge request.
 
 For example, with this workflow, merge requests cannot be merged, because no

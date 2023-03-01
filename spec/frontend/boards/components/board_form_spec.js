@@ -53,26 +53,20 @@ describe('BoardForm', () => {
   const setErrorMock = jest.fn();
 
   const store = new Vuex.Store({
-    getters: {
-      isGroupBoard: () => true,
-      isProjectBoard: () => false,
-    },
     actions: {
       setBoard: setBoardMock,
       setError: setErrorMock,
     },
   });
 
-  const createComponent = (props, data) => {
+  const createComponent = (props, provide) => {
     wrapper = shallowMountExtended(BoardForm, {
       propsData: { ...defaultProps, ...props },
-      data() {
-        return {
-          ...data,
-        };
-      },
       provide: {
         boardBaseUrl: 'root',
+        isGroupBoard: true,
+        isProjectBoard: false,
+        ...provide,
       },
       mocks: {
         $apollo: {
@@ -210,6 +204,30 @@ describe('BoardForm', () => {
         await waitForPromises();
         expect(setBoardMock).not.toHaveBeenCalled();
         expect(setErrorMock).toHaveBeenCalled();
+      });
+
+      describe('when Apollo boards FF is on', () => {
+        it('calls a correct GraphQL mutation and emits addBoard event', async () => {
+          createComponent(
+            { canAdminBoard: true, currentPage: formType.new },
+            { isApolloBoard: true },
+          );
+          fillForm();
+
+          await waitForPromises();
+
+          expect(mutate).toHaveBeenCalledWith({
+            mutation: createBoardMutation,
+            variables: {
+              input: expect.objectContaining({
+                name: 'test',
+              }),
+            },
+          });
+
+          await waitForPromises();
+          expect(wrapper.emitted('addBoard')).toHaveLength(1);
+        });
       });
     });
   });

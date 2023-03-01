@@ -3,6 +3,7 @@
 module IssuableCollections
   extend ActiveSupport::Concern
   include PaginatedCollection
+  include SearchRateLimitable
   include SortingHelper
   include SortingPreference
   include Gitlab::Utils::StrongMemoize
@@ -13,16 +14,8 @@ module IssuableCollections
 
   private
 
-  def show_alert_if_search_is_disabled
-    return if current_user || params[:search].blank? || !html_request? || Feature.disabled?(:disable_anonymous_search, type: :ops)
-
-    flash.now[:notice] = _('You must sign in to search for specific terms.')
-  end
-
   # rubocop:disable Gitlab/ModuleWithInstanceVariables
   def set_issuables_index
-    show_alert_if_search_is_disabled
-
     @issuables = issuables_collection
     set_pagination
 

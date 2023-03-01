@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Product Planning
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Linked epics **(ULTIMATE)**
@@ -16,13 +16,15 @@ The relationship only shows up in the UI if the user can see both epics. When yo
 epic that has open blockers, a warning is displayed.
 
 NOTE:
-To manage linked epics through our API, visit the [epic links API documentation](../../../api/linked_epics.md).
+To manage linked epics through our API, see [Linked epics API](../../../api/linked_epics.md).
 
 ## Add a linked epic
 
+> Minimum required role for the group [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/381308) from Reporter to Guest in GitLab 15.8.
+
 Prerequisites:
 
-- You must have at least the Reporter role for both groups.
+- You must have at least the Guest role for both groups.
 - For GitLab SaaS: the epic that you're editing must be in a group on GitLab Ultimate.
   The epics you're linking can be in a group on a lower tier.
 
@@ -59,9 +61,11 @@ The linked epics are then displayed on the epic grouped by relationship.
 
 ## Remove a linked epic
 
+> Minimum required role for the group [changed](https://gitlab.com/gitlab-org/gitlab/-/issues/381308) from Reporter to Guest in GitLab 15.8.
+
 Prerequisites:
 
-- You must have at least the Reporter role for the epic's group.
+- You must have at least the Guest role for the epic's group.
 
 To remove a linked epic, in the **Linked epics** section of an epic,
 select **Remove** (**{close}**) next to

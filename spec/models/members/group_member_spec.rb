@@ -3,6 +3,12 @@
 require 'spec_helper'
 
 RSpec.describe GroupMember do
+  describe 'default values' do
+    subject(:goup_member) { build(:group_member) }
+
+    it { expect(goup_member.source_type).to eq(described_class::SOURCE_TYPE) }
+  end
+
   context 'scopes' do
     let_it_be(:user_1) { create(:user) }
     let_it_be(:user_2) { create(:user) }
@@ -74,7 +80,8 @@ RSpec.describe GroupMember do
   describe '#update_two_factor_requirement' do
     it 'is called after creation and deletion' do
       user = build :user
-      group_member = build :group_member, user: user
+      group = create :group
+      group_member = build :group_member, user: user, group: group
 
       expect(user).to receive(:update_two_factor_requirement)
 
@@ -110,6 +117,40 @@ RSpec.describe GroupMember do
       group_member.accept_invite!(user)
 
       expect(user.require_two_factor_authentication_from_group).to be_truthy
+    end
+  end
+
+  describe '#last_owner_of_the_group?' do
+    context 'when member is an owner' do
+      let_it_be(:group_member) { build(:group_member, :owner) }
+
+      using RSpec::Parameterized::TableSyntax
+
+      where(:member_last_owner?, :member_last_blocked_owner?, :expected) do
+        false | false | false
+        true  | false | true
+        false | true  | true
+        true  | true  | true
+      end
+
+      with_them do
+        it "returns expected" do
+          allow(group_member.group).to receive(:member_last_owner?).with(group_member).and_return(member_last_owner?)
+          allow(group_member.group).to receive(:member_last_blocked_owner?)
+            .with(group_member)
+            .and_return(member_last_blocked_owner?)
+
+          expect(group_member.last_owner_of_the_group?).to be(expected)
+        end
+      end
+    end
+
+    context 'when member is not an owner' do
+      let_it_be(:group_member) { build(:group_member, :guest) }
+
+      subject { group_member.last_owner_of_the_group? }
+
+      it { is_expected.to be(false) }
     end
   end
 
@@ -151,8 +192,8 @@ RSpec.describe GroupMember do
     context 'when importing' do
       it 'does not refresh' do
         expect(UserProjectAccessChangedService).not_to receive(:new)
-
-        member = build(:group_member)
+        group = create(:group)
+        member = build(:group_member, group: group)
         member.importing = true
         member.save!
       end
@@ -212,17 +253,13 @@ RSpec.describe GroupMember do
 
       let(:action) { group.members.find_by(user: user).destroy! }
 
-      it 'changes access level', :sidekiq_inline do
+      it 'changes access level' do
         expect { action }.to change { user.can?(:guest_access, project_a) }.from(true).to(false)
           .and change { user.can?(:guest_access, project_b) }.from(true).to(false)
           .and change { user.can?(:guest_access, project_c) }.from(true).to(false)
       end
 
-      it 'schedules an AuthorizedProjectsWorker job to recalculate authorizations' do
-        expect(AuthorizedProjectsWorker).to receive(:bulk_perform_async).with([[user.id]])
-
-        action
-      end
+      it_behaves_like 'calls AuthorizedProjectsWorker inline to recalculate authorizations'
     end
   end
 end

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -106,7 +106,7 @@ follow these steps to avoid unnecessary data loss:
       ```
 
       From this point, users are unable to view their data or make changes on the
-      **primary** site. They are also unable to log in to the **secondary** site.
+      **primary** site. They are also unable to sign in to the **secondary** site.
       However, existing sessions need to work for the remainder of the maintenance period, and
       so public data is accessible throughout.
 
@@ -118,7 +118,7 @@ follow these steps to avoid unnecessary data loss:
       connection.
 
    1. On the **primary** site:
-      1. On the top bar, select **Menu > Admin**.
+      1. On the top bar, select **Main menu > Admin**.
       1. On the left sidebar, select **Monitoring > Background Jobs**.
       1. On the Sidekiq dashboard, select **Cron**.
       1. Select `Disable All` to disable any non-Geo periodic background jobs.
@@ -136,7 +136,7 @@ follow these steps to avoid unnecessary data loss:
       [data not managed by Geo](../../replication/datatypes.md#limitations-on-replicationverification),
       trigger the final replication process now.
    1. On the **primary** site:
-      1. On the top bar, select **Menu > Admin**.
+      1. On the top bar, select **Main menu > Admin**.
       1. On the left sidebar, select **Monitoring > Background Jobs**.
       1. On the Sidekiq dashboard, select **Queues**, and wait for all queues except
          those with `geo` in the name to drop to 0.
@@ -147,11 +147,11 @@ follow these steps to avoid unnecessary data loss:
 
          - All replication meters reach 100% replicated, 0% failures.
          - All verification meters reach 100% verified, 0% failures.
-         - Database replication lag is 0ms.
+         - Database replication lag is 0 ms.
          - The Geo log cursor is up to date (0 events behind).
 
    1. On the **secondary** site:
-      1. On the top bar, select **Menu > Admin**.
+      1. On the top bar, select **Main menu > Admin**.
       1. On the left sidebar, select **Monitoring > Background Jobs**.
       1. On the Sidekiq dashboard, select **Queues**, and wait for all the `geo`
          queues to drop to 0 queued and 0 running jobs.

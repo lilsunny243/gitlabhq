@@ -3,13 +3,22 @@ import { getNormalizedURL, getBaseURL, relativePathToAbsolute } from '~/lib/util
 
 const { sanitize: dompurifySanitize, addHook, isValidAttribute } = DOMPurify;
 
-const defaultConfig = {
+export const defaultConfig = {
   // Safely allow SVG <use> tags
   ADD_TAGS: ['use', 'gl-emoji', 'copy-code'],
   // Prevent possible XSS attacks with data-* attributes used by @rails/ujs
   // See https://gitlab.com/gitlab-org/gitlab-ui/-/issues/1421
-  FORBID_ATTR: ['data-remote', 'data-url', 'data-type', 'data-method'],
-  FORBID_TAGS: ['style', 'mstyle'],
+  FORBID_ATTR: [
+    'data-remote',
+    'data-url',
+    'data-type',
+    'data-method',
+    'data-disable-with',
+    'data-disabled',
+    'data-disable',
+    'data-turbo',
+  ],
+  FORBID_TAGS: ['style', 'mstyle', 'form'],
   ALLOW_UNKNOWN_PROTOCOLS: true,
 };
 

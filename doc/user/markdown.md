@@ -1,7 +1,7 @@
 ---
-stage: Create
-group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Plan
+group: Project Management
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Flavored Markdown (GLFM) **(FREE)**
@@ -84,9 +84,9 @@ The following features are not found in standard Markdown.
 
 ### Colors
 
-[View this topic in GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#colors).
+Markdown does not support changing text color.
 
-You can write a color in the formats: `HEX`, `RGB`, or `HSL`.
+You can write a color code in the formats: `HEX`, `RGB`, or `HSL`.
 
 - `HEX`: `` `#RGB[A]` `` or `` `#RRGGBB[AA]` ``
 - `RGB`: `` `RGB[A](R, G, B[, A])` ``
@@ -94,7 +94,8 @@ You can write a color in the formats: `HEX`, `RGB`, or `HSL`.
 
 Named colors are not supported.
 
-Colors in backticks are followed by a color indicator:
+In the GitLab application (but not the GitLab documentation) color codes in backticks
+display a color chip next to the color code. For example:
 
 ```markdown
 - `#F00`
@@ -108,6 +109,9 @@ Colors in backticks are followed by a color indicator:
 - `HSLA(540,70%,50%,0.3)`
 ```
 
+[View this topic in GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#colors)
+to see the color chips next to the color code:
+
 - `#F00`
 - `#F00A`
 - `#FF0000`
@@ -120,8 +124,13 @@ Colors in backticks are followed by a color indicator:
 
 ### Diagrams and flowcharts
 
-You can generate diagrams and flowcharts from text by using [Mermaid](https://mermaidjs.github.io/) or [PlantUML](https://plantuml.com).
-You can also use [Kroki](https://kroki.io) to create a wide variety of diagrams.
+You can generate diagrams from text by using:
+
+- [Mermaid](https://mermaidjs.github.io/)
+- [PlantUML](https://plantuml.com)
+- [Kroki](https://kroki.io) to create a wide variety of diagrams.
+
+In wikis you can also add diagrams created by using the [diagrams.net online editor](#create-or-edit-diagrams-by-using-diagramsnet-editor).
 
 #### Mermaid
 
@@ -211,7 +220,7 @@ You can use it to point out a :bug: or warn about :speak_no_evil: patches. And i
 
 If you're new to this, don't be :fearful:. You can join the emoji :family:. Just look up one of the supported codes.
 
-Consult the [Emoji Cheat Sheet](https://www.emojicopy.com) for a list of all supported emoji codes. :thumbsup:
+Consult the [Emoji Cheat Sheet](https://www.webfx.com/tools/emoji-cheat-sheet/) for a list of all supported emoji codes. :thumbsup:
 ```
 
 Sometimes you want to <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/monkey.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> around a bit and add some <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/star2.png" width="20px" height="20px" style="display:inline;margin:0;border: 0"> to your <img src="https://gitlab.com/gitlab-org/gitlab-foss/raw/master/public/-/emojis/2/speech_balloon.png" width="20px" height="20px" style="display:inline;margin:0;border: 0">. Well we have a gift for you:
@@ -331,7 +340,7 @@ However, you cannot mix the wrapping tags:
 ```
 
 If your diff includes words in `` `code` `` font, make sure to escape each backtick `` ` `` with a
-backslash `\`. Otherwise the diff highlight does not render correctly:
+backslash <code>&#92;</code>. Otherwise the diff highlight does not render correctly:
 
 ```markdown
 - {+ Just regular text +}
@@ -343,13 +352,21 @@ backslash `\`. Otherwise the diff highlight does not render correctly:
 
 ### Math
 
+> - LaTeX-compatible fencing [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/21757) in GitLab 15.4 [with a flag](../administration/feature_flags.md) named `markdown_dollar_math`. Disabled by default. Enabled on GitLab.com.
+> - LaTeX-compatible fencing [generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/371180) in GitLab 15.8. Feature flag `markdown_dollar_math` removed.
+
 [View this topic in GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#math).
 
 Math written in LaTeX syntax is rendered with [KaTeX](https://github.com/KaTeX/KaTeX).
+_KaTeX only supports a [subset](https://katex.org/docs/supported.html) of LaTeX._
+This syntax also works for the Asciidoctor `:stem: latexmath`. For details, see
+the [Asciidoctor user manual](https://asciidoctor.org/docs/user-manual/#activating-stem-support).
 
-Math written between dollar signs `$` is rendered inline with the text. Math written
-in a [code block](#code-spans-and-blocks) with the language declared as `math` is rendered
-on a separate line:
+Math written between dollar signs with backticks (``$`...`$``) or single dollar signs (`$...$`)
+is rendered inline with the text.
+
+Math written between double dollar signs (`$$...$$`) or in a [code block](#code-spans-and-blocks) with
+the language declared as `math` is rendered on a separate line:
 
 ````markdown
 This math is inline: $`a^2+b^2=c^2`$.
@@ -359,6 +376,14 @@ This math is on a separate line:
 ```math
 a^2+b^2=c^2
 ```
+
+This math is on a separate line: $$a^2+b^2=c^2$$
+
+This math is on a separate line:
+
+$$
+a^2+b^2=c^2
+$$
 ````
 
 This math is inline: $`a^2+b^2=c^2`$.
@@ -369,10 +394,21 @@ This math is on a separate line:
 a^2+b^2=c^2
 ```
 
-_KaTeX only supports a [subset](https://katex.org/docs/supported.html) of LaTeX._
+This math is on a separate line: $$a^2+b^2=c^2$$
 
-This syntax also works for the Asciidoctor `:stem: latexmath`. For details, see
-the [Asciidoctor user manual](https://asciidoctor.org/docs/user-manual/#activating-stem-support).
+This math is on a separate line:
+
+$$
+a^2+b^2=c^2
+$$
+
+This math is on a separate line: $$a^2+b^2=c^2$$
+
+This math is on a separate line:
+
+$$
+a^2+b^2=c^2
+$$
 
 ### Task lists
 
@@ -512,6 +548,36 @@ This example links to `<wiki_root>/miscellaneous.md`:
 [Link to Related Page](/miscellaneous.md)
 ```
 
+#### Create or edit diagrams by using diagrams.net editor
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322174) in GitLab 15.10.
+
+NOTE:
+Use of the diagrams.net editor is not available on offline environments.
+
+On wikis, you can use the [diagrams.net](https://www.diagrams.net/) editor
+to create diagrams. You can also edit diagrams previously created with the
+editor.
+
+To create a diagram:
+
+1. Select **Insert or edit diagram** in the Markdown editor.
+1. Use the diagrams.net editor to build the diagram.
+1. Select **Save & exit**.
+
+A Markdown image declaration pointing to the diagram is inserted in the wiki content.
+
+To edit a diagram:
+
+1. Place the Markdown editor’s text field cursor in a Markdown image declaration
+that contains the diagram.
+1. Select **Insert or edit diagram** in the Markdown editor.
+1. Use the diagrams.net editor to edit the diagram.
+1. Select **Save & exit**.
+
+A Markdown image declaration pointing to the diagram is inserted in the wiki content,
+replacing the previous diagram.
+
 ## GitLab-specific references
 
 GitLab Flavored Markdown renders GitLab-specific references. For example, you can reference
@@ -573,6 +639,19 @@ at the end of the reference. For example, a reference like `#123+` is rendered a
 `The issue title (#123)`.
 
 URL references like `https://gitlab.com/gitlab-org/gitlab/-/issues/1234+` are also expanded.
+
+### Show the issue or merge request summary in the reference
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/386937) in GitLab 15.10.
+
+To include an extended summary in the rendered link of an issue or merge request, add a `+s`
+at the end of the reference. Summary includes information about **assignees**, **milestone**
+and **health status** of referenced item.
+
+For example, a reference like `#123+s` is rendered as
+`The issue title (#123) • First Assignee, Second Assignee+ • v15.10 • Needs attention`.
+
+URL references like `https://gitlab.com/gitlab-org/gitlab/-/issues/1234+s` are also expanded.
 
 ### Embedding metrics in GitLab Flavored Markdown
 
@@ -774,6 +853,8 @@ Combined emphasis with **asterisks and _underscores_**.
 Strikethrough uses two tildes. ~~Scratch this.~~
 ```
 
+<!-- markdownlint-disable MD050 -->
+
 Emphasis, aka italics, with *asterisks* or _underscores_.
 
 Strong emphasis, aka bold, with double **asterisks** or __underscores__.
@@ -781,6 +862,8 @@ Strong emphasis, aka bold, with double **asterisks** or __underscores__.
 Combined emphasis with **asterisks and _underscores_**.
 
 Strikethrough uses two tildes. ~~Scratch this.~~
+
+<!-- markdownlint-enable MD050 -->
 
 #### Multiple underscores in words and mid-word emphasis
 
@@ -976,8 +1059,26 @@ Do not change to a reference style link.
 
 ![alt text](img/markdown_logo.png "Title Text")
 
-In the rare case where you must set a specific height or width for an image,
-you can use the `img` HTML tag instead of Markdown and set its `height` and
+#### Change the image or video dimensions
+
+> - Support for images [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/28118) in GitLab 15.7.
+> - Support for videos [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/17139) in GitLab 15.9.
+
+You can control the width and height of an image or video by following the image with
+an attribute list.
+The value must an integer with a unit of either `px` (default) or `%`.
+
+For example
+
+```markdown
+![alt text](img/markdown_logo.png "Title Text"){width=100 height=100px}
+
+![alt text](img/markdown_logo.png "Title Text"){width=75%}
+```
+
+![alt text](img/markdown_logo.png "Title Text"){width=100 height=100px}
+
+You can also use the `img` HTML tag instead of Markdown and set its `height` and
 `width` parameters.
 
 #### Videos
@@ -1119,17 +1220,15 @@ These details <em>remain</em> <strong>hidden</strong> until expanded.
 
 Markdown inside these tags is also supported.
 
-NOTE:
-If your Markdown isn't rendering correctly, try adding
-`{::options parse_block_html="true" /}` to the top of the page, and add
-`markdown="span"` to the opening summary tag like this: `<summary markdown="span">`.
-
-Remember to leave a blank line after the `</summary>` tag and before the `</details>` tag,
-as shown in the example:
+Remember to leave a blank line before and after any Markdown sections, as shown in the example:
 
 ````html
 <details>
-<summary>Click this to collapse/fold.</summary>
+<summary>
+
+Click this to _collapse/fold._
+
+</summary>
 
 These details _remain_ **hidden** until expanded.
 
@@ -1146,7 +1245,7 @@ works correctly in GitLab.
 -->
 
 <details>
-<summary>Click this to collapse/fold.</summary>
+<summary>Click this to <em>collapse/fold.</em></summary>
 
 These details <em>remain</em> <b>hidden</b> until expanded.
 
@@ -1244,7 +1343,7 @@ Some text to show that the reference links can follow later.
 
 Using header ID anchors:
 
-- This line links to [a section on a different Markdown page, using a "#" and the header ID](permissions.md#project-features-permissions)
+- This line links to [a section on a different Markdown page, using a "#" and the header ID](permissions.md#project-members-permissions)
 - This line links to [a different section on the same page, using a "#" and the header ID](#header-ids-and-links)
 
 Using references:
@@ -1473,7 +1572,9 @@ Press <kbd>Enter</kbd> to go to the next page.
 
 ### Tables
 
-Tables are not part of the core Markdown spec, but they are part of GitLab Flavored Markdown.
+Tables are not part of the core Markdown specification, but are part of GitLab Flavored Markdown.
+
+#### Markdown
 
 1. The first line contains the headers, separated by "pipes" (`|`).
 1. The second line separates the headers from the cells.
@@ -1489,6 +1590,7 @@ Tables are not part of the core Markdown spec, but they are part of GitLab Flavo
      by pipes (`|`).
    - You **can** have blank cells.
 1. Column widths are calculated dynamically based on the content of the cells.
+1. To use the pipe character (`|`) in the text and not as table delimiter, you must escape it with a backslash (`\|`).
 
 Example:
 
@@ -1540,7 +1642,8 @@ use `<br>` tags to force a cell to have multiple lines:
 | Item2 | This item has:<br>- Multiple items<br>- That we want listed separately |
 
 You can use HTML formatting in GitLab itself to add [task lists](#task-lists) with checkboxes,
-but they do not render properly on `docs.gitlab.com`:
+but they do not render properly on `docs.gitlab.com`. Note that these tasks will not save their
+state when selected, like regular GitLab task lists.
 
 ```markdown
 | header 1 | header 2 |
@@ -1549,12 +1652,37 @@ but they do not render properly on `docs.gitlab.com`:
 | cell 3   | <ul><li> - [ ] Task one </li><li> - [ ] Task two </li></ul> |
 ```
 
-#### Copy from spreadsheet and paste in Markdown
+To have fully functioning task lists in a table, create an HTML table with Markdown in the cells:
+
+```html
+<table>
+<thead>
+<tr><th>header 1</th><th>header 2</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>cell 1</td>
+<td>cell 2</td>
+</tr>
+<tr>
+<td>cell 3</td>
+<td>
+
+- [ ] Task one
+- [ ] Task two
+
+</td>
+</tr>
+</tbody>
+</table>
+```
+
+##### Copy and paste from a spreadsheet
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/27205) in GitLab 12.7.
 
 If you're working in spreadsheet software (for example, Microsoft Excel, Google
-Sheets, or Apple Numbers), GitLab creates a Markdown table when you copy-and-paste
+Sheets, or Apple Numbers), GitLab creates a Markdown table when you copy and paste
 from a spreadsheet. For example, suppose you have the
 following spreadsheet:
 
@@ -1565,8 +1693,163 @@ entry and paste the spreadsheet:
 
 ![Paste to Markdown table](img/markdown_paste_table_v12_7.png)
 
+#### JSON
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/86353) in GitLab 15.3.
+
+To render tables with JSON code blocks, use the following syntax:
+
+````markdown
+```json:table
+{}
+```
+````
+
+Watch the following video walkthrough of this feature:
+
+<div class="video-fallback">
+  See the video: <a href="https://www.youtube.com/watch?v=12yWKw1AdKY">Demo: JSON Tables in Markdown</a>.
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/12yWKw1AdKY" frameborder="0" allowfullscreen> </iframe>
+</figure>
+
+The `items` attribute is a list of objects representing the data points.
+
+````markdown
+```json:table
+{
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"}
+    ]
+}
+```
+````
+
+To specify the table labels, use the `fields` attribute.
+
+````markdown
+```json:table
+{
+    "fields" : ["a", "b", "c"],
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"}
+    ]
+}
+```
+````
+
+Not all elements of `items` must have corresponding values in `fields`.
+
+````markdown
+```json:table
+{
+    "fields" : ["a", "b", "c"],
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"},
+      {"a": "211", "c": "233"}
+    ]
+}
+```
+````
+
+When `fields` is not explicitly specified, the labels are picked from the first element of `items`.
+
+````markdown
+```json:table
+{
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"},
+      {"a": "211", "c": "233"}
+    ]
+}
+```
+````
+
+You can specify custom labels for `fields`.
+
+````markdown
+```json:table
+{
+    "fields" : [
+        {"key": "a", "label": "AA"},
+        {"key": "b", "label": "BB"},
+        {"key": "c", "label": "CC"}
+    ],
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"},
+      {"a": "211", "b": "222", "c": "233"}
+    ]
+}
+```
+````
+
+You can enable sorting for individual elements of `fields`.
+
+````markdown
+```json:table
+{
+    "fields" : [
+        {"key": "a", "label": "AA", "sortable": true},
+        {"key": "b", "label": "BB"},
+        {"key": "c", "label": "CC"}
+    ],
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"},
+      {"a": "211", "b": "222", "c": "233"}
+    ]
+}
+```
+````
+
+You can use the `filter` attribute to render a table with content filtered dynamically by user input.
+
+````markdown
+```json:table
+{
+    "fields" : [
+        {"key": "a", "label": "AA"},
+        {"key": "b", "label": "BB"},
+        {"key": "c", "label": "CC"}
+    ],
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"},
+      {"a": "211", "b": "222", "c": "233"}
+    ],
+    "filter" : true
+}
+```
+````
+
+By default, every JSON table has the caption `Generated with JSON data`.
+You can override this caption by specifying the `caption` attribute.
+
+````markdown
+```json:table
+{
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"}
+    ],
+    "caption" : "Custom caption"
+}
+```
+````
+
+If JSON is invalid, an error occurs.
+
+````markdown
+```json:table
+{
+    "items" : [
+      {"a": "11", "b": "22", "c": "33"}
+    ],
+}
+```
+````
+
 ## References
 
+- The [GitLab Flavored Markdown (GLFM) Specification Guide](../development/gitlab_flavored_markdown/index.md) is a developer-facing document that describes in detail the various goals, tools, implementations, and terms related to the GLFM specification.
 - This document leveraged heavily from the [Markdown-Cheatsheet](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet).
 - The original [Markdown Syntax Guide](https://daringfireball.net/projects/markdown/syntax)
   at Daring Fireball is an excellent resource for a detailed explanation of standard Markdown.

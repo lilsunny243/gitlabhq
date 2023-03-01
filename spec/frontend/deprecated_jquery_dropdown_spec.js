@@ -193,16 +193,18 @@ describe('deprecatedJQueryDropdown', () => {
     });
 
     it('should not focus search input while remote task is not complete', () => {
-      expect($(document.activeElement)).not.toEqual($(SEARCH_INPUT_SELECTOR));
+      expect(document.activeElement).toBeDefined();
+      expect(document.activeElement).not.toEqual(document.querySelector(SEARCH_INPUT_SELECTOR));
       remoteCallback();
 
-      expect($(document.activeElement)).toEqual($(SEARCH_INPUT_SELECTOR));
+      expect(document.activeElement).toEqual(document.querySelector(SEARCH_INPUT_SELECTOR));
     });
 
     it('should focus search input after remote task is complete', () => {
       remoteCallback();
 
-      expect($(document.activeElement)).toEqual($(SEARCH_INPUT_SELECTOR));
+      expect(document.activeElement).toBeDefined();
+      expect(document.activeElement).toEqual(document.querySelector(SEARCH_INPUT_SELECTOR));
     });
 
     it('should focus on input when opening for the second time after transition', () => {
@@ -215,7 +217,8 @@ describe('deprecatedJQueryDropdown', () => {
       test.dropdownButtonElement.click();
       test.dropdownContainerElement.trigger('transitionend');
 
-      expect($(document.activeElement)).toEqual($(SEARCH_INPUT_SELECTOR));
+      expect(document.activeElement).toBeDefined();
+      expect(document.activeElement).toEqual(document.querySelector(SEARCH_INPUT_SELECTOR));
     });
   });
 
@@ -225,7 +228,8 @@ describe('deprecatedJQueryDropdown', () => {
       test.dropdownButtonElement.click();
       test.dropdownContainerElement.trigger('transitionend');
 
-      expect($(document.activeElement)).toEqual($(SEARCH_INPUT_SELECTOR));
+      expect(document.activeElement).toBeDefined();
+      expect(document.activeElement).toEqual(document.querySelector(SEARCH_INPUT_SELECTOR));
     });
   });
 
@@ -314,7 +318,7 @@ describe('deprecatedJQueryDropdown', () => {
     });
 
     describe('with a trackSuggestionsClickedLabel', () => {
-      it('it includes data-track attributes', () => {
+      it('includes data-track attributes', () => {
         const dropdown = dropdownWithOptions({
           trackSuggestionClickedLabel: 'some_value_for_label',
         });
@@ -333,7 +337,7 @@ describe('deprecatedJQueryDropdown', () => {
         expect(link).toHaveAttr('data-track-property', 'suggestion-category');
       });
 
-      it('it defaults property to no_category when category not provided', () => {
+      it('defaults property to no_category when category not provided', () => {
         const dropdown = dropdownWithOptions({
           trackSuggestionClickedLabel: 'some_value_for_label',
         });

@@ -1,15 +1,15 @@
 <script>
 import { s__, __ } from '~/locale';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
-import { TYPE_CRM_ORGANIZATION, TYPE_GROUP } from '~/graphql_shared/constants';
-import OrganizationForm from '../../components/form.vue';
+import { TYPENAME_CRM_ORGANIZATION, TYPENAME_GROUP } from '~/graphql_shared/constants';
+import CrmForm from '../../components/crm_form.vue';
 import getGroupOrganizationsQuery from './graphql/get_group_organizations.query.graphql';
 import createOrganizationMutation from './graphql/create_organization.mutation.graphql';
 import updateOrganizationMutation from './graphql/update_organization.mutation.graphql';
 
 export default {
   components: {
-    OrganizationForm,
+    CrmForm,
   },
   inject: ['groupFullPath', 'groupId'],
   props: {
@@ -23,10 +23,10 @@ export default {
     organizationGraphQLId() {
       if (!this.isEditMode) return null;
 
-      return convertToGraphQLId(TYPE_CRM_ORGANIZATION, this.$route.params.id);
+      return convertToGraphQLId(TYPENAME_CRM_ORGANIZATION, this.$route.params.id);
     },
     groupGraphQLId() {
-      return convertToGraphQLId(TYPE_GROUP, this.groupId);
+      return convertToGraphQLId(TYPENAME_GROUP, this.groupId);
     },
     mutation() {
       if (this.isEditMode) return updateOrganizationMutation;
@@ -73,7 +73,7 @@ export default {
 </script>
 
 <template>
-  <organization-form
+  <crm-form
     :drawer-open="true"
     :get-query="getQuery"
     get-query-node-path="group.organizations"

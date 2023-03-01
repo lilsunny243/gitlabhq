@@ -6,16 +6,8 @@ module API
       project_id: %r{[0-9]+}.freeze
     ).freeze
 
-    before do
-      not_found! if Gitlab::FIPS.enabled?
-    end
-
     resource :groups, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       helpers do
-        def user_project
-          @project ||= find_project!(params[:project_id])
-        end
-
         def project_or_group
           user_group
         end
@@ -30,7 +22,7 @@ module API
       end
 
       params do
-        requires :id, type: String, desc: 'The ID of a group'
+        requires :id, types: [String, Integer], desc: 'The group ID or full group path.'
       end
 
       namespace ':id/-/packages/debian' do
@@ -42,13 +34,20 @@ module API
           use :shared_package_file_params
         end
 
-        desc 'The package' do
+        desc 'Download Debian package' do
           detail 'This feature was introduced in GitLab 14.2'
+          success code: 200
+          failure [
+            { code: 401, message: 'Unauthorized' },
+            { code: 403, message: 'Forbidden' },
+            { code: 404, message: 'Not Found' }
+          ]
+          tags %w[debian_packages]
         end
 
         route_setting :authentication, authenticate_non_public: true
         get 'pool/:distribution/:project_id/:letter/:package_name/:package_version/:file_name', requirements: PACKAGE_FILE_REQUIREMENTS do
-          present_package_file!
+          present_distribution_package_file!(find_project!(params[:project_id]))
         end
       end
     end

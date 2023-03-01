@@ -22,7 +22,7 @@ RSpec.describe Issues::CloneService do
   let(:with_notes) { false }
 
   subject(:clone_service) do
-    described_class.new(project: old_project, current_user: user)
+    described_class.new(container: old_project, current_user: user)
   end
 
   shared_context 'user can clone issue' do
@@ -35,6 +35,21 @@ RSpec.describe Issues::CloneService do
   describe '#execute' do
     context 'issue movable' do
       include_context 'user can clone issue'
+
+      context 'when issue creation fails' do
+        before do
+          allow_next_instance_of(Issues::CreateService) do |create_service|
+            allow(create_service).to receive(:execute).and_return(ServiceResponse.error(message: 'some error'))
+          end
+        end
+
+        it 'raises a clone error' do
+          expect { clone_service.execute(old_issue, new_project) }.to raise_error(
+            Issues::CloneService::CloneError,
+            'some error'
+          )
+        end
+      end
 
       context 'generic issue' do
         let!(:new_issue) { clone_service.execute(old_issue, new_project, with_notes: with_notes) }

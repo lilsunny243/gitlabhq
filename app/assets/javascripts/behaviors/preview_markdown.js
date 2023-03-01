@@ -1,7 +1,8 @@
 /* eslint-disable func-names */
 
 import $ from 'jquery';
-import createFlash from '~/flash';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { __ } from '~/locale';
 
@@ -50,7 +51,7 @@ MarkdownPreview.prototype.showPreview = function ($form) {
       }
 
       preview.removeClass('md-preview-loading').html(body);
-      preview.renderGFM();
+      renderGFM(preview.get(0));
       this.renderReferencedUsers(response.references.users, $form);
 
       if (response.references.commands) {
@@ -80,7 +81,7 @@ MarkdownPreview.prototype.fetchMarkdownPreview = function (text, url, success) {
       success(data);
     })
     .catch(() =>
-      createFlash({
+      createAlert({
         message: __('An error occurred while fetching Markdown preview'),
       }),
     );

@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Runbooks **(FREE)**
@@ -153,7 +153,7 @@ the components outlined above and the pre-loaded demo runbook.
    ```
 
 1. After JupyterHub has been installed successfully, open the **Jupyter Hostname**
-   in your browser. Select **Sign in with GitLab** button to log in to
+   in your browser. Select **Sign in with GitLab** button to sign in to
    JupyterHub and start the server. Authentication is enabled for any user of the
    GitLab instance with OAuth2. This button redirects you to a page at GitLab
    requesting authorization for JupyterHub to use your GitLab account.
@@ -166,11 +166,11 @@ the components outlined above and the pre-loaded demo runbook.
    [GitLab Access Token](../../../profile/personal_access_tokens.md)
    and your Project ID in the **Setup** section of the demo runbook:
 
-   1. Double-click the **DevOps-Runbook-Demo** folder located on the left panel.
+   1. Select the **DevOps-Runbook-Demo** folder located on the left panel.
 
       ![demo runbook](img/demo-runbook.png)
 
-   1. Double-click the `Nurtch-DevOps-Demo.ipynb` runbook.
+   1. Select the `Nurtch-DevOps-Demo.ipynb` runbook.
 
       ![sample runbook](img/sample-runbook.png)
 

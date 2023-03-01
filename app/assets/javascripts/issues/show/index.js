@@ -1,15 +1,17 @@
 import Vue from 'vue';
 import { mapGetters } from 'vuex';
 import errorTrackingStore from '~/error_tracking/store';
+import { apolloProvider } from '~/graphql_shared/issuable_client';
+import { TYPE_INCIDENT } from '~/issues/constants';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import { scrollToTargetOnResize } from '~/lib/utils/resize_observer';
 import IssueApp from './components/app.vue';
 import HeaderActions from './components/header_actions.vue';
 import IncidentTabs from './components/incidents/incident_tabs.vue';
 import SentryErrorStackTrace from './components/sentry_error_stack_trace.vue';
-import { INCIDENT_TYPE, issueState } from './constants';
-import apolloProvider from './graphql';
+import { issueState } from './constants';
 import getIssueStateQuery from './queries/get_issue_state.query.graphql';
+import createRouter from './components/incidents/router';
 
 const bootstrapApollo = (state = {}) => {
   return apolloProvider.clients.defaultClient.cache.writeQuery({
@@ -20,7 +22,7 @@ const bootstrapApollo = (state = {}) => {
   });
 };
 
-export function initIncidentApp(issueData = {}) {
+export function initIncidentApp(issueData = {}, store) {
   const el = document.getElementById('js-issuable-app');
 
   if (!el) {
@@ -32,32 +34,45 @@ export function initIncidentApp(issueData = {}) {
   const {
     canCreateIncident,
     canUpdate,
+    canUpdateTimelineEvent,
     iid,
     issuableId,
+    currentPath,
+    currentTab,
     projectNamespace,
     projectPath,
     projectId,
+    hasLinkedAlerts,
     slaFeatureAvailable,
     uploadMetricsFeatureAvailable,
     state,
   } = issueData;
 
   const fullPath = `${projectNamespace}/${projectPath}`;
+  const router = createRouter(currentPath, currentTab);
 
   return new Vue({
     el,
     name: 'DescriptionRoot',
     apolloProvider,
+    store,
+    router,
     provide: {
-      issueType: INCIDENT_TYPE,
+      issueType: TYPE_INCIDENT,
       canCreateIncident,
+      canUpdateTimelineEvent,
       canUpdate,
       fullPath,
       iid,
       issuableId,
       projectId,
+      hasLinkedAlerts: parseBoolean(hasLinkedAlerts),
       slaFeatureAvailable: parseBoolean(slaFeatureAvailable),
       uploadMetricsFeatureAvailable: parseBoolean(uploadMetricsFeatureAvailable),
+      contentEditorOnIssues: gon.features.contentEditorOnIssues,
+    },
+    computed: {
+      ...mapGetters(['getNoteableData']),
     },
     render(createElement) {
       return createElement(IssueApp, {
@@ -67,6 +82,7 @@ export function initIncidentApp(issueData = {}) {
           issuableStatus: state,
           descriptionComponent: IncidentTabs,
           showTitleBorder: false,
+          isConfidential: this.getNoteableData?.confidential,
         },
       });
     },
@@ -80,13 +96,18 @@ export function initIssueApp(issueData, store) {
     return undefined;
   }
 
-  const { fullPath } = el.dataset;
+  const { fullPath, registerPath, signInPath } = el.dataset;
 
   scrollToTargetOnResize();
 
   bootstrapApollo({ ...issueState, issueType: el.dataset.issueType });
 
-  const { canCreateIncident, hasIssueWeightsFeature, ...issueProps } = issueData;
+  const {
+    canCreateIncident,
+    hasIssueWeightsFeature,
+    hasIterationsFeature,
+    ...issueProps
+  } = issueData;
 
   return new Vue({
     el,
@@ -96,7 +117,10 @@ export function initIssueApp(issueData, store) {
     provide: {
       canCreateIncident,
       fullPath,
+      registerPath,
+      signInPath,
       hasIssueWeightsFeature,
+      hasIterationsFeature,
     },
     computed: {
       ...mapGetters(['getNoteableData']),
@@ -125,7 +149,7 @@ export function initHeaderActions(store, type = '') {
   bootstrapApollo({ ...issueState, issueType: el.dataset.issueType });
 
   const canCreate =
-    type === INCIDENT_TYPE ? el.dataset.canCreateIncident : el.dataset.canCreateIssue;
+    type === TYPE_INCIDENT ? el.dataset.canCreateIncident : el.dataset.canCreateIssue;
 
   return new Vue({
     el,
@@ -147,6 +171,8 @@ export function initHeaderActions(store, type = '') {
       projectPath: el.dataset.projectPath,
       projectId: el.dataset.projectId,
       reportAbusePath: el.dataset.reportAbusePath,
+      reportedUserId: parseInt(el.dataset.reportedUserId, 10),
+      reportedFromUrl: el.dataset.reportedFromUrl,
       submitAsSpamPath: el.dataset.submitAsSpamPath,
     },
     render: (createElement) => createElement(HeaderActions),

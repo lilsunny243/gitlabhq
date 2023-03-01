@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Developer creates tag' do
+RSpec.describe 'Developer creates tag', :js, feature_category: :source_code_management do
   let(:user) { create(:user) }
   let(:group) { create(:group) }
   let(:project) { create(:project, :repository, namespace: group) }
@@ -15,6 +15,8 @@ RSpec.describe 'Developer creates tag' do
   context 'from tag list' do
     before do
       visit project_tags_path(project)
+      click_link 'New tag'
+      wait_for_requests
     end
 
     it 'with an invalid name displays an error' do
@@ -23,10 +25,17 @@ RSpec.describe 'Developer creates tag' do
       expect(page).to have_content 'Tag name invalid'
     end
 
-    it 'with an invalid reference displays an error' do
-      create_tag_in_form(tag: 'v2.0', ref: 'foo')
-
-      expect(page).to have_content 'Target foo is invalid'
+    it "doesn't allow to select invalid ref" do
+      ref_name = 'foo'
+      fill_in 'tag_name', with: 'v2.0'
+      ref_selector = '.ref-selector'
+      find(ref_selector).click
+      wait_for_requests
+      page.within(ref_selector) do
+        fill_in _('Search by Git revision'), with: ref_name
+        wait_for_requests
+        expect(find('.gl-new-dropdown-inner')).not_to have_content(ref_name)
+      end
     end
 
     it 'that already exists displays an error' do
@@ -46,52 +55,34 @@ RSpec.describe 'Developer creates tag' do
       end
     end
 
-    it 'with multiline release notes parses the release note as Markdown' do
-      create_tag_in_form(tag: 'v4.0', ref: 'master', desc: "Awesome release notes\n\n- hello\n- world")
-
-      expect(page).to have_current_path(
-        project_tag_path(project, 'v4.0'), ignore_query: true)
-      expect(page).to have_content 'v4.0'
-      page.within '.description' do
-        expect(page).to have_content 'Awesome release notes'
-        expect(page).to have_selector('ul li', count: 2)
-      end
-    end
-
-    it 'opens dropdown for ref', :js do
-      click_link 'New tag'
-      ref_row = find('.form-group:nth-of-type(2) .col-sm-10')
+    it 'opens dropdown for ref' do
+      ref_row = find('.form-group:nth-of-type(2) .col-sm-auto')
       page.within ref_row do
         ref_input = find('[name="ref"]', visible: false)
         expect(ref_input.value).to eq 'master'
-        expect(find('.dropdown-toggle-text')).to have_content 'master'
-
-        find('.js-branch-select').click
-
-        expect(find('.dropdown-menu')).to have_content 'empty-branch'
+        expect(find('.gl-button-text')).to have_content 'master'
+        find('.ref-selector').click
+        expect(find('.gl-new-dropdown-inner')).to have_content 'test'
       end
-    end
-  end
-
-  context 'from new tag page' do
-    before do
-      visit new_project_tag_path(project)
-    end
-
-    it 'description has emoji autocomplete', :js do
-      find('#release_description').native.send_keys('')
-      fill_in 'release_description', with: ':'
-
-      expect(page).to have_selector('.atwho-view')
     end
   end
 
   def create_tag_in_form(tag:, ref:, message: nil, desc: nil)
-    click_link 'New tag'
     fill_in 'tag_name', with: tag
-    find('#ref', visible: false).set(ref)
+    select_ref(ref: ref)
     fill_in 'message', with: message unless message.nil?
     fill_in 'release_description', with: desc unless desc.nil?
     click_button 'Create tag'
+  end
+
+  def select_ref(ref:)
+    ref_selector = '.ref-selector'
+    find(ref_selector).click
+    wait_for_requests
+    page.within(ref_selector) do
+      fill_in _('Search by Git revision'), with: ref
+      wait_for_requests
+      find('li', text: ref, match: :prefer_exact).click
+    end
   end
 end

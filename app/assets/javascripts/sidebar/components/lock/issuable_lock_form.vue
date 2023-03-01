@@ -1,15 +1,15 @@
 <script>
 import { GlIcon, GlTooltipDirective, GlOutsideDirective as Outside } from '@gitlab/ui';
 import { mapGetters, mapActions } from 'vuex';
+import { TYPE_ISSUE } from '~/issues/constants';
 import { __, sprintf } from '~/locale';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import createFlash from '~/flash';
-import eventHub from '~/sidebar/event_hub';
+import { createAlert } from '~/flash';
 import toast from '~/vue_shared/plugins/global_toast';
+import eventHub from '../../event_hub';
 import EditForm from './edit_form.vue';
 
 export default {
-  issue: 'issue',
   locked: {
     icon: 'lock',
     class: 'value',
@@ -49,7 +49,7 @@ export default {
       return this.getNoteableData.targetType === 'merge_request' && this.glFeatures.movedMrSidebar;
     },
     issuableDisplayName() {
-      const isInIssuePage = this.getNoteableData.targetType === this.$options.issue;
+      const isInIssuePage = this.getNoteableData.targetType === TYPE_ISSUE;
       return isInIssuePage ? __('issue') : __('merge request');
     },
     isLocked() {
@@ -95,7 +95,7 @@ export default {
           const flashMessage = __(
             'Something went wrong trying to change the locked state of this %{issuableDisplayName}',
           );
-          createFlash({
+          createAlert({
             message: sprintf(flashMessage, { issuableDisplayName: this.issuableDisplayName }),
           });
         })
@@ -111,9 +111,9 @@ export default {
 </script>
 
 <template>
-  <li v-if="isMergeRequest" class="gl-new-dropdown-item">
+  <li v-if="isMergeRequest" class="gl-dropdown-item">
     <button type="button" class="dropdown-item" @click="toggleLocked">
-      <span class="gl-new-dropdown-item-text-wrapper">
+      <span class="gl-dropdown-item-text-wrapper">
         <template v-if="isLocked">
           {{ __('Unlock merge request') }}
         </template>

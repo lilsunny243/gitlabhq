@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -116,7 +116,7 @@ If your Auto DevOps project has an active environment that was deployed with the
 1. Deploy your environment as usual. This deployment uses Helm v3.
 1. If the deployment succeeds, you can safely run `<environment-name>:helm-2to3:cleanup`.
    This deletes all Helm v2 release data from the namespace.
-1. Remove the `MIGRATE_HELM_2TO3` CI/CD variable or set it to `false`. You can do this one environment at a time using [environment scopes](../../ci/environments/index.md#scope-environments-with-specs).
+1. Remove the `MIGRATE_HELM_2TO3` CI/CD variable or set it to `false`. You can do this one environment at a time using [environment scopes](../../ci/environments/index.md#limit-the-environment-scope-of-a-cicd-variable).
 
 #### In-Cluster PostgreSQL Channel 2
 
@@ -128,7 +128,7 @@ with the [v1 auto-deploy-image](#use-a-specific-version-of-auto-deploy-dependenc
 
 > [Introduced](https://gitlab.com/gitlab-org/cluster-integration/auto-deploy-image/-/merge_requests/109) in GitLab 13.4.
 
-Auto Deploy supports advanced deployment strategies such as [canary deployments](customize.md#deploy-policy-for-canary-environments)
+Auto Deploy supports advanced deployment strategies such as [canary deployments](cicd_variables.md#deploy-policy-for-canary-environments)
 and [incremental rollouts](../../ci/environments/incremental_rollouts.md).
 
 Previously, `auto-deploy-image` created one service to balance the traffic between
@@ -171,7 +171,7 @@ Alternatively, you can use the [v13.12 Auto DevOps templates archive](https://gi
 ### Ignore warnings and continue deploying
 
 If you are certain that the new chart version is safe to be deployed, you can add
-the `AUTO_DEVOPS_FORCE_DEPLOY_V<major-version-number>` [CI/CD variable](customize.md#build-and-deployment)
+the `AUTO_DEVOPS_FORCE_DEPLOY_V<major-version-number>` [CI/CD variable](cicd_variables.md#build-and-deployment-variables)
 to force the deployment to continue.
 
 For example, if you want to deploy the `v2.0.0` chart on a deployment that previously

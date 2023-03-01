@@ -1,7 +1,13 @@
 .base-image-build:
   extends: .use-kaniko
   variables:
-    GIT_LFS_SKIP_SMUDGE: 1
+    GIT_LFS_SKIP_SMUDGE: 1 # disable pulling objects from lfs
+  retry: 2
+
+.base-image-build-buildx:
+  extends: .use-buildx
+  variables:
+    GIT_LFS_SKIP_SMUDGE: 1 # disable pulling objects from lfs
   retry: 2
 
 # This image is used by:
@@ -10,31 +16,46 @@
 # See https://docs.gitlab.com/ee/development/testing_guide/end_to_end/index.html#testing-code-in-merge-requests for more details.
 build-qa-image:
   extends:
-    - .base-image-build
+    - .base-image-build-buildx
     - .build-images:rules:build-qa-image
   stage: build-images
   needs: []
-  variables:
-    # Default latest tag for particular branch
-    QA_IMAGE_BRANCH: ${CI_REGISTRY}/${CI_PROJECT_PATH}/gitlab-ee-qa:${CI_COMMIT_REF_SLUG}
   script:
-    - export QA_IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}/gitlab-ee-qa:${CI_COMMIT_SHA}"
-    - echo $QA_IMAGE
-    - echo $QA_IMAGE_BRANCH
-    - |
-      /kaniko/executor \
-        --context=${CI_PROJECT_DIR} \
-        --dockerfile=${CI_PROJECT_DIR}/qa/Dockerfile \
-        --destination=${QA_IMAGE} \
-        --destination=${QA_IMAGE_BRANCH} \
-        --build-arg=CHROME_VERSION=${CHROME_VERSION} \
-        --build-arg=DOCKER_VERSION=${DOCKER_VERSION} \
-        --build-arg=QA_BUILD_TARGET=${QA_BUILD_TARGET:-qa} \
-        --cache=true
+    - run_timed_command "scripts/build_qa_image"
 
-# This image is used by:
-# - The `CNG` pipelines (via the `review-build-cng` job): https://gitlab.com/gitlab-org/build/CNG/-/blob/cfc67136d711e1c8c409bf8e57427a644393da2f/.gitlab-ci.yml#L335
-# - The `omnibus-gitlab` pipelines (via the `e2e:package-and-test` job): https://gitlab.com/gitlab-org/omnibus-gitlab/-/blob/dfd1ad475868fc84e91ab7b5706aa03e46dc3a86/.gitlab-ci.yml#L130
+build-qa-image as-if-foss:
+  extends:
+    - build-qa-image
+    - .as-if-foss
+    - .build-images:rules:build-qa-image-as-if-foss
+
+# Prepares an image with GDK configured based on code in master. This saves some time in MRs because some installation
+# and complilation will have already been performed.
+build-qa-on-gdk-master-image:
+  extends:
+    - .base-image-build-buildx
+    - .build-images:rules:build-qa-on-gdk-master-image
+  tags:
+    - e2e
+  stage: build-images
+  needs: []
+  variables:
+    QA_GDK_IMAGE: "${CI_REGISTRY}/${CI_PROJECT_PATH}/gitlab-qa-gdk"
+  before_script:
+    - !reference [.use-buildx, before_script]
+    - sysctl -n -w fs.inotify.max_user_watches=524288
+  script:
+    - |
+      docker buildx build \
+        --cache-to=type=inline \
+        --cache-from ${QA_GDK_IMAGE}:master \
+        --platform=${ARCH:-amd64} \
+        --add-host gdk.test:127.0.0.1 \
+        --tag ${QA_GDK_IMAGE}:master \
+        --file="qa/gdk/Dockerfile" \
+        --push \
+        ${CI_PROJECT_DIR}
+
 build-assets-image:
   extends:
     - .base-image-build
@@ -42,7 +63,11 @@ build-assets-image:
   stage: build-images
   needs: ["compile-production-assets"]
   script:
-    # TODO: Change the image tag to be the MD5 of assets files and skip image building if the image exists
-    # We'll also need to pass GITLAB_ASSETS_TAG to the trigerred omnibus-gitlab pipeline similarly to how we do it for trigerred CNG pipelines
-    # https://gitlab.com/gitlab-org/gitlab/issues/208389
+    - skopeo login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - run_timed_command "scripts/build_assets_image"
+  artifacts:
+    expire_in: 7 days
+    paths:
+      # The `cached-assets-hash.txt` file is used in `review-build-cng-env` (`.gitlab/ci/review-apps/main.gitlab-ci.yml`)
+      # to pass the assets image tag to the CNG downstream pipeline.
+      - cached-assets-hash.txt

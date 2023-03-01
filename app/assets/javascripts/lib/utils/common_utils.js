@@ -4,9 +4,9 @@
 
 import { GlBreakpointInstance as breakpointInstance } from '@gitlab/ui/dist/utils';
 import $ from 'jquery';
-import { isFunction, defer } from 'lodash';
+import { isFunction, defer, escape, partial, toLower } from 'lodash';
 import Cookies from '~/lib/utils/cookies';
-import { SCOPED_LABEL_DELIMITER } from '~/vue_shared/components/sidebar/labels_select_widget/constants';
+import { SCOPED_LABEL_DELIMITER } from '~/sidebar/components/labels/labels_select_widget/constants';
 import { convertToCamelCase, convertToSnakeCase } from './text_utility';
 import { isObject } from './type_utility';
 import { getLocationHash } from './url_utility';
@@ -28,15 +28,11 @@ export const checkPageAndAction = (page, action) => {
 export const isInIncidentPage = () => checkPageAndAction('incidents', 'show');
 export const isInIssuePage = () => checkPageAndAction('issues', 'show');
 export const isInDesignPage = () => checkPageAndAction('issues', 'designs');
-export const isInMRPage = () => checkPageAndAction('merge_requests', 'show');
+export const isInMRPage = () =>
+  checkPageAndAction('merge_requests', 'show') || checkPageAndAction('merge_requests', 'diffs');
 export const isInEpicPage = () => checkPageAndAction('epics', 'show');
 
 export const getDashPath = (path = window.location.pathname) => path.split('/-/')[1] || null;
-
-export const getCspNonceValue = () => {
-  const metaTag = document.querySelector('meta[name=csp-nonce]');
-  return metaTag && metaTag.content;
-};
 
 export const rstrip = (val) => {
   if (val) {
@@ -59,6 +55,15 @@ export const disableButtonIfEmptyField = (fieldSelector, buttonSelector, eventNa
     return closestSubmit.enable();
   });
 };
+
+/**
+ * Return the given element's offset height, or 0 if the element doesn't exist.
+ * Probably not useful outside of handleLocationHash.
+ *
+ * @param {HTMLElement} element The element to measure.
+ * @returns {number} The element's offset height.
+ */
+const getElementOffsetHeight = (element) => element?.offsetHeight ?? 0;
 
 // automatically adjust scroll position for hash urls taking the height of the navbar into account
 // https://github.com/twitter/bootstrap/issues/1768
@@ -84,38 +89,24 @@ export const handleLocationHash = () => {
   const fixedIssuableTitle = document.querySelector('.issue-sticky-header');
 
   let adjustment = 0;
-  if (fixedNav) adjustment -= fixedNav.offsetHeight;
 
-  if (target && target.scrollIntoView) {
-    target.scrollIntoView(true);
-  }
-
-  if (fixedTabs) {
-    adjustment -= fixedTabs.offsetHeight;
-  }
-
-  if (fixedDiffStats) {
-    adjustment -= fixedDiffStats.offsetHeight;
-  }
-
-  if (performanceBar) {
-    adjustment -= performanceBar.offsetHeight;
-  }
-
-  if (diffFileHeader) {
-    adjustment -= diffFileHeader.offsetHeight;
-  }
-
-  if (versionMenusContainer) {
-    adjustment -= versionMenusContainer.offsetHeight;
-  }
+  adjustment -= getElementOffsetHeight(fixedNav);
+  adjustment -= getElementOffsetHeight(fixedTabs);
+  adjustment -= getElementOffsetHeight(fixedDiffStats);
+  adjustment -= getElementOffsetHeight(performanceBar);
+  adjustment -= getElementOffsetHeight(diffFileHeader);
+  adjustment -= getElementOffsetHeight(versionMenusContainer);
 
   if (isInIssuePage()) {
-    adjustment -= fixedIssuableTitle.offsetHeight;
+    adjustment -= getElementOffsetHeight(fixedIssuableTitle);
   }
 
   if (isInMRPage()) {
     adjustment -= topPadding;
+  }
+
+  if (target?.scrollIntoView) {
+    target.scrollIntoView(true);
   }
 
   setTimeout(() => {
@@ -151,7 +142,7 @@ export const getOuterHeight = (selector) => {
   const element = document.querySelector(selector);
 
   if (!element) {
-    return undefined;
+    return 0;
   }
 
   return element.offsetHeight;
@@ -163,6 +154,11 @@ export const contentTop = () => {
     () => getOuterHeight('#js-peek'),
     () => getOuterHeight('.navbar-gitlab'),
     ({ desktop }) => {
+      const mrStickyHeader = document.querySelector('.merge-request-sticky-header');
+      if (mrStickyHeader) {
+        return mrStickyHeader.offsetHeight;
+      }
+
       const container = document.querySelector('.discussions-counter');
       let size = 0;
 
@@ -170,17 +166,20 @@ export const contentTop = () => {
         size = container.offsetHeight;
       }
 
+      size += getOuterHeight('.merge-request-tabs');
+      size += getOuterHeight('.issue-sticky-header.gl-fixed');
+
       return size;
     },
-    () => getOuterHeight('.merge-request-tabs'),
     () => getOuterHeight('.js-diff-files-changed'),
-    () => getOuterHeight('.issue-sticky-header.gl-fixed'),
     ({ desktop }) => {
       const diffsTabIsActive = window.mrTabs?.currentAction === 'diffs';
       let size;
 
       if (desktop && diffsTabIsActive) {
-        size = getOuterHeight('.diff-file .file-title-flex-parent:not([style="display:none"])');
+        size = getOuterHeight(
+          '.diffs .diff-file .file-title-flex-parent:not([style="display:none"])',
+        );
       }
 
       return size;
@@ -472,7 +471,7 @@ export const backOff = (fn, timeout = 60000) => {
 export const spriteIcon = (icon, className = '') => {
   const classAttribute = className.length > 0 ? `class="${className}"` : '';
 
-  return `<svg ${classAttribute}><use xlink:href="${gon.sprite_icons}#${icon}" /></svg>`;
+  return `<svg ${classAttribute}><use xlink:href="${gon.sprite_icons}#${escape(icon)}" /></svg>`;
 };
 
 /**
@@ -551,6 +550,22 @@ export const convertObjectProps = (conversionFunction, obj = {}, options = {}) =
  */
 export const convertObjectPropsToCamelCase = (obj = {}, options = {}) =>
   convertObjectProps(convertToCamelCase, obj, options);
+
+/**
+ * This method returns a new object with lowerCase property names
+ *
+ * Reasoning for this method is to ensure consistent access for some
+ * sort of objects
+ *
+ * This method also supports additional params in `options` object
+ *
+ * @param {Object} obj - Object to be converted.
+ * @param {Object} options - Object containing additional options.
+ * @param {boolean} options.deep - FLag to allow deep object converting
+ * @param {Array[]} options.dropKeys - List of properties to discard while building new object
+ * @param {Array[]} options.ignoreKeyNames - List of properties to leave intact while building new object
+ */
+export const convertObjectPropsToLowerCase = partial(convertObjectProps, toLower);
 
 /**
  * Converts all the object keys to snake case
@@ -634,66 +649,6 @@ export const NavigationType = {
   TYPE_RELOAD: 1,
   TYPE_BACK_FORWARD: 2,
   TYPE_RESERVED: 255,
-};
-
-/**
- * Method to perform case-insensitive search for a string
- * within multiple properties and return object containing
- * properties in case there are multiple matches or `null`
- * if there's no match.
- *
- * Eg; Suppose we want to allow user to search using for a string
- *     within `iid`, `title`, `url` or `reference` props of a target object;
- *
- *     const objectToSearch = {
- *       "iid": 1,
- *       "title": "Error omnis quos consequatur ullam a vitae sed omnis libero cupiditate. &3",
- *       "url": "/groups/gitlab-org/-/epics/1",
- *       "reference": "&1",
- *     };
- *
- *    Following is how we call searchBy and the return values it will yield;
- *
- *    -  `searchBy('omnis', objectToSearch);`: This will return `{ title: ... }` as our
- *        query was found within title prop we only return that.
- *    -  `searchBy('1', objectToSearch);`: This will return `{ "iid": ..., "reference": ..., "url": ... }`.
- *    -  `searchBy('https://gitlab.com/groups/gitlab-org/-/epics/1', objectToSearch);`:
- *        This will return `{ "url": ... }`.
- *    -  `searchBy('foo', objectToSearch);`: This will return `null` as no property value
- *        matched with our query.
- *
- *    You can learn more about behaviour of this method by referring to tests
- *    within `spec/frontend/lib/utils/common_utils_spec.js`.
- *
- * @param {string} query String to search for
- * @param {object} searchSpace Object containing properties to search in for `query`
- */
-export const searchBy = (query = '', searchSpace = {}) => {
-  const targetKeys = searchSpace !== null ? Object.keys(searchSpace) : [];
-
-  if (!query || !targetKeys.length) {
-    return null;
-  }
-
-  const normalizedQuery = query.toLowerCase();
-  const matches = targetKeys
-    .filter((item) => {
-      const searchItem = `${searchSpace[item]}`.toLowerCase();
-
-      return (
-        searchItem.indexOf(normalizedQuery) > -1 ||
-        normalizedQuery.indexOf(searchItem) > -1 ||
-        normalizedQuery === searchItem
-      );
-    })
-    .reduce((acc, prop) => {
-      const match = acc;
-      match[prop] = searchSpace[prop];
-
-      return acc;
-    }, {});
-
-  return Object.keys(matches).length ? matches : null;
 };
 
 /**

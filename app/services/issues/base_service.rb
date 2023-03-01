@@ -28,13 +28,18 @@ module Issues
       return if issue.relative_position.nil?
       return if NO_REBALANCING_NEEDED.cover?(issue.relative_position)
 
-      gates = [issue.project, issue.project.group].compact
-      return unless gates.any? { |gate| Feature.enabled?(:rebalance_issues, gate) }
-
       Issues::RebalancingWorker.perform_async(nil, *issue.project.self_or_root_group_ids)
     end
 
     private
+
+    # overriding this because IssuableBaseService#constructor_container_arg returns { project: value }
+    # Issues::ReopenService constructor signature is different now, it takes container instead of project also
+    # IssuableBaseService#change_state dynamically picks one of the `Issues::ReopenService`, `Epics::ReopenService` or
+    # MergeRequests::ReopenService, so we need this method to return { }container: value } for Issues::ReopenService
+    def self.constructor_container_arg(value)
+      { container: value }
+    end
 
     def find_work_item_type_id(issue_type)
       work_item_type = WorkItems::Type.default_by_type(issue_type)
@@ -71,6 +76,19 @@ module Issues
       rebalance_if_needed(issue)
     end
 
+    def handle_escalation_status_change(issue)
+      return unless issue.supports_escalation?
+
+      if issue.escalation_status
+        ::IncidentManagement::IssuableEscalationStatuses::AfterUpdateService.new(
+          issue,
+          current_user
+        ).execute
+      else
+        ::IncidentManagement::IssuableEscalationStatuses::CreateService.new(issue).execute
+      end
+    end
+
     def issuable_for_positioning(id, positioning_scope)
       return unless id
 
@@ -87,6 +105,16 @@ module Issues
       hooks_scope = issue.confidential? ? :confidential_issue_hooks : :issue_hooks
       issue.project.execute_hooks(issue_data, hooks_scope)
       issue.project.execute_integrations(issue_data, hooks_scope)
+
+      execute_incident_hooks(issue, issue_data) if issue.incident?
+    end
+
+    # We can remove this code after proposal in
+    # https://gitlab.com/gitlab-org/gitlab/-/issues/367550#proposal is updated.
+    def execute_incident_hooks(issue, issue_data)
+      issue_data[:object_kind] = 'incident'
+      issue_data[:event_type] = 'incident'
+      issue.project.execute_integrations(issue_data, :incident_hooks)
     end
 
     def update_project_counter_caches?(issue)
@@ -103,6 +131,11 @@ module Issues
       return unless milestone
 
       Milestones::IssuesCountService.new(milestone).delete_cache
+    end
+
+    override :allowed_create_params
+    def allowed_create_params(params)
+      super(params).except(:work_item_type_id, :work_item_type)
     end
   end
 end

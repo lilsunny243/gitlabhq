@@ -1,7 +1,7 @@
 <script>
 import katex from 'katex';
 import { marked } from 'marked';
-import { GlSafeHtmlDirective as SafeHtml } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { sanitize } from '~/lib/dompurify';
 import { hasContent, markdownConfig } from '~/lib/utils/text_utility';
 import Prompt from './prompt.vue';
@@ -148,6 +148,11 @@ export default {
       type: Object,
       required: true,
     },
+    hidePrompt: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   computed: {
     markdown() {
@@ -163,7 +168,7 @@ export default {
 
 <template>
   <div class="cell text-cell">
-    <prompt />
+    <prompt v-if="!hidePrompt" />
     <div v-safe-html:[$options.markdownConfig]="markdown" class="markdown"></div>
   </div>
 </template>

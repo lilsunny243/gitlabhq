@@ -82,7 +82,7 @@ describe('DiffLineNoteForm', () => {
   });
 
   it('shows note form', () => {
-    expect(wrapper.find(NoteForm).exists()).toBe(true);
+    expect(wrapper.findComponent(NoteForm).exists()).toBe(true);
   });
 
   it('passes the provided range of lines to comment form', () => {
@@ -101,7 +101,8 @@ describe('DiffLineNoteForm', () => {
   });
 
   it('should init autosave', () => {
-    expect(Autosave).toHaveBeenCalledWith({}, [
+    // we're using shallow mount here so there's no element to pass to Autosave
+    expect(Autosave).toHaveBeenCalledWith(undefined, [
       'Note',
       'Issue',
       98,

@@ -2,23 +2,25 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Two factor auths' do
+RSpec.describe 'Two factor auths', feature_category: :user_profile do
   include Spec::Support::Helpers::ModalHelpers
 
   context 'when signed in' do
+    let(:invalid_current_pwd_msg) { 'You must provide a valid current password' }
+
     before do
       sign_in(user)
     end
 
     context 'when user has two-factor authentication disabled' do
-      let_it_be(:user) { create(:user ) }
+      let_it_be(:user) { create(:user) }
 
       it 'requires the current password to set up two factor authentication', :js do
         visit profile_two_factor_auth_path
 
         register_2fa(user.current_otp, '123')
 
-        expect(page).to have_content('You must provide a valid current password')
+        expect(page).to have_selector('.gl-alert-title', text: invalid_current_pwd_msg, count: 1)
 
         register_2fa(user.reload.current_otp, user.password)
 
@@ -76,7 +78,7 @@ RSpec.describe 'Two factor auths' do
           click_button 'Disable'
         end
 
-        expect(page).to have_content('You must provide a valid current password')
+        expect(page).to have_selector('.gl-alert-title', text: invalid_current_pwd_msg, count: 1)
 
         fill_in 'current_password', with: user.password
 
@@ -97,7 +99,7 @@ RSpec.describe 'Two factor auths' do
 
         click_button 'Regenerate recovery codes'
 
-        expect(page).to have_content('You must provide a valid current password')
+        expect(page).to have_selector('.gl-alert-title', text: invalid_current_pwd_msg, count: 1)
 
         fill_in 'current_password', with: user.password
 

@@ -2,12 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe AwardEmojis::CopyService do
+RSpec.describe AwardEmojis::CopyService, feature_category: :team_planning do
   let_it_be(:from_awardable) do
-    create(:issue, award_emoji: [
-      build(:award_emoji, name: 'thumbsup'),
-      build(:award_emoji, name: 'thumbsdown')
-    ])
+    create(
+      :issue,
+      award_emoji: [
+        build(:award_emoji, name: 'thumbsup'),
+        build(:award_emoji, name: 'thumbsdown')
+      ])
   end
 
   describe '#initialize' do

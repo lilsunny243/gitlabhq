@@ -20,23 +20,15 @@ module ApplicationHelper
   def dispensable_render(...)
     render(...)
   rescue StandardError => e
-    if Feature.enabled?(:dispensable_render)
-      Gitlab::ErrorTracking.track_and_raise_for_dev_exception(e)
-      nil
-    else
-      raise e
-    end
+    Gitlab::ErrorTracking.track_and_raise_for_dev_exception(e)
+    nil
   end
 
   def dispensable_render_if_exists(...)
     render_if_exists(...)
   rescue StandardError => e
-    if Feature.enabled?(:dispensable_render)
-      Gitlab::ErrorTracking.track_and_raise_for_dev_exception(e)
-      nil
-    else
-      raise e
-    end
+    Gitlab::ErrorTracking.track_and_raise_for_dev_exception(e)
+    nil
   end
 
   def partial_exists?(partial)
@@ -124,7 +116,7 @@ module ApplicationHelper
   end
 
   def simple_sanitize(str)
-    sanitize(str, tags: %w(a span))
+    sanitize(str, tags: %w[a span])
   end
 
   def body_data
@@ -183,18 +175,20 @@ module ApplicationHelper
   #
   # Returns an HTML-safe String
   def time_ago_with_tooltip(time, placement: 'top', html_class: '', short_format: false)
+    return "" if time.nil?
+
     css_classes = [short_format ? 'js-short-timeago' : 'js-timeago']
     css_classes << html_class unless html_class.blank?
 
     content_tag :time, l(time, format: "%b %d, %Y"),
-      class: css_classes.join(' '),
-      title: l(time.to_time.in_time_zone, format: :timeago_tooltip),
-      datetime: time.to_time.getutc.iso8601,
-      data: {
-        toggle: 'tooltip',
-        placement: placement,
-        container: 'body'
-      }
+                class: css_classes.join(' '),
+                title: l(time.to_time.in_time_zone, format: :timeago_tooltip),
+                datetime: time.to_time.getutc.iso8601,
+                data: {
+                  toggle: 'tooltip',
+                  placement: placement,
+                  container: 'body'
+                }
   end
 
   def edited_time_ago_with_tooltip(object, placement: 'top', html_class: 'time_ago', exclude_author: false)
@@ -234,15 +228,15 @@ module ApplicationHelper
   end
 
   def promo_url
-    'https://' + promo_host
+    "https://#{promo_host}"
   end
 
   def support_url
-    Gitlab::CurrentSettings.current_application_settings.help_page_support_url.presence || promo_url + '/getting-help/'
+    Gitlab::CurrentSettings.current_application_settings.help_page_support_url.presence || "#{promo_url}/get-help/"
   end
 
   def instance_review_permitted?
-    ::Gitlab::CurrentSettings.instance_review_permitted? && current_user&.admin?
+    ::Gitlab::CurrentSettings.instance_review_permitted? && current_user&.can_read_all_resources?
   end
 
   def static_objects_external_storage_enabled?
@@ -279,7 +273,15 @@ module ApplicationHelper
   end
 
   def stylesheet_link_tag_defer(path)
-    stylesheet_link_tag(path, media: "print", crossorigin: ActionController::Base.asset_host ? 'anonymous' : nil)
+    if startup_css_enabled?
+      stylesheet_link_tag(path, media: "print", crossorigin: ActionController::Base.asset_host ? 'anonymous' : nil)
+    else
+      stylesheet_link_tag(path, crossorigin: ActionController::Base.asset_host ? 'anonymous' : nil)
+    end
+  end
+
+  def startup_css_enabled?
+    !params.has_key?(:no_startup_css)
   end
 
   def outdated_browser?
@@ -313,10 +315,10 @@ module ApplicationHelper
     class_names = []
     class_names << 'issue-boards-page gl-overflow-auto' if current_controller?(:boards)
     class_names << 'epic-boards-page gl-overflow-auto' if current_controller?(:epic_boards)
-    class_names << 'environment-logs-page' if current_controller?(:logs)
     class_names << 'with-performance-bar' if performance_bar_enabled?
     class_names << system_message_class
-    class_names << marketing_header_experiment_class
+    class_names << 'logged-out-marketing-header' if !current_user && ::Gitlab.com?
+
     class_names
   end
 
@@ -362,8 +364,18 @@ module ApplicationHelper
     end
   end
 
+  def discord_url(user)
+    return '' if user.discord.blank?
+
+    "https://discord.com/users/#{user.discord}"
+  end
+
   def collapsed_sidebar?
     cookies["sidebar_collapsed"] == "true"
+  end
+
+  def collapsed_super_sidebar?
+    cookies["super_sidebar_collapsed"] == "true"
   end
 
   def locale_path
@@ -378,13 +390,13 @@ module ApplicationHelper
   end
 
   def client_class_list
-    "gl-browser-#{browser.id} gl-platform-#{browser.platform.id}"
+    "gl-browser-#{browser_id} gl-platform-#{platform_id}"
   end
 
   def client_js_flags
     {
-      "is#{browser.id.to_s.titlecase}": true,
-      "is#{browser.platform.id.to_s.titlecase}": true
+      "is#{browser_id.titlecase}": true,
+      "is#{platform_id.titlecase}": true
     }
   end
 
@@ -428,7 +440,7 @@ module ApplicationHelper
         milestones: milestones_project_autocomplete_sources_path(object),
         commands: commands_project_autocomplete_sources_path(object, type: noteable_type, type_id: params[:id]),
         snippets: snippets_project_autocomplete_sources_path(object),
-        contacts: contacts_project_autocomplete_sources_path(object)
+        contacts: contacts_project_autocomplete_sources_path(object, type: noteable_type, type_id: params[:id])
       }
     end
   end
@@ -448,22 +460,22 @@ module ApplicationHelper
     form_for(record, *(args << options.merge({ builder: ::Gitlab::FormBuilders::GitlabUiFormBuilder })), &block)
   end
 
+  def gitlab_ui_form_with(**args, &block)
+    form_with(**args.merge({ builder: ::Gitlab::FormBuilders::GitlabUiFormBuilder }), &block)
+  end
+
   private
+
+  def browser_id
+    browser.unknown? ? 'generic' : browser.id.to_s
+  end
+
+  def platform_id
+    browser.platform.unknown? ? 'other' : browser.platform.id.to_s
+  end
 
   def appearance
     ::Appearance.current
-  end
-
-  def marketing_header_experiment_class
-    return if current_user
-
-    experiment(:logged_out_marketing_header, actor: nil) do |e|
-      html_class = 'logged-out-marketing-header-candidate'
-      e.candidate { html_class }
-      e.variant(:trial_focused) { html_class }
-      e.control {}
-      e.run
-    end
   end
 end
 

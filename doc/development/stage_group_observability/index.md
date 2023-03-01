@@ -1,7 +1,7 @@
 ---
 stage: Platforms
 group: Scalability
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Observability for stage groups
@@ -35,7 +35,7 @@ stage group is comparable to the
 [monthly availability](https://about.gitlab.com/handbook/engineering/infrastructure/performance-indicators/#gitlabcom-availability)
 we calculate for GitLab.com, except it's scoped to the features of a group.
 
-To learn more about how we use error budgets, see the
+For more information about how we use error budgets, see the
 [Engineering Error Budgets](https://about.gitlab.com/handbook/engineering/error-budgets/) handbook page.
 
 By default, the first row of panels on both dashboards shows the
@@ -68,11 +68,11 @@ component can have two indicators:
   and
   [Web](https://gitlab.com/gitlab-com/runbooks/-/blob/f22f40b2c2eab37d85e23ccac45e658b2c914445/metrics-catalog/services/web.jsonnet#L154)
   services, that threshold is **5 seconds** when not opted in to the
-  [`rails_requests` SLI](../application_slis/rails_request_apdex.md).
+  [`rails_request` SLI](../application_slis/rails_request.md).
 
   We've made this target configurable in [this project](https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/525).
-  To learn how to customize the request Apdex, see
-  [Rails request Apdex SLI](../application_slis/rails_request_apdex.md).
+  To customize the request Apdex, see
+  [Rails request SLIs](../application_slis/rails_request.md).
   This new Apdex measurement is not part of the error budget until you
   [opt in](https://gitlab.com/gitlab-com/gl-infra/scalability/-/issues/1451).
 

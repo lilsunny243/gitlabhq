@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dropdown hint', :js do
+RSpec.describe 'Dropdown hint', :js, feature_category: :team_planning do
   include FilteredSearchHelpers
 
   let_it_be(:project) { create(:project, :public) }
@@ -10,6 +10,7 @@ RSpec.describe 'Dropdown hint', :js do
   let_it_be(:issue) { create(:issue, project: project) }
 
   before do
+    stub_feature_flags(or_issuable_queries: false)
     project.add_maintainer(user)
   end
 

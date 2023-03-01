@@ -1,4 +1,4 @@
-import { __, s__ } from '~/locale';
+import { __, n__, s__ } from '~/locale';
 
 export const timelineTabI18n = Object.freeze({
   title: s__('Incident|Timeline'),
@@ -12,9 +12,15 @@ export const timelineFormI18n = Object.freeze({
     'Incident|Something went wrong while creating the incident timeline event.',
   ),
   areaPlaceholder: s__('Incident|Timeline text...'),
+  areaDefaultMessage: s__('Incident|Incident'),
+  selectTags: __('Select tags'),
+  tagsLabel: __('Event tag (optional)'),
   save: __('Save'),
   cancel: __('Cancel'),
+  delete: __('Delete'),
   description: __('Description'),
+  hint: __('You can enter up to 280 characters'),
+  textRemaining: (count) => n__('%d character remaining', '%d characters remaining', count),
   saveAndAdd: s__('Incident|Save and add another event'),
   areaLabel: s__('Incident|Timeline text'),
 });
@@ -38,3 +44,27 @@ export const timelineItemI18n = Object.freeze({
   moreActions: __('More actions'),
   timeUTC: __('%{time} UTC'),
 });
+
+export const timelineEventTagsI18n = Object.freeze({
+  startTime: __('Start time'),
+  impactDetected: __('Impact detected'),
+  responseInitiated: __('Response initiated'),
+  impactMitigated: __('Impact mitigated'),
+  causeIdentified: __('Cause identified'),
+  endTime: __('End time'),
+});
+
+export const timelineEventTagsPopover = Object.freeze({
+  title: s__('Incident|Event tag'),
+  message: s__(
+    'Incident|Adding an event tag associates the timeline comment with specific incident metrics.',
+  ),
+  link: __('Learn more'),
+});
+
+export const MAX_TEXT_LENGTH = 280;
+
+export const TIMELINE_EVENT_TAGS = Object.values(timelineEventTagsI18n).map((item) => ({
+  text: item,
+  value: item,
+}));

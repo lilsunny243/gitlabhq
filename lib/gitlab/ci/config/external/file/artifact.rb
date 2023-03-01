@@ -20,8 +20,6 @@ module Gitlab
 
             def content
               strong_memoize(:content) do
-                next unless artifact_job
-
                 Gitlab::Ci::ArtifactFileReader.new(artifact_job).read(location)
               rescue Gitlab::Ci::ArtifactFileReader::Error => error
                 errors.push(error.message)
@@ -36,41 +34,26 @@ module Gitlab
               )
             end
 
-            private
-
-            def project
-              context&.parent_pipeline&.project
+            def validate_context!
+              context.logger.instrument(:config_file_artifact_validate_context) do
+                if !creating_child_pipeline?
+                  errors.push('Including configs from artifacts is only allowed when triggering child pipelines')
+                elsif !job_name.present?
+                  errors.push("Job must be provided when including configs from artifacts")
+                elsif !artifact_job.present?
+                  errors.push("Job `#{masked_job_name}` not found in parent pipeline or does not have artifacts!")
+                end
+              end
             end
 
             def validate_content!
-              return unless ensure_preconditions_satisfied!
-
               errors.push("File `#{masked_location}` is empty!") unless content.present?
             end
 
-            def ensure_preconditions_satisfied!
-              unless creating_child_pipeline?
-                errors.push('Including configs from artifacts is only allowed when triggering child pipelines')
-                return false
-              end
-
-              unless job_name.present?
-                errors.push("Job must be provided when including configs from artifacts")
-                return false
-              end
-
-              unless artifact_job.present?
-                errors.push("Job `#{masked_job_name}` not found in parent pipeline or does not have artifacts!")
-                return false
-              end
-
-              true
-            end
+            private
 
             def artifact_job
               strong_memoize(:artifact_job) do
-                next unless creating_child_pipeline?
-
                 context.parent_pipeline.find_job_with_archive_artifacts(job_name)
               end
             end

@@ -1,9 +1,11 @@
 <script>
 import { GlButton, GlSprintf, GlLink } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { BV_SHOW_MODAL } from '~/lib/utils/constants';
+import { HTTP_STATUS_UNAUTHORIZED } from '~/lib/utils/http_status';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import { s__, __ } from '~/locale';
+import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import eventHub from '../../event_hub';
 import approvalsMixin from '../../mixins/approvals';
 import MrWidgetContainer from '../mr_widget_container.vue';
@@ -11,7 +13,7 @@ import MrWidgetIcon from '../mr_widget_icon.vue';
 import { INVALID_RULES_DOCS_PATH } from '../../constants';
 import ApprovalsSummary from './approvals_summary.vue';
 import ApprovalsSummaryOptional from './approvals_summary_optional.vue';
-import { FETCH_LOADING, FETCH_ERROR, APPROVE_ERROR, UNAPPROVE_ERROR } from './messages';
+import { FETCH_LOADING, APPROVE_ERROR, UNAPPROVE_ERROR } from './messages';
 import { humanizeInvalidApproversRules } from './humanized_text';
 
 export default {
@@ -58,7 +60,6 @@ export default {
   },
   data() {
     return {
-      fetchingApprovals: true,
       hasApprovalAuthError: false,
       isApproving: false,
     };
@@ -68,7 +69,7 @@ export default {
       return this.mr.approvalsWidgetType === 'base';
     },
     isApproved() {
-      return Boolean(this.approvals.approved);
+      return Boolean(this.approvals.approved || this.approvedBy.length);
     },
     isOptional() {
       return this.isOptionalDefault !== null ? this.isOptionalDefault : !this.approvedBy.length;
@@ -76,26 +77,25 @@ export default {
     hasAction() {
       return Boolean(this.action);
     },
-    approvals() {
-      return this.mr.approvals || {};
-    },
     invalidRules() {
-      return this.approvals.invalid_approvers_rules || [];
+      return this.approvals.approvalState?.invalidApproversRules || [];
     },
     hasInvalidRules() {
-      return this.approvals.merge_request_approvers_available && this.invalidRules.length;
+      return this.mr.mergeRequestApproversAvailable && this.invalidRules.length;
     },
     invalidRulesText() {
       return humanizeInvalidApproversRules(this.invalidRules);
     },
     approvedBy() {
-      return this.approvals.approved_by ? this.approvals.approved_by.map((x) => x.user) : [];
+      return this.approvals.approvedBy?.nodes || [];
     },
     userHasApproved() {
-      return Boolean(this.approvals.user_has_approved);
+      return this.approvedBy.some(
+        (approver) => getIdFromGraphQLId(approver.id) === gon.current_user_id,
+      );
     },
     userCanApprove() {
-      return Boolean(this.approvals.user_can_approve);
+      return Boolean(this.approvals.userPermissions.canApprove);
     },
     showApprove() {
       return !this.userHasApproved && this.userCanApprove && this.mr.isOpen;
@@ -133,17 +133,6 @@ export default {
         : this.$options.i18n.invalidRuleSingular;
     },
   },
-  created() {
-    this.refreshApprovals()
-      .then(() => {
-        this.fetchingApprovals = false;
-      })
-      .catch(() =>
-        createFlash({
-          message: FETCH_ERROR,
-        }),
-      );
-  },
   methods: {
     approve() {
       if (this.requirePasswordToApprove) {
@@ -154,22 +143,26 @@ export default {
       this.updateApproval(
         () => this.service.approveMergeRequest(),
         () =>
-          createFlash({
-            message: APPROVE_ERROR,
-          }),
+          this.alerts.push(
+            createAlert({
+              message: APPROVE_ERROR,
+            }),
+          ),
       );
     },
     approveWithAuth(data) {
       this.updateApproval(
         () => this.service.approveMergeRequestWithAuth(data),
         (error) => {
-          if (error && error.response && error.response.status === 401) {
+          if (error && error.response && error.response.status === HTTP_STATUS_UNAUTHORIZED) {
             this.hasApprovalAuthError = true;
             return;
           }
-          createFlash({
-            message: APPROVE_ERROR,
-          });
+          this.alerts.push(
+            createAlert({
+              message: APPROVE_ERROR,
+            }),
+          );
         },
       );
     },
@@ -177,21 +170,25 @@ export default {
       this.updateApproval(
         () => this.service.unapproveMergeRequest(),
         () =>
-          createFlash({
-            message: UNAPPROVE_ERROR,
-          }),
+          this.alerts.push(
+            createAlert({
+              message: UNAPPROVE_ERROR,
+            }),
+          ),
       );
     },
     updateApproval(serviceFn, errFn) {
       this.isApproving = true;
       this.clearError();
       return serviceFn()
-        .then((data) => {
-          this.mr.setApprovals(data);
+        .then(() => {
+          if (!window.gon?.features?.realtimeMrStatusChange) {
+            eventHub.$emit('MRWidgetUpdateRequested');
+            eventHub.$emit('ApprovalUpdated');
+          }
 
-          eventHub.$emit('MRWidgetUpdateRequested');
-          eventHub.$emit('ApprovalUpdated');
-          this.$emit('updated');
+          // TODO: Remove this line when we move to Apollo subscriptions
+          this.$apollo.queries.approvals.refetch();
         })
         .catch(errFn)
         .then(() => {
@@ -216,7 +213,7 @@ export default {
   <mr-widget-container>
     <div class="js-mr-approvals d-flex align-items-start align-items-md-center">
       <mr-widget-icon name="approval" />
-      <div v-if="fetchingApprovals">{{ $options.FETCH_LOADING }}</div>
+      <div v-if="$apollo.queries.approvals.loading">{{ $options.FETCH_LOADING }}</div>
       <template v-else>
         <div class="gl-display-flex gl-flex-direction-column">
           <div class="gl-display-flex gl-flex-direction-row gl-align-items-center">
@@ -238,10 +235,8 @@ export default {
             />
             <approvals-summary
               v-else
-              :approved="isApproved"
-              :approvals-left="approvals.approvals_left || 0"
-              :rules-left="approvals.approvalRuleNamesLeft"
-              :approvers="approvedBy"
+              :approval-state="approvals"
+              :multiple-approval-rules-available="mr.multipleApprovalRulesAvailable"
             />
           </div>
           <div v-if="hasInvalidRules" class="gl-text-gray-400 gl-mt-2" data-testid="invalid-rules">

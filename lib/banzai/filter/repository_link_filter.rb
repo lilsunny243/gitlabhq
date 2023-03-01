@@ -60,7 +60,7 @@ module Banzai
       def get_uri_types(paths)
         return {} if paths.empty?
 
-        uri_types = paths.to_h { |name| [name, nil] }
+        uri_types = paths.index_with { nil }
 
         get_blob_types(paths).each do |name, type|
           if type == :blob
@@ -90,17 +90,18 @@ module Banzai
       end
 
       def get_uri(html_attr)
-        uri = URI(html_attr.value)
+        uri = Addressable::URI.parse(html_attr.value)
 
         uri if uri.relative? && uri.path.present?
       rescue URI::Error, Addressable::URI::InvalidURIError
       end
 
       def process_link_to_repository_attr(html_attr)
-        uri = URI(html_attr.value)
+        uri = Addressable::URI.parse(html_attr.value)
 
         if uri.relative? && uri.path.present?
           html_attr.value = rebuild_relative_uri(uri).to_s
+          html_attr.parent.add_class('gfm')
         end
       rescue URI::Error, Addressable::URI::InvalidURIError
         # noop

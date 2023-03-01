@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Installing the agent for Kubernetes **(FREE)**
@@ -22,7 +22,7 @@ Before you can install the agent in your cluster, you need:
   - [Digital Ocean](https://docs.digitalocean.com/products/kubernetes/quickstart/)
 - On self-managed GitLab instances, a GitLab administrator must set up the
   [agent server](../../../../administration/clusters/kas.md).
-  Then it will be available by default at `wss://gitlab.example.com/-/kubernetes-agent/`.
+  Then it is available by default at `wss://gitlab.example.com/-/kubernetes-agent/`.
   On GitLab.com, the agent server is available at `wss://kas.gitlab.com`.
 
 ## Installation steps
@@ -45,10 +45,12 @@ For configuration settings, the agent uses a YAML file in the GitLab project. Yo
 - You use [a GitOps workflow](../gitops.md#gitops-workflow-steps).
 - You use [a GitLab CI/CD workflow](../ci_cd_workflow.md#gitlab-cicd-workflow-steps) and want to authorize a different project to use the agent.
 
+Otherwise it is optional.
+
 To create an agent configuration file:
 
 1. Choose a name for your agent. The agent name follows the
-   [DNS label standard from RFC 1123](https://tools.ietf.org/html/rfc1123). The name must:
+   [DNS label standard from RFC 1123](https://www.rfc-editor.org/rfc/rfc1123). The name must:
 
    - Be unique in the project.
    - Contain at most 63 characters.
@@ -81,7 +83,7 @@ Prerequisites:
 
 You must register an agent before you can install the agent in your cluster. To register an agent:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
    If you have an [agent configuration file](#create-an-agent-configuration-file),
    it must be in this project. Your cluster manifest files should also be in this project.
 1. From the left sidebar, select **Infrastructure > Kubernetes clusters**.
@@ -90,7 +92,7 @@ You must register an agent before you can install the agent in your cluster. To 
    - If you already have an [agent configuration file](#create-an-agent-configuration-file), select it from the list.
 1. Select **Register an agent**.
 1. GitLab generates an access token for the agent. You need this token to install the agent
-   in your cluster and to [update the agent](#update-the-agent-version) to another version.
+   in your cluster.
 
    WARNING:
    Securely store the agent access token. A bad actor can use this token to access source code in the agent's configuration project, access source code in any public project on the GitLab instance, or even, under very specific conditions, obtain a Kubernetes manifest.
@@ -110,6 +112,9 @@ in your cluster. You can either:
 
 If you do not know which one to choose, we recommend starting with Helm.
 
+NOTE:
+To connect to multiple clusters, you must configure, register, and install an agent in each cluster. Make sure to give each agent a unique name.
+
 #### Install the agent with Helm
 
 To install the agent on your cluster using Helm:
@@ -118,7 +123,7 @@ To install the agent on your cluster using Helm:
 1. In your computer, open a terminal and [connect to your cluster](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
 1. Run the command you copied when you [registered your agent with GitLab](#register-the-agent-with-gitlab).
 
-Optionally, you can [customize the Helm installation](#customize-the-helm-installation).
+Optionally, you can [customize the Helm installation](#customize-the-helm-installation). If you install the agent on a production system, you should customize the Helm installation to skip creating the service account.
 
 ##### Customize the Helm installation
 
@@ -149,6 +154,10 @@ helm upgrade --install gitlab-agent gitlab/gitlab-agent \
   --set extraEnv[0].value=https://example.com/proxy \
   ...
 ```
+
+NOTE:
+DNS rebind protection is disabled when either the HTTP_PROXY or the HTTPS_PROXY environment variable is set,
+and the domain DNS can't be resolved.
 
 #### Advanced installation method
 

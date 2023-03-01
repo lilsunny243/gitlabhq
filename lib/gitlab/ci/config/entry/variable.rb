@@ -30,12 +30,17 @@ module Gitlab
             end
 
             def value_with_data
-              { value: @config.to_s, description: nil }
+              { value: @config.to_s }
+            end
+
+            def value_with_prefill_data
+              value_with_data
             end
           end
 
           class ComplexVariable < ::Gitlab::Config::Entry::Node
             include ::Gitlab::Config::Entry::Validatable
+            include ::Gitlab::Config::Entry::Attributable
 
             class << self
               def applies_to?(config)
@@ -43,10 +48,14 @@ module Gitlab
               end
             end
 
+            attributes :value, :description, :expand, :options, prefix: :config
+
             validations do
               validates :key, alphanumeric: true
-              validates :config_value, alphanumeric: true, allow_nil: false, if: :config_value_defined?
-              validates :config_description, alphanumeric: true, allow_nil: false, if: :config_description_defined?
+              validates :config_value, alphanumeric: true, allow_nil: true
+              validates :config_description, alphanumeric: true, allow_nil: true
+              validates :config_expand, boolean: true, allow_nil: true
+              validates :config_options, array_of_strings: true, allow_nil: true
 
               validate do
                 allowed_value_data = Array(opt(:allowed_value_data))
@@ -58,31 +67,30 @@ module Gitlab
                 else
                   errors.add(:config, "must be a string")
                 end
+
+                if config_options.present? && config_options.exclude?(config_value)
+                  errors.add(:config, 'value must be present in options')
+                end
               end
             end
 
             def value
+              # Needed since the `Entry::Node` provides `value` (which is current hash)
               config_value.to_s
             end
 
             def value_with_data
-              { value: value, description: config_description }
+              {
+                value: config_value.to_s,
+                raw: (!config_expand if has_config_expand?)
+              }.compact
             end
 
-            def config_value
-              @config[:value]
-            end
-
-            def config_description
-              @config[:description]
-            end
-
-            def config_value_defined?
-              config.key?(:value)
-            end
-
-            def config_description_defined?
-              config.key?(:description)
+            def value_with_prefill_data
+              value_with_data.merge(
+                description: config_description,
+                options: config_options
+              ).compact
             end
           end
 

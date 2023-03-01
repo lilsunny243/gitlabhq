@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project' do
+RSpec.describe 'Project', feature_category: :projects do
   include ProjectForksHelper
   include MobileHelpers
 
@@ -213,7 +213,7 @@ RSpec.describe 'Project' do
     end
   end
 
-  describe 'showing information about source of a project fork' do
+  describe 'showing information about source of a project fork', :js do
     let(:user) { create(:user) }
     let(:base_project) { create(:project, :public, :repository) }
     let(:forked_project) { fork_project(base_project, user, repository: true) }
@@ -224,6 +224,7 @@ RSpec.describe 'Project' do
 
     it 'shows a link to the source project when it is available', :sidekiq_might_not_need_inline do
       visit project_path(forked_project)
+      wait_for_requests
 
       expect(page).to have_content('Forked from')
       expect(page).to have_link(base_project.full_name)
@@ -233,6 +234,7 @@ RSpec.describe 'Project' do
       forked_project
 
       visit project_path(base_project)
+      wait_for_requests
 
       expect(page).not_to have_content('In fork network of')
       expect(page).not_to have_content('Forked from')
@@ -243,7 +245,7 @@ RSpec.describe 'Project' do
       Projects::DestroyService.new(base_project, base_project.first_owner).execute
 
       visit project_path(forked_project)
-
+      wait_for_requests
       expect(page).to have_content('Forked from an inaccessible project')
     end
 
@@ -255,7 +257,7 @@ RSpec.describe 'Project' do
         Projects::DestroyService.new(forked_project, user).execute
 
         visit project_path(fork_of_fork)
-
+        wait_for_requests
         expect(page).to have_content("Forked from")
         expect(page).to have_link(base_project.full_name)
       end
@@ -327,9 +329,9 @@ RSpec.describe 'Project' do
     end
 
     it 'has working links to submodules' do
-      click_link('645f6c4c')
+      submodule = find_link('645f6c4c')
 
-      expect(page).to have_selector('[data-testid="branches-select"]', text: '645f6c4c82fd3f5e06f67134450a570b795e55a6')
+      expect(submodule[:href]).to eq('https://gitlab.com/gitlab-org/gitlab-grack/-/tree/645f6c4c82fd3f5e06f67134450a570b795e55a6')
     end
 
     context 'for signed commit on default branch', :js do
@@ -341,8 +343,8 @@ RSpec.describe 'Project' do
         visit project_path(project)
         wait_for_requests
 
-        expect(page).not_to have_selector '.gpg-status-box.js-loading-gpg-badge'
-        expect(page).to have_selector '.gpg-status-box.invalid'
+        expect(page).not_to have_selector '.js-loading-signature-badge'
+        expect(page).to have_selector '.gl-badge.badge-muted'
       end
     end
 
@@ -369,8 +371,8 @@ RSpec.describe 'Project' do
           visit project_path(project)
           wait_for_requests
 
-          expect(page).not_to have_selector '.gpg-status-box.js-loading-gpg-badge'
-          expect(page).to have_selector '.gpg-status-box.invalid'
+          expect(page).not_to have_selector '.gl-badge.js-loading-signature-badge'
+          expect(page).to have_selector '.gl-badge.badge-muted'
         end
       end
     end
@@ -418,8 +420,7 @@ RSpec.describe 'Project' do
       visit path
     end
 
-    it_behaves_like 'dirty submit form', [{ form: '.js-general-settings-form', input: 'input[name="project[name]"]' },
-                                          { form: '.rspec-merge-request-settings', input: '#project_printing_merge_request_link_enabled' }]
+    it_behaves_like 'dirty submit form', [{ form: '.js-general-settings-form', input: 'input[name="project[name]"]', submit: 'button[type="submit"]' }]
   end
 
   describe 'view for a user without an access to a repo' do

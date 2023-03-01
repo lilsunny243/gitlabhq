@@ -11,18 +11,25 @@ RSpec.describe Gitlab::Usage::Metrics::Instrumentations::RedisMetric, :clean_git
 
   let(:expected_value) { 4 }
 
-  it_behaves_like 'a correct instrumented metric value', { options: { event: 'pushes', counter_class: 'SourceCodeCounter' } }
+  it_behaves_like 'a correct instrumented metric value', {
+    options: { event: 'pushes', prefix: 'source_code' },
+    time_frame: 'all'
+  }
 
   it 'raises an exception if event option is not present' do
-    expect { described_class.new(counter_class: 'SourceCodeCounter') }.to raise_error(ArgumentError)
+    expect do
+      described_class.new(options: { prefix: 'source_code' }, time_frame: 'all')
+    end.to raise_error(ArgumentError, /'event' option is required/)
   end
 
-  it 'raises an exception if counter_class option is not present' do
-    expect { described_class.new(event: 'pushes') }.to raise_error(ArgumentError)
+  it 'raises an exception if prefix option is not present' do
+    expect do
+      described_class.new(options: { event: 'pushes' }, time_frame: 'all')
+    end.to raise_error(ArgumentError, /'prefix' option is required/)
   end
 
   describe 'children classes' do
-    let(:options) { { event: 'pushes', counter_class: 'SourceCodeCounter' } }
+    let(:options) { { event: 'pushes', prefix: 'source_code' } }
 
     context 'availability not defined' do
       subject { Class.new(described_class).new(time_frame: nil, options: options) }
@@ -43,5 +50,34 @@ RSpec.describe Gitlab::Usage::Metrics::Instrumentations::RedisMetric, :clean_git
         expect(subject.available?).to eq(false)
       end
     end
+  end
+
+  context "with usage prefix disabled" do
+    let(:expected_value) { 3 }
+
+    before do
+      3.times do
+        Gitlab::UsageDataCounters::WebIdeCounter.increment_merge_requests_count
+      end
+    end
+
+    it_behaves_like 'a correct instrumented metric value', {
+      options: { event: 'merge_requests_count', prefix: 'web_ide', include_usage_prefix: false },
+      time_frame: 'all'
+    }
+  end
+
+  context "with prefix disabled" do
+    let(:expected_value) { 3 }
+
+    before do
+      3.times do
+        Gitlab::UsageDataCounters::SearchCounter.count(:all_searches)
+      end
+    end
+
+    it_behaves_like 'a correct instrumented metric value', {
+      options: { event: 'all_searches_count', prefix: nil, include_usage_prefix: false }, time_frame: 'all'
+    }
   end
 end

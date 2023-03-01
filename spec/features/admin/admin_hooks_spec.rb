@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin::Hooks' do
+RSpec.describe 'Admin::Hooks', feature_category: :integrations do
   include Spec::Support::Helpers::ModalHelpers
 
-  let(:user) { create(:admin) }
+  let_it_be(:user) { create(:admin) }
 
   before do
     sign_in(user)
@@ -58,10 +58,7 @@ RSpec.describe 'Admin::Hooks' do
 
   describe 'Update existing hook' do
     let(:new_url) { generate(:url) }
-
-    before do
-      create(:system_hook)
-    end
+    let_it_be(:hook) { create(:system_hook) }
 
     it 'updates existing hook' do
       visit admin_hooks_path
@@ -71,9 +68,9 @@ RSpec.describe 'Admin::Hooks' do
       check 'Enable SSL verification'
       click_button 'Save changes'
 
-      expect(page).to have_content 'SSL Verification: enabled'
-      expect(page).to have_current_path(admin_hooks_path, ignore_query: true)
-      expect(page).to have_content(new_url)
+      expect(page).to have_content('Enable SSL verification')
+      expect(page).to have_current_path(edit_admin_hook_path(hook), ignore_query: true)
+      expect(page).to have_content('Recent events')
     end
   end
 
@@ -108,8 +105,8 @@ RSpec.describe 'Admin::Hooks' do
       WebMock.stub_request(:post, system_hook.url)
       visit admin_hooks_path
 
-      find('.hook-test-button.dropdown').click
-      click_link 'Push events'
+      click_button 'Test'
+      click_button 'Push events'
     end
 
     it { expect(page).to have_current_path(admin_hooks_path, ignore_query: true) }
@@ -144,8 +141,8 @@ RSpec.describe 'Admin::Hooks' do
         create(:merge_request, source_project: project)
 
         visit admin_hooks_path
-        find('.hook-test-button.dropdown').click
-        click_link 'Merge requests events'
+        click_button 'Test'
+        click_button 'Merge request events'
 
         expect(page).to have_content 'Hook executed successfully'
       end

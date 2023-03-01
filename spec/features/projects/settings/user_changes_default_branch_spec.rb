@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > User changes default branch' do
-  include Select2Helper
+RSpec.describe 'Projects > Settings > User changes default branch', feature_category: :projects do
+  include ListboxHelpers
 
   let(:user) { create(:user) }
 
@@ -17,16 +17,21 @@ RSpec.describe 'Projects > Settings > User changes default branch' do
     let(:project) { create(:project, :repository, namespace: user.namespace) }
 
     it 'allows to change the default branch', :js do
+      dropdown_selector = '[data-testid="default-branch-dropdown"]'
       # Otherwise, running JS may overwrite our change to project_default_branch
       wait_for_requests
 
-      select2('fix', from: '#project_default_branch')
+      expect(page).to have_selector(dropdown_selector)
+      click_button 'master'
+      send_keys 'fix'
 
-      page.within '#default-branch-settings' do
+      select_listbox_item 'fix'
+
+      page.within '#branch-defaults-settings' do
         click_button 'Save changes'
       end
 
-      expect(find('#project_default_branch', visible: false).value).to eq 'fix'
+      expect(find(dropdown_selector)).to have_text 'fix'
     end
   end
 
@@ -34,7 +39,7 @@ RSpec.describe 'Projects > Settings > User changes default branch' do
     let(:project) { create(:project_empty_repo, namespace: user.namespace) }
 
     it 'does not show default branch selector' do
-      expect(page).not_to have_selector('#project_default_branch')
+      expect(page).not_to have_selector('[data-testid="default-branch-dropdown"]')
     end
   end
 end

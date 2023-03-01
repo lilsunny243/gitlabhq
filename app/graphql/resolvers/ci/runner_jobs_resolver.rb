@@ -9,21 +9,13 @@ module Resolvers
       type ::Types::Ci::JobType.connection_type, null: true
       authorize :read_builds
       authorizes_object!
+      extension ::Gitlab::Graphql::Limit::FieldCallCount, limit: 1
 
       argument :statuses, [::Types::Ci::JobStatusEnum],
                required: false,
                description: 'Filter jobs by status.'
 
       alias_method :runner, :object
-
-      def ready?(**args)
-        context[self.class] ||= { executions: 0 }
-        context[self.class][:executions] += 1
-
-        raise GraphQL::ExecutionError, "Jobs can be requested for only one runner at a time" if context[self.class][:executions] > 1
-
-        super
-      end
 
       def resolve_with_lookahead(statuses: nil)
         jobs = ::Ci::JobsFinder.new(current_user: current_user, runner: runner, params: { scope: statuses }).execute
@@ -35,9 +27,18 @@ module Resolvers
 
       def preloads
         {
-          previous_stage_jobs_and_needs: [:needs, :pipeline],
+          previous_stage_jobs_or_needs: [:needs, :pipeline],
           artifacts: [:job_artifacts],
-          pipeline: [:user]
+          pipeline: [:user],
+          project: [{ project: [:route, { namespace: [:route] }] }],
+          detailed_status: [
+            :metadata,
+            { pipeline: [:merge_request] },
+            { project: [:route, { namespace: :route }] }
+          ],
+          commit_path: [:pipeline, { project: [:route, { namespace: [:route] }] }],
+          short_sha: [:pipeline],
+          tags: [:tags]
         }
       end
     end

@@ -1,14 +1,13 @@
 <script>
-import { GlModal, GlSprintf, GlLink } from '@gitlab/ui';
+import { GlModal, GlSprintf, GlLink, GlPopover } from '@gitlab/ui';
 import { s__, __ } from '~/locale';
+import { visitUrl } from '~/lib/utils/url_utility';
+import UserCalloutDismisser from '~/vue_shared/components/user_callout_dismisser.vue';
 import ActionsButton from '~/vue_shared/components/actions_button.vue';
 import LocalStorageSync from '~/vue_shared/components/local_storage_sync.vue';
 import ConfirmForkModal from '~/vue_shared/components/confirm_fork_modal.vue';
-
-const KEY_EDIT = 'edit';
-const KEY_WEB_IDE = 'webide';
-const KEY_GITPOD = 'gitpod';
-const KEY_PIPELINE_EDITOR = 'pipeline_editor';
+import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { KEY_EDIT, KEY_WEB_IDE, KEY_GITPOD, KEY_PIPELINE_EDITOR } from './constants';
 
 export const i18n = {
   modal: {
@@ -25,6 +24,9 @@ export const i18n = {
   ),
 };
 
+export const PREFERRED_EDITOR_KEY = 'gl-web-ide-button-selected';
+export const PREFERRED_EDITOR_RESET_KEY = 'gl-web-ide-button-selected-reset';
+
 export default {
   components: {
     ActionsButton,
@@ -32,9 +34,12 @@ export default {
     GlModal,
     GlSprintf,
     GlLink,
+    GlPopover,
     ConfirmForkModal,
+    UserCalloutDismisser,
   },
   i18n,
+  mixins: [glFeatureFlagsMixin()],
   props: {
     isFork: {
       type: Boolean,
@@ -131,6 +136,11 @@ export default {
       required: false,
       default: '',
     },
+    webIdePromoPopoverImg: {
+      type: String,
+      required: false,
+      default: '',
+    },
   },
   data() {
     return {
@@ -208,7 +218,13 @@ export default {
               this.showModal('showForkModal');
             },
           }
-        : { href: this.webIdeUrl };
+        : {
+            href: this.webIdeUrl,
+            handle: (evt) => {
+              evt.preventDefault();
+              visitUrl(this.webIdeUrl, true);
+            },
+          };
 
       return {
         key: KEY_WEB_IDE,
@@ -296,6 +312,12 @@ export default {
         },
       };
     },
+    displayVscodeWebIdeCallout() {
+      return this.glFeatures.vscodeWebIde && !this.showEditButton;
+    },
+  },
+  mounted() {
+    this.resetPreferredEditor();
   },
   methods: {
     select(key) {
@@ -304,41 +326,110 @@ export default {
     showModal(dataKey) {
       this[dataKey] = true;
     },
+    resetPreferredEditor() {
+      if (!this.glFeatures.vscodeWebIde || this.showEditButton) {
+        return;
+      }
+
+      if (localStorage.getItem(PREFERRED_EDITOR_RESET_KEY) === 'true') {
+        return;
+      }
+
+      localStorage.setItem(PREFERRED_EDITOR_KEY, KEY_WEB_IDE);
+      localStorage.setItem(PREFERRED_EDITOR_RESET_KEY, true);
+
+      this.select(KEY_WEB_IDE);
+    },
+    dismissCalloutOnActionClicked(dismiss) {
+      if (this.displayVscodeWebIdeCallout) {
+        dismiss();
+      }
+    },
   },
+  webIdeButtonId: 'web-ide-link',
+  PREFERRED_EDITOR_KEY,
 };
 </script>
 
 <template>
-  <div class="gl-sm-ml-3">
-    <actions-button
-      :actions="actions"
-      :selected-key="selection"
-      :variant="isBlob ? 'confirm' : 'default'"
-      :category="isBlob ? 'primary' : 'secondary'"
-      @select="select"
-    />
-    <local-storage-sync
-      storage-key="gl-web-ide-button-selected"
-      :value="selection"
-      as-string
-      @input="select"
-    />
-    <gl-modal
-      v-if="computedShowGitpodButton && !gitpodEnabled"
-      v-model="showEnableGitpodModal"
-      v-bind="enableGitpodModalProps"
-    >
-      <gl-sprintf :message="$options.i18n.modal.content">
-        <template #link="{ content }">
-          <gl-link :href="userPreferencesGitpodPath">{{ content }}</gl-link>
-        </template>
-      </gl-sprintf>
-    </gl-modal>
-    <confirm-fork-modal
-      v-if="showWebIdeButton || showEditButton"
-      v-model="showForkModal"
-      :modal-id="forkModalId"
-      :fork-path="forkPath"
-    />
-  </div>
+  <user-callout-dismisser
+    :skip-query="!displayVscodeWebIdeCallout"
+    feature-name="vscode_web_ide_callout"
+  >
+    <template #default="{ dismiss, shouldShowCallout }">
+      <div class="gl-sm-ml-3">
+        <actions-button
+          :id="$options.webIdeButtonId"
+          :actions="actions"
+          :selected-key="selection"
+          :variant="isBlob ? 'confirm' : 'default'"
+          :category="isBlob ? 'primary' : 'secondary'"
+          :show-action-tooltip="!displayVscodeWebIdeCallout || !shouldShowCallout"
+          @select="select"
+          @actionClicked="dismissCalloutOnActionClicked(dismiss)"
+        />
+        <local-storage-sync
+          :storage-key="$options.PREFERRED_EDITOR_KEY"
+          :value="selection"
+          as-string
+          @input="select"
+        />
+        <gl-modal
+          v-if="computedShowGitpodButton && !gitpodEnabled"
+          v-model="showEnableGitpodModal"
+          v-bind="enableGitpodModalProps"
+        >
+          <gl-sprintf :message="$options.i18n.modal.content">
+            <template #link="{ content }">
+              <gl-link :href="userPreferencesGitpodPath">{{ content }}</gl-link>
+            </template>
+          </gl-sprintf>
+        </gl-modal>
+        <confirm-fork-modal
+          v-if="showWebIdeButton || showEditButton"
+          v-model="showForkModal"
+          :modal-id="forkModalId"
+          :fork-path="forkPath"
+        />
+        <gl-popover
+          v-if="displayVscodeWebIdeCallout"
+          :target="$options.webIdeButtonId"
+          :show="shouldShowCallout"
+          :css-classes="['web-ide-promo-popover']"
+          :boundary-padding="80"
+          show-close-button
+          triggers="manual"
+          @close-button-clicked="dismiss"
+        >
+          <img
+            :src="webIdePromoPopoverImg"
+            class="web-ide-promo-popover-illustration"
+            width="280"
+            height="140"
+          />
+          <div class="gl-mx-2">
+            <h5 class="gl-mt-3 gl-mb-3">{{ __('The new Web IDE') }}</h5>
+            <p>
+              {{
+                __(
+                  'VS Code in your browser. View code and make changes from the same UI as in your local IDE.',
+                )
+              }}
+            </p>
+            <gl-link
+              class="gl-button btn btn-confirm block gl-mb-4 gl-mt-5"
+              variant="confirm"
+              category="primary"
+              target="_blank"
+              :href="webIdeUrl"
+              block
+              @click="dismissCalloutOnActionClicked(dismiss)"
+            >
+              {{ __('Try it out now') }}
+            </gl-link>
+          </div>
+        </gl-popover>
+      </div>
+    </template>
+  </user-callout-dismisser>
 </template>

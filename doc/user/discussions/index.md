@@ -1,11 +1,16 @@
 ---
 stage: Create
 group: Code Review
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, howto
 ---
 
 # Comments and threads **(FREE)**
+
+> - Paginated merge request discussions [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/340172) in GitLab 15.1 [with a flag](../../administration/feature_flags.md) named `paginated_mr_discussions`. Disabled by default.
+> - Paginated merge request discussions [enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/364497) in GitLab 15.2.
+> - Paginated merge request discussions [enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/364497) in GitLab 15.3.
+> - Paginated merge request discussions [generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/370075) in GitLab 15.8. Feature flag `paginated_mr_discussions` removed.
 
 GitLab encourages communication through comments, threads, and
 [code suggestions](../project/merge_requests/reviews/suggestions.md).
@@ -44,8 +49,9 @@ You can quickly see which comments involve you, because
 mentions for yourself (the user currently signed in) are highlighted
 in a different color.
 
-Avoid mentioning `@all` in issues and merge requests, because it sends an email notification
-to all the members of that project's group. This might be interpreted as spam.
+Avoid mentioning `@all` in issues and merge requests. It sends an email notification
+to all members of that project's parent group, not only the participants of the project,
+and may be interpreted as spam.
 Notifications and mentions can be disabled in
 [a group's settings](../group/manage.md#disable-email-notifications).
 
@@ -77,7 +83,7 @@ To add a commit diff comment:
    You can select multiple lines by dragging the **Comment** (**{comment}**) icon.
 1. Enter your comment and select **Start a review** or **Add comment now**.
 
-The comment is displayed on the merge request's **Discussions** tab.
+The comment is displayed on the merge request's **Overview** tab.
 
 The comment is not displayed on your project's **Repository > Commits** page.
 
@@ -91,7 +97,7 @@ For example, `28719b171a056960dfdc0012b625d0b47b123196` becomes
 
 You can add comments and threads to a particular commit.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Repository > Commits**.
 1. Below the commits, in the **Comment** field, enter a comment.
 1. Select **Comment** or select the down arrow (**{chevron-down}**) to select **Start thread**.
@@ -143,7 +149,7 @@ If you edit an existing comment to add a user mention that wasn't there before, 
 - Creates a to-do item for the mentioned user.
 - Does not send a notification email.
 
-## Prevent comments by locking an issue
+## Prevent comments by locking the discussion
 
 You can prevent public comments in an issue or merge request.
 When you do, only project members can add and edit comments.
@@ -153,12 +159,17 @@ Prerequisite:
 - In merge requests, you must have at least the Developer role.
 - In issues, you must have at least the Reporter role.
 
+To lock an issue or merge request:
+
 1. On the right sidebar, next to **Lock issue** or **Lock merge request**, select **Edit**.
 1. On the confirmation dialog, select **Lock**.
 
 Notes are added to the page details.
 
 If an issue or merge request is locked and closed, you cannot reopen it.
+
+<!-- Delete when the `moved_mr_sidebar` feature flag is removed -->
+If you don't see this action on the right sidebar, your project or instance might have [moved sidebar actions](../project/merge_requests/index.md#move-sidebar-actions) enabled.
 
 ## Add an internal note
 
@@ -167,24 +178,18 @@ If an issue or merge request is locked and closed, you cannot reopen it.
 > - [Renamed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87403) from "confidential comments" to "internal notes" in GitLab 15.0.
 > - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87383) in GitLab 15.0.
 > - [Feature flag `confidential_notes`](https://gitlab.com/gitlab-org/gitlab/-/issues/362712) removed in GitLab 15.2.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/363045) permissions in GitLab 15.6 to at least the Reporter role. In GitLab 15.5 and earlier, issue or epic authors and assignees could also read and create internal notes.
 
-You can add an internal note **to an issue or an epic**. It's then visible only to the following people:
-
-- Project members who have at least the Reporter role
-- Issue or epic author
-- Users assigned to the issue or epic
+You can add an internal note **to an issue or an epic**. It's then visible only to project members who have at least the Reporter role.
 
 Keep in mind:
 
 - Replies to internal notes are also internal.
-- You can not turn an internal note into a regular comment.
+- You cannot turn an internal note into a regular comment.
 
 Prerequisites:
 
-- You must either:
-  - Have at least the Reporter role for the project.
-  - Be the issue or epic assignee.
-  - Be the issue or epic author.
+- You must have at least the Reporter role for the project.
 
 To add an internal note:
 
@@ -200,14 +205,14 @@ You can also mark an [issue as confidential](../project/issues/confidential_issu
 
 For issues and merge requests with many comments, you can filter the page to show comments only.
 
-1. Open a merge request's **Discussion** tab, or epic or issue's **Overview** tab.
+1. Open the **Overview** tab in a merge request, issue, or epic.
 1. On the right side of the page, select from the filter:
    - **Show all activity**: Display all user comments and system notes.
      (issue updates, mentions from other issues, changes to the description, and so on).
    - **Show comments only**: Display only user comments.
    - **Show history only**: Display only activity notes.
 
-![Notes filters dropdown options](img/index_notes_filters.png)
+![Notes filters dropdown list options](img/index_notes_filters.png)
 
 GitLab saves your preference, so it persists when you visit the same page again
 from any device you're logged into.
@@ -255,7 +260,7 @@ Prerequisites:
 
 To create a thread by replying to a comment:
 
-1. On the top right of the comment, select **Reply to comment** (**{comment}**).
+1. In the upper-right corner of the comment, select **Reply to comment** (**{comment}**).
 
    ![Reply to comment button](img/reply_to_comment_button.png)
 
@@ -303,21 +308,21 @@ To resolve a thread:
 
 1. Go to the thread.
 1. Do one of the following:
-   - In the top right of the original comment, select the **Resolve thread** (**{check-circle}**) icon.
+   - In the upper-right corner of the original comment, select **Resolve thread** (**{check-circle}**).
    - Below the last reply, in the **Reply** field, select **Resolve thread**.
    - Below the last reply, in the **Reply** field, enter text, select the **Resolve thread** checkbox, and select **Add comment now**.
 
 At the top of the page, the number of unresolved threads is updated:
 
-![Count of unresolved threads](img/unresolved_threads_v15.png)
+![Count of unresolved threads](img/unresolved_threads_v15_4.png)
 
 ### Move all unresolved threads in a merge request to an issue
 
 If you have multiple unresolved threads in a merge request, you can
 create an issue to resolve them separately. In the merge request, at the top of the page,
-select **Create issue to resolve all threads** (**{issue-new}**):
+select the ellipsis icon button (**{ellipsis_v}**) in the threads control and then select **Create issue to resolve all threads**:
 
-![Open new issue for all unresolved threads](img/create-new-issue_v15.png)
+![Open new issue for all unresolved threads](img/create_new_issue_v15_4.png)
 
 All threads are marked as resolved, and a link is added from the merge request to
 the newly created issue.
@@ -339,10 +344,9 @@ You can prevent merge requests from being merged until all threads are
 resolved. When this setting is enabled, the **Unresolved threads** counter in a merge request
 is shown in orange when at least one thread remains unresolved.
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
-1. Expand **Merge requests**.
-1. Under **Merge checks**, select the **All threads must be resolved** checkbox.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Merge requests**.
+1. In the **Merge checks** section, select the **All threads must be resolved** checkbox.
 1. Select **Save changes**.
 
 ### Automatically resolve threads in a merge request when they become outdated
@@ -350,28 +354,11 @@ is shown in orange when at least one thread remains unresolved.
 You can set merge requests to automatically resolve threads when lines are modified
 with a new push.
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
-1. Expand **Merge requests**.
-1. Under **Merge options**, select the
-   **Automatically resolve merge request diff threads when they become outdated** checkbox.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Merge requests**.
+1. In the **Merge options** section, select
+   **Automatically resolve merge request diff threads when they become outdated**.
 1. Select **Save changes**.
 
 Threads are now resolved if a push makes a diff section outdated.
 Threads on lines that don't change and top-level resolvable threads are not resolved.
-
-## Display paginated merge request discussions
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/340172) in GitLab 15.1 [with a flag](../../administration/feature_flags.md) named `paginated_mr_discussions`. Disabled by default.
-> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/364497) in GitLab 15.2.
-> - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/364497) in GitLab 15.3.
-
-FLAG:
-On self-managed GitLab, by default this feature is available. To hide the feature
-per project or for your entire instance, ask an administrator to
-[disable the feature flag](../../administration/feature_flags.md) named `paginated_mr_discussions`.
-On GitLab.com, this feature is available.
-
-A merge request can have many discussions. Loading them all in a single request
-can be slow. To improve the performance of loading discussions, they are split into multiple
-pages, loading sequentially.

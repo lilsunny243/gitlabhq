@@ -126,6 +126,12 @@ RSpec.describe Projects::TransferService do
       expect(project.namespace).to eq(user.namespace)
     end
 
+    it 'invalidates personal_project_count cache of the the owner of the personal namespace' do
+      expect(user).to receive(:invalidate_personal_projects_count)
+
+      execute_transfer
+    end
+
     context 'the owner of the namespace does not have a direct membership in the project residing in the group' do
       it 'creates a project membership record for the owner of the namespace, with OWNER access level, after the transfer' do
         execute_transfer
@@ -158,6 +164,17 @@ RSpec.describe Projects::TransferService do
           expect(project.members.owners.find_by(user_id: user.id)).to be_present
         end
       end
+    end
+  end
+
+  context 'personal namespace -> group', :enable_admin_mode do
+    let(:executor) { create(:admin) }
+
+    it 'invalidates personal_project_count cache of the the owner of the personal namespace' \
+       'that previously held the project' do
+      expect(user).to receive(:invalidate_personal_projects_count)
+
+      execute_transfer
     end
   end
 
@@ -263,7 +280,7 @@ RSpec.describe Projects::TransferService do
   end
 
   context 'when transfer fails' do
-    let!(:original_path) { project_path(project) }
+    let!(:original_path) { project.repository.relative_path }
 
     def attempt_project_transfer(&block)
       expect do
@@ -277,21 +294,11 @@ RSpec.describe Projects::TransferService do
       expect_any_instance_of(Labels::TransferService).to receive(:execute).and_raise(ActiveRecord::StatementInvalid, "PG ERROR")
     end
 
-    def project_path(project)
-      Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-        project.repository.path_to_repo
-      end
-    end
-
-    def current_path
-      project_path(project)
-    end
-
     it 'rolls back repo location' do
       attempt_project_transfer
 
       expect(project.repository.raw.exists?).to be(true)
-      expect(original_path).to eq current_path
+      expect(original_path).to eq project.repository.relative_path
     end
 
     it 'rolls back project full path in gitaly' do
@@ -462,6 +469,22 @@ RSpec.describe Projects::TransferService do
     end
   end
 
+  context 'target namespace belongs to bot user', :enable_admin_mode do
+    let(:bot) { create(:user, :project_bot) }
+    let(:target) { bot.namespace }
+    let(:executor) { create(:user, :admin) }
+
+    it 'does not allow project transfer' do
+      namespace = project.namespace
+
+      transfer_result = execute_transfer
+
+      expect(transfer_result).to eq false
+      expect(project.namespace).to eq(namespace)
+      expect(project.errors[:new_namespace]).to include("You don't have permission to transfer projects into that namespace.")
+    end
+  end
+
   context 'when user does not own the project' do
     let(:project) { create(:project, :repository, :legacy_storage) }
 
@@ -529,8 +552,8 @@ RSpec.describe Projects::TransferService do
     where(:project_shared_runners_enabled, :shared_runners_setting, :expected_shared_runners_enabled) do
       true  | :disabled_and_unoverridable | false
       false | :disabled_and_unoverridable | false
-      true  | :disabled_with_override     | true
-      false | :disabled_with_override     | false
+      true  | :disabled_and_overridable   | true
+      false | :disabled_and_overridable   | false
       true  | :shared_runners_enabled     | true
       false | :shared_runners_enabled     | false
     end
@@ -639,6 +662,8 @@ RSpec.describe Projects::TransferService do
     end
 
     it 'calls AuthorizedProjectUpdate::UserRefreshFromReplicaWorker with a delay to update project authorizations' do
+      stub_feature_flags(do_not_run_safety_net_auth_refresh_jobs: false)
+
       user_ids = [user.id, member_of_old_group.id, member_of_new_group.id].map { |id| [id] }
 
       expect(AuthorizedProjectUpdate::UserRefreshFromReplicaWorker).to(

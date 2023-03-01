@@ -1,13 +1,18 @@
 import axios from '~/lib/utils/axios_utils';
 import { backOff } from '~/lib/utils/common_utils';
-import statusCodes from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_NO_CONTENT,
+  HTTP_STATUS_SERVICE_UNAVAILABLE,
+  HTTP_STATUS_UNPROCESSABLE_ENTITY,
+} from '~/lib/utils/http_status';
 import { PROMETHEUS_TIMEOUT } from '../constants';
 
 const cancellableBackOffRequest = (makeRequestCallback) =>
   backOff((next, stop) => {
     makeRequestCallback()
       .then((resp) => {
-        if (resp.status === statusCodes.NO_CONTENT) {
+        if (resp.status === HTTP_STATUS_NO_CONTENT) {
           next();
         } else {
           stop(resp);
@@ -33,9 +38,9 @@ export const getPrometheusQueryData = (prometheusEndpoint, params, opts) =>
       // https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview
       const { response = {} } = error;
       if (
-        response.status === statusCodes.BAD_REQUEST ||
-        response.status === statusCodes.UNPROCESSABLE_ENTITY ||
-        response.status === statusCodes.SERVICE_UNAVAILABLE
+        response.status === HTTP_STATUS_BAD_REQUEST ||
+        response.status === HTTP_STATUS_UNPROCESSABLE_ENTITY ||
+        response.status === HTTP_STATUS_SERVICE_UNAVAILABLE
       ) {
         const { data } = response;
         if (data?.status === 'error' && data?.error) {

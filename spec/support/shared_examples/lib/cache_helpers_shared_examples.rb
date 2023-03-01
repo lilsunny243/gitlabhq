@@ -17,7 +17,7 @@ RSpec.shared_examples_for 'object cache helper' do
   end
 
   it "fetches from the cache" do
-    expect(instance.cache).to receive(:fetch).with("#{presenter.class.name}:#{presentable.cache_key}:#{user.cache_key}", expires_in: described_class::DEFAULT_EXPIRY).once
+    expect(instance.cache).to receive(:fetch).with("#{expected_cache_key_prefix}:#{presentable.cache_key}:#{user.cache_key}", expires_in: described_class::DEFAULT_EXPIRY).once
 
     subject
   end
@@ -28,7 +28,7 @@ RSpec.shared_examples_for 'object cache helper' do
     end
 
     it "uses the context to augment the cache key" do
-      expect(instance.cache).to receive(:fetch).with("#{presenter.class.name}:#{presentable.cache_key}:#{project.cache_key}", expires_in: described_class::DEFAULT_EXPIRY).once
+      expect(instance.cache).to receive(:fetch).with("#{expected_cache_key_prefix}:#{presentable.cache_key}:#{project.cache_key}", expires_in: described_class::DEFAULT_EXPIRY).once
 
       subject
     end
@@ -38,7 +38,7 @@ RSpec.shared_examples_for 'object cache helper' do
     it "sets the expiry when accessing the cache" do
       kwargs[:expires_in] = 7.days
 
-      expect(instance.cache).to receive(:fetch).with("#{presenter.class.name}:#{presentable.cache_key}:#{user.cache_key}", expires_in: 7.days).once
+      expect(instance.cache).to receive(:fetch).with("#{expected_cache_key_prefix}:#{presentable.cache_key}:#{user.cache_key}", expires_in: 7.days).once
 
       subject
     end
@@ -52,31 +52,6 @@ RSpec.shared_examples_for 'object cache helper' do
       allow(::Gitlab::Metrics::WebTransaction).to receive(:current).and_return(transaction)
       allow(transaction).to receive(:increment)
       allow(Gitlab::ApplicationContext).to receive(:current_context_attribute).with(:caller_id).and_return(caller_id)
-    end
-
-    context 'when feature flag is off' do
-      before do
-        stub_feature_flags(add_timing_to_certain_cache_actions: false)
-      end
-
-      it 'does not call increment' do
-        expect(transaction).not_to receive(:increment).with(:cached_object_operations_total, any_args)
-
-        subject
-      end
-
-      it 'does not call histogram' do
-        expect(Gitlab::Metrics).not_to receive(:histogram)
-
-        subject
-      end
-
-      it "is valid JSON" do
-        parsed = Gitlab::Json.parse(subject.to_s)
-
-        expect(parsed).to be_a(Hash)
-        expect(parsed["id"]).to eq(presentable.id)
-      end
     end
 
     it 'increments the counter' do
@@ -115,7 +90,7 @@ RSpec.shared_examples_for 'collection cache helper' do
   end
 
   it "fetches from the cache" do
-    keys = presentable.map { |item| "#{presenter.class.name}:#{item.cache_key}:#{user.cache_key}" }
+    keys = presentable.map { |item| "#{expected_cache_key_prefix}:#{item.cache_key}:#{user.cache_key}" }
 
     expect(instance.cache).to receive(:fetch_multi).with(*keys, expires_in: described_class::DEFAULT_EXPIRY).once.and_call_original
 
@@ -128,7 +103,7 @@ RSpec.shared_examples_for 'collection cache helper' do
     end
 
     it "uses the context to augment the cache key" do
-      keys = presentable.map { |item| "#{presenter.class.name}:#{item.cache_key}:#{project.cache_key}" }
+      keys = presentable.map { |item| "#{expected_cache_key_prefix}:#{item.cache_key}:#{project.cache_key}" }
 
       expect(instance.cache).to receive(:fetch_multi).with(*keys, expires_in: described_class::DEFAULT_EXPIRY).once.and_call_original
 
@@ -138,7 +113,7 @@ RSpec.shared_examples_for 'collection cache helper' do
 
   context "expires_in is supplied" do
     it "sets the expiry when accessing the cache" do
-      keys = presentable.map { |item| "#{presenter.class.name}:#{item.cache_key}:#{user.cache_key}" }
+      keys = presentable.map { |item| "#{expected_cache_key_prefix}:#{item.cache_key}:#{user.cache_key}" }
       kwargs[:expires_in] = 7.days
 
       expect(instance.cache).to receive(:fetch_multi).with(*keys, expires_in: 7.days).once.and_call_original
@@ -154,27 +129,22 @@ RSpec.shared_examples_for 'collection cache helper' do
     before do
       allow(::Gitlab::Metrics::WebTransaction).to receive(:current).and_return(transaction)
       allow(transaction).to receive(:increment)
+      allow(Gitlab::ApplicationContext).to receive(:current_context_attribute).with(any_args).and_call_original
       allow(Gitlab::ApplicationContext).to receive(:current_context_attribute).with(:caller_id).and_return(caller_id)
     end
 
-    context 'when feature flag is off' do
-      before do
-        stub_feature_flags(add_timing_to_certain_cache_actions: false)
-      end
+    context 'when presentable has a group by clause' do
+      let(:presentable) { MergeRequest.group(:id) }
 
-      it 'does not call increment' do
-        expect(transaction).not_to receive(:increment).with(:cached_object_operations_total, any_args)
+      it "returns the presentables" do
+        expect(transaction)
+          .to receive(:increment)
+          .with(:cached_object_operations_total, 0, { caller_id: caller_id, render_type: :collection, cache_hit: true }).once
 
-        subject
-      end
+        expect(transaction)
+          .to receive(:increment)
+          .with(:cached_object_operations_total, MergeRequest.count, { caller_id: caller_id, render_type: :collection, cache_hit: false }).once
 
-      it 'does not call histogram' do
-        expect(Gitlab::Metrics).not_to receive(:histogram)
-
-        subject
-      end
-
-      it "is valid JSON" do
         parsed = Gitlab::Json.parse(subject.to_s)
 
         expect(parsed).to be_an(Array)

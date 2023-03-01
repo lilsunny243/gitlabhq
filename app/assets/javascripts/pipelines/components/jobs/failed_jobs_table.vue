@@ -1,9 +1,10 @@
 <script>
-import { GlButton, GlLink, GlSafeHtmlDirective, GlTableLite } from '@gitlab/ui';
+import { GlButton, GlLink, GlTableLite } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { __, s__ } from '~/locale';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { redirectTo } from '~/lib/utils/url_utility';
-import CiBadge from '~/vue_shared/components/ci_badge_link.vue';
+import CiBadgeLink from '~/vue_shared/components/ci_badge_link.vue';
 import RetryFailedJobMutation from '../../graphql/mutations/retry_failed_job.mutation.graphql';
 import { DEFAULT_FIELDS } from '../../constants';
 
@@ -11,13 +12,13 @@ export default {
   fields: DEFAULT_FIELDS,
   retry: __('Retry'),
   components: {
-    CiBadge,
+    CiBadgeLink,
     GlButton,
     GlLink,
     GlTableLite,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   props: {
     failedJobs: {
@@ -49,7 +50,7 @@ export default {
       return job.retryable && job.userPermissions.updateBuild;
     },
     showErrorMessage() {
-      createFlash({ message: s__('Job|There was a problem retrying the failed job.') });
+      createAlert({ message: s__('Job|There was a problem retrying the failed job.') });
     },
   },
 };
@@ -71,7 +72,7 @@ export default {
       <div
         class="gl-display-flex gl-align-items-center gl-lg-justify-content-start gl-justify-content-end"
       >
-        <ci-badge :status="item.detailedStatus" :show-text="false" class="gl-mr-3" />
+        <ci-badge-link :status="item.detailedStatus" :show-text="false" class="gl-mr-3" />
         <div class="gl-text-truncate">
           <gl-link
             :href="item.detailedStatus.detailsPath"

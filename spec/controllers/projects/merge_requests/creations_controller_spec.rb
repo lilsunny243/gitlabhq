@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::MergeRequests::CreationsController do
+RSpec.describe Projects::MergeRequests::CreationsController, feature_category: :code_review_workflow do
   let(:project) { create(:project, :repository) }
   let(:user)    { project.first_owner }
   let(:fork_project) { create(:forked_project_with_submodules) }
@@ -99,9 +99,7 @@ RSpec.describe Projects::MergeRequests::CreationsController do
 
   describe 'GET pipelines' do
     before do
-      create(:ci_pipeline, sha: fork_project.commit('remove-submodule').id,
-                           ref: 'remove-submodule',
-                           project: fork_project)
+      create(:ci_pipeline, sha: fork_project.commit('remove-submodule').id, ref: 'remove-submodule', project: fork_project)
     end
 
     it 'renders JSON including serialized pipelines' do
@@ -188,13 +186,12 @@ RSpec.describe Projects::MergeRequests::CreationsController do
       expect(Ability).to receive(:allowed?).with(user, :read_project, project) { true }
       expect(Ability).to receive(:allowed?).with(user, :create_merge_request_in, project) { true }.at_least(:once)
 
-      get :branch_to,
-          params: {
-            namespace_id: fork_project.namespace,
-            project_id: fork_project,
-            target_project_id: project.id,
-            ref: 'master'
-          }
+      get :branch_to, params: {
+        namespace_id: fork_project.namespace,
+        project_id: fork_project,
+        target_project_id: project.id,
+        ref: 'master'
+      }
 
       expect(assigns(:commit)).not_to be_nil
       expect(response).to have_gitlab_http_status(:ok)
@@ -204,13 +201,12 @@ RSpec.describe Projects::MergeRequests::CreationsController do
       expect(Ability).to receive(:allowed?).with(user, :read_project, project) { true }
       expect(Ability).to receive(:allowed?).with(user, :create_merge_request_in, project) { false }.at_least(:once)
 
-      get :branch_to,
-          params: {
-            namespace_id: fork_project.namespace,
-            project_id: fork_project,
-            target_project_id: project.id,
-            ref: 'master'
-          }
+      get :branch_to, params: {
+        namespace_id: fork_project.namespace,
+        project_id: fork_project,
+        target_project_id: project.id,
+        ref: 'master'
+      }
 
       expect(assigns(:commit)).to be_nil
       expect(response).to have_gitlab_http_status(:ok)
@@ -220,13 +216,12 @@ RSpec.describe Projects::MergeRequests::CreationsController do
       expect(Ability).to receive(:allowed?).with(user, :read_project, project) { false }
       expect(Ability).to receive(:allowed?).with(user, :create_merge_request_in, project) { true }.at_least(:once)
 
-      get :branch_to,
-          params: {
-            namespace_id: fork_project.namespace,
-            project_id: fork_project,
-            target_project_id: project.id,
-            ref: 'master'
-          }
+      get :branch_to, params: {
+        namespace_id: fork_project.namespace,
+        project_id: fork_project,
+        target_project_id: project.id,
+        ref: 'master'
+      }
 
       expect(assigns(:commit)).to be_nil
       expect(response).to have_gitlab_http_status(:ok)
@@ -304,6 +299,20 @@ RSpec.describe Projects::MergeRequests::CreationsController do
 
     def post_request(merge_request_params)
       post :create, params: merge_request_params
+    end
+  end
+
+  describe 'GET target_projects', feature_category: :code_review_workflow do
+    it 'returns target projects JSON' do
+      get :target_projects, params: { namespace_id: project.namespace.to_param, project_id: project }
+
+      expect(json_response.size).to be(2)
+
+      forked_project = json_response.first
+      expect(forked_project).to have_key('id')
+      expect(forked_project).to have_key('name')
+      expect(forked_project).to have_key('full_path')
+      expect(forked_project).to have_key('refs_url')
     end
   end
 end

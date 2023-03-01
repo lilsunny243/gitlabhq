@@ -2,9 +2,13 @@
 import { GlTooltipDirective, GlIcon } from '@gitlab/ui';
 import { mapActions, mapGetters, mapState } from 'vuex';
 import micromatch from 'micromatch';
+import { debounce } from 'lodash';
+import { getModifierKey } from '~/constants';
 import { s__, sprintf } from '~/locale';
-import FileTree from '~/vue_shared/components/file_tree.vue';
+import { RecycleScroller } from 'vendor/vue-virtual-scroller';
 import DiffFileRow from './diff_file_row.vue';
+
+const MODIFIER_KEY = getModifierKey();
 
 export default {
   directives: {
@@ -12,7 +16,8 @@ export default {
   },
   components: {
     GlIcon,
-    FileTree,
+    DiffFileRow,
+    RecycleScroller,
   },
   props: {
     hideFileStats: {
@@ -23,6 +28,10 @@ export default {
   data() {
     return {
       search: '',
+      scrollerHeight: 0,
+      resizeObserver: null,
+      rowHeight: 0,
+      debouncedHeightCalc: null,
     };
   },
   computed: {
@@ -58,23 +67,66 @@ export default {
         return acc;
       }, []);
     },
+    // Flatten the treeList so there's no nested trees
+    // This gives us fixed row height for virtual scrolling
+    // in:  [{ path: 'a', tree: [{ path: 'b' }] }, { path: 'c' }]
+    // out: [{ path: 'a', tree: [{ path: 'b' }] }, { path: 'b' }, { path: 'c' }]
+    flatFilteredTreeList() {
+      const result = [];
+      const createFlatten = (level) => (item) => {
+        result.push({
+          ...item,
+          level: item.isHeader ? 0 : level,
+          key: item.key || item.path,
+        });
+        if (item.opened || item.isHeader) {
+          item.tree.forEach(createFlatten(level + 1));
+        }
+      };
+
+      this.filteredTreeList.forEach(createFlatten(0));
+
+      return result;
+    },
+  },
+  created() {
+    this.debouncedHeightCalc = debounce(this.calculateScrollerHeight, 50);
+  },
+  mounted() {
+    const heightProp = getComputedStyle(this.$refs.wrapper).getPropertyValue('--file-row-height');
+    this.rowHeight = parseInt(heightProp, 10);
+    this.calculateScrollerHeight();
+    this.resizeObserver = new ResizeObserver(() => {
+      this.debouncedHeightCalc();
+    });
+    this.resizeObserver.observe(this.$refs.scrollRoot);
+  },
+  beforeDestroy() {
+    this.resizeObserver.disconnect();
   },
   methods: {
     ...mapActions('diffs', ['toggleTreeOpen', 'scrollToFile']),
     clearSearch() {
       this.search = '';
     },
+    calculateScrollerHeight() {
+      this.scrollerHeight = this.$refs.scrollRoot.clientHeight;
+    },
   },
-  searchPlaceholder: sprintf(s__('MergeRequest|Search (e.g. *.vue) (%{modifier_key}P)'), {
-    modifier_key: /Mac/i.test(navigator.userAgent) ? '⌘' : 'Ctrl+',
+  searchPlaceholder: sprintf(s__('MergeRequest|Search (e.g. *.vue) (%{MODIFIER_KEY}P)'), {
+    MODIFIER_KEY,
   }),
   DiffFileRow,
 };
 </script>
 
 <template>
-  <div class="tree-list-holder d-flex flex-column" data-qa-selector="file_tree_container">
-    <div class="gl-mb-3 position-relative tree-list-search d-flex">
+  <div
+    ref="wrapper"
+    class="tree-list-holder d-flex flex-column"
+    data-qa-selector="file_tree_container"
+  >
+    <div class="gl-pb-3 position-relative tree-list-search d-flex">
       <div class="flex-fill d-flex">
         <gl-icon name="search" class="position-absolute tree-list-icon" />
         <label for="diff-tree-search" class="sr-only">{{ $options.searchPlaceholder }}</label>
@@ -86,6 +138,7 @@ export default {
           name="diff-tree-search"
           class="form-control"
           data-testid="diff-tree-search"
+          data-qa-selector="diff_tree_search"
         />
         <button
           v-show="search"
@@ -98,21 +151,37 @@ export default {
         </button>
       </div>
     </div>
-    <div :class="{ 'pt-0 tree-list-blobs': !renderTreeList }" class="tree-list-scroll">
-      <template v-if="filteredTreeList.length">
-        <file-tree
-          v-for="file in filteredTreeList"
-          :key="file.key"
-          :file="file"
-          :level="0"
-          :viewed-files="viewedDiffFileIds"
-          :hide-file-stats="hideFileStats"
-          :file-row-component="$options.DiffFileRow"
-          :current-diff-file-id="currentDiffFileId"
-          @toggleTreeOpen="toggleTreeOpen"
-          @clickFile="(path) => scrollToFile({ path })"
-        />
-      </template>
+    <div
+      ref="scrollRoot"
+      :class="{ 'tree-list-blobs': !renderTreeList || search }"
+      class="gl-flex-grow-1"
+    >
+      <recycle-scroller
+        v-if="flatFilteredTreeList.length"
+        :style="{ height: `${scrollerHeight}px` }"
+        :items="flatFilteredTreeList"
+        :item-size="rowHeight"
+        :buffer="100"
+        key-field="key"
+      >
+        <template #default="{ item }">
+          <diff-file-row
+            :file="item"
+            :level="item.level"
+            :viewed-files="viewedDiffFileIds"
+            :hide-file-stats="hideFileStats"
+            :current-diff-file-id="currentDiffFileId"
+            :style="{ '--level': item.level }"
+            :class="{ 'tree-list-parent': item.tree.length }"
+            class="gl-relative"
+            @toggleTreeOpen="toggleTreeOpen"
+            @clickFile="(path) => scrollToFile({ path })"
+          />
+        </template>
+        <template #after>
+          <div class="tree-list-gutter"></div>
+        </template>
+      </recycle-scroller>
       <p v-else class="prepend-top-20 append-bottom-20 text-center">
         {{ s__('MergeRequest|No files found') }}
       </p>

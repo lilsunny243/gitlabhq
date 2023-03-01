@@ -45,8 +45,9 @@ module Gitlab
 
       # rubocop: disable CodeReuse/ActiveRecord
       def preload_builds(pipeline, association)
-        ActiveRecord::Associations::Preloader.new.preload(pipeline,
-          {
+        ActiveRecord::Associations::Preloader.new(
+          records: [pipeline],
+          associations: {
             association => {
               **::Ci::Pipeline::PROJECT_ROUTE_AND_NAMESPACE_ROUTE,
               runner: :tags,
@@ -56,13 +57,14 @@ module Gitlab
               ci_stage: []
             }
           }
-        )
+        ).call
       end
       # rubocop: enable CodeReuse/ActiveRecord
 
       def hook_attrs(pipeline)
         {
           id: pipeline.id,
+          iid: pipeline.iid,
           ref: pipeline.source_ref,
           tag: pipeline.tag,
           sha: pipeline.sha,
@@ -104,6 +106,7 @@ module Gitlab
           target_project_id: merge_request.target_project_id,
           state: merge_request.state,
           merge_status: merge_request.public_merge_status,
+          detailed_merge_status: detailed_merge_status(merge_request),
           url: Gitlab::UrlBuilder.build(merge_request)
         }
       end
@@ -145,13 +148,17 @@ module Gitlab
       end
 
       def environment_hook_attrs(build)
-        return unless build.has_environment?
+        return unless build.has_environment_keyword?
 
         {
           name: build.expanded_environment_name,
           action: build.environment_action,
           deployment_tier: build.persisted_environment.try(:tier)
         }
+      end
+
+      def detailed_merge_status(merge_request)
+        ::MergeRequests::Mergeability::DetailedMergeStatusService.new(merge_request: merge_request).execute.to_s
       end
     end
   end

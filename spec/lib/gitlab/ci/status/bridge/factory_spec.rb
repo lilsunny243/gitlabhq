@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Status::Bridge::Factory do
+RSpec.describe Gitlab::Ci::Status::Bridge::Factory, feature_category: :continuous_integration do
   let(:user) { create(:user) }
   let(:project) { bridge.project }
   let(:status) { factory.fabricate! }
@@ -25,7 +25,7 @@ RSpec.describe Gitlab::Ci::Status::Bridge::Factory do
       expect(status.text).to eq s_('CiStatusText|created')
       expect(status.icon).to eq 'status_created'
       expect(status.favicon).to eq 'favicon_status_created'
-      expect(status.label).to be_nil
+      expect(status.label).to eq 'created'
       expect(status).not_to have_details
       expect(status).not_to have_action
     end
@@ -40,7 +40,8 @@ RSpec.describe Gitlab::Ci::Status::Bridge::Factory do
 
     it 'matches correct extended statuses' do
       expect(factory.extended_statuses)
-        .to eq [Gitlab::Ci::Status::Bridge::Failed]
+        .to eq [Gitlab::Ci::Status::Bridge::Retryable,
+                Gitlab::Ci::Status::Bridge::Failed]
     end
 
     it 'fabricates a failed bridge status' do
@@ -51,21 +52,23 @@ RSpec.describe Gitlab::Ci::Status::Bridge::Factory do
       expect(status.text).to eq s_('CiStatusText|failed')
       expect(status.icon).to eq 'status_failed'
       expect(status.favicon).to eq 'favicon_status_failed'
-      expect(status.label).to be_nil
+      expect(status.label).to eq 'failed'
       expect(status.status_tooltip).to eq "#{s_('CiStatusText|failed')} - (unknown failure)"
       expect(status).not_to have_details
-      expect(status).not_to have_action
+      expect(status).to have_action
     end
 
     context 'failed with downstream_pipeline_creation_failed' do
       before do
-        bridge.options = { downstream_errors: ['No stages / jobs for this pipeline.', 'other error'] }
+        bridge.options = { downstream_errors: ['Pipeline will not run for the selected trigger. ' \
+            'The rules configuration prevented any jobs from being added to the pipeline.', 'other error'] }
         bridge.failure_reason = 'downstream_pipeline_creation_failed'
       end
 
       it 'fabricates correct status_tooltip' do
         expect(status.status_tooltip).to eq(
-          "#{s_('CiStatusText|failed')} - (downstream pipeline can not be created, No stages / jobs for this pipeline., other error)"
+          "#{s_('CiStatusText|failed')} - (downstream pipeline can not be created, Pipeline will not run for the selected trigger. " \
+          "The rules configuration prevented any jobs from being added to the pipeline., other error)"
         )
       end
     end
@@ -128,9 +131,33 @@ RSpec.describe Gitlab::Ci::Status::Bridge::Factory do
       expect(status.text).to eq 'waiting'
       expect(status.group).to eq 'waiting-for-resource'
       expect(status.icon).to eq 'status_pending'
-      expect(status.favicon).to eq 'favicon_pending'
+      expect(status.favicon).to eq 'favicon_status_pending'
       expect(status.illustration).to include(:image, :size, :title)
       expect(status).not_to have_details
+    end
+  end
+
+  context 'when the bridge is successful and therefore retryable' do
+    let(:bridge) { create(:ci_bridge, :success) }
+
+    it 'matches correct core status' do
+      expect(factory.core_status).to be_a Gitlab::Ci::Status::Success
+    end
+
+    it 'matches correct extended statuses' do
+      expect(factory.extended_statuses)
+        .to eq [Gitlab::Ci::Status::Bridge::Retryable]
+    end
+
+    it 'fabricates a retryable build status' do
+      expect(status).to be_a Gitlab::Ci::Status::Bridge::Retryable
+    end
+
+    it 'fabricates status with correct details' do
+      expect(status.text).to eq s_('CiStatusText|passed')
+      expect(status.icon).to eq 'status_success'
+      expect(status.favicon).to eq 'favicon_status_success'
+      expect(status).to have_action
     end
   end
 

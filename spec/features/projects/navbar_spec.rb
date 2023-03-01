@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project navbar' do
+RSpec.describe 'Project navbar', :with_license, feature_category: :projects do
   include NavbarStructureHelper
   include WaitForRequests
 
@@ -14,6 +14,8 @@ RSpec.describe 'Project navbar' do
 
   before do
     sign_in(user)
+
+    stub_feature_flags(show_pages_in_deployments_menu: false)
 
     stub_config(registry: { enabled: false })
     stub_feature_flags(harbor_registry_integration: false)
@@ -49,7 +51,7 @@ RSpec.describe 'Project navbar' do
       stub_config(pages: { enabled: true })
 
       insert_after_sub_nav_item(
-        _('Packages & Registries'),
+        _('Packages and registries'),
         within: _('Settings'),
         new_sub_nav_item_name: _('Pages')
       )

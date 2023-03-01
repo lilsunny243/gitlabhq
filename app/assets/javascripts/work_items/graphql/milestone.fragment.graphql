@@ -1,0 +1,8 @@
+fragment MilestoneFragment on Milestone {
+  expired
+  id
+  title
+  state
+  startDate
+  dueDate
+}

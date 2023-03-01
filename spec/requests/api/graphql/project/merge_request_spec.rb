@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'getting merge request information nested in a project' do
+RSpec.describe 'getting merge request information nested in a project', feature_category: :code_review_workflow do
   include GraphqlHelpers
 
   let_it_be(:project) { create(:project, :repository, :public) }
@@ -193,7 +193,8 @@ RSpec.describe 'getting merge request information nested in a project' do
         'cherryPickOnCurrentMergeRequest' => false,
         'revertOnCurrentMergeRequest' => false,
         'updateMergeRequest' => false,
-        'canMerge' => false
+        'canMerge' => false,
+        'canApprove' => false
       }
       post_graphql(query, current_user: current_user)
 

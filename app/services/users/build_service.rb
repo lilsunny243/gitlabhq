@@ -106,6 +106,8 @@ module Users
 
     def build_user_params_for_non_admin
       @user_params = params.slice(*signup_params)
+      # if skip_confirmation is set to `true`, devise will set confirmed_at
+      # see: https://github.com/heartcombo/devise/blob/8593801130f2df94a50863b5db535c272b00efe1/lib/devise/models/confirmable.rb#L156
       @user_params[:skip_confirmation] = skip_user_confirmation_email_from_setting if assign_skip_confirmation_from_settings?
       @user_params[:name] = fallback_name if use_fallback_name?
     end
@@ -115,7 +117,7 @@ module Users
     end
 
     def skip_user_confirmation_email_from_setting
-      !Gitlab::CurrentSettings.send_user_confirmation_email
+      Gitlab::CurrentSettings.email_confirmation_setting_off?
     end
 
     def use_fallback_name?
@@ -161,6 +163,7 @@ module Users
         :skype,
         :theme_id,
         :twitter,
+        :discord,
         :username,
         :website_url,
         :private_profile,
@@ -180,6 +183,7 @@ module Users
         :name,
         :password,
         :password_automatically_set,
+        :preferred_language,
         :username,
         :user_type,
         :first_name,

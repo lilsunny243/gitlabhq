@@ -5,6 +5,12 @@ module MergeRequests
     extend ::Gitlab::Utils::Override
     include MergeRequests::AssignsMergeParams
 
+    delegate :repository, to: :project
+
+    def initialize(project:, current_user: nil, params: {})
+      super(container: project, current_user: current_user, params: params)
+    end
+
     def create_note(merge_request, state = merge_request.state)
       SystemNoteService.change_status(merge_request, merge_request.target_project, current_user, state, nil)
     end
@@ -20,7 +26,7 @@ module MergeRequests
     end
 
     def execute_hooks(merge_request, action = 'open', old_rev: nil, old_associations: {})
-      merge_data = hook_data(merge_request, action, old_rev: old_rev, old_associations: old_associations)
+      merge_data = Gitlab::Lazy.new { hook_data(merge_request, action, old_rev: old_rev, old_associations: old_associations) }
       merge_request.project.execute_hooks(merge_data, :merge_request_hooks)
       merge_request.project.execute_integrations(merge_data, :merge_request_hooks)
 
@@ -58,6 +64,9 @@ module MergeRequests
       new_reviewers = merge_request.reviewers - old_reviewers
       merge_request_activity_counter.track_users_review_requested(users: new_reviewers)
       merge_request_activity_counter.track_reviewers_changed_action(user: current_user)
+      trigger_merge_request_reviewers_updated(merge_request)
+
+      capture_suggested_reviewers_accepted(merge_request)
     end
 
     def cleanup_environments(merge_request)
@@ -90,6 +99,14 @@ module MergeRequests
     end
 
     private
+
+    def self.constructor_container_arg(value)
+      { project: value }
+    end
+
+    def refresh_pipelines_on_merge_requests(merge_request, allow_duplicate: false)
+      create_pipeline_for(merge_request, current_user, async: true, allow_duplicate: allow_duplicate)
+    end
 
     def enqueue_jira_connect_messages_for(merge_request)
       return unless project.jira_subscription_exists?
@@ -136,6 +153,7 @@ module MergeRequests
       end
 
       filter_reviewer(merge_request)
+      filter_suggested_reviewers
     end
 
     def filter_reviewer(merge_request)
@@ -162,6 +180,10 @@ module MergeRequests
       end
     end
 
+    def filter_suggested_reviewers
+      # Implemented in EE
+    end
+
     def merge_request_metrics_service(merge_request)
       MergeRequestMetricsService.new(merge_request.metrics)
     end
@@ -176,16 +198,18 @@ module MergeRequests
         merge_request, merge_request.project, current_user, old_reviewers)
     end
 
-    def create_pipeline_for(merge_request, user, async: false)
+    def create_pipeline_for(merge_request, user, async: false, allow_duplicate: false)
+      create_pipeline_params = params.slice(:push_options).merge(allow_duplicate: allow_duplicate)
+
       if async
         MergeRequests::CreatePipelineWorker.perform_async(
           project.id,
           user.id,
           merge_request.id,
-          params.slice(:push_options).deep_stringify_keys)
+          create_pipeline_params.deep_stringify_keys)
       else
         MergeRequests::CreatePipelineService
-          .new(project: project, current_user: user, params: params.slice(:push_options))
+          .new(project: project, current_user: user, params: create_pipeline_params)
           .execute(merge_request)
       end
     end
@@ -243,6 +267,22 @@ module MergeRequests
       return unless milestone
 
       Milestones::MergeRequestsCountService.new(milestone).delete_cache
+    end
+
+    def trigger_merge_request_reviewers_updated(merge_request)
+      GraphqlTriggers.merge_request_reviewers_updated(merge_request)
+    end
+
+    def trigger_merge_request_merge_status_updated(merge_request)
+      GraphqlTriggers.merge_request_merge_status_updated(merge_request)
+    end
+
+    def trigger_merge_request_approval_state_updated(merge_request)
+      GraphqlTriggers.merge_request_approval_state_updated(merge_request)
+    end
+
+    def capture_suggested_reviewers_accepted(merge_request)
+      # Implemented in EE
     end
   end
 end

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Geo Nodes API **(PREMIUM SELF)**
@@ -198,22 +198,22 @@ _This can only be run against a primary Geo node._
 PUT /geo_nodes/:id
 ```
 
-| Attribute                   | Type    | Required  | Description                                                               |
-|-----------------------------|---------|-----------|---------------------------------------------------------------------------|
-| `id`                        | integer | yes       | The ID of the Geo node.                                                   |
-| `enabled`                   | boolean | no        | Flag indicating if the Geo node is enabled.                               |
-| `name`                      | string  | yes       | The unique identifier for the Geo node. Must match `geo_node_name` if it is set in `gitlab.rb`, otherwise it must match `external_url`. |
-| `url`                       | string  | yes       | The user-facing URL of the Geo node. |
-| `internal_url`              | string  | no        | The URL defined on the primary node that secondary nodes should use to contact it. Returns `url` if not set.|
-| `files_max_capacity`        | integer | no        | Control the maximum concurrency of LFS/attachment backfill for this secondary node. |
-| `repos_max_capacity`        | integer | no        | Control the maximum concurrency of repository backfill for this secondary node.     |
-| `verification_max_capacity` | integer | no        | Control the maximum concurrency of verification for this node. |
-| `container_repositories_max_capacity` | integer | no | Control the maximum concurrency of container repository sync for this node. |
-| `sync_object_storage`       | boolean | no        | Flag indicating if the secondary Geo node should replicate blobs in Object Storage. |
-| `selective_sync_type`       | string  | no        | Limit syncing to only specific groups or shards. Valid values: `"namespaces"`, `"shards"`, or `null`. |
-| `selective_sync_shards`     | array   | no        | The repository storage for the projects synced if `selective_sync_type` == `shards`. |
-| `selective_sync_namespace_ids` | array | no       | The IDs of groups that should be synced, if `selective_sync_type` == `namespaces`. |
-| `minimum_reverification_interval` | integer | no | The interval (in days) in which the repository verification is valid. Once expired, it is reverified. This has no effect when set on a secondary node. |
+| Attribute                   | Type    | Required | Description                                                               |
+|-----------------------------|---------|---------|---------------------------------------------------------------------------|
+| `id`                        | integer | yes     | The ID of the Geo node.                                                   |
+| `enabled`                   | boolean | no      | Flag indicating if the Geo node is enabled.                               |
+| `name`                      | string  | no      | The unique identifier for the Geo node. Must match `geo_node_name` if it is set in `gitlab.rb`, otherwise it must match `external_url`. |
+| `url`                       | string  | no      | The user-facing URL of the Geo node. |
+| `internal_url`              | string  | no      | The URL defined on the primary node that secondary nodes should use to contact it. Returns `url` if not set.|
+| `files_max_capacity`        | integer | no      | Control the maximum concurrency of LFS/attachment backfill for this secondary node. |
+| `repos_max_capacity`        | integer | no      | Control the maximum concurrency of repository backfill for this secondary node.     |
+| `verification_max_capacity` | integer | no      | Control the maximum concurrency of verification for this node. |
+| `container_repositories_max_capacity` | integer | no      | Control the maximum concurrency of container repository sync for this node. |
+| `sync_object_storage`       | boolean | no      | Flag indicating if the secondary Geo node should replicate blobs in Object Storage. |
+| `selective_sync_type`       | string  | no      | Limit syncing to only specific groups or shards. Valid values: `"namespaces"`, `"shards"`, or `null`. |
+| `selective_sync_shards`     | array   | no      | The repository storage for the projects synced if `selective_sync_type` == `shards`. |
+| `selective_sync_namespace_ids` | array | no      | The IDs of groups that should be synced, if `selective_sync_type` == `namespaces`. |
+| `minimum_reverification_interval` | integer | no      | The interval (in days) in which the repository verification is valid. Once expired, it is reverified. This has no effect when set on a secondary node. |
 
 Example response:
 
@@ -254,9 +254,6 @@ in GitLab 14.9.
 ## Delete a Geo node
 
 Removes the Geo node.
-
-NOTE:
-Only a Geo primary node accepts this request.
 
 ```plaintext
 DELETE /geo_nodes/:id
@@ -339,10 +336,6 @@ Example response:
     "job_artifacts_failed_count": null,
     "job_artifacts_synced_missing_on_primary_count": 0,
     "job_artifacts_synced_in_percentage": "0.00%",
-    "container_repositories_count": 3,
-    "container_repositories_synced_count": null,
-    "container_repositories_failed_count": null,
-    "container_repositories_synced_in_percentage": "0.00%",
     "design_repositories_count": 3,
     "design_repositories_synced_count": null,
     "design_repositories_failed_count": null,
@@ -507,7 +500,38 @@ Example response:
     "ci_secure_files_verification_failed_count": 0,
     "ci_secure_files_synced_in_percentage": "100.00%",
     "ci_secure_files_verified_in_percentage": "100.00%",
-    "ci_secure_files_synced_missing_on_primary_count": 0,    
+    "ci_secure_files_synced_missing_on_primary_count": 0,
+    "dependency_proxy_blobs_count": 5,
+    "dependency_proxy_blobs_checksum_total_count": 5,
+    "dependency_proxy_blobs_checksummed_count": 5,
+    "dependency_proxy_blobs_checksum_failed_count": 0,
+    "dependency_proxy_blobs_synced_count": 5,
+    "dependency_proxy_blobs_failed_count": 0,
+    "dependency_proxy_blobs_registry_count": 5,
+    "dependency_proxy_blobs_verification_total_count": 5,
+    "dependency_proxy_blobs_verified_count": 5,
+    "dependency_proxy_blobs_verification_failed_count": 0,
+    "dependency_proxy_blobs_synced_in_percentage": "100.00%",
+    "dependency_proxy_blobs_verified_in_percentage": "100.00%",
+    "dependency_proxy_blobs_synced_missing_on_primary_count": 0,
+    "container_repositories_count": 5,
+    "container_repositories_synced_count": 5,
+    "container_repositories_failed_count": 0,
+    "container_repositories_registry_count": 5,
+    "container_repositories_synced_in_percentage": "100.00%",
+    "container_repositories_synced_missing_on_primary_count": 0,
+    "dependency_proxy_manifests_count": 5,
+    "dependency_proxy_manifests_checksum_total_count": 5,
+    "dependency_proxy_manifests_checksummed_count": 5,
+    "dependency_proxy_manifests_checksum_failed_count": 5,
+    "dependency_proxy_manifests_synced_count": 5,
+    "dependency_proxy_manifests_failed_count": 0,
+    "dependency_proxy_manifests_registry_count": 5,
+    "dependency_proxy_manifests_verification_total_count": 5,
+    "dependency_proxy_manifests_verified_count": 5,
+    "dependency_proxy_manifests_verification_failed_count": 5,
+    "dependency_proxy_manifests_synced_in_percentage": "100.00%",
+    "dependency_proxy_manifests_verified_in_percentage": "100.00%"
   },
   {
     "geo_node_id": 2,
@@ -533,10 +557,6 @@ Example response:
     "job_artifacts_failed_count": 1,
     "job_artifacts_synced_missing_on_primary_count": 0,
     "job_artifacts_synced_in_percentage": "50.00%",
-    "container_repositories_count": 3,
-    "container_repositories_synced_count": null,
-    "container_repositories_failed_count": null,
-    "container_repositories_synced_in_percentage": "0.00%",
     "design_repositories_count": 3,
     "design_repositories_synced_count": null,
     "design_repositories_failed_count": null,
@@ -677,6 +697,37 @@ Example response:
     "job_artifacts_synced_in_percentage": "100.00%",
     "job_artifacts_verified_in_percentage": "100.00%",
     "job_artifacts_synced_missing_on_primary_count": 0,
+    "dependency_proxy_blobs_count": 5,
+    "dependency_proxy_blobs_checksum_total_count": 5,
+    "dependency_proxy_blobs_checksummed_count": 5,
+    "dependency_proxy_blobs_checksum_failed_count": 0,
+    "dependency_proxy_blobs_synced_count": 5,
+    "dependency_proxy_blobs_failed_count": 0,
+    "dependency_proxy_blobs_registry_count": 5,
+    "dependency_proxy_blobs_verification_total_count": 5,
+    "dependency_proxy_blobs_verified_count": 5,
+    "dependency_proxy_blobs_verification_failed_count": 0,
+    "dependency_proxy_blobs_synced_in_percentage": "100.00%",
+    "dependency_proxy_blobs_verified_in_percentage": "100.00%",
+    "dependency_proxy_blobs_synced_missing_on_primary_count": 0,
+    "container_repositories_count": 5,
+    "container_repositories_synced_count": 5,
+    "container_repositories_failed_count": 0,
+    "container_repositories_registry_count": 5,
+    "container_repositories_synced_in_percentage": "100.00%",
+    "container_repositories_synced_missing_on_primary_count": 0,
+    "dependency_proxy_manifests_count": 5,
+    "dependency_proxy_manifests_checksum_total_count": 5,
+    "dependency_proxy_manifests_checksummed_count": 5,
+    "dependency_proxy_manifests_checksum_failed_count": 5,
+    "dependency_proxy_manifests_synced_count": 5,
+    "dependency_proxy_manifests_failed_count": 0,
+    "dependency_proxy_manifests_registry_count": 5,
+    "dependency_proxy_manifests_verification_total_count": 5,
+    "dependency_proxy_manifests_verified_count": 5,
+    "dependency_proxy_manifests_verification_failed_count": 5,
+    "dependency_proxy_manifests_synced_in_percentage": "100.00%",
+    "dependency_proxy_manifests_verified_in_percentage": "100.00%"
   }
 ]
 ```
@@ -718,10 +769,6 @@ Example response:
   "job_artifacts_failed_count": 1,
   "job_artifacts_synced_missing_on_primary_count": 0,
   "job_artifacts_synced_in_percentage": "50.00%",
-  "container_repositories_count": 3,
-  "container_repositories_synced_count": null,
-  "container_repositories_failed_count": null,
-  "container_repositories_synced_in_percentage": "0.00%",
   "design_repositories_count": 3,
   "design_repositories_synced_count": null,
   "design_repositories_failed_count": null,
@@ -856,6 +903,37 @@ Example response:
   "ci_secure_files_synced_in_percentage": "100.00%",
   "ci_secure_files_verified_in_percentage": "100.00%",
   "ci_secure_files_synced_missing_on_primary_count": 0,
+  "dependency_proxy_blobs_count": 5,
+  "dependency_proxy_blobs_checksum_total_count": 5,
+  "dependency_proxy_blobs_checksummed_count": 5,
+  "dependency_proxy_blobs_checksum_failed_count": 0,
+  "dependency_proxy_blobs_synced_count": 5,
+  "dependency_proxy_blobs_failed_count": 0,
+  "dependency_proxy_blobs_registry_count": 5,
+  "dependency_proxy_blobs_verification_total_count": 5,
+  "dependency_proxy_blobs_verified_count": 5,
+  "dependency_proxy_blobs_verification_failed_count": 0,
+  "dependency_proxy_blobs_synced_in_percentage": "100.00%",
+  "dependency_proxy_blobs_verified_in_percentage": "100.00%",
+  "dependency_proxy_blobs_synced_missing_on_primary_count": 0,
+  "container_repositories_count": 5,
+  "container_repositories_synced_count": 5,
+  "container_repositories_failed_count": 0,
+  "container_repositories_registry_count": 5,
+  "container_repositories_synced_in_percentage": "100.00%",
+  "container_repositories_synced_missing_on_primary_count": 0,
+  "dependency_proxy_manifests_count": 5,
+  "dependency_proxy_manifests_checksum_total_count": 5,
+  "dependency_proxy_manifests_checksummed_count": 5,
+  "dependency_proxy_manifests_checksum_failed_count": 5,
+  "dependency_proxy_manifests_synced_count": 5,
+  "dependency_proxy_manifests_failed_count": 0,
+  "dependency_proxy_manifests_registry_count": 5,
+  "dependency_proxy_manifests_verification_total_count": 5,
+  "dependency_proxy_manifests_verified_count": 5,
+  "dependency_proxy_manifests_verification_failed_count": 5,
+  "dependency_proxy_manifests_synced_in_percentage": "100.00%",
+  "dependency_proxy_manifests_verified_in_percentage": "100.00%"
 }
 ```
 
@@ -875,7 +953,7 @@ GET /geo_nodes/current/failures
 | `type`         | string  | no | Type of failed objects (`repository`/`wiki`) |
 | `failure_type` | string | no | Type of failures (`sync`/`checksum_mismatch`/`verification`) |
 
-This endpoint uses [Pagination](index.md#pagination).
+This endpoint uses [Pagination](rest/index.md#pagination).
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://primary.example.com/api/v4/geo_nodes/current/failures"

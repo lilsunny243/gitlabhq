@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Adding Database Indexes
@@ -107,11 +107,10 @@ determining whether existing indexes are still required. More information on
 the meaning of the various columns can be found at
 <https://www.postgresql.org/docs/current/monitoring-stats.html>.
 
-To determine if an index is still being used on production, use the following
-Thanos query with your index name:
+To determine if an index is still being used on production, use [Thanos](https://thanos-query.ops.gitlab.net/graph?g0.expr=sum%20by%20(type)(rate(pg_stat_user_indexes_idx_scan%7Benv%3D%22gprd%22%2C%20indexrelname%3D%22INSERT%20INDEX%20NAME%20HERE%22%7D%5B30d%5D))&g0.tab=1&g0.stacked=0&g0.range_input=1h&g0.max_source_resolution=0s&g0.deduplicate=1&g0.partial_response=0&g0.store_matches=%5B%5D):
 
 ```sql
-sum(rate(pg_stat_user_indexes_idx_tup_read{env="gprd", indexrelname="index_ci_name", type="patroni-ci"}[5m]))
+sum by (type)(rate(pg_stat_user_indexes_idx_scan{env="gprd", indexrelname="INSERT INDEX NAME HERE"}[30d]))
 ```
 
 Because the query output relies on the actual usage of your database, it
@@ -215,11 +214,86 @@ def down
 end
 ```
 
+## Analyzing a new index before a batched background migration
+
+Sometimes it is necessary to add an index to support a [batched background migration](batched_background_migrations.md).
+It is commonly done by creating two [post deployment migrations](post_deployment_migrations.md):
+
+1. Add the new index, often a [temporary index](#temporary-indexes).
+1. [Queue the batched background migration](batched_background_migrations.md#queueing).
+
+In most cases, no additional work is needed. The new index is created and is used
+as expected when queuing and executing the batched background migration.
+
+[Expression indexes](https://www.postgresql.org/docs/current/indexes-expressional.html),
+however, do not generate statistics for the new index on creation. Autovacuum
+eventually runs `ANALYZE`, and updates the statistics so the new index is used.
+Run `ANALYZE` explicitly only if it is needed right after the index
+is created, such as in the background migration scenario described above.
+
+To trigger `ANALYZE` after the index is created, update the index creation migration
+to analyze the table:
+
+```ruby
+# in db/post_migrate/
+
+INDEX_NAME = 'tmp_index_projects_on_owner_and_lower_name_where_emails_disabled'
+TABLE = :projects
+
+disable_ddl_transaction!
+
+def up
+  add_concurrent_index TABLE, '(creator_id, lower(name))', where: 'emails_disabled = false', name: INDEX_NAME
+
+  connection.execute("ANALYZE #{TABLE}")
+end
+```
+
+`ANALYZE` should only be run in post deployment migrations and should not target
+[large tables](https://gitlab.com/gitlab-org/gitlab/-/blob/master/rubocop/rubocop-migrations.yml#L3).
+If this behavior is needed on a larger table, ask for assistance in the `#database` Slack channel.
+
+## Indexes for partitioned tables
+
+Indexes [cannot be created](https://www.postgresql.org/docs/15/ddl-partitioning.html#DDL-PARTITIONING-DECLARATIVE-MAINTENANCE)
+**concurrently** on a partitioned table. You must use `CONCURRENTLY` to avoid service disruption in a hot system.
+
+To create an index on a partitioned table, use `add_concurrent_partitioned_index`, provided by the database team.
+
+Under the hood, `add_concurrent_partitioned_index`:
+
+1. Creates indexes on each partition using `CONCURRENTLY`.
+1. Creates an index on the parent table.
+
+A Rails migration example:
+
+```ruby
+# in db/post_migrate/
+
+class AddIndexToPartitionedTable < Gitlab::Database::Migration[2.1]
+  include Gitlab::Database::PartitioningMigrationHelpers
+
+  disable_ddl_transaction!
+
+  TABLE_NAME = :table_name
+  COLUMN_NAMES = [:partition_id, :id]
+  INDEX_NAME = :index_name
+
+  def up
+    add_concurrent_partitioned_index(TABLE_NAME, COLUMN_NAMES, name: INDEX_NAME)
+  end
+
+  def down
+    remove_concurrent_partitioned_index_by_name(TABLE_NAME, INDEX_NAME)
+  end
+end
+```
+
 ## Create indexes asynchronously
 
 For very large tables, index creation can be a challenge to manage.
 While `add_concurrent_index` creates indexes in a way that does not block
-normal traffic, it can still be problematic when index creation runs for
+ordinary traffic, it can still be problematic when index creation runs for
 many hours. Necessary database operations like `autovacuum` cannot run, and
 on GitLab.com, the deployment process is blocked waiting for index
 creation to finish.
@@ -236,8 +310,13 @@ index creation can proceed at a lower level of risk.
 
 ### Schedule the index to be created
 
-Create an MR with a post-deployment migration which prepares the index
-for asynchronous creation. An example of creating an index using
+1. Create a merge request containing a post-deployment migration, which prepares
+   the index for asynchronous creation.
+1. [Create a follow-up issue](https://gitlab.com/gitlab-org/gitlab/-/issues/new?issuable_template=Synchronous%20Database%20Index)
+   to add a migration that creates the index synchronously.
+1. In the merge request that prepares the asynchronous index, add a comment mentioning the follow-up issue.
+
+An example of creating an index using
 the asynchronous index helpers can be seen in the block below. This migration
 enters the index name and definition into the `postgres_async_indexes`
 table. The process that runs on weekends pulls indexes from this
@@ -248,6 +327,7 @@ table and attempt to create them.
 
 INDEX_NAME = 'index_ci_builds_on_some_column'
 
+# TODO: Index to be created synchronously in https://gitlab.com/gitlab-org/gitlab/-/issues/XXXXX
 def up
   prepare_async_index :ci_builds, :some_column, name: INDEX_NAME
 end
@@ -259,16 +339,14 @@ end
 
 ### Verify the MR was deployed and the index exists in production
 
-You can verify if the post-deploy migration was executed on GitLab.com by:
-
-- Executing `/chatops run auto_deploy status <merge_sha>`. If the output returns `db/gprd`,
-  the post-deploy migration has been executed in the production database. More details in this
-  [guide](https://gitlab.com/gitlab-org/release/docs/-/blob/master/general/post_deploy_migration/readme.md#how-to-determine-if-a-post-deploy-migration-has-been-executed-on-gitlabcom).
-- Use a meta-command in #database-lab, such as: `\d <index_name>`.
-  - Ensure that the index is not [`invalid`](https://www.postgresql.org/docs/12/sql-createindex.html#:~:text=The%20psql%20%5Cd%20command%20will%20report%20such%20an%20index%20as%20INVALID).
-- Ask someone in #database to check if the index exists.
-- With proper access, you can also verify directly on production or in a
-  production clone.
+1. Verify that the post-deploy migration was executed on GitLab.com using ChatOps with
+   `/chatops run auto_deploy status <merge_sha>`. If the output returns `db/gprd`,
+   the post-deploy migration has been executed in the production database. For more information, see
+   [How to determine if a post-deploy migration has been executed on GitLab.com](https://gitlab.com/gitlab-org/release/docs/-/blob/master/general/post_deploy_migration/readme.md#how-to-determine-if-a-post-deploy-migration-has-been-executed-on-gitlabcom).
+1. In the case of an [index created asynchronously](#schedule-the-index-to-be-created), wait
+   until the next week so that the index can be created over a weekend.
+1. Use [Database Lab](database_lab.md) to check [if creation was successful](database_lab.md#checking-indexes).
+   Ensure the output does not indicate the index is `invalid`.
 
 ### Add a migration to create the index synchronously
 
@@ -318,8 +396,8 @@ Use the asynchronous index helpers on your local environment to test changes for
 
 For very large tables, index destruction can be a challenge to manage.
 While `remove_concurrent_index` removes indexes in a way that does not block
-normal traffic, it can still be problematic if index destruction runs for
-during autovacuum. Necessary database operations like `autovacuum` cannot run, and
+ordinary traffic, it can still be problematic if index destruction runs for
+during `autovacuum`. Necessary database operations like `autovacuum` cannot run, and
 the deployment process on GitLab.com is blocked while waiting for index
 destruction to finish.
 
@@ -333,8 +411,13 @@ index destruction can proceed at a lower level of risk.
 
 ### Schedule the index to be removed
 
-Create an MR with a post-deployment migration which prepares the index
-for asynchronous destruction. For example. to destroy an index using
+1. Create a merge request containing a post-deployment migration, which prepares
+   the index for asynchronous destruction.
+1. [Create a follow-up issue](https://gitlab.com/gitlab-org/gitlab/-/issues/new?issuable_template=Synchronous%20Database%20Index)
+   to add a migration that destroys the index synchronously.
+1. In the merge request that prepares the asynchronous index removal, add a comment mentioning the follow-up issue.
+
+For example, to destroy an index using
 the asynchronous index helpers:
 
 ```ruby
@@ -342,6 +425,7 @@ the asynchronous index helpers:
 
 INDEX_NAME = 'index_ci_builds_on_some_column'
 
+# TODO: Index to be destroyed synchronously in https://gitlab.com/gitlab-org/gitlab/-/issues/XXXXX
 def up
   prepare_async_index_removal :ci_builds, :some_column, name: INDEX_NAME
 end
@@ -359,15 +443,15 @@ You must test the database index changes locally before creating a merge request
 
 ### Verify the MR was deployed and the index no longer exists in production
 
-You can verify if the MR was deployed to GitLab.com with
-`/chatops run auto_deploy status <merge_sha>`. To verify the existence of
-the index, you can:
-
-- Use a meta-command in `#database-lab`, for example: `\d <index_name>`.
-- Make sure the index no longer exists
-- Ask someone in `#database` to check if the index exists.
-- If you have access, you can verify directly on production or in a
-  production clone.
+1. Verify that the post-deploy migration was executed on GitLab.com using ChatOps with
+   `/chatops run auto_deploy status <merge_sha>`. If the output returns `db/gprd`,
+   the post-deploy migration has been executed in the production database. For more information, see
+   [How to determine if a post-deploy migration has been executed on GitLab.com](https://gitlab.com/gitlab-org/release/docs/-/blob/master/general/post_deploy_migration/readme.md#how-to-determine-if-a-post-deploy-migration-has-been-executed-on-gitlabcom).
+1. In the case of an [index removed asynchronously](#schedule-the-index-to-be-removed), wait
+   until the next week so that the index can be created over a weekend.
+1. Use Database Lab [to check if removal was successful](database_lab.md#checking-indexes).
+   [Database Lab](database_lab.md)
+   should report an error when trying to find the removed index. If not, the index may still exist.
 
 ### Add a migration to destroy the index synchronously
 

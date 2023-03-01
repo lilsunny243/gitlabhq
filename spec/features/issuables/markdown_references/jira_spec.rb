@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe "Jira", :js do
+RSpec.describe "Jira", :js, feature_category: :team_planning do
   let(:user) { create(:user) }
   let(:actual_project) { create(:project, :public, :repository) }
   let(:merge_request) { create(:merge_request, target_project: actual_project, source_project: actual_project) }
@@ -57,7 +57,7 @@ RSpec.describe "Jira", :js do
         visit(issue_path(issue_actual_project))
 
         page.within("#notes") do
-          expect(page).to have_content("#{user.to_reference} mentioned in merge request #{merge_request.to_reference}")
+          expect(page).to have_content("#{user.name} mentioned in merge request #{merge_request.to_reference}")
         end
       end
 
@@ -65,7 +65,7 @@ RSpec.describe "Jira", :js do
         visit(issue_path(issue_other_project))
 
         page.within("#notes") do
-          expect(page).to have_content("#{user.to_reference} mentioned in merge request #{merge_request.to_reference(other_project)}")
+          expect(page).to have_content("#{user.name} mentioned in merge request #{merge_request.to_reference(other_project)}")
         end
       end
     end

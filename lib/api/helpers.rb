@@ -18,6 +18,7 @@ module API
     API_TOKEN_ENV = 'gitlab.api.token'
     API_EXCEPTION_ENV = 'gitlab.api.exception'
     API_RESPONSE_STATUS_CODE = 'gitlab.api.response_status_code'
+    INTEGER_ID_REGEX = /^-?\d+$/.freeze
 
     def declared_params(options = {})
       options = { include_parent_namespaces: false }.merge(options)
@@ -139,7 +140,7 @@ module API
 
       projects = Project.without_deleted.not_hidden
 
-      if id.is_a?(Integer) || id =~ /^\d+$/
+      if id.is_a?(Integer) || id =~ INTEGER_ID_REGEX
         projects.find_by(id: id)
       elsif id.include?("/")
         projects.find_by_full_path(id)
@@ -166,9 +167,13 @@ module API
         current_authenticated_job.project == project
     end
 
+    def enforce_jobs_api_rate_limits(project)
+      ::Feature.enabled?(:ci_enforce_rate_limits_jobs_api, project)
+    end
+
     # rubocop: disable CodeReuse/ActiveRecord
     def find_group(id)
-      if id.to_s =~ /^\d+$/
+      if id.to_s =~ INTEGER_ID_REGEX
         Group.find_by(id: id)
       else
         Group.find_by_full_path(id)
@@ -203,7 +208,7 @@ module API
 
     # rubocop: disable CodeReuse/ActiveRecord
     def find_namespace(id)
-      if id.to_s =~ /^\d+$/
+      if id.to_s =~ INTEGER_ID_REGEX
         Namespace.without_project_namespaces.find_by(id: id)
       else
         find_namespace_by_path(id)
@@ -286,22 +291,11 @@ module API
     end
 
     def authenticate_by_gitlab_shell_token!
-      if Feature.enabled?(:gitlab_shell_jwt_token)
-        begin
-          payload, _ = JSONWebToken::HMACToken.decode(headers[GITLAB_SHELL_API_HEADER], secret_token)
-          unauthorized! unless payload['iss'] == GITLAB_SHELL_JWT_ISSUER
-        rescue JWT::DecodeError, JWT::ExpiredSignature, JWT::ImmatureSignature => ex
-          Gitlab::ErrorTracking.track_exception(ex)
-          unauthorized!
-        end
-      else
-        input = params['secret_token']
-        input ||= Base64.decode64(headers[GITLAB_SHARED_SECRET_HEADER]) if headers.key?(GITLAB_SHARED_SECRET_HEADER)
-
-        input&.chomp!
-
-        unauthorized! unless Devise.secure_compare(secret_token, input)
-      end
+      payload, _ = JSONWebToken::HMACToken.decode(headers[GITLAB_SHELL_API_HEADER], secret_token)
+      unauthorized! unless payload['iss'] == GITLAB_SHELL_JWT_ISSUER
+    rescue JWT::DecodeError, JWT::ExpiredSignature, JWT::ImmatureSignature => ex
+      Gitlab::ErrorTracking.track_exception(ex)
+      unauthorized!
     end
 
     def authenticated_with_can_read_all_resources!
@@ -311,7 +305,7 @@ module API
 
     def authenticated_as_admin!
       authenticate!
-      forbidden! unless current_user.admin?
+      forbidden! unless current_user.can_admin_all_resources?
     end
 
     def authorize!(action, subject = :global, reason = nil)
@@ -510,12 +504,12 @@ module API
 
     def render_validation_error!(model, status = 400)
       if model.errors.any?
-        render_api_error!(model_error_messages(model) || '400 Bad Request', status)
+        render_api_error!(model_errors(model).messages || '400 Bad Request', status)
       end
     end
 
-    def model_error_messages(model)
-      model.errors.messages
+    def model_errors(model)
+      model.errors
     end
 
     def render_api_error_with_reason!(status, message, reason)
@@ -614,11 +608,23 @@ module API
       if file.file_storage?
         present_disk_file!(file.path, file.filename)
       elsif supports_direct_download && file.class.direct_download_enabled?
-        redirect(file.url)
+        return redirect(ObjectStorage::S3.signed_head_url(file)) if request.head? && file.fog_credentials[:provider] == 'AWS'
+
+        redirect(cdn_fronted_url(file))
       else
         header(*Gitlab::Workhorse.send_url(file.url))
         status :ok
         body '' # to avoid an error from API::APIGuard::ResponseCoercerMiddleware
+      end
+    end
+
+    def cdn_fronted_url(file)
+      if file.respond_to?(:cdn_enabled_url)
+        result = file.cdn_enabled_url(ip_address)
+        Gitlab::ApplicationContext.push(artifact_used_cdn: result.used_cdn)
+        result.url
+      else
+        file.url
       end
     end
 
@@ -673,7 +679,6 @@ module API
 
       finder_params[:with_issues_enabled] = true if params[:with_issues_enabled].present?
       finder_params[:with_merge_requests_enabled] = true if params[:with_merge_requests_enabled].present?
-      finder_params[:without_deleted] = true
       finder_params[:search_namespaces] = true if params[:search_namespaces].present?
       finder_params[:user] = params.delete(:user) if params[:user]
       finder_params[:id_after] = sanitize_id_param(params[:id_after]) if params[:id_after]
@@ -686,10 +691,12 @@ module API
       {}
     end
 
-    def validate_anonymous_search_access!
-      return if current_user.present? || Feature.disabled?(:disable_anonymous_search, type: :ops)
-
-      unprocessable_entity!('User must be authenticated to use search')
+    def validate_search_rate_limit!
+      if current_user
+        check_rate_limit!(:search_rate_limit, scope: [current_user])
+      else
+        check_rate_limit!(:search_rate_limit_unauthenticated, scope: [ip_address])
+      end
     end
 
     private
@@ -711,7 +718,7 @@ module API
 
       unauthorized! unless initial_current_user
 
-      unless initial_current_user.admin?
+      unless initial_current_user.can_admin_all_resources?
         forbidden!('Must be admin to use sudo')
       end
 
@@ -732,13 +739,7 @@ module API
     end
 
     def secret_token
-      if Feature.enabled?(:gitlab_shell_jwt_token)
-        strong_memoize(:secret_token) do
-          File.read(Gitlab.config.gitlab_shell.secret_file)
-        end
-      else
-        Gitlab::Shell.secret_token
-      end
+      Gitlab::Shell.secret_token
     end
 
     def authenticate_non_public?

@@ -1,19 +1,17 @@
 <script>
 import { GlEmptyState, GlLink, GlSprintf } from '@gitlab/ui';
 import { mapActions, mapState } from 'vuex';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_INFO } from '~/flash';
 import { historyReplaceState } from '~/lib/utils/common_utils';
 import { s__ } from '~/locale';
-import {
-  SHOW_DELETE_SUCCESS_ALERT,
-  FILTERED_SEARCH_TERM,
-} from '~/packages_and_registries/shared/constants';
+import { SHOW_DELETE_SUCCESS_ALERT } from '~/packages_and_registries/shared/constants';
 
 import { getQueryParams, extractFilterAndSorting } from '~/packages_and_registries/shared/utils';
 import InfrastructureTitle from '~/packages_and_registries/infrastructure_registry/list/components/infrastructure_title.vue';
 import InfrastructureSearch from '~/packages_and_registries/infrastructure_registry/list/components/infrastructure_search.vue';
 import PackageList from '~/packages_and_registries/infrastructure_registry/list/components/packages_list.vue';
 import { DELETE_PACKAGE_SUCCESS_MESSAGE } from '~/packages_and_registries/infrastructure_registry/list/constants';
+import { FILTERED_SEARCH_TERM } from '~/vue_shared/components/filtered_search_bar/constants';
 
 export default {
   components: {
@@ -84,7 +82,7 @@ export default {
       const showAlert = urlParams.get(SHOW_DELETE_SUCCESS_ALERT);
       if (showAlert) {
         // to be refactored to use gl-alert
-        createFlash({ message: DELETE_PACKAGE_SUCCESS_MESSAGE, type: 'notice' });
+        createAlert({ message: DELETE_PACKAGE_SUCCESS_MESSAGE, variant: VARIANT_INFO });
         const cleanUrl = window.location.href.split('?')[0];
         historyReplaceState(cleanUrl);
       }

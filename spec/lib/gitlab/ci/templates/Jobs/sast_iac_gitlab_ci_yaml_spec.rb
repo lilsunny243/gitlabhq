@@ -2,17 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Jobs/SAST-IaC.gitlab-ci.yml' do
+RSpec.describe 'Jobs/SAST-IaC.gitlab-ci.yml', feature_category: :continuous_integration do
   subject(:template) { Gitlab::Template::GitlabCiYmlTemplate.find('Jobs/SAST-IaC') }
 
   describe 'the created pipeline' do
     let_it_be(:project) { create(:project, :repository) }
     let_it_be(:user) { project.first_owner }
 
-    let(:default_branch) { 'main' }
+    let(:default_branch) { "master" }
     let(:pipeline_ref) { default_branch }
     let(:service) { Ci::CreatePipelineService.new(project, user, ref: pipeline_ref) }
-    let(:pipeline) { service.execute!(:push).payload }
+    let(:pipeline) { service.execute(:push).payload }
     let(:build_names) { pipeline.builds.pluck(:name) }
 
     before do
@@ -49,7 +49,9 @@ RSpec.describe 'Jobs/SAST-IaC.gitlab-ci.yml' do
 
       context 'on default branch' do
         it 'has no jobs' do
-          expect { pipeline }.to raise_error(Ci::CreatePipelineService::CreateError)
+          expect(build_names).to be_empty
+          expect(pipeline.errors.full_messages).to match_array(['Pipeline will not run for the selected trigger. ' \
+            'The rules configuration prevented any jobs from being added to the pipeline.'])
         end
       end
 
@@ -57,7 +59,9 @@ RSpec.describe 'Jobs/SAST-IaC.gitlab-ci.yml' do
         let(:pipeline_ref) { 'feature' }
 
         it 'has no jobs' do
-          expect { pipeline }.to raise_error(Ci::CreatePipelineService::CreateError)
+          expect(build_names).to be_empty
+          expect(pipeline.errors.full_messages).to match_array(['Pipeline will not run for the selected trigger. ' \
+            'The rules configuration prevented any jobs from being added to the pipeline.'])
         end
       end
     end

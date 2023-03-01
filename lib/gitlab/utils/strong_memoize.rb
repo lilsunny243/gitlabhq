@@ -16,24 +16,14 @@ module Gitlab
       #     include Gitlab::Utils::StrongMemoize
       #
       #     def trigger_from_token
-      #       strong_memoize(:trigger) do
-      #         Ci::Trigger.find_by_token(params[:token].to_s)
-      #       end
-      #     end
-      #
-      # Or like:
-      #
-      #     include Gitlab::Utils::StrongMemoize
-      #
-      #     def trigger_from_token
       #       Ci::Trigger.find_by_token(params[:token].to_s)
       #     end
       #     strong_memoize_attr :trigger_from_token
       #
-      #     strong_memoize_attr :enabled?, :enabled
       #     def enabled?
       #       Feature.enabled?(:some_feature)
       #     end
+      #     strong_memoize_attr :enabled?
       #
       def strong_memoize(name)
         key = ivar(name)
@@ -45,36 +35,31 @@ module Gitlab
         end
       end
 
+      def strong_memoize_with(name, *args)
+        container = strong_memoize(name) { {} }
+
+        if container.key?(args)
+          container[args]
+        else
+          container[args] = yield
+        end
+      end
+
       def strong_memoized?(name)
-        instance_variable_defined?(ivar(name))
+        key = ivar(StrongMemoize.normalize_key(name))
+        instance_variable_defined?(key)
       end
 
       def clear_memoization(name)
-        key = ivar(name)
+        key = ivar(StrongMemoize.normalize_key(name))
         remove_instance_variable(key) if instance_variable_defined?(key)
       end
 
       module StrongMemoizeClassMethods
-        def strong_memoize_attr(method_name, member_name = nil)
-          member_name ||= method_name
+        def strong_memoize_attr(method_name)
+          member_name = StrongMemoize.normalize_key(method_name)
 
-          if method_defined?(method_name) || private_method_defined?(method_name)
-            StrongMemoize.send( # rubocop:disable GitlabSecurity/PublicSend
-              :do_strong_memoize, self, method_name, member_name)
-          else
-            StrongMemoize.send( # rubocop:disable GitlabSecurity/PublicSend
-              :queue_strong_memoize, self, method_name, member_name)
-          end
-        end
-
-        def method_added(method_name)
-          super
-
-          if member_name = StrongMemoize
-            .send(:strong_memoize_queue, self).delete(method_name) # rubocop:disable GitlabSecurity/PublicSend
-            StrongMemoize.send( # rubocop:disable GitlabSecurity/PublicSend
-              :do_strong_memoize, self, method_name, member_name)
-          end
+          StrongMemoize.send(:do_strong_memoize, self, method_name, member_name) # rubocop:disable GitlabSecurity/PublicSend
         end
       end
 
@@ -88,28 +73,37 @@ module Gitlab
       #
       # Depending on a type ensure that there's a single memory allocation
       def ivar(name)
-        if name.is_a?(Symbol)
+        case name
+        when Symbol
           name.to_s.prepend("@").to_sym
-        elsif name.is_a?(String)
+        when String
           :"@#{name}"
         else
           raise ArgumentError, "Invalid type of '#{name}'"
         end
       end
 
-      class <<self
+      class << self
+        def normalize_key(key)
+          return key unless key.end_with?('!', '?')
+
+          # Replace invalid chars like `!` and `?` with allowed Unicode codeparts.
+          key.to_s.tr('!?', "\uFF01\uFF1F")
+        end
+
         private
-
-        def strong_memoize_queue(klass)
-          klass.instance_variable_get(:@strong_memoize_queue) || klass.instance_variable_set(:@strong_memoize_queue, {})
-        end
-
-        def queue_strong_memoize(klass, method_name, member_name)
-          strong_memoize_queue(klass)[method_name] = member_name
-        end
 
         def do_strong_memoize(klass, method_name, member_name)
           method = klass.instance_method(method_name)
+
+          unless method.arity == 0
+            raise <<~ERROR
+              Using `strong_memoize_attr` on methods with parameters is not supported.
+
+              Use `strong_memoize_with` instead.
+              See https://docs.gitlab.com/ee/development/utilities.html#strongmemoize
+            ERROR
+          end
 
           # Methods defined within a class method are already public by default, so we don't need to
           # explicitly make them public.
@@ -118,9 +112,9 @@ module Gitlab
               .include? method_name
           end
 
-          klass.define_method(method_name) do |*args, &block|
+          klass.define_method(method_name) do |&block|
             strong_memoize(member_name) do
-              method.bind_call(self, *args, &block)
+              method.bind_call(self, &block)
             end
           end
 

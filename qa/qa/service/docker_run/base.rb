@@ -55,7 +55,9 @@ module QA
         end
 
         def pull
-          shell "docker pull #{@image}"
+          Support::Retrier.retry_until(retry_on_exception: true, sleep_interval: 3) do
+            shell "docker pull #{@image}"
+          end
         end
 
         def host_name
@@ -76,6 +78,12 @@ module QA
 
         def read_file(file_path)
           `docker exec #{@name} /bin/cat #{file_path}`
+        end
+
+        def restart
+          return "Container #{@name} is not running, cannot restart." unless running?
+
+          shell "docker restart #{@name}"
         end
       end
     end

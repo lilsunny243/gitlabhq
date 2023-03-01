@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe WebHookLog do
+RSpec.describe WebHookLog, feature_category: :integrations do
   it { is_expected.to belong_to(:web_hook) }
 
   it { is_expected.to serialize(:request_headers).as(Hash) }
@@ -12,7 +12,7 @@ RSpec.describe WebHookLog do
   it { is_expected.to validate_presence_of(:web_hook) }
 
   describe '.recent' do
-    let(:hook) { create(:project_hook) }
+    let(:hook) { build(:project_hook) }
 
     it 'does not return web hook logs that are too old' do
       create(:web_hook_log, web_hook: hook, created_at: 10.days.ago)
@@ -30,8 +30,10 @@ RSpec.describe WebHookLog do
   end
 
   describe '#save' do
+    let(:hook) { build(:project_hook) }
+
     context 'with basic auth credentials' do
-      let(:web_hook_log) { build(:web_hook_log, url: 'http://test:123@example.com') }
+      let(:web_hook_log) { build(:web_hook_log, web_hook: hook, url: 'http://test:123@example.com') }
 
       subject { web_hook_log.save! }
 
@@ -44,37 +46,90 @@ RSpec.describe WebHookLog do
       end
     end
 
-    context 'with author email' do
-      let(:author) { create(:user) }
-      let(:web_hook_log) { create(:web_hook_log, request_data: data) }
+    context "with users' emails" do
+      let(:author) { build(:user) }
+      let(:user) { build(:user) }
+      let(:web_hook_log) { create(:web_hook_log, web_hook: hook, request_data: data) }
       let(:data) do
         {
-          commit: {
-            author: {
-              name: author.name,
-              email: author.email
+          user: {
+            name: user.name,
+            email: user.email
+          },
+          commits: [
+            {
+              user: {
+                name: author.name,
+                email: author.email
+              }
+            },
+            {
+              user: {
+                name: user.name,
+                email: user.email
+              }
             }
-          }
+          ]
         }.deep_stringify_keys
       end
 
-      it "redacts author's email" do
-        expect(web_hook_log.request_data['commit']).to match a_hash_including(
-          'author' => {
-            'name' => author.name,
-            'email' => _('[REDACTED]')
-          }
+      it "redacts users' emails" do
+        expect(web_hook_log.request_data['user']).to match a_hash_including(
+          'name' => user.name,
+          'email' => _('[REDACTED]')
+        )
+        expect(web_hook_log.request_data['commits'].pluck('user')).to match_array(
+          [
+            {
+              'name' => author.name,
+              'email' => _('[REDACTED]')
+            },
+            {
+              'name' => user.name,
+              'email' => _('[REDACTED]')
+            }
+          ]
         )
       end
     end
   end
 
-  describe '.delete_batch_for' do
-    let(:hook) { create(:project_hook) }
+  describe 'before_save' do
+    describe '#set_url_hash' do
+      let(:web_hook_log) { build(:web_hook_log, interpolated_url: interpolated_url) }
 
-    before do
+      subject(:save_web_hook_log) { web_hook_log.save! }
+
+      context 'when interpolated_url is nil' do
+        let(:interpolated_url) { nil }
+
+        it { expect { save_web_hook_log }.not_to change { web_hook_log.url_hash } }
+      end
+
+      context 'when interpolated_url has a blank value' do
+        let(:interpolated_url) { ' ' }
+
+        it { expect { save_web_hook_log }.not_to change { web_hook_log.url_hash } }
+      end
+
+      context 'when interpolated_url has a value' do
+        let(:interpolated_url) { 'example@gitlab.com' }
+        let(:expected_value) { Gitlab::CryptoHelper.sha256(interpolated_url) }
+
+        it 'assigns correct digest value' do
+          expect { save_web_hook_log }.to change { web_hook_log.url_hash }.from(nil).to(expected_value)
+        end
+      end
+    end
+  end
+
+  describe '.delete_batch_for' do
+    let_it_be(:hook) { build(:project_hook) }
+    let_it_be(:hook2) { build(:project_hook) }
+
+    before_all do
       create_list(:web_hook_log, 3, web_hook: hook)
-      create_list(:web_hook_log, 3)
+      create_list(:web_hook_log, 3, web_hook: hook2)
     end
 
     subject { described_class.delete_batch_for(hook, batch_size: batch_size) }
@@ -160,6 +215,24 @@ RSpec.describe WebHookLog do
       let(:status) { 'internal error' }
 
       it { expect(web_hook_log.internal_error?).to be_truthy }
+    end
+  end
+
+  describe '#request_headers' do
+    let(:hook) { build(:project_hook, :token) }
+    let(:web_hook_log) { build(:web_hook_log, request_headers: request_headers) }
+    let(:expected_headers) { { 'X-Gitlab-Token' => _('[REDACTED]') } }
+
+    context 'with redacted headers token' do
+      let(:request_headers) { { 'X-Gitlab-Token' => _('[REDACTED]') } }
+
+      it { expect(web_hook_log.request_headers).to eq(expected_headers) }
+    end
+
+    context 'with exposed headers token' do
+      let(:request_headers) { { 'X-Gitlab-Token' => hook.token } }
+
+      it { expect(web_hook_log.request_headers).to eq(expected_headers) }
     end
   end
 end

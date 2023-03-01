@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Revert changes **(FREE)**
@@ -30,7 +30,7 @@ Prerequisites:
 
 To do this:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests** and identify your merge request.
 1. Scroll to the merge request reports area, and find the report showing when the
    merge request was merged.
@@ -52,20 +52,17 @@ Prerequisites:
 
 - You must have a role in the project that allows you to edit merge requests, and add
   code to the repository.
-- Your project must use the [merge method](methods/index.md#fast-forward-merge) **Merge Commit**,
-  which is set in the project's **Settings > General > Merge request**. You can't revert
-  fast-forwarded commits from the GitLab UI.
 
 To do this:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. If you know the merge request that contains the commit:
    1. On the left sidebar, select **Merge requests** and identify your merge request.
    1. Select **Commits**, then select the title of the commit you want to revert. GitLab displays the contents of the commit.
 1. If you don't know the merge request the commit originated from:
    1. On the left sidebar, select **Repository > Commits**.
    1. Select the title of the commit to display full information about the commit.
-1. In the top right corner, select **Options**, then select **Revert**.
+1. In the upper-right corner, select **Options**, then select **Revert**.
 1. In **Revert in branch**, select the branch to revert your changes into.
 1. Optional. Select **Start a new merge request** to start a new merge request with the new revert commit.
 1. Select **Revert**.
@@ -98,6 +95,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

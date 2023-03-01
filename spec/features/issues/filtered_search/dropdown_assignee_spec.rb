@@ -2,12 +2,16 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dropdown assignee', :js do
+RSpec.describe 'Dropdown assignee', :js, feature_category: :team_planning do
   include FilteredSearchHelpers
 
   let_it_be(:project) { create(:project) }
   let_it_be(:user) { create(:user) }
   let_it_be(:issue) { create(:issue, project: project) }
+
+  before do
+    stub_feature_flags(or_issuable_queries: false)
+  end
 
   describe 'behavior' do
     before do

@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create a Civo Kubernetes cluster
@@ -35,7 +35,8 @@ Start by [importing the example project by URL](../../../project/import/repo_by_
 
 To import the project:
 
-1. On the top bar, select **Menu > Create new project**.
+1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+1. On the right of the page, select **New project**.
 1. Select **Import project**.
 1. Select **Repository by URL**.
 1. For the **Git repository URL**, enter `https://gitlab.com/civocloud/gitlab-terraform-civo.git`.
@@ -90,7 +91,7 @@ Refer to the [Civo Terraform provider](https://registry.terraform.io/providers/c
 After configuring your project, manually trigger the provisioning of your cluster. In GitLab:
 
 1. On the left sidebar, go to **CI/CD > Pipelines**.
-1. Next to **Play** (**{play}**), select the dropdown icon (**{chevron-lg-down}**).
+1. Next to **Play** (**{play}**), select the dropdown list icon (**{chevron-lg-down}**).
 1. Select **Deploy** to manually trigger the deployment job.
 
 When the pipeline finishes successfully, you can see your new cluster:

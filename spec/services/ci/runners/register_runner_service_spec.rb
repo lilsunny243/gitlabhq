@@ -2,14 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe ::Ci::Runners::RegisterRunnerService, '#execute' do
+RSpec.describe ::Ci::Runners::RegisterRunnerService, '#execute', feature_category: :runner_fleet do
   let(:registration_token) { 'abcdefg123456' }
   let(:token) {}
   let(:args) { {} }
   let(:runner) { execute.payload[:runner] }
 
   before do
-    stub_feature_flags(runner_registration_control: false)
     stub_application_setting(runners_registration_token: registration_token)
     stub_application_setting(valid_runner_registrars: ApplicationSetting::VALID_RUNNER_REGISTRAR_TYPES)
   end
@@ -48,6 +47,7 @@ RSpec.describe ::Ci::Runners::RegisterRunnerService, '#execute' do
         expect(runner.run_untagged).to be true
         expect(runner.active).to be true
         expect(runner.token).not_to eq(registration_token)
+        expect(runner.token).not_to start_with(::Ci::Runner::CREATED_RUNNER_TOKEN_PREFIX)
         expect(runner).to be_instance_type
       end
 
@@ -166,25 +166,9 @@ RSpec.describe ::Ci::Runners::RegisterRunnerService, '#execute' do
           stub_application_setting(valid_runner_registrars: ['group'])
         end
 
-        context 'when feature flag is enabled' do
-          before do
-            stub_feature_flags(runner_registration_control: true)
-          end
-
-          it 'returns 403 error' do
-            expect(execute).to be_error
-            expect(execute.http_status).to eq :forbidden
-          end
-        end
-
-        context 'when feature flag is disabled' do
-          it 'registers the runner' do
-            expect(execute).to be_success
-
-            expect(runner).to be_an_instance_of(::Ci::Runner)
-            expect(runner.errors).to be_empty
-            expect(runner.active).to be true
-          end
+        it 'returns 403 error' do
+          expect(execute).to be_error
+          expect(execute.http_status).to eq :forbidden
         end
       end
     end
@@ -244,24 +228,8 @@ RSpec.describe ::Ci::Runners::RegisterRunnerService, '#execute' do
           stub_application_setting(valid_runner_registrars: ['project'])
         end
 
-        context 'when feature flag is enabled' do
-          before do
-            stub_feature_flags(runner_registration_control: true)
-          end
-
-          it 'returns error response' do
-            is_expected.to be_error
-          end
-        end
-
-        context 'when feature flag is disabled' do
-          it 'registers the runner' do
-            expect(execute).to be_success
-
-            expect(runner).to be_an_instance_of(::Ci::Runner)
-            expect(runner.errors).to be_empty
-            expect(runner.active).to be true
-          end
+        it 'returns error response' do
+          is_expected.to be_error
         end
       end
     end

@@ -44,11 +44,11 @@ class Projects::CycleAnalyticsController < Projects::ApplicationController
 
   override :all_cycle_analytics_params
   def all_cycle_analytics_params
-    super.merge({ project: @project, value_stream: @value_stream })
+    super.merge({ namespace: @project.project_namespace, value_stream: @value_stream })
   end
 
   def load_value_stream
-    @value_stream = Analytics::CycleAnalytics::ProjectValueStream.build_default_value_stream(@project)
+    @value_stream = Analytics::CycleAnalytics::ValueStream.build_default_value_stream(@project.project_namespace)
   end
 
   def cycle_analytics_json

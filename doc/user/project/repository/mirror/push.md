@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
@@ -33,12 +33,12 @@ section.
 
 To set up push mirroring for an existing project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Enter a repository URL.
 1. In the **Mirror direction** dropdown list, select **Push**.
-1. Select an **Authentication method**. To learn more, read
+1. Select an **Authentication method**. For more information, see
    [Authentication methods for mirrors](index.md#authentication-methods-for-mirrors).
 1. Select **Only mirror protected branches**, if necessary.
 1. Select **Keep divergent refs**, if desired.

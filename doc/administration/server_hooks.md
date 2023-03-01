@@ -1,20 +1,22 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/administration/custom_hooks.html'
 ---
 
-# Server hooks **(FREE SELF)**
+# Git server hooks **(FREE SELF)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/196051) in GitLab 12.8 replacing Custom Hooks.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/196051) in GitLab 12.8 replacing Custom Hooks.
+> - [Renamed](https://gitlab.com/gitlab-org/gitlab/-/issues/372991) from server hooks to Git server hooks in GitLab 15.6.
 
-Server hooks run custom logic on the GitLab server. Users can use them to run Git-related tasks such as:
+Git server hooks (not to be confused with [system hooks](system_hooks.md) or [file hooks](file_hooks.md)) run custom logic
+on the GitLab server. You can use them to run Git-related tasks such as:
 
 - Enforcing specific commit policies.
 - Performing tasks based on the state of the repository.
 
-Server hooks use `pre-receive`, `post-receive`, and `update`
+Git server hooks use `pre-receive`, `post-receive`, and `update`
 [Git server-side hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks#_server_side_hooks).
 
 GitLab administrators configure server hooks on the file system of the GitLab server. If you don't have file system access,
@@ -30,7 +32,7 @@ alternatives to server hooks include:
 
 To create server hooks for a repository:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. Go to **Overview > Projects** and select the project you want to add a server hook to.
 1. On the page that appears, locate the value of **Gitaly relative path**. This path is where server hooks must be located.
    - If you are using [hashed storage](repository_storage_types.md#hashed-storage), see
@@ -45,19 +47,33 @@ To create server hooks for a repository:
      `pre-receive` server hook, the filename should be `pre-receive` with no extension.
    - To create many server hooks, create a directory for the hooks that matches the hook type. For example, for a
      `pre-receive` server hook, the directory name should be `pre-receive.d`. Put the files for the hook in that directory.
-1. Make the server hook files executable and ensure that they are owned by the Git user.
-1. Write the code to make the server hook function as expected. Server hooks can be in any programming language. Ensure
+1. **Make the server hook files executable** and ensure that they are owned by the Git user.
+1. Write the code to make the server hook function as expected. Git server hooks can be in any programming language. Ensure
    the [shebang](https://en.wikipedia.org/wiki/Shebang_(Unix)) at the top reflects the language type. For
    example, if the script is in Ruby the shebang is probably `#!/usr/bin/env ruby`.
-1. Make the hook file executable, ensure that it's owned by the Git user, and ensure it does not match the backup file
+1. Ensure the hook file does not match the backup file
    pattern (`*~`).
 
 If the server hook code is properly implemented, it should execute when the Git hook is next triggered.
 
+### Gitaly Cluster
+
+If you use [Gitaly Cluster](gitaly/index.md), the scripts must be copied to every Gitaly node that has a replica of the repository. Every Gitaly node
+needs a copy because any node can be made a primary at any time. Server hooks only run on primary nodes.
+
+The location to copy the scripts to depends on where repositories are stored:
+
+- In GitLab 15.2 and earlier, Gitaly Cluster uses the [hashed storage path](repository_storage_types.md#hashed-storage)
+  reported by the GitLab application.
+- In GitLab 15.3 and later, new repositories are created using
+  [Praefect-generated replica paths](gitaly/index.md#praefect-generated-replica-paths-gitlab-150-and-later),
+  which are not the hashed storage path. The replica path can be identified by
+  [querying the Praefect repository metadata](../administration/gitaly/troubleshooting.md#view-repository-metadata)
+  using `-relative-path` to specify the expected GitLab hashed storage path.
+
 ## Create global server hooks for all repositories
 
-To create a Git hook that applies to all repositories, set a global server hook. The default global server hook directory
-is in the GitLab Shell directory. Any server hook added there applies to all repositories, including:
+To create a Git hook that applies to all repositories, set a global server hook. Global server hooks also apply to:
 
 - [Project and group wiki](../user/project/wiki/index.md) repositories. Their storage directory names are in the format
   `<id>.wiki.git`.
@@ -66,36 +82,36 @@ is in the GitLab Shell directory. Any server hook added there applies to all rep
 
 ### Choose a server hook directory
 
-Before creating a global server hook, you must choose a directory for it. The default global server hook directory:
+Before creating a global server hook, you must choose a directory for it.
 
-- For Omnibus GitLab installations is usually `/opt/gitlab/embedded/service/gitlab-shell/hooks`.
-- For an installation from source is usually `/home/git/gitlab-shell/hooks`.
+For Omnibus GitLab installations, the directory is set in `gitlab.rb` under `gitaly['custom_hooks_dir']`. You can either:
 
-To use a different directory for global server hooks, set `custom_hooks_dir` in Gitaly configuration:
+- Use the default suggestion of the `/var/opt/gitlab/gitaly/custom_hooks` directory by uncommenting it.
+- Add your own setting.
 
-- For Omnibus installations, set in `gitlab.rb`.
-- For source installations, the configuration location depends on the GitLab version. For:
-  - GitLab 13.0 and earlier, set in `gitlab-shell/config.yml`.
-  - GitLab 13.1 and later, set in `gitaly/config.toml` under the `[hooks]` section. However, GitLab honors the
-    `custom_hooks_dir` value in `gitlab-shell/config.yml` if the value in `gitaly/config.toml` is blank or non-existent.
+For installations from source:
+
+- The directory is set in a configuration file. The location of the configuration file depends on the GitLab version:
+  - For GitLab 13.1 and later, the directory is set in `gitaly/config.toml` under the `[hooks]` section. However,
+    GitLab honors the `custom_hooks_dir` value in `gitlab-shell/config.yml` if the value in `gitaly/config.toml` is blank
+    or non-existent.
+  - For GitLab 13.0 and earlier, the directory set in `gitlab-shell/config.yml`.
+- The default directory is `/home/git/gitlab-shell/hooks`.
 
 ### Create the global server hook
 
 To create a global server hook for all repositories:
 
 1. On the GitLab server, go to the configured global server hook directory.
-1. In the configured global server hook directory:
-   - To create a single server hook, create a file with a name that matches the hook type. For example, for a
-     `pre-receive` server hook, the filename should be `pre-receive` with no extension.
-   - To create many server hooks, create a directory for the hooks that matches the hook type. For example, for a
-     `pre-receive` server hook, the directory name should be `pre-receive.d`. Put the files for the hook in that directory.
-1. Inside this new directory, add your server hook. Server hooks can be in any programming language. Ensure the
+1. In the configured global server hook directory, create a directory for the hooks that matches the hook type. For example, for a `pre-receive` server hook, the directory name should be `pre-receive.d`.
+1. Inside this new directory, add your server hooks. Git server hooks can be in any programming language. Ensure the
    [shebang](https://en.wikipedia.org/wiki/Shebang_(Unix)) at the top reflects the language type. For example, if the
    script is in Ruby the shebang is probably `#!/usr/bin/env ruby`.
 1. Make the hook file executable, ensure that it's owned by the Git user, and ensure it does not match the backup file
    pattern (`*~`).
 
-If the server hook code is properly implemented, it should execute when the Git hook is next triggered.
+If the server hook code is properly implemented, it should execute when the Git hook is next triggered. Hooks are executed in alphabetical order by filename in the hook type
+subdirectories.
 
 ## Chained server hooks
 

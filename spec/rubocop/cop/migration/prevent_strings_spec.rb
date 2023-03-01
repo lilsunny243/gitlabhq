@@ -4,8 +4,6 @@ require 'rubocop_spec_helper'
 require_relative '../../../../rubocop/cop/migration/prevent_strings'
 
 RSpec.describe RuboCop::Cop::Migration::PreventStrings do
-  subject(:cop) { described_class.new }
-
   context 'when in migration' do
     before do
       allow(cop).to receive(:in_migration?).and_return(true)
@@ -29,8 +27,8 @@ RSpec.describe RuboCop::Cop::Migration::PreventStrings do
               add_column(:users, :bio, :string)
               ^^^^^^^^^^ %{msg}
 
-              add_column_with_default(:users, :url, :string, default: '/-/user', allow_null: false, limit: 255)
-              ^^^^^^^^^^^^^^^^^^^^^^^ %{msg}
+              add_column(:users, :url, :string, default: '/-/user', allow_null: false, limit: 255)
+              ^^^^^^^^^^ %{msg}
 
               change_column_type_concurrently :users, :commit_id, :string
               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ %{msg}
@@ -69,7 +67,7 @@ RSpec.describe RuboCop::Cop::Migration::PreventStrings do
               end
 
               add_column(:users, :bio, :text)
-              add_column_with_default(:users, :url, :text, default: '/-/user', allow_null: false, limit: 255)
+              add_column(:users, :url, :text, default: '/-/user', allow_null: false, limit: 255)
               change_column_type_concurrently :users, :commit_id, :text
             end
           end
@@ -88,7 +86,7 @@ RSpec.describe RuboCop::Cop::Migration::PreventStrings do
               end
 
               add_column :test_string_arrays, :email, :string, array: true
-              add_column_with_default :test_string_arrays, :role, :string, default: [], array: true
+              add_column :test_string_arrays, :role, :string, default: [], array: true
               change_column_type_concurrently :test_string_arrays, :test_id, :string, array: true
             end
           end
@@ -114,7 +112,7 @@ RSpec.describe RuboCop::Cop::Migration::PreventStrings do
               end
 
               add_column(:users, :bio, :string)
-              add_column_with_default(:users, :url, :string, default: '/-/user', allow_null: false, limit: 255)
+              add_column(:users, :url, :string, default: '/-/user', allow_null: false, limit: 255)
               change_column_type_concurrently :users, :commit_id, :string
             end
           end
@@ -135,7 +133,7 @@ RSpec.describe RuboCop::Cop::Migration::PreventStrings do
             end
 
             add_column(:users, :bio, :string)
-            add_column_with_default(:users, :url, :string, default: '/-/user', allow_null: false, limit: 255)
+            add_column(:users, :url, :string, default: '/-/user', allow_null: false, limit: 255)
             change_column_type_concurrently :users, :commit_id, :string
           end
         end

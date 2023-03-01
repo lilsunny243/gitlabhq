@@ -209,6 +209,14 @@ RSpec.describe TodoService do
         it_behaves_like 'an incident management tracked event', :incident_management_incident_todo do
           let(:current_user) { john_doe }
         end
+
+        it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+          let(:namespace) { project.namespace }
+          let(:category) { described_class.to_s }
+          let(:action) { 'incident_management_incident_todo' }
+          let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
+          let(:user) { john_doe }
+        end
       end
     end
 
@@ -1037,7 +1045,7 @@ RSpec.describe TodoService do
     let_it_be(:noteable) { create(:issue, project: project) }
 
     let(:note) { create(:note, project: project, note: mentions, noteable: noteable) }
-    let(:addressed_note) { create(:note, project: project, note: "#{directly_addressed}", noteable: noteable) }
+    let(:addressed_note) { create(:note, project: project, note: directly_addressed.to_s, noteable: noteable) }
 
     it 'creates a todo for each valid mentioned user not included in skip_users' do
       service.update_note(note, author, skip_users)
@@ -1215,6 +1223,24 @@ RSpec.describe TodoService do
     end
   end
 
+  describe '#resolve_access_request_todos' do
+    let_it_be(:source) { create(:group, :public) }
+    let_it_be(:requester) { create(:group_member, :access_request, group: source, user: assignee) }
+
+    it 'marks the todos for request handler as done' do
+      request_handler_todo = create(:todo,
+                                    user: member,
+                                    state: :pending,
+                                    action: Todo::MEMBER_ACCESS_REQUESTED,
+                                    author: requester.user,
+                                    target: source)
+
+      service.resolve_access_request_todos(member, requester)
+
+      expect(request_handler_todo.reload).to be_done
+    end
+  end
+
   describe '#restore_todo' do
     let!(:todo) { create(:todo, :done, user: john_doe) }
 
@@ -1247,6 +1273,89 @@ RSpec.describe TodoService do
       service.create_request_review_todo(target, author, reviewer)
 
       should_create_todo(user: reviewer, target: target, action: Todo::REVIEW_REQUESTED)
+    end
+  end
+
+  describe '#create_member_access_request_todos' do
+    let_it_be(:group) { create(:group, :public) }
+    let_it_be(:project) { create(:project, :public, group: group) }
+
+    shared_examples 'member access request is raised' do
+      context 'when the source has more than 10 owners' do
+        it 'creates todos for 10 recently active source owners' do
+          users = create_list(:user, 12, :with_sign_ins)
+          users.each do |user|
+            source.add_owner(user)
+          end
+          ten_most_recently_active_source_owners = users.sort_by(&:last_sign_in_at).last(10)
+          excluded_source_owners = users - ten_most_recently_active_source_owners
+
+          service.create_member_access_request_todos(requester1)
+
+          ten_most_recently_active_source_owners.each do |owner|
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester1.user).count).to eq 1
+          end
+
+          excluded_source_owners.each do |owner|
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester1.user).count).to eq 0
+          end
+        end
+      end
+
+      context 'when total owners are less than 10' do
+        it 'creates todos for all source owners' do
+          users = create_list(:user, 4, :with_sign_ins)
+          users.map do |user|
+            source.add_owner(user)
+          end
+
+          service.create_member_access_request_todos(requester1)
+
+          users.each do |owner|
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester1.user).count).to eq 1
+          end
+        end
+      end
+
+      context 'when multiple access requests are raised' do
+        it 'creates todos for 10 recently active source owners for multiple requests' do
+          users = create_list(:user, 12, :with_sign_ins)
+          users.each do |user|
+            source.add_owner(user)
+          end
+          ten_most_recently_active_source_owners = users.sort_by(&:last_sign_in_at).last(10)
+          excluded_source_owners = users - ten_most_recently_active_source_owners
+
+          service.create_member_access_request_todos(requester1)
+          service.create_member_access_request_todos(requester2)
+
+          ten_most_recently_active_source_owners.each do |owner|
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester1.user).count).to eq 1
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester2.user).count).to eq 1
+          end
+
+          excluded_source_owners.each do |owner|
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester1.user).count).to eq 0
+            expect(Todo.where(user: owner, target: source, action: Todo::MEMBER_ACCESS_REQUESTED, author: requester2.user).count).to eq 0
+          end
+        end
+      end
+    end
+
+    context 'when request is raised for group' do
+      it_behaves_like 'member access request is raised' do
+        let_it_be(:source) { create(:group, :public) }
+        let_it_be(:requester1) { create(:group_member, :access_request, group: source, user: assignee) }
+        let_it_be(:requester2) { create(:group_member, :access_request, group: source, user: non_member) }
+      end
+    end
+
+    context 'when request is raised for project' do
+      it_behaves_like 'member access request is raised' do
+        let_it_be(:source) { create(:project, :public) }
+        let_it_be(:requester1) { create(:project_member, :access_request, project: source, user: assignee) }
+        let_it_be(:requester2) { create(:project_member, :access_request, project: source, user: non_member) }
+      end
     end
   end
 

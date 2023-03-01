@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge requests > User mass updates', :js do
+RSpec.describe 'Merge requests > User mass updates', :js, feature_category: :code_review_workflow do
   let(:project) { create(:project, :repository) }
   let(:user)    { project.creator }
   let(:user2) { create(:user) }
@@ -121,7 +121,7 @@ RSpec.describe 'Merge requests > User mass updates', :js do
     within 'aside[aria-label="Bulk update"]' do
       click_button 'Select assignee'
       wait_for_requests
-      click_link text
+      click_button text
     end
     click_update_merge_requests_button
   end
@@ -130,7 +130,7 @@ RSpec.describe 'Merge requests > User mass updates', :js do
     click_button 'Edit merge requests'
     check 'Select all'
     click_button 'Select milestone'
-    click_link text
+    click_button text
     click_update_merge_requests_button
   end
 

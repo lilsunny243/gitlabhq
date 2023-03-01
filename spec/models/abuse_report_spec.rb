@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe AbuseReport do
+RSpec.describe AbuseReport, feature_category: :insider_threat do
   let_it_be(:report, reload: true) { create(:abuse_report) }
   let_it_be(:user, reload: true) { create(:admin) }
 
@@ -20,10 +20,92 @@ RSpec.describe AbuseReport do
   end
 
   describe 'validations' do
+    let(:http)  { 'http://gitlab.com' }
+    let(:https) { 'https://gitlab.com' }
+    let(:ftp)   { 'ftp://example.com' }
+    let(:javascript) { 'javascript:alert(window.opener.document.location)' }
+
     it { is_expected.to validate_presence_of(:reporter) }
     it { is_expected.to validate_presence_of(:user) }
     it { is_expected.to validate_presence_of(:message) }
-    it { is_expected.to validate_uniqueness_of(:user_id).with_message('has already been reported') }
+    it { is_expected.to validate_presence_of(:category) }
+
+    it do
+      is_expected.to validate_uniqueness_of(:user_id)
+        .scoped_to([:reporter_id, :category])
+        .with_message('You have already reported this user')
+    end
+
+    it { is_expected.to validate_length_of(:reported_from_url).is_at_most(512).allow_blank }
+    it { is_expected.to allow_value(http).for(:reported_from_url) }
+    it { is_expected.to allow_value(https).for(:reported_from_url) }
+    it { is_expected.not_to allow_value(ftp).for(:reported_from_url) }
+    it { is_expected.not_to allow_value(javascript).for(:reported_from_url) }
+    it { is_expected.to allow_value('http://localhost:9000').for(:reported_from_url) }
+    it { is_expected.to allow_value('https://gitlab.com').for(:reported_from_url) }
+
+    it { is_expected.to allow_value([]).for(:links_to_spam) }
+    it { is_expected.to allow_value(nil).for(:links_to_spam) }
+    it { is_expected.to allow_value('').for(:links_to_spam) }
+
+    it { is_expected.to allow_value(['https://gitlab.com']).for(:links_to_spam) }
+    it { is_expected.to allow_value(['http://localhost:9000']).for(:links_to_spam) }
+
+    it { is_expected.not_to allow_value(['spam']).for(:links_to_spam) }
+    it { is_expected.not_to allow_value(['http://localhost:9000', 'spam']).for(:links_to_spam) }
+
+    it { is_expected.to allow_value(['https://gitlab.com'] * 20).for(:links_to_spam) }
+    it { is_expected.not_to allow_value(['https://gitlab.com'] * 21).for(:links_to_spam) }
+
+    it {
+      is_expected.to allow_value([
+        "https://gitlab.com/#{SecureRandom.alphanumeric(493)}"
+      ]).for(:links_to_spam)
+    }
+
+    it {
+      is_expected.not_to allow_value([
+        "https://gitlab.com/#{SecureRandom.alphanumeric(494)}"
+      ]).for(:links_to_spam)
+    }
+  end
+
+  describe 'scopes' do
+    let!(:reporter) { create(:user, username: 'reporter') }
+    let!(:report1) { create(:abuse_report) }
+    let!(:report2) { create(:abuse_report, :closed, reporter: reporter, category: 'phishing') }
+
+    describe '.open' do
+      subject(:results) { described_class.open }
+
+      it 'returns reports without resolved_at value' do
+        expect(subject).to match_array([report, report1])
+      end
+    end
+
+    describe '.closed' do
+      subject(:results) { described_class.closed }
+
+      it 'returns reports with resolved_at value' do
+        expect(subject).to match_array([report2])
+      end
+    end
+
+    describe '.by_category' do
+      it 'returns abuse reports with the specified category' do
+        expect(described_class.by_category('phishing')).to match_array([report2])
+      end
+    end
+  end
+
+  describe 'before_validation' do
+    context 'when links to spam contains empty strings' do
+      let(:report) { create(:abuse_report, links_to_spam: ['', 'https://gitlab.com']) }
+
+      it 'removes empty strings' do
+        expect(report.links_to_spam).to match_array(['https://gitlab.com'])
+      end
+    end
   end
 
   describe '#remove_user' do
@@ -53,5 +135,22 @@ RSpec.describe AbuseReport do
 
       report.notify
     end
+  end
+
+  describe 'enums' do
+    let(:categories) do
+      {
+        spam: 1,
+        offensive: 2,
+        phishing: 3,
+        crypto: 4,
+        credentials: 5,
+        copyright: 6,
+        malware: 7,
+        other: 8
+      }
+    end
+
+    it { is_expected.to define_enum_for(:category).with_values(**categories) }
   end
 end

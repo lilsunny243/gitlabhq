@@ -2,14 +2,15 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Expand and collapse diffs', :js do
+RSpec.describe 'Expand and collapse diffs', :js, feature_category: :source_code_management do
   let(:branch) { 'expand-collapse-diffs' }
-  let(:project) { create(:project, :repository) }
+
+  let_it_be(:project) { create(:project, :repository) }
+  let_it_be(:admin) { create(:admin) }
 
   before do
     allow(Gitlab::CurrentSettings).to receive(:diff_max_patch_bytes).and_return(100.kilobytes)
 
-    admin = create(:admin)
     sign_in(admin)
     gitlab_enable_admin_mode_sign_in(admin)
 

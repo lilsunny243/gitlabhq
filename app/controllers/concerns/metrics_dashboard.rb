@@ -37,7 +37,7 @@ module MetricsDashboard
   def all_dashboards
     dashboard_finder
       .find_all_paths(project_for_dashboard)
-      .map(&method(:amend_dashboard))
+      .map { |dashboard| amend_dashboard(dashboard) }
   end
 
   def amend_dashboard(dashboard)
@@ -118,9 +118,7 @@ module MetricsDashboard
   def decoded_params
     params = metrics_dashboard_params
 
-    if params[:dashboard_path]
-      params[:dashboard_path] = CGI.unescape(params[:dashboard_path])
-    end
+    params[:dashboard_path] = CGI.unescape(params[:dashboard_path]) if params[:dashboard_path]
 
     params
   end

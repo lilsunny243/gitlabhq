@@ -3,6 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe Key, :mailer do
+  it_behaves_like 'having unique enum values'
+
   describe "Associations" do
     it { is_expected.to belong_to(:user) }
   end
@@ -214,6 +216,20 @@ RSpec.describe Key, :mailer do
         it 'returns keys that will expire soon' do
           expect(described_class.expiring_soon_and_not_notified).to contain_exactly(expiring_soon_unotified)
         end
+      end
+    end
+
+    context 'usage type scopes' do
+      let_it_be(:auth_key) { create(:key, usage_type: :auth) }
+      let_it_be(:auth_and_signing_key) { create(:key, usage_type: :auth_and_signing) }
+      let_it_be(:signing_key) { create(:key, usage_type: :signing) }
+
+      it 'auth scope returns auth and auth_and_signing keys' do
+        expect(described_class.auth).to match_array([auth_key, auth_and_signing_key])
+      end
+
+      it 'signing scope returns signing and auth_and_signing keys' do
+        expect(described_class.signing).to match_array([signing_key, auth_and_signing_key])
       end
     end
   end
@@ -471,6 +487,14 @@ RSpec.describe Key, :mailer do
 
         create(:key)
       end
+    end
+  end
+
+  describe '#signing?' do
+    it 'returns whether a key can be used for signing' do
+      expect(build(:key, usage_type: :signing)).to be_signing
+      expect(build(:key, usage_type: :auth_and_signing)).to be_signing
+      expect(build(:key, usage_type: :auth)).not_to be_signing
     end
   end
 end

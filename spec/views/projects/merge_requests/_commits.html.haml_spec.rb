@@ -37,18 +37,6 @@ RSpec.describe 'projects/merge_requests/_commits.html.haml', :sidekiq_might_not_
   it 'shows signature verification badge' do
     render
 
-    expect(rendered).to have_css('.gpg-status-box')
-  end
-
-  context 'when there are hidden commits' do
-    before do
-      assign(:hidden_commit_count, 1)
-    end
-
-    it 'shows notice about omitted commits' do
-      render
-
-      expect(rendered).to match(/1 additional commit has been omitted to prevent performance issues/)
-    end
+    expect(rendered).to have_css('.js-loading-signature-badge')
   end
 end

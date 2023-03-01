@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, quarantine: {
+  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, product_group: :package_registry, quarantine: {
     only: { job: 'object_storage' },
     issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/335981',
     type: :bug
@@ -24,7 +24,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.name = "qa-runner-#{Time.now.to_i}"
           runner.tags = ["runner-for-#{project.name}"]
           runner.executor = :docker

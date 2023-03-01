@@ -113,6 +113,19 @@ RSpec.describe Gitlab::GithubImport::Importer::NoteImporter do
             .to eq('There were an invalid char "" <= right here')
         end
       end
+
+      context 'when note is invalid' do
+        it 'fails validation' do
+          expect(importer.user_finder)
+            .to receive(:author_id_for)
+            .with(github_note)
+            .and_return([user.id, true])
+
+          expect(github_note).to receive(:discussion_id).and_return('invalid')
+
+          expect { importer.execute }.to raise_error(ActiveRecord::RecordInvalid)
+        end
+      end
     end
 
     context 'when the noteable does not exist' do
@@ -160,6 +173,13 @@ RSpec.describe Gitlab::GithubImport::Importer::NoteImporter do
 
       expect(project.notes.take).to be_valid
     end
+
+    # rubocop:disable RSpec/AnyInstanceOf
+    it 'skips markdown field cache callback' do
+      expect_any_instance_of(Note).not_to receive(:refresh_markdown_cache)
+      importer.execute
+    end
+    # rubocop:enable RSpec/AnyInstanceOf
   end
 
   describe '#find_noteable_id' do

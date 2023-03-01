@@ -2,7 +2,7 @@
 
 module Groups
   module GroupLinks
-    class CreateService < Groups::BaseService
+    class CreateService < ::Groups::BaseService
       include GroupLinkable
 
       def initialize(group, shared_with_group, user, params)
@@ -31,7 +31,7 @@ module Groups
       end
 
       def setup_authorizations
-        shared_with_group.refresh_members_authorized_projects(blocking: false, direct_members_only: true)
+        shared_with_group.refresh_members_authorized_projects(direct_members_only: true)
       end
     end
   end

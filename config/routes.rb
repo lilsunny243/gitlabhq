@@ -2,9 +2,8 @@
 
 require 'sidekiq/web'
 require 'sidekiq/cron/web'
-require 'product_analytics/collector_app'
 
-InitializerConnections.with_disabled_database_connections do
+InitializerConnections.raise_if_new_database_connection do
   Rails.application.routes.draw do
     concern :access_requestable do
       post :request_access, on: :collection
@@ -30,6 +29,7 @@ InitializerConnections.with_disabled_database_connections do
                   token_info: 'oauth/token_info',
                   tokens: 'oauth/tokens'
     end
+    put '/oauth/applications/:id/renew(.:format)' => 'oauth/applications#renew', as: :renew_oauth_application
 
     # This prefixless path is required because Jira gets confused if we set it up with a path
     # More information: https://gitlab.com/gitlab-org/gitlab/issues/6752
@@ -57,24 +57,15 @@ InitializerConnections.with_disabled_database_connections do
     match '/oauth/revoke' => 'oauth/tokens#revoke', via: :options
 
     match '/-/jira_connect/oauth_application_id' => 'jira_connect/oauth_application_ids#show', via: :options
+    match '/-/jira_connect/subscriptions(.:format)' => 'jira_connect/subscriptions#index', via: :options
+    match '/-/jira_connect/subscriptions/:id' => 'jira_connect/subscriptions#delete', via: :options
 
     # Sign up
     scope path: '/users/sign_up', module: :registrations, as: :users_sign_up do
-      resource :welcome, only: [:show, :update], controller: 'welcome' do
-        Gitlab.ee do
-          get :trial_getting_started, on: :collection
-          get :trial_onboarding_board, on: :collection
-          get :continuous_onboarding_getting_started, on: :collection
-        end
-      end
+      resource :welcome, only: [:show, :update], controller: 'welcome'
 
       Gitlab.ee do
         resource :company, only: [:new, :create], controller: 'company'
-
-        # legacy - to be removed with https://gitlab.com/gitlab-org/gitlab/-/issues/371996
-        get 'groups/new', to: redirect('users/sign_up/groups_projects/new')
-        get 'projects/new', to: redirect('users/sign_up/groups_projects/new')
-
         resources :groups_projects, only: [:new, :create] do
           collection do
             post :import
@@ -124,6 +115,7 @@ InitializerConnections.with_disabled_database_connections do
 
       # sandbox
       get '/sandbox/mermaid' => 'sandbox#mermaid'
+      get '/sandbox/swagger' => 'sandbox#swagger'
 
       get '/whats_new' => 'whats_new#index'
 
@@ -140,28 +132,6 @@ InitializerConnections.with_disabled_database_connections do
       mount Peek::Railtie => '/peek', as: 'peek_routes'
 
       get 'runner_setup/platforms' => 'runner_setup#platforms'
-
-      # Boards resources shared between group and projects
-      resources :boards, only: [] do
-        resources :lists, module: :boards, only: [:index, :create, :update, :destroy] do
-          collection do
-            post :generate
-          end
-
-          resources :issues, only: [:index, :create, :update]
-        end
-
-        resources :issues, module: :boards, only: [:index, :update] do
-          collection do
-            put :bulk_move, format: :json
-          end
-        end
-
-        Gitlab.ee do
-          resources :users, module: :boards, only: [:index]
-          resources :milestones, module: :boards, only: [:index]
-        end
-      end
 
       get 'acme-challenge/' => 'acme_challenges#show'
 
@@ -180,6 +150,12 @@ InitializerConnections.with_disabled_database_connections do
           get '/merge_requests/:merge_request_id', to: 'ide#index', constraints: { merge_request_id: /\d+/ }
           get '/', to: 'ide#index'
         end
+
+        # Remote host can contain "." characters so it needs a constraint
+        post 'remote/:remote_host(/*remote_path)',
+             as: :remote,
+             to: 'web_ide/remote_ide#index',
+             constraints: { remote_host: %r{[^/?]+} }
       end
 
       draw :operations
@@ -229,7 +205,11 @@ InitializerConnections.with_disabled_database_connections do
       end
 
       # Spam reports
-      resources :abuse_reports, only: [:new, :create]
+      resources :abuse_reports, only: [:new, :create] do
+        collection do
+          post :add_category
+        end
+      end
 
       # JWKS (JSON Web Key Set) endpoint
       # Used by third parties to verify CI_JOB_JWT
@@ -243,9 +223,6 @@ InitializerConnections.with_disabled_database_connections do
       # Deprecated route for permanent failures
       # https://gitlab.com/gitlab-org/gitlab/-/issues/362606
       post '/members/mailgun/permanent_failures' => 'mailgun/webhooks#process_webhook'
-
-      # Product analytics collector
-      match '/collector/i', to: ProductAnalytics::CollectorApp.new, via: :all
     end
     # End of the /-/ scope.
 
@@ -323,7 +300,7 @@ InitializerConnections.with_disabled_database_connections do
     # TODO: We don't need the `Gitlab::Routing` module at all as we can use
     # the `direct` DSL method of Rails to define url helpers. Move all the
     # custom url helpers to use the `direct` DSL method and remove the `Gitlab::Routing`.
-    # For more information: https://gitlab.com/gitlab-org/gitlab/-/issues/299583
+    # For more information: https://gitlab.com/groups/gitlab-org/-/epics/9866
     Gitlab::Application.routes.set.filter_map { |route| route.name if route.name&.include?('namespace_project') }.each do |name|
       new_name = name.sub('namespace_project', 'project')
 
@@ -339,7 +316,9 @@ InitializerConnections.with_disabled_database_connections do
     root to: "root#index"
 
     get '*unmatched_route', to: 'application#route_not_found', format: false
-  end
 
-  Gitlab::Routing.add_helpers(TimeboxesRoutingHelper)
+    # Load all custom URLs definitions via `direct' after the last route
+    # definition.
+    draw :directs
+  end
 end

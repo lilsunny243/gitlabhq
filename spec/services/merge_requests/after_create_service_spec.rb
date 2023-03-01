@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::AfterCreateService do
+RSpec.describe MergeRequests::AfterCreateService, feature_category: :code_review_workflow do
   let_it_be(:merge_request) { create(:merge_request) }
 
   subject(:after_create_service) do
@@ -30,7 +30,7 @@ RSpec.describe MergeRequests::AfterCreateService do
     it 'calls the merge request activity counter' do
       expect(Gitlab::UsageDataCounters::MergeRequestActivityUniqueCounter)
         .to receive(:track_create_mr_action)
-        .with(user: merge_request.author)
+        .with(user: merge_request.author, merge_request: merge_request)
 
       expect(Gitlab::UsageDataCounters::MergeRequestActivityUniqueCounter)
         .to receive(:track_mr_including_ci_config)
@@ -123,6 +123,17 @@ RSpec.describe MergeRequests::AfterCreateService do
           expect(merge_request).to receive(:check_mergeability).with(async: true)
           expect { execute_service }.to raise_error(StandardError)
         end
+      end
+    end
+
+    it 'updates the prepared_at' do
+      # Need to reset the `prepared_at` since it can be already set in preceding tests.
+      merge_request.update!(prepared_at: nil)
+
+      freeze_time do
+        expect { execute_service }.to change { merge_request.prepared_at }
+          .from(nil)
+          .to(Time.current)
       end
     end
 

@@ -16,7 +16,7 @@ module MergeRequests
 
     def refresh_merge_requests!
       # n + 1: https://gitlab.com/gitlab-org/gitlab-foss/issues/60289
-      Gitlab::GitalyClient.allow_n_plus_1_calls(&method(:find_new_commits))
+      Gitlab::GitalyClient.allow_n_plus_1_calls { find_new_commits }
 
       # Be sure to close outstanding MRs before reloading them to avoid generating an
       # empty diff during a manual merge
@@ -162,10 +162,6 @@ module MergeRequests
       @outdate_service ||= Suggestions::OutdateService.new
     end
 
-    def refresh_pipelines_on_merge_requests(merge_request)
-      create_pipeline_for(merge_request, current_user, async: true)
-    end
-
     def abort_auto_merges(merge_request)
       abort_auto_merge(merge_request, 'source branch was updated')
     end
@@ -233,7 +229,8 @@ module MergeRequests
         :source, @push.branch_name, presence)
     end
 
-    # Add comment about pushing new commits to merge requests and send nofitication emails
+    # Add comment about pushing new commits to merge requests and send notification emails
+    #
     def notify_about_push(merge_request)
       return unless @commits.present?
 

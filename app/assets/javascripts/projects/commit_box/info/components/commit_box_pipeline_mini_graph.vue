@@ -1,11 +1,12 @@
 <script>
 import { GlLoadingIcon } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { __ } from '~/locale';
 import {
   getQueryHeaders,
   toggleQueryPollingByVisibility,
 } from '~/pipelines/components/graph/utils';
+import { keepLatestDownstreamPipelines } from '~/pipelines/components/parsing_utils';
 import PipelineMiniGraph from '~/pipelines/components/pipeline_mini_graph/pipeline_mini_graph.vue';
 import { formatStages } from '../utils';
 import getLinkedPipelinesQuery from '../graphql/queries/get_linked_pipelines.query.graphql';
@@ -59,7 +60,7 @@ export default {
         return project?.pipeline;
       },
       error() {
-        createFlash({ message: this.$options.i18n.linkedPipelinesFetchError });
+        createAlert({ message: this.$options.i18n.linkedPipelinesFetchError });
       },
     },
     pipelineStages: {
@@ -78,7 +79,7 @@ export default {
         return project?.pipeline?.stages?.nodes || [];
       },
       error() {
-        createFlash({ message: this.$options.i18n.stagesFetchError });
+        createAlert({ message: this.$options.i18n.stagesFetchError });
       },
     },
   },
@@ -91,7 +92,8 @@ export default {
   },
   computed: {
     downstreamPipelines() {
-      return this.pipeline?.downstream?.nodes;
+      const downstream = this.pipeline?.downstream?.nodes;
+      return keepLatestDownstreamPipelines(downstream);
     },
     pipelinePath() {
       return this.pipeline?.path ?? '';
@@ -108,7 +110,7 @@ export default {
       try {
         this.formattedStages = formatStages(this.pipelineStages, this.stages);
       } catch (error) {
-        createFlash({
+        createAlert({
           message: this.$options.i18n.stageConversionError,
           captureError: true,
           error,
@@ -124,7 +126,7 @@ export default {
 </script>
 
 <template>
-  <div class="gl-pt-2">
+  <div>
     <gl-loading-icon v-if="$apollo.queries.pipeline.loading" />
     <pipeline-mini-graph
       v-else

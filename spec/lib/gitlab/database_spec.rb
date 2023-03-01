@@ -32,36 +32,32 @@ RSpec.describe Gitlab::Database do
   end
 
   describe '.has_config?' do
-    context 'two tier database config' do
-      before do
-        allow(Gitlab::Application).to receive_message_chain(:config, :database_configuration, :[]).with(Rails.env)
-          .and_return({ "adapter" => "postgresql", "database" => "gitlabhq_test" })
-      end
-
-      it 'returns false for primary' do
-        expect(described_class.has_config?(:primary)).to eq(false)
-      end
-
-      it 'returns false for ci' do
-        expect(described_class.has_config?(:ci)).to eq(false)
-      end
-    end
-
     context 'three tier database config' do
-      before do
-        allow(Gitlab::Application).to receive_message_chain(:config, :database_configuration, :[]).with(Rails.env)
-          .and_return({
-            "primary" => { "adapter" => "postgresql", "database" => "gitlabhq_test" },
-            "ci" => { "adapter" => "postgresql", "database" => "gitlabhq_test_ci" }
-          })
+      it 'returns true for main' do
+        expect(described_class.has_config?(:main)).to eq(true)
       end
 
-      it 'returns true for primary' do
-        expect(described_class.has_config?(:primary)).to eq(true)
-      end
+      context 'ci' do
+        before do
+          # CI config might not be configured
+          allow(ActiveRecord::Base.configurations).to receive(:configs_for)
+            .with(env_name: 'test', name: 'ci', include_replicas: true)
+            .and_return(ci_db_config)
+        end
 
-      it 'returns true for ci' do
-        expect(described_class.has_config?(:ci)).to eq(true)
+        let(:ci_db_config) { instance_double('ActiveRecord::DatabaseConfigurations::HashConfig') }
+
+        it 'returns true for ci' do
+          expect(described_class.has_config?(:ci)).to eq(true)
+        end
+
+        context 'ci database.yml not configured' do
+          let(:ci_db_config) { nil }
+
+          it 'returns false for ci' do
+            expect(described_class.has_config?(:ci)).to eq(false)
+          end
+        end
       end
 
       it 'returns false for non-existent' do
@@ -154,7 +150,7 @@ RSpec.describe Gitlab::Database do
   describe '.db_config_for_connection' do
     context 'when the regular connection is used' do
       it 'returns db_config' do
-        connection = ActiveRecord::Base.retrieve_connection
+        connection = ApplicationRecord.retrieve_connection
 
         expect(described_class.db_config_for_connection(connection)).to eq(connection.pool.db_config)
       end
@@ -162,12 +158,15 @@ RSpec.describe Gitlab::Database do
 
     context 'when the connection is LoadBalancing::ConnectionProxy', :database_replica do
       it 'returns primary db config even if ambiguous queries default to replica' do
-        Gitlab::Database::LoadBalancing::Session.current.use_primary!
-        primary_config = described_class.db_config_for_connection(ActiveRecord::Base.connection)
+        Gitlab::Database.database_base_models_using_load_balancing.each_value do |database_base_model|
+          connection = database_base_model.connection
+          Gitlab::Database::LoadBalancing::Session.current.use_primary!
+          primary_config = described_class.db_config_for_connection(connection)
 
-        Gitlab::Database::LoadBalancing::Session.clear_session
-        Gitlab::Database::LoadBalancing::Session.current.fallback_to_replicas_for_ambiguous_queries do
-          expect(described_class.db_config_for_connection(ActiveRecord::Base.connection)).to eq(primary_config)
+          Gitlab::Database::LoadBalancing::Session.clear_session
+          Gitlab::Database::LoadBalancing::Session.current.fallback_to_replicas_for_ambiguous_queries do
+            expect(described_class.db_config_for_connection(connection)).to eq(primary_config)
+          end
         end
       end
     end
@@ -195,10 +194,15 @@ RSpec.describe Gitlab::Database do
     end
 
     context 'when replicas are configured', :database_replica do
-      it 'returns the name for a replica' do
-        replica = ActiveRecord::Base.load_balancer.host
-
+      it 'returns the main_replica for a main database replica' do
+        replica = ApplicationRecord.load_balancer.host
         expect(described_class.db_config_name(replica)).to eq('main_replica')
+      end
+
+      it 'returns the ci_replica for a ci database replica' do
+        skip_if_multiple_databases_not_setup(:ci)
+        replica = Ci::ApplicationRecord.load_balancer.host
+        expect(described_class.db_config_name(replica)).to eq('ci_replica')
       end
     end
   end
@@ -229,13 +233,17 @@ RSpec.describe Gitlab::Database do
       expect(described_class.gitlab_schemas_for_connection(Ci::Build.connection)).to include(:gitlab_ci, :gitlab_shared)
     end
 
+    # rubocop:disable Database/MultipleDatabases
     it 'does return gitlab_ci when a ActiveRecord::Base is using CI connection' do
       with_reestablished_active_record_base do
         reconfigure_db_connection(model: ActiveRecord::Base, config_model: Ci::Build)
 
-        expect(described_class.gitlab_schemas_for_connection(ActiveRecord::Base.connection)).to include(:gitlab_ci, :gitlab_shared)
+        expect(
+          described_class.gitlab_schemas_for_connection(ActiveRecord::Base.connection)
+        ).to include(:gitlab_ci, :gitlab_shared)
       end
     end
+    # rubocop:enable Database/MultipleDatabases
 
     it 'does return a valid schema for a replica connection' do
       with_replica_pool_for(ActiveRecord::Base) do |main_replica_pool|
@@ -257,13 +265,9 @@ RSpec.describe Gitlab::Database do
       pool&.disconnect!
     end
 
-    context "when there's CI connection", :request_store do
+    context "when there's CI connection" do
       before do
-        skip_if_multiple_databases_not_setup
-
-        # FF due to lib/gitlab/database/load_balancing/configuration.rb:92
-        # Requires usage of `:request_store`
-        stub_feature_flags(force_no_sharing_primary_model: true)
+        skip_if_multiple_databases_not_setup(:ci)
       end
 
       context 'when CI uses database_tasks: false does indicate that ci: is subset of main:' do
@@ -300,11 +304,32 @@ RSpec.describe Gitlab::Database do
 
     it 'does return empty for non-adopted connections' do
       new_connection = ActiveRecord::Base.postgresql_connection(
-        ActiveRecord::Base.connection_db_config.configuration_hash)
+        ActiveRecord::Base.connection_db_config.configuration_hash # rubocop:disable Database/MultipleDatabases
+      )
 
       expect(described_class.gitlab_schemas_for_connection(new_connection)).to be_nil
     ensure
       new_connection&.disconnect!
+    end
+  end
+
+  describe '.database_base_models_with_gitlab_shared' do
+    before do
+      Gitlab::Database.instance_variable_set(:@database_base_models_with_gitlab_shared, nil)
+    end
+
+    it 'memoizes the models' do
+      expect { Gitlab::Database.database_base_models_with_gitlab_shared }.to change { Gitlab::Database.instance_variable_get(:@database_base_models_with_gitlab_shared) }.from(nil)
+    end
+  end
+
+  describe '.database_base_models_using_load_balancing' do
+    before do
+      Gitlab::Database.instance_variable_set(:@database_base_models_using_load_balancing, nil)
+    end
+
+    it 'memoizes the models' do
+      expect { Gitlab::Database.database_base_models_using_load_balancing }.to change { Gitlab::Database.instance_variable_get(:@database_base_models_using_load_balancing) }.from(nil)
     end
   end
 
@@ -424,7 +449,7 @@ RSpec.describe Gitlab::Database do
     context 'within a transaction block' do
       it 'publishes a transaction event' do
         events = subscribe_events do
-          ActiveRecord::Base.transaction do
+          ApplicationRecord.transaction do
             User.first
           end
         end
@@ -443,10 +468,11 @@ RSpec.describe Gitlab::Database do
     context 'within an empty transaction block' do
       it 'publishes a transaction event' do
         events = subscribe_events do
-          ActiveRecord::Base.transaction {}
+          ApplicationRecord.transaction {}
+          Ci::ApplicationRecord.transaction {}
         end
 
-        expect(events.length).to be(1)
+        expect(events.length).to be(2)
 
         event = events.first
         expect(event).not_to be_nil
@@ -460,9 +486,9 @@ RSpec.describe Gitlab::Database do
     context 'within a nested transaction block' do
       it 'publishes multiple transaction events' do
         events = subscribe_events do
-          ActiveRecord::Base.transaction do
-            ActiveRecord::Base.transaction do
-              ActiveRecord::Base.transaction do
+          ApplicationRecord.transaction do
+            ApplicationRecord.transaction do
+              ApplicationRecord.transaction do
                 User.first
               end
             end
@@ -484,7 +510,7 @@ RSpec.describe Gitlab::Database do
     context 'within a cancelled transaction block' do
       it 'publishes multiple transaction events' do
         events = subscribe_events do
-          ActiveRecord::Base.transaction do
+          ApplicationRecord.transaction do
             User.first
             raise ActiveRecord::Rollback
           end
@@ -498,6 +524,35 @@ RSpec.describe Gitlab::Database do
         expect(event.payload).to a_hash_including(
           connection: be_a(Gitlab::Database::LoadBalancing::ConnectionProxy)
         )
+      end
+    end
+  end
+
+  describe '.read_minimum_migration_version' do
+    before do
+      allow(Dir).to receive(:open).with(Rails.root.join('db/migrate')).and_return(migration_files)
+    end
+
+    context 'valid migration files exist' do
+      let(:migration_files) do
+        [
+          '20211004170422_init_schema.rb',
+          '20211005182304_add_users.rb'
+        ]
+      end
+
+      let(:valid_schema) { 20211004170422 }
+
+      it 'finds the correct ID' do
+        expect(described_class.read_minimum_migration_version).to eq valid_schema
+      end
+    end
+
+    context 'no valid migration files exist' do
+      let(:migration_files) { ['readme.txt', 'INSTALL'] }
+
+      it 'returns nil' do
+        expect(described_class.read_minimum_migration_version).to be_nil
       end
     end
   end

@@ -4,8 +4,8 @@ class SessionsController < Devise::SessionsController
   include InternalRedirect
   include AuthenticatesWithTwoFactor
   include Devise::Controllers::Rememberable
-  include Recaptcha::ClientHelper
-  include Recaptcha::Verify
+  include Recaptcha::Adapters::ViewMethods
+  include Recaptcha::Adapters::ControllerMethods
   include RendersLdapServers
   include KnownSignIn
   include Gitlab::Utils::StrongMemoize
@@ -13,6 +13,7 @@ class SessionsController < Devise::SessionsController
   include BizibleCSP
   include VerifiesWithEmail
   include GoogleAnalyticsCSP
+  include PreferredLanguageSwitcher
 
   skip_before_action :check_two_factor_requirement, only: [:destroy]
   skip_before_action :check_password_expiration, only: [:destroy]
@@ -30,6 +31,7 @@ class SessionsController < Devise::SessionsController
   prepend_before_action :ensure_password_authentication_enabled!, if: -> { action_name == 'create' && password_based_login? }
 
   before_action :auto_sign_in_with_provider, only: [:new]
+  before_action :init_preferred_language, only: :new
   before_action :store_unauthenticated_sessions, only: [:new]
   before_action :save_failed_login, if: :action_new_and_failed_login?
   before_action :load_recaptcha
@@ -107,11 +109,11 @@ class SessionsController < Devise::SessionsController
   end
 
   def captcha_enabled?
-    request.headers[CAPTCHA_HEADER] && Gitlab::Recaptcha.enabled?
+    request.headers[CAPTCHA_HEADER] && helpers.recaptcha_enabled?
   end
 
   def captcha_on_login_required?
-    Gitlab::Recaptcha.enabled_on_login? && unverified_anonymous_user?
+    helpers.recaptcha_enabled_on_login? && unverified_anonymous_user?
   end
 
   # From https://github.com/plataformatec/devise/wiki/How-To:-Use-Recaptcha-with-Devise#devisepasswordscontroller
@@ -287,7 +289,7 @@ class SessionsController < Devise::SessionsController
 
   def log_user_activity(user)
     login_counter.increment
-    Users::ActivityService.new(user).execute
+    Users::ActivityService.new(author: user).execute
   end
 
   def load_recaptcha

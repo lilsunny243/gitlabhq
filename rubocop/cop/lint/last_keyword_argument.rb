@@ -9,13 +9,17 @@ module RuboCop
       # 1. Running specs with RECORD_DEPRECATIONS=1
       # 1. Downloading the complete set of deprecations/ files from a CI
       # pipeline (see https://gitlab.com/gitlab-org/gitlab/-/merge_requests/47720)
-      class LastKeywordArgument < Cop
+      class LastKeywordArgument < RuboCop::Cop::Base
+        extend RuboCop::Cop::AutoCorrector
+
         MSG = 'Using the last argument as keyword parameters is deprecated'
 
         DEPRECATIONS_GLOB = File.expand_path('../../../deprecations/**/*.yml', __dir__)
         KEYWORD_DEPRECATION_STR = 'maybe ** should be added to the call'
 
         def on_send(node)
+          return if target_ruby_version >= 3.0
+
           arg = get_last_argument(node)
           return unless arg
 
@@ -26,11 +30,7 @@ module RuboCop
           # parser thinks `a: :b, c: :d` is hash type, it's actually kwargs
           return if arg.hash_type? && !arg.source.match(/\A{/)
 
-          add_offense(arg)
-        end
-
-        def autocorrect(arg)
-          lambda do |corrector|
+          add_offense(arg) do |corrector|
             if arg.hash_type?
               kwarg = arg.source.sub(/\A{\s*/, '').sub(/\s*}\z/, '')
               corrector.replace(arg, kwarg)
@@ -51,12 +51,12 @@ module RuboCop
         end
 
         def known_match?(file_path, line_number, method_name)
-          file_path_from_root = file_path.sub(File.expand_path('../../..', __dir__), '')
-          file_and_line = "#{file_path_from_root}:#{line_number}"
-
           method_name = 'initialize' if method_name == 'new'
 
           return unless self.class.keyword_warnings[method_name]
+
+          file_path_from_root = file_path.sub(File.expand_path('../../..', __dir__), '')
+          file_and_line = "#{file_path_from_root}:#{line_number}"
 
           self.class.keyword_warnings[method_name].any? do |warning|
             warning.include?(file_and_line)

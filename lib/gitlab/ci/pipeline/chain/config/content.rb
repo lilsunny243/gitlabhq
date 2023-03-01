@@ -7,21 +7,14 @@ module Gitlab
         module Config
           class Content < Chain::Base
             include Chain::Helpers
-
-            SOURCES = [
-              Gitlab::Ci::Pipeline::Chain::Config::Content::Parameter,
-              Gitlab::Ci::Pipeline::Chain::Config::Content::Bridge,
-              Gitlab::Ci::Pipeline::Chain::Config::Content::Repository,
-              Gitlab::Ci::Pipeline::Chain::Config::Content::ExternalProject,
-              Gitlab::Ci::Pipeline::Chain::Config::Content::Remote,
-              Gitlab::Ci::Pipeline::Chain::Config::Content::AutoDevops
-            ].freeze
+            include ::Gitlab::Utils::StrongMemoize
 
             def perform!
-              if config = find_config
-                @pipeline.build_pipeline_config(content: config.content)
-                @command.config_content = config.content
-                @pipeline.config_source = config.source
+              if pipeline_config&.exists?
+                @pipeline.build_pipeline_config(content: pipeline_config.content)
+                @command.config_content = pipeline_config.content
+                @pipeline.config_source = pipeline_config.source
+                @command.pipeline_config = pipeline_config
               else
                 error('Missing CI config file')
               end
@@ -33,17 +26,14 @@ module Gitlab
 
             private
 
-            def find_config
-              sources.each do |source|
-                config = source.new(@pipeline, @command)
-                return config if config.exists?
+            def pipeline_config
+              strong_memoize(:pipeline_config) do
+                ::Gitlab::Ci::ProjectConfig.new(
+                  project: project, sha: @pipeline.sha,
+                  custom_content: @command.content,
+                  pipeline_source: @command.source, pipeline_source_bridge: @command.bridge
+                )
               end
-
-              nil
-            end
-
-            def sources
-              SOURCES
             end
           end
         end
@@ -51,5 +41,3 @@ module Gitlab
     end
   end
 end
-
-Gitlab::Ci::Pipeline::Chain::Config::Content.prepend_mod_with('Gitlab::Ci::Pipeline::Chain::Config::Content')

@@ -11,11 +11,10 @@ module QA
         include Shared::Editor
 
         view 'app/views/projects/blob/_editor.html.haml' do
-          element :file_name, "text_field_tag 'file_name'" # rubocop:disable QA/ElementWithPattern
+          element :file_name_field
         end
 
         view 'app/views/projects/blob/_template_selectors.html.haml' do
-          element :template_type_dropdown
           element :gitignore_dropdown
           element :gitlab_ci_yml_dropdown
           element :dockerfile_dropdown
@@ -23,13 +22,20 @@ module QA
         end
 
         def add_name(name)
-          fill_in 'file_name', with: name
+          fill_element(:file_name_field, name)
+        end
+
+        def add_custom_name(template_name)
+          case template_name
+          # Name has to be exactly LICENSE for template-type-dropdown to appear
+          when 'LICENSE'
+            add_name(template_name.to_s)
+          else
+            add_name("#{SecureRandom.hex(8)}/#{template_name}")
+          end
         end
 
         def select_template(template_type, template)
-          click_element :template_type_dropdown
-          click_link template_type
-
           case template_type
           when '.gitignore'
             click_element :gitignore_dropdown

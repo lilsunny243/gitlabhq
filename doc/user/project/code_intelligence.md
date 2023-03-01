@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference
 ---
 
@@ -17,7 +17,10 @@ development environments (IDE), including:
 
 Code Intelligence is built into GitLab and powered by [LSIF](https://lsif.dev/)
 (Language Server Index Format), a file format for precomputed code
-intelligence data.
+intelligence data. GitLab processes one LSIF file per project, and
+Code Intelligence does not support different LSIF files per branch.
+Follow epic [#4212, Code intelligence enhancements](https://gitlab.com/groups/gitlab-org/-/epics/4212)
+for progress on upcoming enhancements.
 
 NOTE:
 You can automate this feature in your applications by using [Auto DevOps](../../topics/autodevops/index.md).
@@ -40,7 +43,7 @@ code_navigation:
 
 The generated LSIF file size may be limited by
 the [artifact application limits (`ci_max_artifact_size_lsif`)](../../administration/instance_limits.md#maximum-file-size-per-type-of-artifact),
-default to 100MB (configurable by an instance administrator).
+default to 100 MB (configurable by an instance administrator).
 
 After the job succeeds, code intelligence data can be viewed while browsing the code:
 
@@ -59,13 +62,5 @@ under the **References** tab:
 ## Language support
 
 Generating an LSIF file requires a language server indexer implementation for the
-relevant language.
-
-| Language | Implementation |
-|---|---|
-| Go | [`sourcegraph/lsif-go`](https://github.com/sourcegraph/lsif-go) |
-| JavaScript | [`sourcegraph/lsif-node`](https://github.com/sourcegraph/lsif-node) |
-| TypeScript | [`sourcegraph/lsif-node`](https://github.com/sourcegraph/lsif-node) |
-
-View a complete list of [available LSIF indexers](https://lsif.dev/#implementations-server) on their website and
+relevant language. View a complete list of [available LSIF indexers](https://lsif.dev/#implementations-server) on their website and
 refer to their documentation to see how to generate an LSIF file for your specific language.

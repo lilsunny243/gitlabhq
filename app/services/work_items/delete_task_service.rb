@@ -2,7 +2,7 @@
 
 module WorkItems
   class DeleteTaskService
-    def initialize(work_item:, current_user: nil, task_params: {}, lock_version:)
+    def initialize(work_item:, lock_version:, current_user: nil, task_params: {})
       @work_item = work_item
       @current_user = current_user
       @task_params = task_params
@@ -25,7 +25,7 @@ module WorkItems
         break ::ServiceResponse.error(message: replacement_result.errors, http_status: 422) if replacement_result.error?
 
         delete_result = ::WorkItems::DeleteService.new(
-          project: @task.project,
+          container: @task.project,
           current_user: @current_user
         ).execute(@task)
 

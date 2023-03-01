@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Requirements for Auto DevOps **(FREE)**
@@ -36,12 +36,12 @@ that works best for your needs:
 | Deployment strategy | Setup | Methodology |
 |--|--|--|
 | **Continuous deployment to production** | Enables [Auto Deploy](stages.md#auto-deploy) with the default branch continuously deployed to production. | Continuous deployment to production.|
-| **Continuous deployment to production using timed incremental rollout** | Sets the [`INCREMENTAL_ROLLOUT_MODE`](customize.md#timed-incremental-rollout-to-production) variable to `timed`. | Continuously deploy to production with a 5 minutes delay between rollouts. |
-| **Automatic deployment to staging, manual deployment to production** | Sets [`STAGING_ENABLED`](customize.md#deploy-policy-for-staging-and-production-environments) to `1` and [`INCREMENTAL_ROLLOUT_MODE`](customize.md#incremental-rollout-to-production) to `manual`. | The default branch is continuously deployed to staging and continuously delivered to production. |
+| **Continuous deployment to production using timed incremental rollout** | Sets the [`INCREMENTAL_ROLLOUT_MODE`](cicd_variables.md#timed-incremental-rollout-to-production) variable to `timed`. | Continuously deploy to production with a 5 minutes delay between rollouts. |
+| **Automatic deployment to staging, manual deployment to production** | Sets [`STAGING_ENABLED`](cicd_variables.md#deploy-policy-for-staging-and-production-environments) to `1` and [`INCREMENTAL_ROLLOUT_MODE`](cicd_variables.md#incremental-rollout-to-production) to `manual`. | The default branch is continuously deployed to staging and continuously delivered to production. |
 
 You can choose the deployment method when enabling Auto DevOps or later:
 
-1. In GitLab, on the top bar, select **Menu > Projects** and find your project.
+1. In GitLab, on the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Choose the deployment strategy.
@@ -61,7 +61,7 @@ To define the base domain, either:
 
 - In the project, group, or instance level: go to your cluster settings and add it there.
 - In the project or group level: add it as an environment variable: `KUBE_INGRESS_BASE_DOMAIN`.
-- In the instance level: go to **Menu > Admin > Settings > CI/CD > Continuous Integration and Delivery** and add it there.
+- In the instance level: go to **Main menu > Admin > Settings > CI/CD > Continuous Integration and Delivery** and add it there.
 
 The base domain variable `KUBE_INGRESS_BASE_DOMAIN` follows the same order of precedence
 as other environment [variables](../../ci/variables/index.md#cicd-variable-precedence).
@@ -139,7 +139,7 @@ To make full use of Auto DevOps with Kubernetes, you need:
   [Docker Machine](https://docs.gitlab.com/runner/executors/docker_machine.html).
 
   Runners should be registered as [shared runners](../../ci/runners/runners_scope.md#shared-runners)
-  for the entire GitLab instance, or [specific runners](../../ci/runners/runners_scope.md#specific-runners)
+  for the entire GitLab instance, or [project runners](../../ci/runners/runners_scope.md#project-runners)
   that are assigned to specific projects.
 
 - **Prometheus** (for [Auto Monitoring](stages.md#auto-monitoring))
@@ -152,7 +152,7 @@ To make full use of Auto DevOps with Kubernetes, you need:
 
   The [Prometheus integration](../../user/project/integrations/prometheus.md)
   integration must be activated for the project, or activated at the group or instance level.
-  Learn more about [Project integration management](../../user/admin_area/settings/project_integration_management.md).
+  For more information, see [Project integration management](../../user/admin_area/settings/project_integration_management.md).
 
   To get response metrics (in addition to system metrics), you must
   [configure Prometheus to monitor NGINX](../../user/project/integrations/prometheus_library/nginx_ingress.md#configuring-nginx-ingress-monitoring).

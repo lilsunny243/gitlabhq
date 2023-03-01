@@ -109,19 +109,76 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
       end
 
       context 'filtering by release' do
-        context 'when the release tag is none' do
+        context 'when filter by none' do
           let(:params) { { release_tag: 'none' } }
 
           it 'returns items without releases' do
             expect(items).to contain_exactly(item2, item3, item4, item5)
           end
+
+          context 'when sort by milestone' do
+            let(:params) { { release_tag: 'none', sort: 'milestone_due_desc' } }
+
+            it 'returns items without any releases' do
+              expect(items).to contain_exactly(item2, item3, item4, item5)
+            end
+          end
         end
 
-        context 'when the release tag exists' do
+        context 'when filter by any' do
+          let(:params) { { release_tag: 'any' } }
+
+          it 'returns items with any releases' do
+            expect(items).to contain_exactly(item1)
+          end
+
+          context 'when sort by milestone' do
+            let(:params) { { release_tag: 'any', sort: 'milestone_due_desc' } }
+
+            it 'returns items without any releases' do
+              expect(items).to contain_exactly(item1)
+            end
+          end
+        end
+
+        context 'when filter by a release_tag' do
           let(:params) { { project_id: project1.id, release_tag: release.tag } }
 
-          it 'returns the items associated with that release' do
+          it 'returns the items associated with the release tag' do
             expect(items).to contain_exactly(item1)
+          end
+
+          context 'when sort by milestone' do
+            let(:params) { { project_id: project1.id, release_tag: release.tag, sort: 'milestone_due_desc' } }
+
+            it 'returns the items associated with the release tag' do
+              expect(items).to contain_exactly(item1)
+            end
+          end
+        end
+
+        context 'when filter by a negated release_tag' do
+          let_it_be(:another_release) { create(:release, project: project1, tag: 'v2.0.0') }
+          let_it_be(:another_milestone) { create(:milestone, project: project1, releases: [another_release]) }
+          let_it_be(:another_item) do
+            create(factory,
+                   project: project1,
+                   milestone: another_milestone,
+                   title: 'another item')
+          end
+
+          let(:params) { { not: { release_tag: release.tag, project_id: project1.id } } }
+
+          it 'returns the items not associated with the release' do
+            expect(items).to contain_exactly(another_item)
+          end
+
+          context 'when sort by milestone' do
+            let(:params) { { not: { release_tag: release.tag, project_id: project1.id }, sort: 'milestone_due_desc' } }
+
+            it 'returns the items not associated with the release' do
+              expect(items).to contain_exactly(another_item)
+            end
           end
         end
       end
@@ -493,6 +550,24 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
             expect(items).to contain_exactly(item1, item4, item5)
           end
         end
+
+        context 'using OR' do
+          let(:params) { { or: { label_name: [label.title, label2.title].join(',') } } }
+
+          it 'returns items that have at least one of the given labels' do
+            expect(items).to contain_exactly(item2, item3)
+          end
+
+          context 'when feature flag is disabled' do
+            before do
+              stub_feature_flags(or_issuable_queries: false)
+            end
+
+            it 'does not add any filter' do
+              expect(items).to contain_exactly(item1, item2, item3, item4, item5)
+            end
+          end
+        end
       end
 
       context 'filtering by a label that includes any or none in the title' do
@@ -585,7 +660,7 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
         end
 
         context 'when full-text search is disabled' do
-          let(:search_term) { 'somet' }
+          let(:search_term) { 'ometh' }
 
           before do
             stub_feature_flags(issues_full_text_search: false)
@@ -593,35 +668,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
           it 'allows partial word matches' do
             expect(items).to contain_exactly(english)
-          end
-        end
-
-        context 'with anonymous user' do
-          let_it_be(:public_project) { create(:project, :public, group: subgroup) }
-          let_it_be(:item6) { create(factory, project: public_project, title: 'tanuki') }
-          let_it_be(:item7) { create(factory, project: public_project, title: 'ikunat') }
-
-          let(:search_user) { nil }
-          let(:params) { { search: 'tanuki' } }
-
-          context 'with disable_anonymous_search feature flag enabled' do
-            before do
-              stub_feature_flags(disable_anonymous_search: true)
-            end
-
-            it 'does not perform search' do
-              expect(items).to contain_exactly(item6, item7)
-            end
-          end
-
-          context 'with disable_anonymous_search feature flag disabled' do
-            before do
-              stub_feature_flags(disable_anonymous_search: false)
-            end
-
-            it 'finds one public item' do
-              expect(items).to contain_exactly(item6)
-            end
           end
         end
       end
@@ -864,12 +910,15 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
       context 'filtering by item type' do
         let_it_be(:incident_item) { create(factory, issue_type: :incident, project: project1) }
+        let_it_be(:objective) { create(factory, issue_type: :objective, project: project1) }
+        let_it_be(:key_result) { create(factory, issue_type: :key_result, project: project1) }
 
         context 'no type given' do
           let(:params) { { issue_types: [] } }
 
           it 'returns all items' do
-            expect(items).to contain_exactly(incident_item, item1, item2, item3, item4, item5)
+            expect(items)
+              .to contain_exactly(incident_item, item1, item2, item3, item4, item5, objective, key_result)
           end
         end
 
@@ -878,6 +927,22 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
           it 'returns incident items' do
             expect(items).to contain_exactly(incident_item)
+          end
+        end
+
+        context 'objective type' do
+          let(:params) { { issue_types: ['objective'] } }
+
+          it 'returns incident items' do
+            expect(items).to contain_exactly(objective)
+          end
+        end
+
+        context 'key_result type' do
+          let(:params) { { issue_types: ['key_result'] } }
+
+          it 'returns incident items' do
+            expect(items).to contain_exactly(key_result)
           end
         end
 
@@ -909,7 +974,7 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
           let(:params) { { issue_types: ['nonsense'] } }
 
           it 'returns no items' do
-            expect(items).to eq(items_model.none)
+            expect(items.none?).to eq(true)
           end
         end
       end
@@ -1191,28 +1256,12 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
         subject { described_class.new(nil, params).with_confidentiality_access_check }
 
         it_behaves_like 'returns public, does not return hidden or confidential'
-
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public and hidden, does not return confidential'
-        end
       end
 
       context 'for a user without project membership' do
         subject { described_class.new(user, params).with_confidentiality_access_check }
 
         it_behaves_like 'returns public, does not return hidden or confidential'
-
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public and hidden, does not return confidential'
-        end
       end
 
       context 'for a guest user' do
@@ -1223,28 +1272,12 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
         end
 
         it_behaves_like 'returns public, does not return hidden or confidential'
-
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public and hidden, does not return confidential'
-        end
       end
 
       context 'for a project member with access to view confidential items' do
         subject { described_class.new(authorized_user, params).with_confidentiality_access_check }
 
         it_behaves_like 'returns public and confidential, does not return hidden'
-
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public, confidential, and hidden'
-        end
       end
 
       context 'for an admin' do
@@ -1254,26 +1287,10 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
         context 'when admin mode is enabled', :enable_admin_mode do
           it_behaves_like 'returns public, confidential, and hidden'
-
-          context 'when feature flag is disabled' do
-            before do
-              stub_feature_flags(ban_user_feature_flag: false)
-            end
-
-            it_behaves_like 'returns public, confidential, and hidden'
-          end
         end
 
         context 'when admin mode is disabled' do
           it_behaves_like 'returns public, does not return hidden or confidential'
-
-          context 'when feature flag is disabled' do
-            before do
-              stub_feature_flags(ban_user_feature_flag: false)
-            end
-
-            it_behaves_like 'returns public and hidden, does not return confidential'
-          end
         end
       end
     end
@@ -1286,14 +1303,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
         it_behaves_like 'returns public, does not return hidden or confidential'
 
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public and hidden, does not return confidential'
-        end
-
         it 'does not filter by confidentiality' do
           expect(items_model).not_to receive(:where).with(a_string_matching('confidential'), anything)
           subject
@@ -1304,14 +1313,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
         subject { described_class.new(user, params).with_confidentiality_access_check }
 
         it_behaves_like 'returns public, does not return hidden or confidential'
-
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public and hidden, does not return confidential'
-        end
 
         it 'filters by confidentiality' do
           expect(subject.to_sql).to match("issues.confidential")
@@ -1327,14 +1328,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
         it_behaves_like 'returns public, does not return hidden or confidential'
 
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public and hidden, does not return confidential'
-        end
-
         it 'filters by confidentiality' do
           expect(subject.to_sql).to match("issues.confidential")
         end
@@ -1344,14 +1337,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
         subject { described_class.new(authorized_user, params).with_confidentiality_access_check }
 
         it_behaves_like 'returns public and confidential, does not return hidden'
-
-        context 'when feature flag is disabled' do
-          before do
-            stub_feature_flags(ban_user_feature_flag: false)
-          end
-
-          it_behaves_like 'returns public, confidential, and hidden'
-        end
 
         it 'does not filter by confidentiality' do
           expect(items_model).not_to receive(:where).with(a_string_matching('confidential'), anything)
@@ -1368,14 +1353,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
         context 'when admin mode is enabled', :enable_admin_mode do
           it_behaves_like 'returns public, confidential, and hidden'
 
-          context 'when feature flag is disabled' do
-            before do
-              stub_feature_flags(ban_user_feature_flag: false)
-            end
-
-            it_behaves_like 'returns public, confidential, and hidden'
-          end
-
           it 'does not filter by confidentiality' do
             expect(items_model).not_to receive(:where).with(a_string_matching('confidential'), anything)
 
@@ -1385,14 +1362,6 @@ RSpec.shared_examples 'issues or work items finder' do |factory, execute_context
 
         context 'when admin mode is disabled' do
           it_behaves_like 'returns public, does not return hidden or confidential'
-
-          context 'when feature flag is disabled' do
-            before do
-              stub_feature_flags(ban_user_feature_flag: false)
-            end
-
-            it_behaves_like 'returns public and hidden, does not return confidential'
-          end
 
           it 'filters by confidentiality' do
             expect(subject.to_sql).to match("issues.confidential")

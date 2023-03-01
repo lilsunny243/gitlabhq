@@ -41,6 +41,10 @@ export default (function initInviteMembersModal() {
               usersLimitDataset: convertObjectPropsToCamelCase(
                 JSON.parse(el.dataset.usersLimitDataset || '{}'),
               ),
+              activeTrialDataset: convertObjectPropsToCamelCase(
+                JSON.parse(el.dataset.activeTrialDataset || '{}'),
+              ),
+              reloadPageOnSubmit: parseBoolean(el.dataset.reloadPageOnSubmit),
             },
           }),
       });

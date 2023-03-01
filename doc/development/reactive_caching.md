@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # `ReactiveCaching`
@@ -208,7 +208,7 @@ There are some `class_attribute` options which can be tweaked.
   self.reactive_cache_key = ->(integration) { [integration.class.model_name.singular, integration.project_id] }
   ```
 
-  If your reactive_cache_key is exactly like the above, you can use the existing
+  If your `reactive_cache_key` is exactly like the above, you can use the existing
   `Integrations::ReactivelyCached` concern instead.
 
 #### `self.reactive_cache_lease_timeout`

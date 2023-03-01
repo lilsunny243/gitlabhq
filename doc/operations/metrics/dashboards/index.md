@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Custom dashboards (DEPRECATED) **(FREE)**
@@ -33,7 +33,7 @@ To create a new dashboard from the GitLab user interface:
 1. Sign in to GitLab as a user with Maintainer or Owner
    [permissions](../../../user/permissions.md#project-members-permissions).
 1. Navigate to your dashboard at **Monitor > Metrics**.
-1. In the top-right corner of your dashboard, select the **{ellipsis_v}** **More actions** menu,
+1. In the upper-right corner of your dashboard, select the **{ellipsis_v}** **More actions** menu,
    and select **Create new**:
    ![Monitoring Dashboard actions menu with create new item](img/actions_menu_create_new_dashboard_v13_3.png)
 1. In the modal window, select **Open Repository**, then follow the instructions
@@ -66,7 +66,7 @@ To create a new dashboard from the command line:
 
 1. Save the file, commit, and push to your repository. The file must be present in your **default** branch.
 1. Navigate to your project's **Monitor > Metrics** and choose the custom
-   dashboard from the dropdown.
+   dashboard from the dropdown list.
 
 Your custom dashboard is available at `https://example.com/project/-/metrics/custom_dashboard_name.yml`.
 
@@ -124,9 +124,9 @@ can manage [the settings](settings.md) for your metrics dashboard.
 
 ## Chart Context Menu
 
-You can take action related to a chart's data by clicking the
-**{ellipsis_v}** **More actions** dropdown box above the upper right corner of
-any chart on a dashboard:
+To take action related to a chart's data:
+
+- In the upper-right corner of the chart, select **More actions** (**{ellipsis_v}**).
 
 ![Context Menu](img/panel_context_menu_v14_0.png)
 
@@ -190,7 +190,7 @@ Related links can contain the following attributes:
 - `title`: A phrase describing the link. Optional. If this attribute is not set,
   the full URL is used for the link title.
 - `type`: A string declaring the type of link. Optional. If set to `grafana`, the
-  dashboard's time range values are converted to Grafana's time range format and
+  dashboard's time range values are converted to the Grafana time range format and
   appended to the `url`.
 
 The dashboard's time range is appended to the `url` as URL parameters.

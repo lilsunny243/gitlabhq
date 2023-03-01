@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Monitoring NGINX Ingress Controller with VTS metrics (DEPRECATED) **(FREE)**
@@ -38,10 +38,10 @@ Next, the Ingress needs to be annotated for Prometheus monitoring. Two new annot
 - `prometheus.io/scrape: "true"`
 - `prometheus.io/port: "10254"`
 
-Managing these settings depends on how NGINX Ingress has been deployed. If you have deployed via the [official Helm chart](https://github.com/helm/charts/tree/master/stable/nginx-ingress), metrics can be enabled with `controller.stats.enabled` along with the required annotations. Alternatively it is possible edit the NGINX Ingress YAML directly in the [Kubernetes dashboard](https://github.com/kubernetes/dashboard).
+Managing these settings depends on how NGINX Ingress has been deployed. If you have deployed via the [official Helm chart](https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx), metrics can be enabled with `controller.stats.enabled` along with the required annotations. Alternatively it is possible edit the NGINX Ingress YAML directly in the [Kubernetes dashboard](https://github.com/kubernetes/dashboard).
 
 ## Specifying the Environment label
 
-In order to isolate and only display relevant metrics for a given environment, GitLab needs a method to detect which labels are associated. To do this, GitLab searches for metrics with appropriate labels. In this case, the `upstream` label must be of the form `<KUBE_NAMESPACE>-<CI_ENVIRONMENT_SLUG>-*`.
+To isolate and only display relevant metrics for a given environment, GitLab needs a method to detect which labels are associated. To do this, GitLab searches for metrics with appropriate labels. In this case, the `upstream` label must be of the form `<KUBE_NAMESPACE>-<CI_ENVIRONMENT_SLUG>-*`.
 
 If you have used [Auto Deploy](../../../../topics/autodevops/stages.md#auto-deploy) to deploy your app, this format is used automatically and metrics are detected with no action on your part.

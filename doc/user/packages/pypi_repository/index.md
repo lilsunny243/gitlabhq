@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # PyPI packages in the Package Registry **(FREE)**
@@ -20,148 +20,7 @@ The Package Registry works with:
 For documentation of the specific API endpoints that the `pip` and `twine`
 clients use, see the [PyPI API documentation](../../../api/packages/pypi.md).
 
-## Build a PyPI package
-
-This section explains how to create a PyPI package.
-
-If you already use PyPI and know how to build your own packages, go to the
-[next section](#authenticate-with-the-package-registry).
-
-### Install pip and twine
-
-Install a recent version of [pip](https://pypi.org/project/pip/) and
-[twine](https://pypi.org/project/twine/).
-
-### Create a project
-
-Create a test project.
-
-1. Open your terminal.
-1. Create a directory called `MyPyPiPackage`, and then go to that directory:
-
-   ```shell
-   mkdir MyPyPiPackage && cd MyPyPiPackage
-   ```
-
-1. Create another directory and go to it:
-
-   ```shell
-   mkdir mypypipackage && cd mypypipackage
-   ```
-
-1. Create the required files in this directory:
-
-   ```shell
-   touch __init__.py
-   touch greet.py
-   ```
-
-1. Open the `greet.py` file, and then add:
-
-   ```python
-   def SayHello():
-       print("Hello from MyPyPiPackage")
-       return
-   ```
-
-1. Open the `__init__.py` file, and then add:
-
-   ```python
-   from .greet import SayHello
-   ```
-
-1. To test the code, in your `MyPyPiPackage` directory, start the Python prompt.
-
-   ```shell
-   python
-   ```
-
-1. Run this command:
-
-   ```python
-   >>> from mypypipackage import SayHello
-   >>> SayHello()
-   ```
-
-A message indicates that the project was set up successfully:
-
-```plaintext
-Python 3.8.2 (v3.8.2:7b3ab5921f, Feb 24 2020, 17:52:18)
-[Clang 6.0 (clang-600.0.57)] on darwin
-Type "help", "copyright", "credits" or "license" for more information.
->>> from mypypipackage import SayHello
->>> SayHello()
-Hello from MyPyPiPackage
-```
-
-### Create a package
-
-After you create a project, you can create a package.
-
-1. In your terminal, go to the `MyPyPiPackage` directory.
-1. Create a `pyproject.toml` file:
-
-   ```shell
-   touch pyproject.toml
-   ```
-
-   This file contains all the information about the package. For more information
-   about this file, see [creating `pyproject.toml`](https://packaging.python.org/en/latest/tutorials/packaging-projects/#creating-pyproject-toml).
-   Because GitLab identifies packages based on
-   [Python normalized names (PEP-503)](https://www.python.org/dev/peps/pep-0503/#normalized-names),
-   ensure your package name meets these requirements. See the [installation section](#authenticate-with-a-ci-job-token)
-   for details.
-
-1. Open the `pyproject.toml` file, and then add basic information:
-
-   ```toml
-   [build-system]
-   requires = ["setuptools>=61.0"]
-   build-backend = "setuptools.build_meta"
-
-   [project]
-   name = "mypypipackage"
-   version = "0.0.1"
-   authors = [
-       { name="Example Author", email="author@example.com" },
-   ]
-   description = "A small example package"
-   requires-python = ">=3.7"
-   classifiers = [
-      "Programming Language :: Python :: 3",
-      "Operating System :: OS Independent",
-   ]
-
-   [tool.setuptools.packages]
-   find = {}
-   ```
-
-1. Save the file.
-1. Install the package build library:
-
-   ```shell
-   pip install build
-   ```
-
-1. Build the package:
-
-   ```shell
-   python -m build
-   ```
-
-The output should be visible in a newly-created `dist` folder:
-
-```shell
-ls dist
-```
-
-The output should appear similar to the following:
-
-```plaintext
-mypypipackage-0.0.1-py3-none-any.whl mypypipackage-0.0.1.tar.gz
-```
-
-The package is now ready to be published to the Package Registry.
+Learn how to [build a PyPI package](../workflows/build_packages.md#pypi).
 
 ## Authenticate with the Package Registry
 
@@ -191,7 +50,7 @@ password = <your_personal_access_token>
 ```
 
 The `<project_id>` is either the project's
-[URL-encoded](../../../api/index.md#namespaced-path-encoding)
+[URL-encoded](../../../api/rest/index.md#namespaced-path-encoding)
 path (for example, `group%2Fproject`), or the project's ID (for example `42`).
 
 ### Authenticate with a deploy token
@@ -210,7 +69,7 @@ password = <deploy token>
 ```
 
 The `<project_id>` is either the project's
-[URL-encoded](../../../api/index.md#namespaced-path-encoding)
+[URL-encoded](../../../api/rest/index.md#namespaced-path-encoding)
 path (for example, `group%2Fproject`), or the project's ID (for example `42`).
 
 ### Authenticate with a CI job token
@@ -309,7 +168,7 @@ Uploading mypypipackage-0.0.1.tar.gz
 100%|███████████████████████████████████████████████████████████████████████████████████████████| 4.24k/4.24k [00:00<00:00, 11.0kB/s]
 ```
 
-To view the published package, go to your project's **Packages & Registries**
+To view the published package, go to your project's **Packages and registries**
 page.
 
 If you didn't use a `.pypirc` file to define your repository source, you can
@@ -361,7 +220,7 @@ pip install --index-url https://<personal_access_token_name>:<personal_access_to
 - `<package_name>` is the package name.
 - `<personal_access_token_name>` is a personal access token name with the `read_api` scope.
 - `<personal_access_token>` is a personal access token with the `read_api` scope.
-- `<project_id>` is either the project's [URL-encoded](../../../api/index.md#namespaced-path-encoding)
+- `<project_id>` is either the project's [URL-encoded](../../../api/rest/index.md#namespaced-path-encoding)
   path (for example, `group%2Fproject`), or the project's ID (for example `42`).
 
 In these commands, you can use `--extra-index-url` instead of `--index-url`. However, using
@@ -424,15 +283,53 @@ characters are removed.
 A `pip install` request for `my.package` looks for packages that match any of
 the three characters, such as `my-package`, `my_package`, and `my....package`.
 
+## Using `requirements.txt`
+
+If you want pip to access your private registry, add the `--extra-index-url` parameter along with the URL for your registry to your `requirements.txt` file.
+
+```plaintext
+--extra-index-url https://gitlab.example.com/api/v4/projects/<project_id>/packages/pypi/simple
+package-name==1.0.0
+```
+
+If this is a private registry, you can authenticate in a couple of ways. For example:
+
+- Using your `requirements.txt` file:
+
+```plaintext
+--extra-index-url https://__token__:<your_personal_token>@gitlab.example.com/api/v4/projects/<project_id>/packages/pypi/simple
+package-name==1.0.0
+```
+
+- Using a `~/.netrc` file:
+
+```plaintext
+machine gitlab.example.com
+login __token__
+password <your_personal_token>
+```
+
 ## Troubleshooting
 
-To improve performance, PyPI caches files related to a package. Note that PyPI doesn't remove data by
+To improve performance, the pip command caches files related to a package. Pip doesn't remove data by
 itself. The cache grows as new packages are installed. If you encounter issues, clear the cache with
 this command:
 
 ```shell
 pip cache purge
 ```
+
+### Multiple `index-url` or `extra-index-url` parameters
+
+You can define multiple `index-url` and `extra-index-url` parameters.
+
+If you use the same domain name (such as `gitlab.example.com`) multiple times with different authentication
+tokens, `pip` may not be able to find your packages. This problem is due to how `pip`
+[registers and stores your tokens](https://github.com/pypa/pip/pull/10904#issuecomment-1126690115) during commands executions.
+
+To workaround this issue, you can use a [group deploy token](../../project/deploy_tokens/index.md) with the
+scope `read_package_registry` from a common parent group for all projects or groups targeted by the
+`index-url` and `extra-index-url` values.
 
 ## Supported CLI commands
 

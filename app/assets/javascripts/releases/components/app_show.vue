@@ -1,6 +1,7 @@
 <script>
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { s__ } from '~/locale';
+import { popCreateReleaseNotification } from '~/releases/release_notification_service';
 import oneReleaseQuery from '../graphql/queries/one_release.query.graphql';
 import { convertGraphQLRelease } from '../util';
 import ReleaseBlock from './release_block.vue';
@@ -49,9 +50,12 @@ export default {
       },
     },
   },
+  mounted() {
+    popCreateReleaseNotification(this.fullPath);
+  },
   methods: {
     showFlash(error) {
-      createFlash({
+      createAlert({
         message: s__('Release|Something went wrong while getting the release details.'),
         captureError: true,
         error,

@@ -3,10 +3,10 @@
 require 'spec_helper'
 require_migration!
 
-RSpec.describe UpsertBaseWorkItemTypes, :migration do
+RSpec.describe UpsertBaseWorkItemTypes, :migration, feature_category: :team_planning do
   include MigrationHelpers::WorkItemTypesHelper
 
-  let_it_be(:work_item_types) { table(:work_item_types) }
+  let!(:work_item_types) { table(:work_item_types) }
 
   let(:base_types) do
     {
@@ -17,7 +17,7 @@ RSpec.describe UpsertBaseWorkItemTypes, :migration do
     }
   end
 
-  after(:all) do
+  append_after(:all) do
     # Make sure base types are recreated after running the migration
     # because migration specs are not run in a transaction
     reset_work_item_types

@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Sorting and ordering issue lists **(FREE)**
@@ -100,6 +100,19 @@ title in this order:
 - Special characters
 - Numbers
 - Letters: first Latin, then accented (for example, `ö`)
+
+## Sorting by health status **(ULTIMATE)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/377841) in GitLab 15.7.
+
+When you sort by **Health**, the issue list changes to sort by the
+[health status](managing_issues.md#health-status) of the issues
+When in descending order, the issues are shown in the following order:
+
+1. **At risk** issues
+1. **Needs attention** issues
+1. **On track** issues
+1. All other issues
 
 ## Sorting by weight
 

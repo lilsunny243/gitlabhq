@@ -1,6 +1,15 @@
 <script>
-import { GlTable, GlButton, GlBadge, GlTooltipDirective, GlAvatarLink, GlAvatar } from '@gitlab/ui';
-import { s__ } from '~/locale';
+import {
+  GlAlert,
+  GlAvatar,
+  GlAvatarLink,
+  GlBadge,
+  GlButton,
+  GlTable,
+  GlTooltipDirective,
+} from '@gitlab/ui';
+import { __, s__ } from '~/locale';
+import { thWidthPercent } from '~/lib/utils/table_utility';
 import ClipboardButton from '~/vue_shared/components/clipboard_button.vue';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import TooltipOnTruncate from '~/vue_shared/components/tooltip_on_truncate/tooltip_on_truncate.vue';
@@ -15,14 +24,15 @@ export default {
     ),
   },
   components: {
-    GlTable,
-    GlButton,
-    GlBadge,
     ClipboardButton,
-    TooltipOnTruncate,
-    GlAvatarLink,
+    GlAlert,
     GlAvatar,
+    GlAvatarLink,
+    GlBadge,
+    GlButton,
+    GlTable,
     TimeAgoTooltip,
+    TooltipOnTruncate,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -34,43 +44,70 @@ export default {
       default: () => [],
     },
   },
+  data() {
+    return {
+      areValuesHidden: true,
+    };
+  },
   fields: [
     {
       key: 'token',
       label: s__('Pipelines|Token'),
+      thClass: thWidthPercent(70),
     },
     {
       key: 'description',
       label: s__('Pipelines|Description'),
+      thClass: thWidthPercent(15),
     },
     {
       key: 'owner',
       label: s__('Pipelines|Owner'),
+      thClass: thWidthPercent(5),
     },
     {
       key: 'lastUsed',
       label: s__('Pipelines|Last Used'),
+      thClass: thWidthPercent(5),
     },
     {
       key: 'actions',
       label: '',
       tdClass: 'gl-text-right gl-white-space-nowrap',
+      thClass: thWidthPercent(5),
     },
   ],
+  computed: {
+    valuesButtonText() {
+      return this.areValuesHidden ? __('Reveal values') : __('Hide values');
+    },
+    hasTriggers() {
+      return this.triggers.length;
+    },
+    maskedToken() {
+      return '*'.repeat(47);
+    },
+  },
+  methods: {
+    toggleHiddenState() {
+      this.areValuesHidden = !this.areValuesHidden;
+    },
+  },
 };
 </script>
 
 <template>
   <div>
     <gl-table
-      v-if="triggers.length"
+      v-if="hasTriggers"
       :fields="$options.fields"
       :items="triggers"
       class="triggers-list"
       responsive
     >
       <template #cell(token)="{ item }">
-        {{ item.token }}
+        <span v-if="!areValuesHidden">{{ item.token }}</span>
+        <span v-else>{{ maskedToken }}</span>
         <clipboard-button
           v-if="item.hasTokenExposed"
           :text="item.token"
@@ -138,13 +175,21 @@ export default {
         />
       </template>
     </gl-table>
-    <div
+    <gl-alert
       v-else
+      variant="warning"
+      :dismissible="false"
+      :show-icon="false"
       data-testid="no_triggers_content"
       data-qa-selector="no_triggers_content"
-      class="settings-message gl-text-center gl-mb-3"
     >
       {{ s__('Pipelines|No triggers have been created yet. Add one using the form above.') }}
-    </div>
+    </gl-alert>
+    <gl-button
+      v-if="hasTriggers"
+      data-testid="reveal-hide-values-button"
+      @click="toggleHiddenState"
+      >{{ valuesButtonText }}</gl-button
+    >
   </div>
 </template>

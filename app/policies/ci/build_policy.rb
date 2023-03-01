@@ -2,6 +2,8 @@
 
 module Ci
   class BuildPolicy < CommitStatusPolicy
+    delegate { @subject.project }
+
     condition(:protected_ref) do
       access = ::Gitlab::UserAccess.new(@user, container: @subject.project)
 
@@ -23,6 +25,10 @@ module Ci
     # overridden in EE
     condition(:protected_environment) do
       false
+    end
+
+    condition(:outdated_deployment) do
+      @subject.outdated_deployment?
     end
 
     condition(:owner_of_job) do
@@ -53,7 +59,7 @@ module Ci
       @subject.debug_mode?
     end
 
-    condition(:project_read_build, scope: :subject) do
+    condition(:can_read_project_build, scope: :subject) do
       can?(:read_build, @subject.project)
     end
 
@@ -65,7 +71,7 @@ module Ci
       can?(:developer_access, @subject.project)
     end
 
-    rule { project_read_build }.enable :read_build_trace
+    rule { can_read_project_build }.enable :read_build_trace
     rule { debug_mode & ~project_update_build }.prevent :read_build_trace
 
     # Authorizing the user to access to protected entities.
@@ -76,6 +82,8 @@ module Ci
       prevent :update_commit_status
       prevent :erase_build
     end
+
+    rule { outdated_deployment }.prevent :update_build
 
     rule { can?(:admin_build) | (can?(:update_build) & owner_of_job & unprotected_ref) }.enable :erase_build
 
@@ -106,7 +114,7 @@ module Ci
       prevent :create_build_service_proxy
     end
 
-    rule { project_read_build }.enable :read_job_artifacts
+    rule { can_read_project_build }.enable :read_job_artifacts
     rule { ~artifacts_public & ~project_developer }.prevent :read_job_artifacts
   end
 end

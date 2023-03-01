@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Application limits development
@@ -38,7 +38,7 @@ It's recommended to create two separate migration script files.
    desired limit using `create_or_update_plan_limit` migration helper, such as:
 
    ```ruby
-   class InsertProjectHooksPlanLimits < Gitlab::Database::Migration[1.0]
+   class InsertProjectHooksPlanLimits < Gitlab::Database::Migration[2.1]
      def up
        create_or_update_plan_limit('project_hooks', 'default', 0)
        create_or_update_plan_limit('project_hooks', 'free', 10)

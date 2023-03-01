@@ -1,7 +1,7 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Snowplow schemas
@@ -33,8 +33,8 @@ _\* Default value present for frontend events only_
 
 ## Default Schema
 
-Frontend events include a [web-specific schema](https://docs.snowplowanalytics.com/docs/understanding-your-pipeline/canonical-event/#Web-specific_fields) provided by Snowplow.
-All URLs are pseudonymized. The entity identifier [replaces](https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/javascript-trackers/javascript-tracker/javascript-tracker-v2/tracker-setup/other-parameters-2/#Setting_a_custom_page_URL_and_referrer_URL) personally identifiable
+Frontend events include a [web-specific schema](https://docs.snowplow.io/docs/understanding-your-pipeline/canonical-event/#web-specific-fields) provided by Snowplow.
+All URLs are pseudonymized. The entity identifier [replaces](https://docs.snowplow.io/docs/collecting-data/collecting-from-own-applications/javascript-trackers/javascript-tracker/javascript-tracker-v2/tracker-setup/other-parameters-2/#setting-a-custom-page-url-and-referrer-url) personally identifiable
 information (PII). PII includes usernames, group, and project names.
 Page titles are hardcoded as `GitLab` for the same reason.
 
@@ -68,8 +68,8 @@ Page titles are hardcoded as `GitLab` for the same reason.
 | `doc_charset`              | **{dotted-circle}** | string    | Web page's character encoding                                                                                                    |
 | `doc_height`               | **{dotted-circle}** | string    | Web page height                                                                                                                  |
 | `doc_width`                | **{dotted-circle}** | string    | Web page width                                                                                                                   |
-| `domain_sessionid`         | **{dotted-circle}** | string    | Unique identifier (UUID) for this visit of this user_id to this domain                                                           |
-| `domain_sessionidx`        | **{dotted-circle}** | integer   | Index of number of visits that this user_id has made to this domain (The first visit is `1`)                                        |
+| `domain_sessionid`         | **{dotted-circle}** | string    | Unique identifier (UUID) for this visit of this `user_id` to this domain                                                         |
+| `domain_sessionidx`        | **{dotted-circle}** | integer   | Index of number of visits that this `user_id` has made to this domain (The first visit is `1`)                                   |
 | `domain_userid`            | **{dotted-circle}** | string    | Unique identifier for a user, based on a first party cookie (so domain specific)                                                 |
 | `dvce_created_tstamp`      | **{dotted-circle}** | timestamp | Timestamp when event occurred, as recorded by client device                                                                      |
 | `dvce_ismobile`            | **{dotted-circle}** | boolean   | Indicates whether device is mobile                                                                                               |
@@ -172,3 +172,18 @@ Page titles are hardcoded as `GitLab` for the same reason.
 | `v_collector`              | **{dotted-circle}** | string    | Collector version                                                                                                                |
 | `v_etl`                    | **{dotted-circle}** | string    | ETL version                                                                                                                      |
 | `v_tracker`                | **{dotted-circle}** | string    | Identifier for Snowplow tracker                                                                                                  |
+
+## `gitlab_service_ping`
+
+Backend events converted from ServicePing (`redis` and `redis_hll`) must include [ServicePing context](https://gitlab.com/gitlab-org/iglu/-/tree/master/public/schemas/com.gitlab/gitlab_service_ping/jsonschema)
+using the [helper class](https://gitlab.com/gitlab-org/gitlab/blob/master/lib/gitlab/tracking/service_ping_context.rb).
+
+An example of converted `redis_hll` [event with context](https://gitlab.com/gitlab-org/gitlab/-/edit/master/app/controllers/concerns/product_analytics_tracking.rb#L58).
+
+| Field Name    |      Required       | Type                   | Description                                                                                                                                                        |
+|---------------|:-------------------:|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `data_source` | **{check-circle}**  | string (max 64 chars)  | The `data_source` attribute from the metrics YAML definition. |
+| `event_name`* | **{dotted-circle}** | string (max 128 chars) | When there is a many-to-many relationship between events and metrics, this field contains the name of a Redis event that can be used for aggregations in downstream systems |
+| `key_path`*   | **{dotted-circle}** | string (max 256 chars) | The `key_path` attribute from the metrics YAML definition |
+
+_\* Either `event_name` or `key_path` is required_

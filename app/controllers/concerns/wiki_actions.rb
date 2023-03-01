@@ -11,6 +11,15 @@ module WikiActions
   RESCUE_GIT_TIMEOUTS_IN = %w[show edit history diff pages].freeze
 
   included do
+    content_security_policy do |p|
+      next if p.directives.blank?
+
+      default_frame_src = p.directives['frame-src'] || p.directives['default-src']
+      frame_src_values = Array.wrap(default_frame_src) | ['https://embed.diagrams.net'].compact
+
+      p.frame_src(*frame_src_values)
+    end
+
     before_action { respond_to :html }
 
     before_action :authorize_read_wiki!
@@ -142,8 +151,7 @@ module WikiActions
   # rubocop:disable Gitlab/ModuleWithInstanceVariables
   def history
     if page
-      @commits = Kaminari.paginate_array(page.versions(page: params[:page].to_i),
-                                         total_count: page.count_versions)
+      @commits = Kaminari.paginate_array(page.versions(page: params[:page].to_i), total_count: page.count_versions)
         .page(params[:page])
 
       render 'shared/wikis/history'
@@ -178,8 +186,7 @@ module WikiActions
     if response.success?
       flash[:toast] = _("Wiki page was successfully deleted.")
 
-      redirect_to wiki_path(wiki),
-      status: :found
+      redirect_to wiki_path(wiki), status: :found
     else
       @error = response.message
       render 'shared/wikis/edit'
@@ -209,9 +216,7 @@ module WikiActions
   def wiki
     strong_memoize(:wiki) do
       wiki = Wiki.for_container(container, current_user)
-
-      # Call #wiki to make sure the Wiki Repo is initialized
-      wiki.wiki
+      wiki.create_wiki_repository
 
       wiki
     end
@@ -242,7 +247,7 @@ module WikiActions
   def wiki_pages
     strong_memoize(:wiki_pages) do
       Kaminari.paginate_array(
-        wiki.list_pages(sort: params[:sort], direction: params[:direction])
+        wiki.list_pages(direction: params[:direction])
       ).page(params[:page])
     end
   end

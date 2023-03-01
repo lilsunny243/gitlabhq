@@ -4,12 +4,9 @@ module Ci
   class CreatePipelineService < BaseService
     attr_reader :pipeline, :logger
 
-    CreateError = Class.new(StandardError)
-
     LOG_MAX_DURATION_THRESHOLD = 3.seconds
     LOG_MAX_PIPELINE_SIZE = 2_000
     LOG_MAX_CREATION_THRESHOLD = 20.seconds
-
     SEQUENCE = [Gitlab::Ci::Pipeline::Chain::Build,
                 Gitlab::Ci::Pipeline::Chain::Build::Associations,
                 Gitlab::Ci::Pipeline::Chain::Validate::Abilities,
@@ -23,19 +20,20 @@ module Ci
                 Gitlab::Ci::Pipeline::Chain::RemoveUnwantedChatJobs,
                 Gitlab::Ci::Pipeline::Chain::SeedBlock,
                 Gitlab::Ci::Pipeline::Chain::EvaluateWorkflowRules,
+                Gitlab::Ci::Pipeline::Chain::AssignPartition,
                 Gitlab::Ci::Pipeline::Chain::Seed,
                 Gitlab::Ci::Pipeline::Chain::Limit::Size,
+                Gitlab::Ci::Pipeline::Chain::Limit::ActiveJobs,
                 Gitlab::Ci::Pipeline::Chain::Limit::Deployments,
                 Gitlab::Ci::Pipeline::Chain::Validate::External,
                 Gitlab::Ci::Pipeline::Chain::Populate,
+                Gitlab::Ci::Pipeline::Chain::PopulateMetadata,
                 Gitlab::Ci::Pipeline::Chain::StopDryRun,
                 Gitlab::Ci::Pipeline::Chain::EnsureEnvironments,
                 Gitlab::Ci::Pipeline::Chain::EnsureResourceGroups,
                 Gitlab::Ci::Pipeline::Chain::Create,
-                Gitlab::Ci::Pipeline::Chain::CreateDeployments,
                 Gitlab::Ci::Pipeline::Chain::CreateCrossDatabaseAssociations,
                 Gitlab::Ci::Pipeline::Chain::Limit::Activity,
-                Gitlab::Ci::Pipeline::Chain::Limit::JobActivity,
                 Gitlab::Ci::Pipeline::Chain::CancelPendingPipelines,
                 Gitlab::Ci::Pipeline::Chain::Metrics,
                 Gitlab::Ci::Pipeline::Chain::TemplateUsage,
@@ -117,17 +115,6 @@ module Ci
     end
     # rubocop: enable Metrics/ParameterLists
 
-    def execute!(*args, &block)
-      source = args[0]
-      params = Hash(args[1])
-
-      execute(source, **params, &block).tap do |response|
-        unless response.payload.persisted?
-          raise CreateError, pipeline.full_error_messages
-        end
-      end
-    end
-
     private
 
     def commit
@@ -139,7 +126,7 @@ module Ci
     end
 
     def create_namespace_onboarding_action
-      Namespaces::OnboardingPipelineCreatedWorker.perform_async(project.namespace_id)
+      Onboarding::PipelineCreatedWorker.perform_async(project.namespace_id)
     end
 
     def extra_options(content: nil, dry_run: false)
@@ -149,25 +136,31 @@ module Ci
     def build_logger
       Gitlab::Ci::Pipeline::Logger.new(project: project) do |l|
         l.log_when do |observations|
-          observations.any? do |name, values|
-            values.any? &&
+          observations.any? do |name, observation|
             name.to_s.end_with?('duration_s') &&
-            values.max >= LOG_MAX_DURATION_THRESHOLD
+              Array(observation).max >= LOG_MAX_DURATION_THRESHOLD
           end
         end
 
         l.log_when do |observations|
-          values = observations['pipeline_size_count']
-          next false if values.empty?
+          count = observations['pipeline_size_count']
+          next false unless count
 
-          values.max >= LOG_MAX_PIPELINE_SIZE
+          count >= LOG_MAX_PIPELINE_SIZE
         end
 
         l.log_when do |observations|
-          values = observations['pipeline_creation_duration_s']
-          next false if values.empty?
+          duration = observations['pipeline_creation_duration_s']
+          next false unless duration
 
-          values.max >= LOG_MAX_CREATION_THRESHOLD
+          duration >= LOG_MAX_CREATION_THRESHOLD
+        end
+
+        l.log_when do |observations|
+          pipeline_includes_count = observations['pipeline_includes_count']
+          next false unless pipeline_includes_count
+
+          pipeline_includes_count.to_i > Gitlab::Ci::Config::External::Context::TEMP_MAX_INCLUDES
         end
       end
     end

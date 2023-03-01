@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Grafana Configuration **(FREE SELF)**
@@ -25,9 +25,9 @@ is `admin`.
 
 1. Log in to Grafana as the administration user.
 1. Select **Data Sources** from the **Configuration** menu.
-1. Select the **Add data source** button.
+1. Select **Add data source**.
 1. Select the required data source type. For example, [Prometheus](../prometheus/index.md#prometheus-as-a-grafana-data-source).
-1. Complete the details for the data source and select the **Save & Test** button.
+1. Complete the details for the data source and select **Save & Test**.
 
 Grafana should indicate the data source is working.
 
@@ -43,8 +43,8 @@ them:
 
    1. Log in to Grafana as the administration user.
    1. Select **Manage** from the **Dashboards** menu.
-   1. Select the **Import** button, then the **Upload JSON file** button.
-   1. Locate the JSON file to import and select **Choose for Upload**. Select the **Import** button.
+   1. Select **Import**, then **Upload JSON file**.
+   1. Locate the JSON file to import and select **Choose for Upload**. Select **Import**.
    1. After the dashboard is imported, select the **Save dashboard** icon in the top bar.
 
 If you don't save the dashboard after importing it, the dashboard is removed
@@ -62,7 +62,7 @@ repository.
 After setting up Grafana, you can enable a link to access it easily from the
 GitLab sidebar:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Metrics and profiling**
    and expand **Metrics - Grafana**.
 1. Select the **Add a link to Grafana** checkbox.
@@ -72,16 +72,16 @@ GitLab sidebar:
    - *Otherwise,* enter the full URL of the Grafana instance.
 1. Select **Save changes**.
 
-GitLab displays your link in the **Menu > Admin > Monitoring > Metrics Dashboard**.
+GitLab displays your link in the **Main menu > Admin > Monitoring > Metrics Dashboard**.
 
 ## Required Scopes
 
 > [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/5822) in GitLab 13.10.
 
 When setting up Grafana through the process above, no scope shows in the screen at
-**Menu > Admin > Applications > GitLab Grafana**. However, the `read_user` scope is
+**Main menu > Admin > Applications > GitLab Grafana**. However, the `read_user` scope is
 required and is provided to the application automatically. Setting any scope other than
-`read_user` without also including `read_user` leads to this error when you try to log in using
+`read_user` without also including `read_user` leads to this error when you try to sign in using
 GitLab as the OAuth provider:
 
 ```plaintext
@@ -133,15 +133,15 @@ However, you should **not** reinstate your old data _except_ under one of the fo
 If you require access to your old Grafana data but don't meet one of these criteria, you may consider:
 
 1. Reinstating it temporarily.
-1. [Exporting the dashboards](https://grafana.com/docs/grafana/latest/dashboards/export-import/#exporting-a-dashboard) you need.
-1. Refreshing the data and [re-importing your dashboards](https://grafana.com/docs/grafana/latest/dashboards/export-import/#import-dashboard).
+1. [Exporting the dashboards](https://grafana.com/docs/grafana/latest/dashboards/manage-dashboards/#export-and-import-dashboards) you need.
+1. Refreshing the data and [re-importing your dashboards](https://grafana.com/docs/grafana/latest/dashboards/manage-dashboards/#export-and-import-dashboards).
 
 WARNING:
 These actions pose a temporary vulnerability while your old Grafana data is in use.
 Deciding to take any of these actions should be weighed carefully with your need to access
 existing data and dashboards.
 
-For more information and further mitigation details, please refer to our
+For more information and further mitigation details, refer to our
 [blog post on the security release](https://about.gitlab.com/releases/2019/08/12/critical-security-release-gitlab-12-dot-1-dot-6-released/).
 
 Read more on:

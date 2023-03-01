@@ -13,6 +13,7 @@ RSpec.describe Types::Ci::JobType do
       active
       allow_failure
       artifacts
+      browse_artifacts_path
       cancelable
       commitPath
       coverage
@@ -21,6 +22,7 @@ RSpec.describe Types::Ci::JobType do
       detailedStatus
       duration
       downstreamPipeline
+      erasedAt
       finished_at
       id
       kind
@@ -31,6 +33,7 @@ RSpec.describe Types::Ci::JobType do
       pipeline
       playable
       previousStageJobsOrNeeds
+      project
       queued_at
       queued_duration
       refName
@@ -62,6 +65,18 @@ RSpec.describe Types::Ci::JobType do
 
     it 'returns the web path of the job' do
       is_expected.to eq("/#{project.full_path}/-/jobs/#{build.id}")
+    end
+  end
+
+  describe '#browse_artifacts_path' do
+    subject { resolve_field(:browse_artifacts_path, build, current_user: user, object_type: described_class) }
+
+    let_it_be(:project) { create(:project) }
+    let(:user) { create(:user) }
+    let(:build) { create(:ci_build, :artifacts, project: project, user: user) }
+
+    it 'returns the path to browse the artifacts of the job' do
+      is_expected.to eq("/#{project.full_path}/-/jobs/#{build.id}/artifacts/browse")
     end
   end
 end

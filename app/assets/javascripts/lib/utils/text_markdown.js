@@ -2,6 +2,8 @@
 import $ from 'jquery';
 import Shortcuts from '~/behaviors/shortcuts/shortcuts';
 import { insertText } from '~/lib/utils/common_utils';
+import { ENTER_KEY } from '~/lib/utils/keys';
+import axios from '~/lib/utils/axios_utils';
 
 const LINK_TAG_PATTERN = '[{text}](url)';
 const INDENT_CHAR = ' ';
@@ -391,13 +393,15 @@ function updateText({ textArea, tag, cursorOffset, blockTag, wrap, select, tagCo
 /**
  * Indents selected lines to the right by 2 spaces
  *
- * @param {Object} textArea - the targeted text area
+ * @param {Object} textArea - jQuery object with the targeted text area
  */
-function indentLines(textArea) {
+function indentLines($textArea) {
+  const textArea = $textArea.get(0);
   const { lines, selectionStart, selectionEnd, startPos, endPos } = linesFromSelection(textArea);
   const shiftedLines = [];
   let totalAdded = 0;
 
+  textArea.focus();
   textArea.setSelectionRange(startPos, endPos);
 
   lines.forEach((line) => {
@@ -418,13 +422,15 @@ function indentLines(textArea) {
  *
  * @param {Object} textArea - the targeted text area
  */
-function outdentLines(textArea) {
+function outdentLines($textArea) {
+  const textArea = $textArea.get(0);
   const { lines, selectionStart, selectionEnd, startPos, endPos } = linesFromSelection(textArea);
   const shiftedLines = [];
   let totalRemoved = 0;
   let removedFromFirstline = -1;
   let removedFromLine = 0;
 
+  textArea.focus();
   textArea.setSelectionRange(startPos, endPos);
 
   lines.forEach((line) => {
@@ -460,28 +466,10 @@ function outdentLines(textArea) {
   );
 }
 
-function handleIndentOutdent(e, textArea) {
-  if (e.altKey || e.ctrlKey || e.shiftKey) return;
-  if (!e.metaKey) return;
-
-  switch (e.key) {
-    case ']':
-      e.preventDefault();
-      indentLines(textArea);
-      break;
-    case '[':
-      e.preventDefault();
-      outdentLines(textArea);
-      break;
-    default:
-      break;
-  }
-}
-
 /* eslint-disable @gitlab/require-i18n-strings */
 function handleSurroundSelectedText(e, textArea) {
   if (!gon.markdown_surround_selection) return;
-  if (e.metaKey) return;
+  if (e.metaKey || e.ctrlKey) return;
   if (textArea.selectionStart === textArea.selectionEnd) return;
 
   const keys = {
@@ -532,18 +520,27 @@ function continueOlText(listLineMatch, nextLineMatch) {
 }
 
 function handleContinueList(e, textArea) {
-  if (!(e.key === 'Enter')) return;
+  if (!gon.markdown_automatic_lists) return;
+  if (!(e.key === ENTER_KEY)) return;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
   if (textArea.selectionStart !== textArea.selectionEnd) return;
+
   // prevent unintended line breaks inserted using Japanese IME on MacOS
   if (compositioningNoteText) return;
 
-  const firstSelectedLine = linesFromSelection(textArea).lines[0];
+  const selectedLines = linesFromSelection(textArea);
+  const firstSelectedLine = selectedLines.lines[0];
   const listLineMatch = firstSelectedLine.match(LIST_LINE_HEAD_PATTERN);
 
   if (listLineMatch) {
     const { leader, indent, content, isOl } = listLineMatch.groups;
     const emptyListItem = !content;
+    const prefixLength = leader.length + indent.length;
+
+    if (selectedLines.selectionStart - selectedLines.startPos < prefixLength) {
+      // cursor in the indent/leader area,  allow the natural line feed to be added
+      return;
+    }
 
     if (emptyListItem) {
       // erase empty list item - select the text and allow the
@@ -581,14 +578,33 @@ function handleContinueList(e, textArea) {
   }
 }
 
+/**
+ * Adds a Markdown hard break when `Shift+Enter` is pressed
+ *
+ * @param {Object} e - the event
+ * @param {Object} textArea - the targeted text area
+ */
+function handleHardBreak(e, textArea) {
+  if (!(e.key === ENTER_KEY)) return;
+  if (!e.shiftKey) return;
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+  // prevent unintended line breaks inserted using Japanese IME on MacOS
+  if (compositioningNoteText) return;
+
+  e.preventDefault();
+
+  insertText(textArea, '\\\n');
+}
+
 export function keypressNoteText(e) {
   const textArea = this;
 
   if ($(textArea).atwho?.('isSelecting')) return;
 
-  handleIndentOutdent(e, textArea);
   handleContinueList(e, textArea);
   handleSurroundSelectedText(e, textArea);
+  handleHardBreak(e, textArea);
 }
 
 export function compositionStartNoteText() {
@@ -600,15 +616,26 @@ export function compositionEndNoteText() {
 }
 
 export function updateTextForToolbarBtn($toolbarBtn) {
-  return updateText({
-    textArea: $toolbarBtn.closest('.md-area').find('textarea'),
-    tag: $toolbarBtn.data('mdTag'),
-    cursorOffset: $toolbarBtn.data('mdCursorOffset'),
-    blockTag: $toolbarBtn.data('mdBlock'),
-    wrap: !$toolbarBtn.data('mdPrepend'),
-    select: $toolbarBtn.data('mdSelect'),
-    tagContent: $toolbarBtn.attr('data-md-tag-content'),
-  });
+  const $textArea = $toolbarBtn.closest('.md-area').find('textarea');
+
+  switch ($toolbarBtn.data('mdCommand')) {
+    case 'indentLines':
+      indentLines($textArea);
+      break;
+    case 'outdentLines':
+      outdentLines($textArea);
+      break;
+    default:
+      return updateText({
+        textArea: $textArea,
+        tag: $toolbarBtn.data('mdTag'),
+        cursorOffset: $toolbarBtn.data('mdCursorOffset'),
+        blockTag: $toolbarBtn.data('mdBlock'),
+        wrap: !$toolbarBtn.data('mdPrepend'),
+        select: $toolbarBtn.data('mdSelect'),
+        tagContent: $toolbarBtn.attr('data-md-tag-content'),
+      });
+  }
 }
 
 export function addMarkdownListeners(form) {
@@ -664,3 +691,50 @@ export function removeMarkdownListeners(form) {
   // eslint-disable-next-line @gitlab/no-global-event-off
   return $('.js-md', form).off('click');
 }
+
+/**
+ * If the textarea cursor is positioned in a Markdown image declaration,
+ * it uses the Markdown API to resolve the image’s absolute URL.
+ * @param {Object} textarea Textarea DOM element
+ * @param {String} markdownPreviewPath Markdown API path
+ * @returns {Object} an object containing the image’s absolute URL, filename,
+ * and the markdown declaration. If the textarea cursor is not positioned
+ * in an image, it returns null.
+ */
+export const resolveSelectedImage = async (textArea, markdownPreviewPath = '') => {
+  const { lines, startPos } = linesFromSelection(textArea);
+
+  // image declarations can’t span more than one line in Markdown
+  if (lines > 0) {
+    return null;
+  }
+
+  const selectedLine = lines[0];
+
+  if (!/!\[.+?\]\(.+?\)/.test(selectedLine)) return null;
+
+  const lineSelectionStart = textArea.selectionStart - startPos;
+  const preExlm = selectedLine.substring(0, lineSelectionStart).lastIndexOf('!');
+  const postClose = selectedLine.substring(lineSelectionStart).indexOf(')');
+
+  if (preExlm >= 0 && postClose >= 0) {
+    const imageMarkdown = selectedLine.substring(preExlm, lineSelectionStart + postClose + 1);
+    const { data } = await axios.post(markdownPreviewPath, { text: imageMarkdown });
+    const parser = new DOMParser();
+
+    const dom = parser.parseFromString(data.body, 'text/html');
+    const imageURL = dom.body.querySelector('a').getAttribute('href');
+
+    if (imageURL) {
+      const filename = imageURL.substring(imageURL.lastIndexOf('/') + 1);
+
+      return {
+        imageMarkdown,
+        imageURL,
+        filename,
+      };
+    }
+  }
+
+  return null;
+};

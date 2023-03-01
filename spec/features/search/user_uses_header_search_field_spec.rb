@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User uses header search field', :js do
+RSpec.describe 'User uses header search field', :js, :disable_rate_limiter, feature_category: :global_search do
   include FilteredSearchHelpers
 
   let_it_be(:project) { create(:project, :repository) }
@@ -17,8 +17,6 @@ RSpec.describe 'User uses header search field', :js do
   end
 
   before do
-    allow(Gitlab::ApplicationRateLimiter).to receive(:threshold).with(:search_rate_limit).and_return(1000)
-    allow(Gitlab::ApplicationRateLimiter).to receive(:threshold).with(:search_rate_limit_unauthenticated).and_return(1000)
     sign_in(user)
   end
 

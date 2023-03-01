@@ -1,5 +1,5 @@
 pull:
-  image: alpine:3
+  image: alpine:latest
   script:
     - apk add helm --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing
     - helm repo add --username <%= username %> --password <%= access_token %> gitlab_qa ${CI_API_V4_URL}/projects/<%= package_project.id %>/packages/helm/stable

@@ -18,27 +18,34 @@ module QA
       end
 
       attribute :sandbox do
-        Sandbox.fabricate_via_api! do |sandbox|
-          sandbox.api_client = api_client
+        if Runtime::Env.personal_access_tokens_disabled?
+          Resource::Sandbox.fabricate! do |sandbox|
+            sandbox.path = Runtime::Namespace.sandbox_name
+          end
+        else
+          Sandbox.fabricate_via_api! do |sandbox|
+            sandbox.api_client = api_client
+          end
         end
       end
 
       def initialize
         @description = "QA test run at #{Runtime::Namespace.time}"
         @require_two_factor_authentication = false
+        # Add visibility to enable create private group
+        @visibility = 'public'
       end
 
       def fabricate!
         sandbox.visit!
 
         Page::Group::Show.perform do |group_show|
-          if group_show.has_subgroup?(path)
-            group_show.click_subgroup(path)
-          else
+          unless group_show.has_subgroup?(path)
             group_show.go_to_new_subgroup
 
             Page::Group::New.perform do |group_new|
               group_new.set_path(path)
+              group_new.set_visibility(@visibility)
               group_new.create_subgroup
             end
 
@@ -47,7 +54,11 @@ module QA
               group_show.has_text?(path) &&
                 group_show.has_new_project_and_new_subgroup_buttons?
             end
+            sandbox.visit!
           end
+
+          group_show.click_subgroup(path)
+          @id = group_show.group_id
         end
       end
 
@@ -73,7 +84,7 @@ module QA
           parent_id: sandbox.id,
           path: path,
           name: name,
-          visibility: 'public',
+          visibility: @visibility.downcase,
           require_two_factor_authentication: @require_two_factor_authentication,
           avatar: avatar
         }

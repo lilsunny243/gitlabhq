@@ -23,6 +23,27 @@ RSpec.describe Sidebars::Projects::Menus::InfrastructureMenu do
         expect(subject.render?).to be true
       end
     end
+
+    describe 'behavior based on access level setting' do
+      using RSpec::Parameterized::TableSyntax
+
+      let_it_be(:project) { create(:project) }
+      let(:enabled) { Featurable::PRIVATE }
+      let(:disabled) { Featurable::DISABLED }
+
+      where(:infrastructure_access_level, :render) do
+        ref(:enabled)  | true
+        ref(:disabled) | false
+      end
+
+      with_them do
+        it 'renders based on the infrastructure access level' do
+          project.project_feature.update!(infrastructure_access_level: infrastructure_access_level)
+
+          expect(subject.render?).to be render
+        end
+      end
+    end
   end
 
   describe '#link' do
@@ -119,6 +140,18 @@ RSpec.describe Sidebars::Projects::Menus::InfrastructureMenu do
 
           it_behaves_like 'access rights checks'
         end
+      end
+
+      context 'when instance is not configured for Google OAuth2' do
+        before do
+          stub_feature_flags(incubation_5mp_google_cloud: true)
+          unconfigured_google_oauth2 = Struct.new(:app_id, :app_secret).new('', '')
+          allow(Gitlab::Auth::OAuth::Provider).to receive(:config_for)
+                                                    .with('google_oauth2')
+                                                    .and_return(unconfigured_google_oauth2)
+        end
+
+        it { is_expected.to be_nil }
       end
     end
   end

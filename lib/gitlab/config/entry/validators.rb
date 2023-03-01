@@ -17,6 +17,7 @@ module Gitlab
 
         class DisallowedKeysValidator < ActiveModel::EachValidator
           def validate_each(record, attribute, value)
+            value = value.try(:compact) if options[:ignore_nil]
             present_keys = value.try(:keys).to_a & options[:in]
 
             if present_keys.any?
@@ -44,7 +45,7 @@ module Gitlab
             mutually_exclusive_keys = value.try(:keys).to_a & options[:in]
 
             if mutually_exclusive_keys.length > 1
-              record.errors.add(attribute, "please use only one the following keys: " +
+              record.errors.add(attribute, "please use only one of the following keys: " +
                 mutually_exclusive_keys.join(', '))
             end
           end
@@ -97,7 +98,7 @@ module Gitlab
           private
 
           def validate_array_of_hashes(value)
-            value.is_a?(Array) && value.all? { |obj| obj.is_a?(Hash) }
+            value.is_a?(Array) && value.all?(Hash)
           end
         end
 
@@ -304,15 +305,12 @@ module Gitlab
           end
         end
 
-        # This will be removed with the FF `ci_variables_refactoring_to_variable`.
         class VariablesValidator < ActiveModel::EachValidator
           include LegacyValidationHelpers
 
           def validate_each(record, attribute, value)
             if options[:array_values]
               validate_key_array_values(record, attribute, value)
-            elsif options[:allowed_value_data]
-              validate_key_hash_values(record, attribute, value, options[:allowed_value_data])
             else
               validate_key_values(record, attribute, value)
             end
@@ -327,12 +325,6 @@ module Gitlab
           def validate_key_array_values(record, attribute, value)
             unless validate_array_value_variables(value)
               record.errors.add(attribute, 'should be a hash of key value pairs, value can be an array')
-            end
-          end
-
-          def validate_key_hash_values(record, attribute, value, allowed_value_data)
-            unless validate_string_or_hash_value_variables(value, allowed_value_data)
-              record.errors.add(attribute, 'should be a hash of key value pairs, value can be a hash')
             end
           end
         end

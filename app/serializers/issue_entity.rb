@@ -7,11 +7,15 @@ class IssueEntity < IssuableEntity
     item.try(:upcase)
   end
 
+  format_with(:iso8601) do |item|
+    item.try(:iso8601)
+  end
+
   expose :state
   expose :milestone_id
   expose :updated_by_id
-  expose :created_at
-  expose :updated_at
+  expose :created_at, format_with: :iso8601
+  expose :updated_at, format_with: :iso8601
   expose :milestone, using: API::Entities::Milestone
   expose :labels, using: LabelEntity
   expose :lock_version
@@ -41,6 +45,10 @@ class IssueEntity < IssuableEntity
   expose :current_user do
     expose :can_create_note do |issue|
       can?(request.current_user, :create_note, issue)
+    end
+
+    expose :can_create_confidential_note do |issue|
+      can?(request.current_user, :mark_note_as_internal, issue)
     end
 
     expose :can_update do |issue|
@@ -81,7 +89,13 @@ class IssueEntity < IssuableEntity
   end
 
   expose :issue_email_participants do |issue|
-    issue.issue_email_participants.map { |x| { email: x.email } }
+    presented_issue = issue.present(current_user: request.current_user)
+
+    presented_issue.issue_email_participants.map do |participant|
+      {
+        email: participant.email
+      }
+    end
   end
 
   expose :issue_type,

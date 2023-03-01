@@ -49,16 +49,22 @@ class Projects::MergeRequests::DraftsController < Projects::MergeRequests::Appli
   def publish
     result = DraftNotes::PublishService.new(merge_request, current_user).execute(draft_note(allow_nil: true))
 
-    if Feature.enabled?(:mr_review_submit_comment, @project)
-      ::Notes::CreateService.new(@project, current_user, create_note_params).execute if create_note_params[:note]
+    if create_note_params[:note]
+      ::Notes::CreateService.new(@project, current_user, create_note_params).execute
 
-      if Gitlab::Utils.to_boolean(approve_params[:approve])
+      merge_request_activity_counter.track_submit_review_comment(user: current_user)
+    end
+
+    if Gitlab::Utils.to_boolean(approve_params[:approve])
+      unless merge_request.approved_by?(current_user)
         success = ::MergeRequests::ApprovalService.new(project: @project, current_user: current_user, params: approve_params).execute(merge_request)
 
         unless success
           return render json: { message: _('An error occurred while approving, please try again.') }, status: :internal_server_error
         end
       end
+
+      merge_request_activity_counter.track_submit_review_approve(user: current_user)
     end
 
     if result[:status] == :success
@@ -137,7 +143,7 @@ class Projects::MergeRequests::DraftsController < Projects::MergeRequests::Appli
     user_ids = notes.map(&:author_id)
     project.team.max_member_access_for_user_ids(user_ids)
 
-    notes.map(&method(:render_draft_note))
+    notes.map { |note| render_draft_note(note) }
   end
 
   def render_draft_note(note)
@@ -158,6 +164,10 @@ class Projects::MergeRequests::DraftsController < Projects::MergeRequests::Appli
 
   def authorize_create_note!
     access_denied! unless can?(current_user, :create_note, merge_request)
+  end
+
+  def merge_request_activity_counter
+    Gitlab::UsageDataCounters::MergeRequestActivityUniqueCounter
   end
 end
 

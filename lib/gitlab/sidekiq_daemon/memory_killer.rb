@@ -35,6 +35,7 @@ module Gitlab
 
         @enabled = true
         @metrics = init_metrics
+        @sidekiq_daemon_monitor = Gitlab::SidekiqDaemon::Monitor.instance
       end
 
       private
@@ -51,9 +52,10 @@ module Gitlab
 
       def refresh_state(phase)
         @phase = PHASE.fetch(phase)
-        @current_rss = get_rss
-        @soft_limit_rss = get_soft_limit_rss
-        @hard_limit_rss = get_hard_limit_rss
+        @current_rss = get_rss_kb
+        @soft_limit_rss = get_soft_limit_rss_kb
+        @hard_limit_rss = get_hard_limit_rss_kb
+        @memory_total = get_memory_total_kb
 
         # track the current state as prometheus gauges
         @metrics[:sidekiq_memory_killer_phase].set({}, @phase)
@@ -77,7 +79,7 @@ module Gitlab
           rescue StandardError => e
             log_exception(e, __method__)
           rescue Exception => e # rubocop:disable Lint/RescueException
-            log_exception(e, __method__ )
+            log_exception(e, __method__)
             raise e
           end
         end
@@ -107,6 +109,8 @@ module Gitlab
       end
 
       def restart_sidekiq
+        return if Feature.enabled?(:sidekiq_memory_killer_read_only_mode, type: :ops)
+
         # Tell Sidekiq to stop fetching new jobs
         # We first SIGNAL and then wait given time
         # We also monitor a number of running jobs and allow to restart early
@@ -115,9 +119,9 @@ module Gitlab
         return unless enabled?
 
         # Tell sidekiq to restart itself
-        # Keep extra safe to wait `Sidekiq.options[:timeout] + 2` seconds before SIGKILL
+        # Keep extra safe to wait `Sidekiq[:timeout] + 2` seconds before SIGKILL
         refresh_state(:shutting_down)
-        signal_and_wait(Sidekiq.options[:timeout] + 2, 'SIGTERM', 'gracefully shut down')
+        signal_and_wait(Sidekiq[:timeout] + 2, 'SIGTERM', 'gracefully shut down')
         return unless enabled?
 
         # Ideally we should never reach this condition
@@ -176,6 +180,7 @@ module Gitlab
           current_rss: @current_rss,
           soft_limit_rss: @soft_limit_rss,
           hard_limit_rss: @hard_limit_rss,
+          memory_total_kb: @memory_total,
           reason: reason,
           running_jobs: running_jobs)
 
@@ -184,22 +189,17 @@ module Gitlab
 
       def increment_worker_counters(running_jobs, deadline_exceeded)
         running_jobs.each do |job|
-          @metrics[:sidekiq_memory_killer_running_jobs].increment( { worker_class: job[:worker_class], deadline_exceeded: deadline_exceeded } )
+          @metrics[:sidekiq_memory_killer_running_jobs].increment({ worker_class: job[:worker_class], deadline_exceeded: deadline_exceeded })
         end
       end
 
       def fetch_running_jobs
-        jobs = []
-        Gitlab::SidekiqDaemon::Monitor.instance.jobs_mutex.synchronize do
-          jobs = Gitlab::SidekiqDaemon::Monitor.instance.jobs.map do |jid, job|
-            {
-              jid: jid,
-              worker_class: job[:worker_class].name
-            }
-          end
+        @sidekiq_daemon_monitor.jobs.map do |jid, job|
+          {
+            jid: jid,
+            worker_class: job[:worker_class].name
+          }
         end
-
-        jobs
       end
 
       def out_of_range_description(rss, hard_limit, soft_limit, deadline_exceeded)
@@ -212,18 +212,19 @@ module Gitlab
         end
       end
 
-      def get_rss
-        output, status = Gitlab::Popen.popen(%W(ps -o rss= -p #{pid}), Rails.root.to_s)
-        return 0 unless status&.zero?
-
-        output.to_i
+      def get_memory_total_kb
+        Gitlab::Metrics::System.memory_total / 1.kilobytes
       end
 
-      def get_soft_limit_rss
+      def get_rss_kb
+        Gitlab::Metrics::System.memory_usage_rss[:total] / 1.kilobytes
+      end
+
+      def get_soft_limit_rss_kb
         SOFT_LIMIT_RSS_KB + rss_increase_by_jobs
       end
 
-      def get_hard_limit_rss
+      def get_hard_limit_rss_kb
         HARD_LIMIT_RSS_KB
       end
 
@@ -240,9 +241,8 @@ module Gitlab
 
         deadline = Gitlab::Metrics::System.monotonic_time + time
 
-        # we try to finish as early as all jobs finished
-        # so we retest that in loop
-        sleep(CHECK_INTERVAL_SECONDS) while enabled? && any_jobs? && Gitlab::Metrics::System.monotonic_time < deadline
+        # Sleep until thread killed or timeout reached
+        sleep(CHECK_INTERVAL_SECONDS) while enabled? && Gitlab::Metrics::System.monotonic_time < deadline
       end
 
       def signal_pgroup(signal, explanation)
@@ -264,10 +264,8 @@ module Gitlab
       end
 
       def rss_increase_by_jobs
-        Gitlab::SidekiqDaemon::Monitor.instance.jobs_mutex.synchronize do
-          Gitlab::SidekiqDaemon::Monitor.instance.jobs.sum do |job|
-            rss_increase_by_job(job)
-          end
+        @sidekiq_daemon_monitor.jobs.sum do |_, job|
+          rss_increase_by_job(job)
         end
       end
 
@@ -289,10 +287,6 @@ module Gitlab
 
       def pid
         Process.pid
-      end
-
-      def any_jobs?
-        Gitlab::SidekiqDaemon::Monitor.instance.jobs.any?
       end
     end
   end

@@ -2,13 +2,14 @@ import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import testAction from 'helpers/vuex_action_helper';
 import Api from '~/api';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
+import { HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { MISSING_DELETE_PATH_ERROR } from '~/packages_and_registries/infrastructure_registry/list/constants';
 import * as actions from '~/packages_and_registries/infrastructure_registry/list/stores/actions';
 import * as types from '~/packages_and_registries/infrastructure_registry/list/stores/mutation_types';
 import { DELETE_PACKAGE_ERROR_MESSAGE } from '~/packages_and_registries/shared/constants';
 
-jest.mock('~/flash.js');
+jest.mock('~/flash');
 jest.mock('~/api.js');
 
 describe('Actions Package list store', () => {
@@ -107,7 +108,7 @@ describe('Actions Package list store', () => {
           { type: 'setLoading', payload: false },
         ],
       );
-      expect(createFlash).toHaveBeenCalled();
+      expect(createAlert).toHaveBeenCalled();
     });
 
     it('should force the terraform_module type when forceTerraform is true', async () => {
@@ -182,7 +183,7 @@ describe('Actions Package list store', () => {
       },
     };
     it('should perform a delete operation on _links.delete_api_path', () => {
-      mock.onDelete(payload._links.delete_api_path).replyOnce(200);
+      mock.onDelete(payload._links.delete_api_path).replyOnce(HTTP_STATUS_OK);
       Api.projectPackages = jest.fn().mockResolvedValue({ data: 'foo' });
 
       return testAction(
@@ -198,7 +199,7 @@ describe('Actions Package list store', () => {
     });
 
     it('should stop the loading and call create flash on api error', async () => {
-      mock.onDelete(payload._links.delete_api_path).replyOnce(400);
+      mock.onDelete(payload._links.delete_api_path).replyOnce(HTTP_STATUS_BAD_REQUEST);
       await testAction(
         actions.requestDeletePackage,
         payload,
@@ -209,17 +210,17 @@ describe('Actions Package list store', () => {
           { type: 'setLoading', payload: false },
         ],
       );
-      expect(createFlash).toHaveBeenCalled();
+      expect(createAlert).toHaveBeenCalled();
     });
 
     it.each`
       property             | actionPayload
       ${'_links'}          | ${{}}
       ${'delete_api_path'} | ${{ _links: {} }}
-    `('should reject and createFlash when $property is missing', ({ actionPayload }) => {
+    `('should reject and createAlert when $property is missing', ({ actionPayload }) => {
       return testAction(actions.requestDeletePackage, actionPayload, null, [], []).catch((e) => {
         expect(e).toEqual(new Error(MISSING_DELETE_PATH_ERROR));
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: DELETE_PACKAGE_ERROR_MESSAGE,
         });
       });

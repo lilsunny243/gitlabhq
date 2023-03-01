@@ -1,14 +1,12 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, concepts
 disqus_identifier: 'https://docs.gitlab.com/ee/user/project/merge_requests/approvals/index.html'
 ---
 
 # Merge request approvals **(FREE)**
-
-> Redesign [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/1979) in GitLab 11.8 and [feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/10685) in 12.0.
 
 You can configure your merge requests so that they must be approved before
 they can be merged. While [GitLab Free](https://about.gitlab.com/pricing/) allows
@@ -22,8 +20,10 @@ flexibility:
 - Specify a list of users who act as [code owners](../../code_owners.md) for specific files,
   and require their approval before work can merge.
 
-You can configure merge request approvals on a per-project basis, and
-[on the group level](../../../group/manage.md#group-merge-request-approval-settings). Administrators of
+You can configure merge request approvals on a per-project basis, and some approvals can be configured
+[on the group level](../../../group/manage.md#group-merge-request-approval-settings). Support for
+group-level settings for merge request approval rules is tracked in this
+[epic](https://gitlab.com/groups/gitlab-org/-/epics/4367). Administrators of
 [GitLab Premium](https://about.gitlab.com/pricing/) and
 [GitLab Ultimate](https://about.gitlab.com/pricing/) self-managed GitLab instances
 can also configure approvals
@@ -68,7 +68,7 @@ if a user approves a merge request and is shown in the reviewer list, a green ch
 
 After a merge request receives the [number and type of approvals](rules.md) you configure, it can merge
 unless it's blocked for another reason. Merge requests can be blocked by other problems,
-such as merge conflicts, [pending discussions](../../../discussions/index.md#prevent-merge-unless-all-threads-are-resolved),
+such as merge conflicts, [unresolved threads](../../../discussions/index.md#prevent-merge-unless-all-threads-are-resolved),
 or a [failed CI/CD pipeline](../merge_when_pipeline_succeeds.md).
 
 To prevent merge request authors from approving their own merge requests,

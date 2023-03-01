@@ -4,6 +4,7 @@ module Gitlab
   module Utils
     extend self
     PathTraversalAttackError ||= Class.new(StandardError)
+    DoubleEncodingError ||= Class.new(StandardError)
 
     private_class_method def logger
       @logger ||= Gitlab::AppLogger
@@ -14,7 +15,10 @@ module Gitlab
     # Also see https://gitlab.com/gitlab-org/gitlab/-/merge_requests/24223#note_284122580
     # It also checks for ALT_SEPARATOR aka '\' (forward slash)
     def check_path_traversal!(path)
-      return unless path.is_a?(String)
+      return unless path
+
+      path = path.to_s if path.is_a?(Gitlab::HashedPath)
+      raise PathTraversalAttackError, 'Invalid path' unless path.is_a?(String)
 
       path = decode_path(path)
       path_regex = %r{(\A(\.{1,2})\z|\A\.\.[/\\]|[/\\]\.\.\z|[/\\]\.\.[/\\]|\n)}
@@ -52,7 +56,7 @@ module Gitlab
     def decode_path(encoded_path)
       decoded = CGI.unescape(encoded_path)
       if decoded != CGI.unescape(decoded)
-        raise StandardError, "path #{encoded_path} is not allowed"
+        raise DoubleEncodingError, "path #{encoded_path} is not allowed"
       end
 
       decoded
@@ -79,7 +83,11 @@ module Gitlab
 
     # Append path to host, making sure there's one single / in between
     def append_path(host, path)
-      "#{host.to_s.sub(%r{\/+$}, '')}/#{path.to_s.sub(%r{^\/+}, '')}"
+      "#{host.to_s.sub(%r{\/+$}, '')}/#{remove_leading_slashes(path)}"
+    end
+
+    def remove_leading_slashes(str)
+      str.to_s.sub(%r{^/+}, '')
     end
 
     # A slugified version of the string, suitable for inclusion in URLs and
@@ -164,9 +172,10 @@ module Gitlab
     end
 
     def deep_indifferent_access(data)
-      if data.is_a?(Array)
+      case data
+      when Array
         data.map(&method(:deep_indifferent_access))
-      elsif data.is_a?(Hash)
+      when Hash
         data.with_indifferent_access
       else
         data
@@ -174,9 +183,10 @@ module Gitlab
     end
 
     def deep_symbolized_access(data)
-      if data.is_a?(Array)
+      case data
+      when Array
         data.map(&method(:deep_symbolized_access))
-      elsif data.is_a?(Hash)
+      when Hash
         data.deep_symbolize_keys
       else
         data

@@ -1,5 +1,5 @@
 <script>
-import { capitalize, escape, isEmpty } from 'lodash';
+import { escape, isEmpty } from 'lodash';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import { reportToSentry } from '../../utils';
 import MainGraphWrapper from '../graph_shared/main_graph_wrapper.vue';
@@ -53,6 +53,11 @@ export default {
       required: false,
       default: () => ({}),
     },
+    skipRetryModal: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     sourceJobHovered: {
       type: String,
       required: false,
@@ -64,8 +69,7 @@ export default {
     },
   },
   jobClasses: [
-    'gl-py-3',
-    'gl-px-4',
+    'gl-p-3',
     'gl-border-gray-100',
     'gl-border-solid',
     'gl-border-1',
@@ -91,9 +95,6 @@ export default {
     },
     columnSpacingClass() {
       return this.isStageView ? 'gl-px-6' : 'gl-px-9';
-    },
-    formattedTitle() {
-      return capitalize(escape(this.name));
     },
     hasAction() {
       return !isEmpty(this.action);
@@ -141,8 +142,8 @@ export default {
         class="gl-display-flex gl-justify-content-space-between gl-relative"
         :class="$options.titleClasses"
       >
-        <span :title="formattedTitle" class="gl-text-truncate gl-pr-3 gl-w-85p">
-          {{ formattedTitle }}
+        <span :title="name" class="gl-text-truncate gl-pr-3 gl-w-85p">
+          {{ name }}
         </span>
         <action-component
           v-if="hasAction && canUpdatePipeline"
@@ -168,6 +169,7 @@ export default {
           v-if="singleJobExists(group)"
           :job="group.jobs[0]"
           :job-hovered="jobHovered"
+          :skip-retry-modal="skipRetryModal"
           :source-job-hovered="sourceJobHovered"
           :pipeline-expanded="pipelineExpanded"
           :pipeline-id="pipelineId"
@@ -178,6 +180,7 @@ export default {
             'gl-transition-duration-slow gl-transition-timing-function-ease',
           ]"
           @pipelineActionRequestComplete="$emit('refreshPipelineGraph')"
+          @setSkipRetryModal="$emit('setSkipRetryModal')"
         />
         <div v-else-if="isParallel(group)" :class="{ 'gl-opacity-3': isFadedOut(group.name) }">
           <job-group-dropdown

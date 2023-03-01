@@ -9,8 +9,8 @@ import CommitPipelineStatus from '~/projects/tree/components/commit_pipeline_sta
 const TEST_AUTHOR_NAME = 'test';
 const TEST_AUTHOR_EMAIL = 'test+test@gitlab.com';
 const TEST_AUTHOR_GRAVATAR = `${TEST_HOST}/avatar/test?s=40`;
-const TEST_SIGNATURE_HTML = `<a class="btn gpg-status-box valid" data-content="signature-content" data-html="true" data-placement="top" data-title="signature-title" data-toggle="popover" role="button" tabindex="0">
-  Verified
+const TEST_SIGNATURE_HTML = `<a class="btn signature-badge" data-content="signature-content" data-html="true" data-placement="top" data-title="signature-title" data-toggle="popover" role="button" tabindex="0">
+  <span class="gl-badge badge badge-pill badge-success md">Verified</span>
 </a>`;
 const TEST_PIPELINE_STATUS_PATH = `${TEST_HOST}/pipeline/status`;
 
@@ -27,7 +27,7 @@ describe('diffs/components/commit_item', () => {
   const getAvatarElement = () => wrapper.find('.user-avatar-link');
   const getCommitterElement = () => wrapper.find('.committer');
   const getCommitActionsElement = () => wrapper.find('.commit-actions');
-  const getCommitPipelineStatus = () => wrapper.find(CommitPipelineStatus);
+  const getCommitPipelineStatus = () => wrapper.findComponent(CommitPipelineStatus);
 
   const mountComponent = (propsData) => {
     wrapper = mount(Component, {
@@ -82,7 +82,7 @@ describe('diffs/components/commit_item', () => {
       const imgElement = avatarElement.find('img');
 
       expect(avatarElement.attributes('href')).toBe(commit.author.web_url);
-      expect(imgElement.classes()).toContain('s32');
+      expect(imgElement.classes()).toContain('gl-avatar-s32');
       expect(imgElement.attributes('alt')).toBe(commit.author.name);
       expect(imgElement.attributes('src')).toBe(commit.author.avatar_url);
     });
@@ -111,8 +111,8 @@ describe('diffs/components/commit_item', () => {
       const descElement = getDescElement();
       const descExpandElement = getDescExpandElement();
 
-      expect(descElement.exists()).toBeFalsy();
-      expect(descExpandElement.exists()).toBeFalsy();
+      expect(descElement.exists()).toBe(false);
+      expect(descExpandElement.exists()).toBe(false);
     });
   });
 
@@ -156,7 +156,7 @@ describe('diffs/components/commit_item', () => {
 
     it('renders signature html', () => {
       const actionsElement = getCommitActionsElement();
-      const signatureElement = actionsElement.find('.gpg-status-box');
+      const signatureElement = actionsElement.find('.signature-badge');
 
       expect(signatureElement.html()).toBe(TEST_SIGNATURE_HTML);
     });

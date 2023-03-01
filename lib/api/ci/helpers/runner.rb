@@ -10,21 +10,30 @@ module API
 
         JOB_TOKEN_HEADER = 'HTTP_JOB_TOKEN'
         JOB_TOKEN_PARAM = :token
+        LEGACY_SYSTEM_XID = '<legacy>'
 
         def authenticate_runner!
           track_runner_authentication
           forbidden! unless current_runner
 
-          current_runner
-            .heartbeat(get_runner_details_from_request)
+          runner_details = get_runner_details_from_request
+          current_runner.heartbeat(runner_details)
+          current_runner_machine&.heartbeat(runner_details)
         end
 
         def get_runner_details_from_request
           return get_runner_ip unless params['info'].present?
 
           attributes_for_keys(%w(name version revision platform architecture executor), params['info'])
+            .merge(get_system_id_from_request)
             .merge(get_runner_config_from_request)
             .merge(get_runner_ip)
+        end
+
+        def get_system_id_from_request
+          return { system_id: params[:system_id] } if params.include?(:system_id)
+
+          {}
         end
 
         def get_runner_ip
@@ -43,6 +52,15 @@ module API
           end
         end
 
+        def current_runner_machine
+          return if Feature.disabled?(:create_runner_machine)
+
+          strong_memoize(:current_runner_machine) do
+            system_xid = params.fetch(:system_id, LEGACY_SYSTEM_XID)
+            current_runner&.ensure_machine(system_xid) { |m| m.contacted_at = Time.current }
+          end
+        end
+
         def track_runner_authentication
           if current_runner
             metrics.increment_runner_authentication_success_counter(runner_type: current_runner.runner_type)
@@ -53,7 +71,7 @@ module API
 
         # HTTP status codes to terminate the job on GitLab Runner:
         # - 403
-        def authenticate_job!(require_running: true, heartbeat_runner: false)
+        def authenticate_job!(heartbeat_runner: false)
           job = current_job
 
           # 404 is not returned here because we want to terminate the job if it's
@@ -66,10 +84,7 @@ module API
 
           forbidden!('Project has been deleted!') if job.project.nil? || job.project.pending_delete?
           forbidden!('Job has been erased!') if job.erased?
-
-          if require_running
-            job_forbidden!(job, 'Job is not running') unless job.running?
-          end
+          job_forbidden!(job, 'Job is not running') unless job.running?
 
           # Only some requests (like updating the job or patching the trace) should trigger
           # runner heartbeat. Operations like artifacts uploading are executed in context of
@@ -81,15 +96,16 @@ module API
           # the heartbeat should be triggered.
           if heartbeat_runner
             job.runner&.heartbeat(get_runner_ip)
+            job.runner_machine&.heartbeat(get_runner_ip)
           end
 
           job
         end
 
         def authenticate_job_via_dependent_job!
-          forbidden! unless current_authenticated_job
+          authenticate!
           forbidden! unless current_job
-          forbidden! unless can?(current_authenticated_job.user, :read_build, current_job)
+          forbidden! unless can?(current_user, :read_build, current_job)
         end
 
         def current_job
@@ -103,21 +119,6 @@ module API
 
           strong_memoize(:current_job) do
             ::Ci::Build.find_by_id(id)
-          end
-        end
-
-        # TODO: Replace this with `#current_authenticated_job from API::Helpers`
-        # after the feature flag `ci_authenticate_running_job_token_for_artifacts`
-        # is removed.
-        #
-        # For the time being, this needs to be overridden because the API
-        # GET api/v4/jobs/:id/artifacts
-        # needs to allow requests using token whose job is not running.
-        #
-        # https://gitlab.com/gitlab-org/gitlab/-/merge_requests/83713#note_942368526
-        def current_authenticated_job
-          strong_memoize(:current_authenticated_job) do
-            ::Ci::AuthJobFinder.new(token: job_token).execute
           end
         end
 
@@ -149,10 +150,6 @@ module API
 
         def get_runner_config_from_request
           { config: attributes_for_keys(%w(gpus), params.dig('info', 'config')) }
-        end
-
-        def request_using_running_job_token?
-          current_job.present? && current_authenticated_job.present? && current_job != current_authenticated_job
         end
 
         def metrics

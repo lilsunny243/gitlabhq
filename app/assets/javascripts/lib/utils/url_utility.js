@@ -86,7 +86,7 @@ export function cleanLeadingSeparator(path) {
   return path.replace(PATH_SEPARATOR_LEADING_REGEX, '');
 }
 
-function cleanEndingSeparator(path) {
+export function cleanEndingSeparator(path) {
   return path.replace(PATH_SEPARATOR_ENDING_REGEX, '');
 }
 
@@ -178,7 +178,7 @@ export function mergeUrlParams(params, url, options = {}) {
   const mergedKeys = sort ? Object.keys(merged).sort() : Object.keys(merged);
 
   const newQuery = mergedKeys
-    .filter((key) => merged[key] !== null)
+    .filter((key) => merged[key] !== null && merged[key] !== undefined)
     .map((key) => {
       let value = merged[key];
       const encodedKey = encodeURIComponent(key);

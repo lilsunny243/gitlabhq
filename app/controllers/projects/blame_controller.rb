@@ -7,7 +7,7 @@ class Projects::BlameController < Projects::ApplicationController
 
   before_action :require_non_empty_project
   before_action :assign_ref_vars
-  before_action :authorize_download_code!
+  before_action :authorize_read_code!
 
   feature_category :source_code_management
   urgency :low, [:show]
@@ -23,11 +23,13 @@ class Projects::BlameController < Projects::ApplicationController
     environment_params[:find_latest] = true
     @environment = ::Environments::EnvironmentsByDeploymentsFinder.new(@project, current_user, environment_params).execute.last
 
-    blame_service = Projects::BlameService.new(@blob, @commit, params.permit(:page))
+    blame_service = Projects::BlameService.new(@blob, @commit, params.permit(:page, :no_pagination))
 
     @blame = Gitlab::View::Presenter::Factory.new(blame_service.blame, project: @project, path: @path, page: blame_service.page).fabricate!
 
-    render locals: { blame_pagination: blame_service.pagination }
+    @blame_pagination = blame_service.pagination
+
+    @blame_per_page = blame_service.per_page
   end
 end
 

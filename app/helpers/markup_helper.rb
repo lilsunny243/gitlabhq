@@ -6,28 +6,6 @@ module MarkupHelper
   include ActionView::Helpers::TextHelper
   include ActionView::Context
 
-  # Let's increase the render timeout
-  # For a smaller one, a test that renders the blob content statically fails
-  # We can consider removing this custom timeout when markup_rendering_timeout FF is removed:
-  # https://gitlab.com/gitlab-org/gitlab/-/issues/365358
-  RENDER_TIMEOUT = 5.seconds
-
-  def plain?(filename)
-    Gitlab::MarkupHelper.plain?(filename)
-  end
-
-  def markup?(filename)
-    Gitlab::MarkupHelper.markup?(filename)
-  end
-
-  def gitlab_markdown?(filename)
-    Gitlab::MarkupHelper.gitlab_markdown?(filename)
-  end
-
-  def asciidoc?(filename)
-    Gitlab::MarkupHelper.asciidoc?(filename)
-  end
-
   # Use this in places where you would normally use link_to(gfm(...), ...).
   def link_to_markdown(body, url, html_options = {})
     return '' if body.blank?
@@ -81,15 +59,16 @@ module MarkupHelper
   # as Markdown.  HTML tags in the parsed output are not counted toward the
   # +max_chars+ limit.  If the length limit falls within a tag's contents, then
   # the tag contents are truncated without removing the closing tag.
-  def first_line_in_markdown(object, attribute, max_chars = nil, options = {})
+  def first_line_in_markdown(object, attribute, max_chars = nil, is_todo: false, **options)
     md = markdown_field(object, attribute, options.merge(post_process: false))
     return unless md.present?
 
     tags = %w(a gl-emoji b strong i em pre code p span)
-    tags << 'img' if options[:allow_images]
 
-    text = truncate_visible(md, max_chars || md.length)
-    text = prepare_for_rendering(text, markdown_field_render_context(object, attribute, options))
+    context = markdown_field_render_context(object, attribute, options)
+    context.reverse_merge!(truncate_visible_max_chars: max_chars || md.length)
+
+    text = prepare_for_rendering(md, context)
     text = sanitize(
       text,
       tags: tags,
@@ -97,12 +76,13 @@ module MarkupHelper
         %w(
           style data-src data-name data-unicode-version data-html
           data-reference-type data-project-path data-iid data-mr-title
+          data-user
         )
     )
 
     # since <img> tags are stripped, this can leave empty <a> tags hanging around
     # (as our markdown wraps images in links)
-    options[:allow_images] ? text : strip_empty_link_tags(text).html_safe
+    strip_empty_link_tags(text).html_safe
   end
 
   def markdown(text, context = {})
@@ -111,8 +91,9 @@ module MarkupHelper
     context[:project] ||= @project
     context[:group] ||= @group
 
-    html = markdown_unsafe(text, context)
-    prepare_for_rendering(html, context)
+    html = Markup::RenderingService.new(text, context: context, postprocess_context: postprocess_context).execute
+
+    Hamlit::RailsHelpers.preserve(html)
   end
 
   def markdown_field(object, field, context = {})
@@ -128,8 +109,13 @@ module MarkupHelper
   def markup(file_name, text, context = {})
     context[:project] ||= @project
     context[:text_source] ||= :blob
-    html = context.delete(:rendered) || markup_unsafe(file_name, text, context)
-    prepare_for_rendering(html, context)
+    prepare_asciidoc_context(file_name, context)
+
+    html = Markup::RenderingService
+      .new(text, file_name: file_name, context: context, postprocess_context: postprocess_context)
+      .execute
+
+    Hamlit::RailsHelpers.preserve(html)
   end
 
   def render_wiki_content(wiki_page, context = {})
@@ -137,35 +123,13 @@ module MarkupHelper
     return '' unless text.present?
 
     context = render_wiki_content_context(wiki_page.wiki, wiki_page, context)
-    html = markup_unsafe(wiki_page.path, text, context)
+    prepare_asciidoc_context(wiki_page.path, context)
 
-    prepare_for_rendering(html, context)
-  end
+    html = Markup::RenderingService
+      .new(text, file_name: wiki_page.path, context: context, postprocess_context: postprocess_context)
+      .execute
 
-  def markup_unsafe(file_name, text, context = {})
-    return '' unless text.present?
-
-    markup = proc do
-      if gitlab_markdown?(file_name)
-        markdown_unsafe(text, context)
-      elsif asciidoc?(file_name)
-        asciidoc_unsafe(text, context)
-      elsif plain?(file_name)
-        plain_unsafe(text)
-      else
-        other_markup_unsafe(file_name, text, context)
-      end
-    end
-
-    if Feature.enabled?(:markup_rendering_timeout, @project)
-      Gitlab::RenderTimeout.timeout(foreground: RENDER_TIMEOUT, &markup)
-    else
-      markup.call
-    end
-  rescue StandardError => e
-    Gitlab::ErrorTracking.track_exception(e, project_id: @project&.id, file_name: file_name)
-
-    simple_format(text)
+    Hamlit::RailsHelpers.preserve(html)
   end
 
   # Returns the text necessary to reference `entity` across projects
@@ -207,55 +171,6 @@ module MarkupHelper
     { project: wiki.container }
   end
 
-  # Return +text+, truncated to +max_chars+ characters, excluding any HTML
-  # tags.
-  def truncate_visible(text, max_chars)
-    doc = Nokogiri::HTML.fragment(text)
-    content_length = 0
-    truncated = false
-
-    doc.traverse do |node|
-      if node.text? || node.content.empty?
-        if truncated
-          node.remove
-          next
-        end
-
-        # Handle line breaks within a node
-        if node.content.strip.lines.length > 1
-          node.content = "#{node.content.lines.first.chomp}..."
-          truncated = true
-        end
-
-        num_remaining = max_chars - content_length
-        if node.content.length > num_remaining
-          node.content = node.content.truncate(num_remaining)
-          truncated = true
-        end
-
-        content_length += node.content.length
-      end
-
-      truncated = truncate_if_block(node, truncated)
-    end
-
-    doc.to_html
-  end
-
-  # Used by #truncate_visible.  If +node+ is the first block element, and the
-  # text hasn't already been truncated, then append "..." to the node contents
-  # and return true.  Otherwise return false.
-  def truncate_if_block(node, truncated)
-    return true if truncated
-
-    if node.element? && (node.description&.block? || node.matches?('pre > code > .line'))
-      node.inner_html = "#{node.inner_html}..." if node.next_sibling
-      true
-    else
-      truncated
-    end
-  end
-
   def strip_empty_link_tags(text)
     scrubber = Loofah::Scrubber.new do |node|
       node.remove if node.name == 'a' && node.children.empty?
@@ -275,29 +190,6 @@ module MarkupHelper
       aria: { label: options[:title] } do
       sprite_icon(options[:icon])
     end
-  end
-
-  def markdown_unsafe(text, context = {})
-    Banzai.render(text, context)
-  end
-
-  def asciidoc_unsafe(text, context = {})
-    context.reverse_merge!(
-      commit: @commit,
-      ref: @ref,
-      requested_path: @path
-    )
-    Gitlab::Asciidoc.render(text, context)
-  end
-
-  def plain_unsafe(text)
-    content_tag :pre, class: 'plain-readme' do
-      text
-    end
-  end
-
-  def other_markup_unsafe(file_name, text, context = {})
-    Gitlab::OtherMarkup.render(file_name, text, context)
   end
 
   def render_markdown_field(object, field, context = {})
@@ -320,7 +212,15 @@ module MarkupHelper
   def prepare_for_rendering(html, context = {})
     return '' unless html.present?
 
-    context.reverse_merge!(
+    context.reverse_merge!(postprocess_context)
+
+    html = Banzai.post_process(html, context)
+
+    Hamlit::RailsHelpers.preserve(html)
+  end
+
+  def postprocess_context
+    {
       current_user: (current_user if defined?(current_user)),
 
       # RepositoryLinkFilter and UploadLinkFilter
@@ -328,11 +228,13 @@ module MarkupHelper
       wiki: @wiki,
       ref: @ref,
       requested_path: @path
-    )
+    }
+  end
 
-    html = Banzai.post_process(html, context)
+  def prepare_asciidoc_context(file_name, context)
+    return unless Gitlab::MarkupHelper.asciidoc?(file_name)
 
-    Hamlit::RailsHelpers.preserve(html)
+    context.reverse_merge!(commit: @commit, ref: @ref, requested_path: @path)
   end
 
   extend self

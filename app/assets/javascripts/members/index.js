@@ -17,9 +17,12 @@ export const initMembersApp = (el, options) => {
   const {
     sourceId,
     canManageMembers,
+    canManageAccessRequests,
     canExportMembers,
     canFilterByEnterprise,
     exportCsvPath,
+    groupName,
+    groupPath,
     ...vuexStoreAttributes
   } = parseDataAttributes(el);
 
@@ -61,9 +64,14 @@ export const initMembersApp = (el, options) => {
       currentUserId: gon.current_user_id || null,
       sourceId,
       canManageMembers,
+      canManageAccessRequests,
       canFilterByEnterprise,
       canExportMembers,
       exportCsvPath,
+      group: {
+        name: groupName,
+        path: groupPath,
+      },
     },
     render: (createElement) => createElement('members-tabs'),
   });

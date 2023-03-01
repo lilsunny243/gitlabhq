@@ -1,13 +1,13 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# GitHub project integration **(PREMIUM)**
+# GitHub **(PREMIUM)**
 
 You can update GitHub with pipeline status updates from GitLab.
-This integration can help you if you use GitLab for CI/CD.
+The GitHub integration can help you if you use GitLab for CI/CD.
 
 ![Pipeline status update on GitHub](img/github_status_check_pipeline_update.png)
 
@@ -29,7 +29,7 @@ Complete these steps on GitHub:
 
 Complete these steps in GitLab:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **GitHub**.
 1. Ensure the **Active** checkbox is selected.

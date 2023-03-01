@@ -10,17 +10,15 @@ module InjectEnterpriseEditionModule
   end
 
   def extend_mod_with(constant_name, namespace: Object)
-    each_extension_for(
-      constant_name,
-      namespace,
-      &method(:extend))
+    each_extension_for(constant_name, namespace) do |constant|
+      extend constant
+    end
   end
 
   def include_mod_with(constant_name, namespace: Object)
-    each_extension_for(
-      constant_name,
-      namespace,
-      &method(:include))
+    each_extension_for(constant_name, namespace) do |constant|
+      include constant
+    end
   end
 
   def prepend_mod(with_descendants: false)
@@ -33,6 +31,12 @@ module InjectEnterpriseEditionModule
 
   def include_mod
     include_mod_with(name) # rubocop: disable Cop/InjectEnterpriseEditionModule
+  end
+
+  def gitlab_extensions
+    extensions = [self]
+    each_extension_for(name, Object) { |c| extensions << c }
+    extensions
   end
 
   private

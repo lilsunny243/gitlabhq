@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Caching in GitLab CI/CD **(FREE)**
@@ -47,7 +47,7 @@ To ensure maximum availability of the cache, do one or more of the following:
 
 - [Tag your runners](../runners/configure_runners.md#use-tags-to-control-which-jobs-a-runner-can-run) and use the tag on jobs
   that share the cache.
-- [Use runners that are only available to a particular project](../runners/runners_scope.md#prevent-a-specific-runner-from-being-enabled-for-other-projects).
+- [Use runners that are only available to a particular project](../runners/runners_scope.md#prevent-a-project-runner-from-being-enabled-for-other-projects).
 - [Use a `key`](../yaml/index.md#cachekey) that fits your workflow. For example,
   you can configure a different cache for each branch.
 
@@ -84,7 +84,8 @@ test-job:
       paths:
         - .yarn-cache/
   script:
-    - bundle install --path=vendor
+    - bundle config set --local path 'vendor/ruby'
+    - bundle install
     - yarn install --cache-folder .yarn-cache
     - echo Run tests...
 ```
@@ -138,13 +139,14 @@ You can override cache settings without overwriting the global cache by using
 `policy` for one job:
 
 ```yaml
-cache: &global_cache
-  key: $CI_COMMIT_REF_SLUG
-  paths:
-    - node_modules/
-    - public/
-    - vendor/
-  policy: pull-push
+default:
+  cache: &global_cache
+    key: $CI_COMMIT_REF_SLUG
+    paths:
+      - node_modules/
+      - public/
+      - vendor/
+    policy: pull-push
 
 job:
   cache:
@@ -353,7 +355,8 @@ cache:
 
 before_script:
   - ruby -v                                        # Print out ruby version for debugging
-  - bundle install -j $(nproc) --path vendor/ruby  # Install dependencies into ./vendor/ruby
+  - bundle config set --local path 'vendor/ruby'   # The location to install the specified gems to
+  - bundle install -j $(nproc)                     # Install dependencies into ./vendor/ruby
 
 rspec:
   script:
@@ -379,14 +382,16 @@ cache:
 test_job:
   stage: test
   before_script:
-    - bundle install --without production --path vendor/ruby
+    - bundle config set --local path 'vendor/ruby'
+    - bundle install --without production
   script:
     - bundle exec rspec
 
 deploy_job:
   stage: production
   before_script:
-    - bundle install --without test --path vendor/ruby
+    - bundle config set --local path 'vendor/ruby'   # The location to install the specified gems to
+    - bundle install --without test
   script:
     - bundle exec deploy
 ```
@@ -467,7 +472,7 @@ and should only be disabled in an environment where all users with Developer rol
 
 To use the same cache for all branches:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. Clear the **Use separate caches for protected branches** checkbox.
@@ -564,9 +569,9 @@ The next time the pipeline runs, the cache is stored in a different location.
 
 You can clear the cache in the GitLab UI:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **CI/CD > Pipelines**.
-1. In the top right, select **Clear runner caches**.
+1. In the upper-right corner, select **Clear runner caches**.
 
 On the next commit, your CI/CD jobs use a new cache.
 

@@ -4,6 +4,7 @@ import { helpPagePath } from '~/helpers/help_page_helper';
 export const MAX_LIST_COUNT = 25;
 export const INSTALL_AGENT_MODAL_ID = 'install-agent';
 export const ACTIVE_CONNECTION_TIME = 480000;
+export const NAME_MAX_LENGTH = 50;
 
 export const CLUSTER_ERRORS = {
   default: {
@@ -100,12 +101,17 @@ export const I18N_AGENT_TOKEN = {
   basicInstallBody: s__(
     'ClusterAgents|From a terminal, connect to your cluster and run this command. The token is included in the command.',
   ),
+  helmVersionText: s__(
+    'ClusterAgents|Use a Helm version compatible with your Kubernetes version (see %{linkStart}Helm version support policy%{linkEnd}).',
+  ),
 
   advancedInstallTitle: s__('ClusterAgents|Advanced installation methods'),
   advancedInstallBody: s__(
     'ClusterAgents|%{linkStart}View the documentation%{linkEnd} for advanced installation. Ensure you have your access token available.',
   ),
 };
+
+export const HELM_VERSION_POLICY_URL = 'https://helm.sh/docs/topics/version_skew/';
 
 export const I18N_AGENT_MODAL = {
   registerAgentButton: s__('ClusterAgents|Register'),
@@ -138,7 +144,7 @@ export const AGENT_STATUSES = {
   active: {
     name: s__('ClusterAgents|Connected'),
     icon: 'status-success',
-    class: 'text-success-500',
+    class: 'gl-text-green-500',
     tooltip: {
       title: sprintf(s__('ClusterAgents|Last connected %{timeAgo}.')),
     },
@@ -146,7 +152,7 @@ export const AGENT_STATUSES = {
   inactive: {
     name: s__('ClusterAgents|Not connected'),
     icon: 'status-alert',
-    class: 'text-danger-500',
+    class: 'gl-text-red-500',
     tooltip: {
       title: s__('ClusterAgents|Agent might not be connected to GitLab'),
       body: sprintf(
@@ -159,7 +165,7 @@ export const AGENT_STATUSES = {
   unused: {
     name: s__('ClusterAgents|Never connected'),
     icon: 'status-neutral',
-    class: 'text-secondary-500',
+    class: 'gl-text-gray-500',
     tooltip: {
       title: s__('ClusterAgents|Agent never connected to GitLab'),
       body: s__('ClusterAgents|Make sure you are using a valid token.'),

@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'json'
 require 'tempfile'
 
-RSpec.describe Gitlab::Git::RuggedImpl::UseRugged, :seed_helper do
+RSpec.describe Gitlab::Git::RuggedImpl::UseRugged, feature_category: :gitaly do
   let(:project) { create(:project, :repository) }
   let(:repository) { project.repository }
   let(:feature_flag_name) { wrapper.rugged_feature_keys.first }
@@ -18,8 +18,7 @@ RSpec.describe Gitlab::Git::RuggedImpl::UseRugged, :seed_helper do
     klazz = Class.new do
       include Gitlab::Git::RuggedImpl::UseRugged
 
-      def rugged_test(ref, test_number)
-      end
+      def rugged_test(ref, test_number); end
     end
 
     klazz.new
@@ -213,7 +212,8 @@ RSpec.describe Gitlab::Git::RuggedImpl::UseRugged, :seed_helper do
   end
 
   def create_gitaly_metadata_file
-    File.open(File.join(SEED_STORAGE_PATH, '.gitaly-metadata'), 'w+') do |f|
+    metadata_filename = File.join(TestEnv.repos_path, '.gitaly-metadata')
+    File.open(metadata_filename, 'w+') do |f|
       gitaly_metadata = {
         "gitaly_filesystem_id" => SecureRandom.uuid
       }

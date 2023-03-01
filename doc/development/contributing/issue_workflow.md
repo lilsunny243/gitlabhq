@@ -2,20 +2,24 @@
 type: reference, dev
 stage: none
 group: Development
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Issues workflow
 
-## Issue tracker guidelines
+**Before you submit an issue, [search the issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues)**
+for similar entries. Someone else might have already had the same bug or feature proposal.
+If you find an existing issue, show your support with an award emoji and add your notes to the discussion.
 
-**[Search the issue tracker](https://gitlab.com/gitlab-org/gitlab/-/issues)** for similar entries before
-submitting your own, there's a good chance somebody else had the same issue or
-feature proposal. Show your support with an award emoji and/or join the
-discussion.
+To submit a bug:
 
-Please submit bugs using the ['Bug' issue template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab/issue_templates/Bug.md) provided on the issue tracker.
-The text in the comments (`<!-- ... -->`) is there to help you with what to include.
+- Use the ['Bug' issue template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab/issue_templates/Bug.md).
+  The text in the comments (`<!-- ... -->`) should help you with which information to include.
+- To report a suspected security vulnerability, follow the
+  [disclosure process on the GitLab.com website](https://about.gitlab.com/security/disclosure/).
+
+WARNING:
+Do **not** create publicly viewable issues for suspected security vulnerabilities.
 
 ## Issue triaging
 
@@ -51,7 +55,7 @@ Most issues will have labels for at least one of the following:
 - Specialization: `~frontend`, `~backend`, `~documentation`
 - Release Scoping: `~Deliverable`, `~Stretch`, `~"Next Patch Release"`
 - Priority: `~"priority::1"`, `~"priority::2"`, `~"priority::3"`, `~"priority::4"`
-- Severity: ~`"severity::1"`, `~"severity::2"`, `~"severity::3"`, `~"severity::4"`
+- Severity: `~"severity::1"`, `~"severity::2"`, `~"severity::3"`, `~"severity::4"`
 
 Please add `~"breaking change"` label if the issue can be considered as a [breaking change](../deprecation_guidelines/index.md).
 
@@ -373,7 +377,7 @@ below will make it easy to manage this, without unnecessary overhead.
    which might lead to many hard problems to solve. Changing some text in GitLab
    is probably 1, adding a new Git Hook maybe 4 or 5, big features 7-9.
 1. If something is very large, it should probably be split up in multiple
-   issues or chunks. You can simply not set the weight of a parent issue and set
+   issues or chunks. You can not set the weight of a parent issue and set
    weights to children issues.
 
 ## Regression issues
@@ -432,7 +436,7 @@ original merge request - or not tracked at all!
 The overheads of scheduling, and rate of change in the GitLab codebase, mean
 that the cost of a trivial technical debt issue can quickly exceed the value of
 tracking it. This generally means we should resolve these in the original merge
-request - or simply not create a follow-up issue at all.
+request - or not create a follow-up issue at all.
 
 For example, a typo in a comment that is being copied between files is worth
 fixing in the same MR, but not worth creating a follow-up issue for. Renaming a

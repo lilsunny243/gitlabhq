@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Insights
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Security
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Job Artifacts API **(FREE)**
@@ -18,14 +18,14 @@ GET /projects/:id/jobs/:job_id/artifacts
 
 | Attribute                 | Type           | Required | Description |
 |---------------------------|----------------|----------|-------------|
-| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `job_id`                  | integer        | yes      | ID of a job. |
 | `job_token` **(PREMIUM)** | string         | no       | To be used with [triggers](../ci/jobs/ci_job_token.md#download-an-artifact-from-a-different-pipeline) for multi-project pipelines. It should be invoked only in a CI/CD job defined in the `.gitlab-ci.yml` file. The value is always `$CI_JOB_TOKEN`. The job associated with the `$CI_JOB_TOKEN` must be running when this token is used. |
 
 Example request using the `PRIVATE-TOKEN` header:
 
 ```shell
-curl --output artifacts.zip --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/jobs/42/artifacts"
+curl --location --output artifacts.zip --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/jobs/42/artifacts"
 ```
 
 To use this in a [`script` definition](../ci/yaml/index.md#script) inside
@@ -70,7 +70,7 @@ is the same as [getting the job's artifacts](#get-job-artifacts), but by
 defining the job's name instead of its ID.
 
 NOTE:
-If a pipeline is [parent of other child pipelines](../ci/pipelines/parent_child_pipelines.md), artifacts
+If a pipeline is [parent of other child pipelines](../ci/pipelines/downstream_pipelines.md#parent-child-pipelines), artifacts
 are searched in hierarchical order from parent to child. For example, if both parent and
 child pipelines have a job with the same name, the artifact from the parent pipeline is returned.
 
@@ -82,7 +82,7 @@ Parameters
 
 | Attribute                 | Type           | Required | Description |
 |---------------------------|----------------|----------|-------------|
-| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `ref_name`                | string         | yes      | Branch or tag name in repository. HEAD or SHA references are not supported. |
 | `job`                     | string         | yes      | The name of the job. |
 | `job_token` **(PREMIUM)** | string         | no       | To be used with [triggers](../ci/jobs/ci_job_token.md#download-an-artifact-from-a-different-pipeline) for multi-project pipelines. It should be invoked only in a CI/CD job defined in the `.gitlab-ci.yml` file. The value is always `$CI_JOB_TOKEN`. The job associated with the `$CI_JOB_TOKEN` must be running when this token is used. |
@@ -90,7 +90,7 @@ Parameters
 Example request using the `PRIVATE-TOKEN` header:
 
 ```shell
-curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/jobs/artifacts/main/download?job=test"
+curl --location --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/jobs/artifacts/main/download?job=test"
 ```
 
 To use this in a [`script` definition](../ci/yaml/index.md#script) inside
@@ -143,7 +143,7 @@ Parameters
 
 | Attribute                 | Type           | Required | Description |
 |---------------------------|----------------|----------|-------------|
-| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `job_id`                  | integer        | yes      | The unique job identifier. |
 | `artifact_path`           | string         | yes      | Path to a file inside the artifacts archive. |
 | `job_token` **(PREMIUM)** | string         | no       | To be used with [triggers](../ci/jobs/ci_job_token.md#download-an-artifact-from-a-different-pipeline) for multi-project pipelines. It should be invoked only in a CI/CD job defined in the `.gitlab-ci.yml` file. The value is always `$CI_JOB_TOKEN`. The job associated with the `$CI_JOB_TOKEN` must be running when this token is used. |
@@ -175,7 +175,7 @@ The artifact file provides more detail than what is available in the
 [CSV export](../user/application_security/vulnerability_report/index.md#export-vulnerability-details).
 
 In [GitLab 13.5](https://gitlab.com/gitlab-org/gitlab/-/issues/201784) and later, artifacts
-for [parent and child pipelines](../ci/pipelines/parent_child_pipelines.md) are searched in hierarchical
+for [parent and child pipelines](../ci/pipelines/downstream_pipelines.md#parent-child-pipelines) are searched in hierarchical
 order from parent to child. For example, if both parent and child pipelines have a
 job with the same name, the artifact from the parent pipeline is returned.
 
@@ -187,7 +187,7 @@ Parameters:
 
 | Attribute                 | Type           | Required | Description |
 |---------------------------|----------------|----------|-------------|
-| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`                      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `ref_name`                | string         | yes      | Branch or tag name in repository. `HEAD` or `SHA` references are not supported. |
 | `artifact_path`           | string         | yes      | Path to a file inside the artifacts archive. |
 | `job`                     | string         | yes      | The name of the job. |
@@ -219,7 +219,7 @@ Parameters
 
 | Attribute | Type           | Required | Description                                                                                                  |
 |-----------|----------------|----------|--------------------------------------------------------------------------------------------------------------|
-| `id`      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `job_id`  | integer        | yes      | ID of a job.                                                                                                 |
 
 Example request:
@@ -274,7 +274,7 @@ DELETE /projects/:id/jobs/:job_id/artifacts
 
 | Attribute | Type           | Required | Description                                                                 |
 |-----------|----------------|----------|-----------------------------------------------------------------------------|
-| `id`      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `job_id`  | integer        | yes      | ID of a job.                                                                |
 
 Example request:
@@ -303,7 +303,7 @@ DELETE /projects/:id/artifacts
 
 | Attribute | Type           | Required | Description                                                                 |
 |-----------|----------------|----------|-----------------------------------------------------------------------------|
-| `id`      | integer/string | yes      | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`      | integer/string | yes      | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 
 Example request:
 

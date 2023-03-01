@@ -84,6 +84,22 @@ RSpec.describe Commit do
     end
   end
 
+  describe '.build_from_sidekiq_hash' do
+    it 'returns a Commit' do
+      commit = described_class.build_from_sidekiq_hash(project, id: '123')
+
+      expect(commit).to be_an_instance_of(Commit)
+    end
+
+    it 'parses date strings into Time instances' do
+      commit = described_class.build_from_sidekiq_hash(project,
+                                   id: '123',
+                                   authored_date: Time.current.to_s)
+
+      expect(commit.authored_date).to be_a_kind_of(Time)
+    end
+  end
+
   describe '#diff_refs' do
     it 'is equal to itself' do
       expect(commit.diff_refs).to eq(commit.diff_refs)
@@ -812,12 +828,14 @@ eos
   describe 'signed commits' do
     let(:gpg_signed_commit) { project.commit_by(oid: '0b4bc9a49b562e85de7cc9e834518ea6828729b9') }
     let(:x509_signed_commit) { project.commit_by(oid: '189a6c924013fc3fe40d6f1ec1dc20214183bc97') }
+    let(:ssh_signed_commit) { project.commit_by(oid: '7b5160f9bb23a3d58a0accdbe89da13b96b1ece9') }
     let(:unsigned_commit) { project.commit_by(oid: '54fcc214b94e78d7a41a9a8fe6d87a5e59500e51') }
     let!(:commit) { create(:commit, project: project) }
 
     it 'returns signature_type properly' do
       expect(gpg_signed_commit.signature_type).to eq(:PGP)
       expect(x509_signed_commit.signature_type).to eq(:X509)
+      expect(ssh_signed_commit.signature_type).to eq(:SSH)
       expect(unsigned_commit.signature_type).to eq(:NONE)
       expect(commit.signature_type).to eq(:NONE)
     end
@@ -825,6 +843,7 @@ eos
     it 'returns has_signature? properly' do
       expect(gpg_signed_commit.has_signature?).to be_truthy
       expect(x509_signed_commit.has_signature?).to be_truthy
+      expect(ssh_signed_commit.has_signature?).to be_truthy
       expect(unsigned_commit.has_signature?).to be_falsey
       expect(commit.has_signature?).to be_falsey
     end

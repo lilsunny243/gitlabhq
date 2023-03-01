@@ -2,22 +2,103 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Environment' do
-  let(:project) { create(:project, :repository) }
+RSpec.describe 'Environment', feature_category: :projects do
+  let_it_be(:project) { create(:project, :repository) }
   let(:user) { create(:user) }
   let(:role) { :developer }
 
   before do
     sign_in(user)
     project.add_role(user, role)
+    stub_feature_flags(environment_details_vue: false)
   end
 
   def auto_stop_button_selector
     %q{button[title="Prevent environment from auto-stopping"]}
   end
 
+  describe 'environment details page vue' do
+    let_it_be(:environment) { create(:environment, project: project) }
+    let!(:permissions) {}
+    let!(:deployment) {}
+    let!(:action) {}
+    let!(:cluster) {}
+
+    before do
+      stub_feature_flags(environment_details_vue: true)
+    end
+
+    context 'with auto-stop' do
+      let_it_be(:environment) { create(:environment, :will_auto_stop, name: 'staging', project: project) }
+
+      before do
+        visit_environment(environment)
+      end
+
+      it 'shows auto stop info', :js do
+        expect(page).to have_content('Auto stops')
+      end
+
+      it 'shows auto stop button', :js do
+        expect(page).to have_selector(auto_stop_button_selector)
+        expect(page.find(auto_stop_button_selector).find(:xpath, '..')['action']).to have_content(cancel_auto_stop_project_environment_path(environment.project, environment))
+      end
+
+      it 'allows user to cancel auto stop', :js do
+        page.find(auto_stop_button_selector).click
+        wait_for_all_requests
+        expect(page).to have_content('Auto stop successfully canceled.')
+        expect(page).not_to have_selector(auto_stop_button_selector)
+      end
+    end
+
+    context 'without deployments' do
+      before do
+        visit_environment(environment)
+      end
+
+      it 'does not show deployments', :js do
+        expect(page).to have_content('You don\'t have any deployments right now.')
+      end
+    end
+
+    context 'with deployments' do
+      before do
+        visit_environment(environment)
+      end
+
+      context 'when there is a successful deployment' do
+        let(:pipeline) { create(:ci_pipeline, project: project) }
+        let(:build) { create(:ci_build, :success, pipeline: pipeline) }
+
+        let(:deployment) do
+          create(:deployment, :success, environment: environment, deployable: build)
+        end
+
+        it 'does show deployments', :js do
+          wait_for_requests
+          expect(page).to have_link("#{build.name} (##{build.id})")
+        end
+      end
+
+      context 'when there is a failed deployment' do
+        let(:pipeline) { create(:ci_pipeline, project: project) }
+        let(:build) { create(:ci_build, pipeline: pipeline) }
+
+        let(:deployment) do
+          create(:deployment, :failed, environment: environment, deployable: build)
+        end
+
+        it 'does show deployments', :js do
+          wait_for_requests
+          expect(page).to have_link("#{build.name} (##{build.id})")
+        end
+      end
+    end
+  end
+
   describe 'environment details page' do
-    let!(:environment) { create(:environment, project: project) }
+    let_it_be(:environment) { create(:environment, project: project) }
     let!(:permissions) {}
     let!(:deployment) {}
     let!(:action) {}
@@ -97,6 +178,10 @@ RSpec.describe 'Environment' do
         it 'does show deployments' do
           expect(page).to have_link("#{build.name} (##{build.id})")
         end
+
+        it 'shows a tooltip on the job name' do
+          expect(page).to have_css("[title=\"#{build.name} (##{build.id})\"].has-tooltip")
+        end
       end
 
       context 'when there is a failed deployment' do
@@ -156,10 +241,20 @@ RSpec.describe 'Environment' do
       end
 
       context 'with related deployable present' do
-        let(:pipeline) { create(:ci_pipeline, project: project) }
-        let(:build) { create(:ci_build, pipeline: pipeline, environment: environment.name) }
+        let_it_be(:previous_pipeline) { create(:ci_pipeline, project: project) }
 
-        let(:deployment) do
+        let_it_be(:previous_build) do
+          create(:ci_build, :success, pipeline: previous_pipeline, environment: environment.name)
+        end
+
+        let_it_be(:previous_deployment) do
+          create(:deployment, :success, environment: environment, deployable: previous_build)
+        end
+
+        let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+        let_it_be(:build) { create(:ci_build, pipeline: pipeline, environment: environment.name) }
+
+        let_it_be(:deployment) do
           create(:deployment, :success, environment: environment, deployable: build)
         end
 
@@ -167,12 +262,10 @@ RSpec.describe 'Environment' do
           visit_environment(environment)
         end
 
-        it 'does show build name' do
-          expect(page).to have_link("#{build.name} (##{build.id})")
-        end
-
-        it 'shows the re-deploy button' do
+        it 'shows deployment information and buttons', :js do
           expect(page).to have_button('Re-deploy to environment')
+          expect(page).to have_button('Rollback environment')
+          expect(page).to have_link("#{build.name} (##{build.id})")
         end
 
         context 'with manual action' do

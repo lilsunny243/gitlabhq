@@ -5,7 +5,29 @@ function retry() {
 
   for i in 2 1; do
     sleep 3s
-    echo "Retrying $i..."
+    echo "[$(date '+%H:%M:%S')] Retrying $i..."
+    if eval "$@"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Retry after 2s, 4s, 8s, 16s, 32, 64s, 128s
+function retry_exponential() {
+  if eval "$@"; then
+    return 0
+  fi
+
+  local sleep_time=0
+  # The last try will be after 2**7 = 128 seconds (2min8s)
+  for i in 1 2 3 4 5 6 7; do
+    sleep_time=$((2 ** i))
+
+    echo "Sleep for $sleep_time seconds..."
+    sleep $sleep_time
+    echo "[$(date '+%H:%M:%S')] Attempt #$i..."
     if eval "$@"; then
       return 0
     fi
@@ -15,9 +37,11 @@ function retry() {
 
 function test_url() {
   local url="${1}"
+  local curl_args="${2}"
   local status
+  local cmd="curl ${curl_args} --output /dev/null -L -s -w ''%{http_code}'' \"${url}\""
 
-  status=$(curl --output /dev/null -L -s -w ''%{http_code}'' "${url}")
+  status=$(eval "${cmd}")
 
   if [[ $status == "200" ]]; then
     return 0
@@ -38,6 +62,8 @@ function bundle_install_script() {
     exit 1;
   fi;
 
+  echo -e "section_start:`date +%s`:bundle-install[collapsed=true]\r\e[0KInstalling gems"
+
   gem --version
   bundle --version
   gem install bundler --no-document --conservative --version 2.3.15
@@ -48,7 +74,7 @@ function bundle_install_script() {
   echo "${BUNDLE_WITHOUT}"
   bundle config
 
-  run_timed_command "bundle install ${BUNDLE_INSTALL_FLAGS} ${extra_install_args} && bundle check"
+  run_timed_command "bundle install ${BUNDLE_INSTALL_FLAGS} ${extra_install_args}"
 
   if [[ $(bundle info pg) ]]; then
     # When we test multiple versions of PG in the same pipeline, we have a single `setup-test-env`
@@ -56,6 +82,24 @@ function bundle_install_script() {
     # Uncomment the following line if multiple versions of PG are tested in the same pipeline.
     run_timed_command "bundle pristine pg"
   fi
+
+  echo -e "section_end:`date +%s`:bundle-install\r\e[0K"
+}
+
+function yarn_install_script() {
+  echo -e "section_start:`date +%s`:yarn-install[collapsed=true]\r\e[0KInstalling Yarn packages"
+
+  retry yarn install --frozen-lockfile
+
+  echo -e "section_end:`date +%s`:yarn-install\r\e[0K"
+}
+
+function assets_compile_script() {
+  echo -e "section_start:`date +%s`:assets-compile[collapsed=true]\r\e[0KCompiling frontend assets"
+
+  bin/rake gitlab:assets:compile
+
+  echo -e "section_end:`date +%s`:assets-compile\r\e[0K"
 }
 
 function setup_db_user_only() {
@@ -68,21 +112,63 @@ function setup_db_praefect() {
 
 function setup_db() {
   run_timed_command "setup_db_user_only"
-  run_timed_command_with_metric "bundle exec rake db:drop db:create db:schema:load db:migrate" "setup_db"
+  run_timed_command_with_metric "bundle exec rake db:drop db:create db:schema:load db:migrate gitlab:db:lock_writes" "setup_db"
   run_timed_command "setup_db_praefect"
 }
 
 function install_gitlab_gem() {
-  run_timed_command "gem install httparty --no-document --version 0.18.1"
-  run_timed_command "gem install gitlab --no-document --version 4.17.0"
+  run_timed_command "gem install httparty --no-document --version 0.20.0"
+  run_timed_command "gem install gitlab --no-document --version 4.19.0"
 }
 
 function install_tff_gem() {
-  run_timed_command "gem install test_file_finder --no-document --version 0.1.1"
+  run_timed_command "gem install test_file_finder --no-document --version 0.1.4"
+}
+
+function install_activesupport_gem() {
+  run_timed_command "gem install activesupport --no-document --version 6.1.7.1"
 }
 
 function install_junit_merge_gem() {
   run_timed_command "gem install junit_merge --no-document --version 0.1.2"
+}
+
+function fail_on_warnings() {
+  local cmd="$*"
+  local warning_file
+  warning_file="$(mktemp)"
+
+  local allowed_warning_file
+  allowed_warning_file="$(mktemp)"
+
+  eval "$cmd 2>$warning_file"
+  local ret=$?
+
+  # Filter out comments and empty lines from allowed warnings file.
+  grep --invert-match --extended-regexp "^#|^$" scripts/allowed_warnings.txt > "$allowed_warning_file"
+
+  local warnings
+  # Filter out allowed warnings from stderr.
+  # Turn grep errors into warnings so we fail later.
+  warnings=$(grep --invert-match --extended-regexp --file "$allowed_warning_file" "$warning_file" 2>&1 || true)
+
+  rm -f "$allowed_warning_file"
+
+  if [ "$warnings" != "" ]
+  then
+    echoerr "There were warnings:"
+    echoerr "======================== Filtered warnings ====================================="
+    echo "$warnings" >&2
+    echoerr "======================= Unfiltered warnings ===================================="
+    cat "$warning_file" >&2
+    echoerr "================================================================================"
+    rm -f "$warning_file"
+    return 1
+  fi
+
+  rm -f "$warning_file"
+
+  return $ret
 }
 
 function run_timed_command() {
@@ -182,4 +268,22 @@ function danger_as_local() {
   unset GITLAB_CI
   # We need to base SHA to help danger determine the base commit for this shallow clone.
   bundle exec danger dry_run --fail-on-errors=true --verbose --base="${CI_MERGE_REQUEST_DIFF_BASE_SHA}" --head="${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-$CI_COMMIT_SHA}" --dangerfile="${DANGER_DANGERFILE:-Dangerfile}"
+}
+
+# We're inlining this function in `.gitlab/ci/package-and-test/main.gitlab-ci.yml` so make sure to reflect any changes there
+function assets_image_tag() {
+  local cache_assets_hash_file="cached-assets-hash.txt"
+
+  if [[ -n "${CI_COMMIT_TAG}" ]]; then
+    echo -n "${CI_COMMIT_REF_NAME}"
+  elif [[ -f "${cache_assets_hash_file}" ]]; then
+    echo -n "assets-hash-$(cat ${cache_assets_hash_file} | cut -c1-10)"
+  else
+    echo -n "${CI_COMMIT_SHA}"
+  fi
+}
+
+function setup_gcloud() {
+  gcloud auth activate-service-account --key-file="${REVIEW_APPS_GCP_CREDENTIALS}"
+  gcloud config set project "${REVIEW_APPS_GCP_PROJECT}"
 }

@@ -2,9 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User searches for code' do
-  let(:user) { create(:user) }
-  let(:project) { create(:project, :repository, namespace: user.namespace) }
+RSpec.describe 'User searches for code', :js, :disable_rate_limiter, feature_category: :global_search do
+  using RSpec::Parameterized::TableSyntax
+  include ListboxHelpers
+
+  let_it_be(:user) { create(:user) }
+  let_it_be_with_reload(:project) { create(:project, :repository, namespace: user.namespace) }
 
   context 'when signed in' do
     before do
@@ -12,20 +15,24 @@ RSpec.describe 'User searches for code' do
       sign_in(user)
     end
 
-    it 'finds a file' do
-      visit(project_path(project))
+    context 'when on a project page' do
+      before do
+        visit(project_path(project))
+      end
 
-      submit_search('application.js')
-      select_search_scope('Code')
+      it 'finds a file' do
+        submit_search('application.js')
+        select_search_scope('Code')
 
-      expect(page).to have_selector('.results', text: 'application.js')
-      expect(page).to have_selector('.file-content .code')
-      expect(page).to have_selector("span.line[lang='javascript']")
-      expect(page).to have_link('application.js', href: %r{master/files/js/application.js})
-      expect(page).to have_button('Copy file path')
+        expect(page).to have_selector('.results', text: 'application.js')
+        expect(page).to have_selector('.file-content .code')
+        expect(page).to have_selector("span.line[lang='javascript']")
+        expect(page).to have_link('application.js', href: %r{master/files/js/application.js})
+        expect(page).to have_button('Copy file path')
+      end
     end
 
-    context 'when on a project page', :js do
+    context 'when on a project search page' do
       before do
         visit(search_path)
         find('[data-testid="project-filter"]').click
@@ -38,43 +45,51 @@ RSpec.describe 'User searches for code' do
       end
 
       include_examples 'top right search form'
-      include_examples 'search timeouts', 'blobs'
-
-      it 'finds code and links to blob' do
-        fill_in('dashboard_search', with: 'rspec')
-        find('.gl-search-box-by-click-search-button').click
-
-        expect(page).to have_selector('.results', text: 'Update capybara, rspec-rails, poltergeist to recent versions')
-
-        find("#blob-L3").click
-        expect(current_url).to match(%r{blob/master/.gitignore#L3})
+      include_examples 'search timeouts', 'blobs' do
+        let(:additional_params) { { project_id: project.id } }
       end
 
-      it 'finds code and links to blame' do
-        fill_in('dashboard_search', with: 'rspec')
-        find('.gl-search-box-by-click-search-button').click
+      context 'when searching code' do
+        let(:expected_result) { 'Update capybara, rspec-rails, poltergeist to recent versions' }
 
-        expect(page).to have_selector('.results', text: 'Update capybara, rspec-rails, poltergeist to recent versions')
+        before do
+          fill_in('dashboard_search', with: 'rspec')
+          find('.gl-search-box-by-click-search-button').click
+        end
 
-        find("#blame-L3").click
-        expect(current_url).to match(%r{blame/master/.gitignore#L3})
+        it 'finds code and links to blob' do
+          expect(page).to have_selector('.results', text: expected_result)
+
+          find("#blob-L3").click
+          expect(current_url).to match(%r{blob/master/.gitignore#L3})
+        end
+
+        it 'finds code and links to blame' do
+          expect(page).to have_selector('.results', text: expected_result)
+
+          find("#blame-L3").click
+          expect(current_url).to match(%r{blame/master/.gitignore#L3})
+        end
+
+        it_behaves_like 'code highlight' do
+          subject { page }
+        end
       end
 
-      it 'search mutiple words with refs switching' do
+      it 'search multiple words with refs switching' do
         expected_result = 'Use `snake_case` for naming files'
         search = 'for naming files'
+        ref_selector = 'v1.0.0'
 
         fill_in('dashboard_search', with: search)
         find('.gl-search-box-by-click-search-button').click
 
         expect(page).to have_selector('.results', text: expected_result)
 
-        find('.ref-selector').click
+        click_button 'master'
         wait_for_requests
 
-        page.within('.ref-selector') do
-          find('li', text: 'v1.0.0').click
-        end
+        select_listbox_item(ref_selector)
 
         expect(page).to have_selector('.results', text: expected_result)
 
@@ -85,11 +100,11 @@ RSpec.describe 'User searches for code' do
     end
 
     context 'when :new_header_search is true' do
-      context 'search code within refs', :js do
+      context 'search code within refs' do
         let(:ref_name) { 'v1.0.0' }
 
         before do
-          # This feature is diabled by default in spec_helper.rb.
+          # This feature is disabled by default in spec_helper.rb.
           # We missed a feature breaking bug, so to prevent this regression, testing both scenarios for this spec.
           # This can be removed as part of closing https://gitlab.com/gitlab-org/gitlab/-/issues/339348.
           stub_feature_flags(new_header_search: true)
@@ -108,9 +123,9 @@ RSpec.describe 'User searches for code' do
           expect(find('.ref-selector')).to have_text(ref_name)
         end
 
-        #  this example is use to test the desgine that the refs is not
-        #  only repersent the branch as well as the tags.
-        it 'ref swither list all the branchs and tags' do
+        #  this example is use to test the design that the refs is not
+        #  only represent the branch as well as the tags.
+        it 'ref switcher list all the branches and tags' do
           find('.ref-selector').click
           wait_for_requests
 
@@ -121,18 +136,12 @@ RSpec.describe 'User searches for code' do
         end
 
         it 'search result changes when refs switched' do
-          ref = 'master'
           expect(find('.results')).not_to have_content('path = gitlab-grack')
 
           find('.ref-selector').click
           wait_for_requests
 
-          page.within('.ref-selector') do
-            fill_in _('Search by Git revision'), with: ref
-            wait_for_requests
-
-            find('li', text: ref).click
-          end
+          select_listbox_item('add-ipython-files')
 
           expect(page).to have_selector('.results', text: 'path = gitlab-grack')
         end
@@ -140,11 +149,11 @@ RSpec.describe 'User searches for code' do
     end
 
     context 'when :new_header_search is false' do
-      context 'search code within refs', :js do
+      context 'search code within refs' do
         let(:ref_name) { 'v1.0.0' }
 
         before do
-          # This feature is diabled by default in spec_helper.rb.
+          # This feature is disabled by default in spec_helper.rb.
           # We missed a feature breaking bug, so to prevent this regression, testing both scenarios for this spec.
           # This can be removed as part of closing https://gitlab.com/gitlab-org/gitlab/-/issues/339348.
           stub_feature_flags(new_header_search: false)
@@ -163,9 +172,9 @@ RSpec.describe 'User searches for code' do
           expect(find('.ref-selector')).to have_text(ref_name)
         end
 
-        #  this example is use to test the desgine that the refs is not
-        #  only repersent the branch as well as the tags.
-        it 'ref swither list all the branchs and tags' do
+        #  this example is use to test the design that the refs is not
+        #  only represent the branch as well as the tags.
+        it 'ref switcher list all the branches and tags' do
           find('.ref-selector').click
           wait_for_requests
 
@@ -176,25 +185,19 @@ RSpec.describe 'User searches for code' do
         end
 
         it 'search result changes when refs switched' do
-          ref = 'master'
           expect(find('.results')).not_to have_content('path = gitlab-grack')
 
           find('.ref-selector').click
           wait_for_requests
 
-          page.within('.ref-selector') do
-            fill_in _('Search by Git revision'), with: ref
-            wait_for_requests
-
-            find('li', text: ref).click
-          end
+          select_listbox_item('add-ipython-files')
 
           expect(page).to have_selector('.results', text: 'path = gitlab-grack')
         end
       end
     end
 
-    it 'no ref switcher shown in issue result summary', :js do
+    it 'no ref switcher shown in issue result summary' do
       issue = create(:issue, title: 'test', project: project)
       visit(project_tree_path(project))
 
@@ -211,17 +214,12 @@ RSpec.describe 'User searches for code' do
   end
 
   context 'when signed out' do
-    let(:project) { create(:project, :public, :repository) }
+    context 'when block_anonymous_global_searches is enabled' do
+      it 'is redirected to login page' do
+        visit(search_path)
 
-    before do
-      visit(project_path(project))
-    end
-
-    it 'finds code' do
-      submit_search('rspec')
-      select_search_scope('Code')
-
-      expect(page).to have_selector('.results', text: 'Update capybara, rspec-rails, poltergeist to recent versions')
+        expect(page).to have_content('You must be logged in to search across all of GitLab')
+      end
     end
   end
 end

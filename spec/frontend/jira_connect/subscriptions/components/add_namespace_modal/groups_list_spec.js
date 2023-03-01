@@ -27,6 +27,7 @@ jest.mock('~/jira_connect/subscriptions/api', () => {
 });
 
 const mockGroupsPath = '/groups';
+const mockAccessToken = '123';
 
 describe('GroupsList', () => {
   let wrapper;
@@ -39,6 +40,9 @@ describe('GroupsList', () => {
         provide: {
           groupsPath: mockGroupsPath,
         },
+        computed: {
+          accessToken: () => mockAccessToken,
+        },
         ...options,
       }),
     );
@@ -50,7 +54,7 @@ describe('GroupsList', () => {
 
   const findGlAlert = () => wrapper.findComponent(GlAlert);
   const findGlLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
-  const findAllItems = () => wrapper.findAll(GroupsListItem);
+  const findAllItems = () => wrapper.findAllComponents(GroupsListItem);
   const findFirstItem = () => findAllItems().at(0);
   const findSecondItem = () => findAllItems().at(1);
   const findSearchBox = () => wrapper.findComponent(GlSearchBoxByType);
@@ -148,11 +152,15 @@ describe('GroupsList', () => {
         });
 
         it('calls `fetchGroups` with search term', () => {
-          expect(fetchGroups).toHaveBeenLastCalledWith(mockGroupsPath, {
-            page: 1,
-            perPage: DEFAULT_GROUPS_PER_PAGE,
-            search: mockSearchTeam,
-          });
+          expect(fetchGroups).toHaveBeenLastCalledWith(
+            mockGroupsPath,
+            {
+              page: 1,
+              perPage: DEFAULT_GROUPS_PER_PAGE,
+              search: mockSearchTeam,
+            },
+            mockAccessToken,
+          );
         });
 
         it('disables GroupListItems', () => {
@@ -222,11 +230,15 @@ describe('GroupsList', () => {
             findSearchBox().vm.$emit('input', newSearch);
 
             if (shouldSearch) {
-              expect(fetchGroups).toHaveBeenCalledWith(mockGroupsPath, {
-                page: 1,
-                perPage: DEFAULT_GROUPS_PER_PAGE,
-                search: expectedSearchValue,
-              });
+              expect(fetchGroups).toHaveBeenCalledWith(
+                mockGroupsPath,
+                {
+                  page: 1,
+                  perPage: DEFAULT_GROUPS_PER_PAGE,
+                  search: expectedSearchValue,
+                },
+                mockAccessToken,
+              );
             } else {
               expect(fetchGroups).not.toHaveBeenCalled();
             }
@@ -257,11 +269,15 @@ describe('GroupsList', () => {
       });
 
       it('should load results for page 2', () => {
-        expect(fetchGroups).toHaveBeenLastCalledWith(mockGroupsPath, {
-          page: 2,
-          perPage: DEFAULT_GROUPS_PER_PAGE,
-          search: '',
-        });
+        expect(fetchGroups).toHaveBeenLastCalledWith(
+          mockGroupsPath,
+          {
+            page: 2,
+            perPage: DEFAULT_GROUPS_PER_PAGE,
+            search: '',
+          },
+          mockAccessToken,
+        );
       });
 
       it.each`
@@ -274,11 +290,15 @@ describe('GroupsList', () => {
           const searchBox = findSearchBox();
           searchBox.vm.$emit('input', searchTerm);
 
-          expect(fetchGroups).toHaveBeenLastCalledWith(mockGroupsPath, {
-            page: expectedPage,
-            perPage: DEFAULT_GROUPS_PER_PAGE,
-            search: expectedSearchTerm,
-          });
+          expect(fetchGroups).toHaveBeenLastCalledWith(
+            mockGroupsPath,
+            {
+              page: expectedPage,
+              perPage: DEFAULT_GROUPS_PER_PAGE,
+              search: expectedSearchTerm,
+            },
+            mockAccessToken,
+          );
         },
       );
     });
@@ -324,11 +344,15 @@ describe('GroupsList', () => {
         const paginationEl = findPagination();
         paginationEl.vm.$emit('input', 2);
 
-        expect(fetchGroups).toHaveBeenLastCalledWith(mockGroupsPath, {
-          page: 2,
-          perPage: DEFAULT_GROUPS_PER_PAGE,
-          search: '',
-        });
+        expect(fetchGroups).toHaveBeenLastCalledWith(
+          mockGroupsPath,
+          {
+            page: 2,
+            perPage: DEFAULT_GROUPS_PER_PAGE,
+            search: '',
+          },
+          mockAccessToken,
+        );
       });
     });
   });

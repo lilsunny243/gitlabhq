@@ -1,12 +1,13 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # DingTalk OAuth 2.0 OmniAuth provider **(FREE SELF)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/341898) in GitLab 14.5.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/341898) in GitLab 14.5.
+> - [Deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/390855) in GitLab 15.10.
 
 You can sign in to GitLab using your DingTalk account.
 Sign in to DingTalk Open Platform and create an application on it. DingTalk generates a client ID and secret key for you to use.
@@ -19,7 +20,7 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
 
 1. Fill in the application details:
 
-   - **Application Name**: This can be anything. Consider something like `<Organization>'s GitLab`, or `<Your Name>'s GitLab`, or something else descriptive.
+   - **Application Name**: This can be anything. Consider something like `<Organization>'s GitLab`, `<Your Name>'s GitLab`, or something else descriptive.
    - **Application Description**: Create a description.
    - **Application icon**: Upload qualified icons if needed.
 
@@ -31,7 +32,7 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
 
    ![DingTalk your application](img/ding_talk_your_application.png)
 
-1. Under the **Application Credentials** section, there should be an AppKey and AppSecret (see the screenshot). Keep this page open as you continue the configuration.
+1. In the **Application Credentials** section, note the **AppKey** and **AppSecret** as you use these values later.
 
    ![DingTalk credentials](img/ding_talk_credentials.png)
 
@@ -51,7 +52,9 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. See [Configure initial settings](omniauth.md#configure-initial-settings) for initial settings.
+1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+   to add `dingtalk` as a single sign-on provider. This enables Just-In-Time
+   account provisioning for users who do not have an existing GitLab account.
 
 1. Add the provider configuration:
 
@@ -62,8 +65,8 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
        {
          name: "dingtalk",
          # label: "Provider name", # optional label for login button, defaults to "Ding Talk"
-         app_id: "YOUR_APP_ID",
-         app_secret: "YOUR_APP_SECRET"
+         app_id: "<your_appkey>",
+         app_secret: "<your_appsecret>"
        }
      ]
    ```
@@ -73,16 +76,16 @@ Sign in to DingTalk Open Platform and create an application on it. DingTalk gene
    ```yaml
    - { name: 'dingtalk',
        # label: 'Provider name', # optional label for login button, defaults to "Ding Talk"
-       app_id: 'YOUR_APP_ID',
-       app_secret: 'YOUR_APP_SECRET' }
+       app_id: '<your_appkey>',
+       app_secret: '<your_appsecret>' }
    ```
 
-1. Change `YOUR_APP_ID` to the AppKey from the application information page in step 6.
+1. Replace `<your_appkey>` with the AppKey from the  **Application Credentials** in step 6.
 
-1. Change `YOUR_APP_SECRET` to the AppSecret from the application information page in step 6.
+1. Replace `<your_appsecret>` with the AppSecret from the **Application Credentials** in step 6.
 
 1. Save the configuration file.
 
-1. For the changes to take effect:
-   - If you installed via Omnibus, [reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure).
-   - If you installed from source, [restart GitLab](../administration/restart_gitlab.md#installations-from-source).
+1. For the changes to take effect, if you installed:
+   - Using Omnibus, [reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure).
+   - From source, [restart GitLab](../administration/restart_gitlab.md#installations-from-source).

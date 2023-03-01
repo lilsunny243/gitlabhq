@@ -2,6 +2,7 @@
 
 require 'parallel'
 require_relative 'gitaly_setup'
+require_relative '../../../lib/gitlab/setup_helper'
 
 module TestEnv
   extend self
@@ -11,6 +12,8 @@ module TestEnv
   # When developing the seed repository, comment out the branch you will modify.
   BRANCH_SHA = {
     'signed-commits' => 'c7794c1',
+    'gpg-signed' => '8a852d5',
+    'x509-signed' => 'a4df3c8',
     'not-merged-branch' => 'b83d6e3',
     'branch-merged' => '498214d',
     'empty-branch' => '7efb185',
@@ -43,7 +46,7 @@ module TestEnv
     'video' => '8879059',
     'crlf-diff' => '5938907',
     'conflict-start' => '824be60',
-    'conflict-resolvable' => '1450cd6',
+    'conflict-resolvable' => '1450cd639e0bc6721eb02800169e464f212cde06',
     'conflict-binary-file' => '259a6fb',
     'conflict-contains-conflict-markers' => '78a3086',
     'conflict-missing-side' => 'eb227b3',
@@ -88,7 +91,9 @@ module TestEnv
     'two-commits' => '304d257',
     'utf-16' => 'f05a987',
     'gitaly-rename-test' => '94bb47c',
-    'smime-signed-commits' => 'ed775cc'
+    'smime-signed-commits' => 'ed775cc',
+    'Ääh-test-utf-8' => '7975be0',
+    'ssh-signed-commit' => '7b5160f'
   }.freeze
 
   # gitlab-test-fork is a fork of gitlab-fork, but we don't necessarily
@@ -281,30 +286,31 @@ module TestEnv
     unless File.directory?(repo_path)
       start = Time.now
       system(*%W(#{Gitlab.config.git.bin_path} clone --quiet -- #{clone_url} #{repo_path}))
-      system(*%W(#{Gitlab.config.git.bin_path} -C #{repo_path} remote remove origin))
       puts "==> #{repo_path} set up in #{Time.now - start} seconds...\n"
     end
 
-    set_repo_refs(repo_path, refs)
+    create_bundle = !File.file?(repo_bundle_path)
 
-    unless File.file?(repo_bundle_path)
+    unless set_repo_refs(repo_path, refs)
+      # Prefer not to fetch over the network. Only fetch when we have failed to
+      # set all the required local branches. This would happen when a new
+      # branch is added to BRANCH_SHA, in which case we want to update
+      # everything.
+      unless system(*%W(#{Gitlab.config.git.bin_path} -C #{repo_path} fetch origin))
+        raise 'Could not fetch test seed repository.'
+      end
+
+      unless set_repo_refs(repo_path, refs)
+        raise "Could not update test seed repository, please delete #{repo_path} and try again"
+      end
+
+      create_bundle = true
+    end
+
+    if create_bundle
       start = Time.now
-      system(git_env, *%W(#{Gitlab.config.git.bin_path} -C #{repo_path} bundle create #{repo_bundle_path} --all))
+      system(git_env, *%W(#{Gitlab.config.git.bin_path} -C #{repo_path} bundle create #{repo_bundle_path} --exclude refs/remotes/* --all))
       puts "==> #{repo_bundle_path} generated in #{Time.now - start} seconds...\n"
-    end
-  end
-
-  def rm_storage_dir(storage, dir)
-    Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-      target_repo_refs_path = File.join(GitalySetup.repos_path(storage), dir)
-      FileUtils.remove_dir(target_repo_refs_path)
-    end
-  rescue Errno::ENOENT
-  end
-
-  def storage_dir_exists?(storage, dir)
-    Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-      File.exist?(File.join(GitalySetup.repos_path(storage), dir))
     end
   end
 
@@ -347,6 +353,14 @@ module TestEnv
     Capybara.current_session.visit '/'
   end
 
+  def factory_repo_path
+    @factory_repo_path ||= Rails.root.join('tmp', 'tests', factory_repo_name)
+  end
+
+  def forked_repo_path
+    @forked_repo_path ||= Rails.root.join('tmp', 'tests', forked_repo_name)
+  end
+
   def factory_repo_bundle_path
     "#{factory_repo_path}.bundle"
   end
@@ -357,6 +371,7 @@ module TestEnv
 
   def seed_db
     Gitlab::DatabaseImporters::WorkItems::BaseTypeImporter.upsert_types
+    Gitlab::DatabaseImporters::WorkItems::HierarchyRestrictionsImporter.upsert_restrictions
   end
 
   private
@@ -376,16 +391,8 @@ module TestEnv
     ]
   end
 
-  def factory_repo_path
-    @factory_repo_path ||= Rails.root.join('tmp', 'tests', factory_repo_name)
-  end
-
   def factory_repo_name
     'gitlab-test'
-  end
-
-  def forked_repo_path
-    @forked_repo_path ||= Rails.root.join('tmp', 'tests', forked_repo_name)
   end
 
   def forked_repo_name
@@ -399,20 +406,13 @@ module TestEnv
   end
 
   def set_repo_refs(repo_path, branch_sha)
-    instructions = branch_sha.map { |branch, sha| "update refs/heads/#{branch}\x00#{sha}\x00" }.join("\x00") << "\x00"
-    update_refs = %W(#{Gitlab.config.git.bin_path} update-ref --stdin -z)
-    reset = proc do
-      Dir.chdir(repo_path) do
-        IO.popen(update_refs, "w") { |io| io.write(instructions) }
-        $?.success?
+    IO.popen(%W[#{Gitlab.config.git.bin_path} -C #{repo_path} update-ref --stdin -z], "w") do |io|
+      branch_sha.each do |branch, sha|
+        io.write("update refs/heads/#{branch}\x00#{sha}\x00\x00")
       end
     end
 
-    # Try to reset without fetching to avoid using the network.
-    unless reset.call
-      raise 'Could not fetch test seed repository.' unless system(*%W(#{Gitlab.config.git.bin_path} -C #{repo_path} fetch origin))
-      raise "Could not update test seed repository, please delete #{repo_path} and try again" unless reset.call
-    end
+    $?.success?
   end
 
   def component_timed_setup(component, install_dir:, version:, task:, fresh_install: true, task_args: [])
@@ -424,6 +424,8 @@ module TestEnv
     return if File.exist?(install_dir) && ci?
 
     if component_needs_update?(install_dir, version)
+      puts "==> Starting #{component} (#{version}) set up...\n"
+
       # Cleanup the component entirely to ensure we start fresh
       FileUtils.rm_rf(install_dir) if fresh_install
 
@@ -483,12 +485,14 @@ module TestEnv
     # The HEAD of the component_folder will be used as heuristic for the version
     # of the binaries, allowing to use Git to determine if HEAD is later than
     # the expected version. Note: Git considers HEAD to be an anchestor of HEAD.
-    _out, exit_status = Gitlab::Popen.popen(%W[
-      #{Gitlab.config.git.bin_path}
-      -C #{component_folder}
-      merge-base --is-ancestor
-      #{expected_version} HEAD
-])
+    _out, exit_status = Gitlab::Popen.popen(
+      %W[
+        #{Gitlab.config.git.bin_path}
+        -C #{component_folder}
+        merge-base --is-ancestor
+        #{expected_version} HEAD
+      ]
+    )
 
     exit_status == 0
   end

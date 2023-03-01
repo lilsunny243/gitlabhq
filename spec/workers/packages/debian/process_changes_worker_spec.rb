@@ -2,12 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe Packages::Debian::ProcessChangesWorker, type: :worker do
+RSpec.describe Packages::Debian::ProcessChangesWorker, type: :worker, feature_category: :package_registry do
   let_it_be(:user) { create(:user) }
-  let_it_be_with_reload(:distribution) { create(:debian_project_distribution, :with_file, codename: 'unstable') }
+  let_it_be_with_reload(:distribution) do
+    create(:debian_project_distribution, :with_file, codename: FFaker::Lorem.word, suite: 'unstable')
+  end
 
   let(:incoming) { create(:debian_incoming, project: distribution.project) }
-  let(:package_file) { incoming.package_files.last }
+  let(:package_file) { incoming.package_files.with_file_name('sample_1.2.3~alpha2_amd64.changes').first }
   let(:worker) { described_class.new }
 
   describe '#perform' do
@@ -15,12 +17,6 @@ RSpec.describe Packages::Debian::ProcessChangesWorker, type: :worker do
     let(:user_id) { user.id }
 
     subject { worker.perform(package_file_id, user_id) }
-
-    context 'with FIPS mode enabled', :fips_mode do
-      it 'raises an error' do
-        expect { subject }.to raise_error(::Packages::FIPS::DisabledError)
-      end
-    end
 
     context 'with mocked service' do
       it 'calls ProcessChangesService' do
@@ -78,10 +74,28 @@ RSpec.describe Packages::Debian::ProcessChangesWorker, type: :worker do
       end
     end
 
+    context 'without a distribution' do
+      before do
+        distribution.destroy!
+      end
+
+      it 'removes package file and log exception', :aggregate_failures do
+        expect(Gitlab::ErrorTracking).to receive(:log_exception).with(
+          instance_of(ActiveRecord::RecordNotFound),
+          package_file_id: package_file_id,
+          user_id: user_id
+        )
+        expect { subject }
+          .to not_change { Packages::Package.count }
+          .and change { Packages::PackageFile.count }.by(-1)
+          .and change { incoming.package_files.count }.from(7).to(6)
+      end
+    end
+
     context 'when the service raises an error' do
       let(:package_file) { incoming.package_files.first }
 
-      it 'removes package file', :aggregate_failures do
+      it 'removes package file and log exception', :aggregate_failures do
         expect(Gitlab::ErrorTracking).to receive(:log_exception).with(
           instance_of(Packages::Debian::ExtractChangesMetadataService::ExtractionError),
           package_file_id: package_file_id,

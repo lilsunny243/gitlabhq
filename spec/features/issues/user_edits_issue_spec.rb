@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe "Issues > User edits issue", :js do
+RSpec.describe "Issues > User edits issue", :js, feature_category: :team_planning do
   let_it_be(:project) { create(:project_empty_repo, :public) }
   let_it_be(:project_with_milestones) { create(:project_empty_repo, :public) }
   let_it_be(:user) { create(:user) }
@@ -26,7 +26,7 @@ RSpec.describe "Issues > User edits issue", :js do
         visit edit_project_issue_path(project, issue)
       end
 
-      it "previews content" do
+      it "previews content", quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391757' do
         form = first(".gfm-form")
 
         page.within(form) do
@@ -99,6 +99,36 @@ RSpec.describe "Issues > User edits issue", :js do
     context "from issue#show" do
       before do
         visit project_issue_path(project, issue)
+      end
+
+      describe 'edit description' do
+        def click_edit_issue_description
+          click_on 'Edit title and description'
+        end
+
+        it 'places focus on the web editor' do
+          content_editor_focused_selector = '[data-testid="content-editor"].is-focused'
+          markdown_field_focused_selector = 'textarea:focus'
+          click_edit_issue_description
+
+          expect(page).to have_selector(markdown_field_focused_selector)
+
+          click_on _('View rich text')
+          click_on _('Rich text')
+
+          expect(page).not_to have_selector(content_editor_focused_selector)
+
+          refresh
+
+          click_edit_issue_description
+
+          expect(page).to have_selector(content_editor_focused_selector)
+
+          click_on _('View markdown')
+          click_on _('Markdown')
+
+          expect(page).not_to have_selector(markdown_field_focused_selector)
+        end
       end
 
       describe 'update labels' do
@@ -186,7 +216,7 @@ RSpec.describe "Issues > User edits issue", :js do
               visit project_issue_path(project, issue)
 
               page.within('.assignee') do
-                expect(page).to have_content "#{user.name}"
+                expect(page).to have_content user.name.to_s
 
                 click_link 'Edit'
                 click_link 'Unassigned'
@@ -261,7 +291,7 @@ RSpec.describe "Issues > User edits issue", :js do
               visit project_issue_path(project, issue)
 
               page.within('.assignee') do
-                expect(page).to have_content "#{user.name}"
+                expect(page).to have_content user.name.to_s
 
                 click_button('Edit')
                 wait_for_requests
@@ -387,7 +417,7 @@ RSpec.describe "Issues > User edits issue", :js do
               find('.gl-form-input', visible: true).send_keys "\"#{milestones[0].title}\""
               wait_for_requests
 
-              page.within '.gl-new-dropdown-contents' do
+              page.within '.gl-dropdown-contents' do
                 expect(page).to have_content milestones[0].title
               end
             end
@@ -403,7 +433,7 @@ RSpec.describe "Issues > User edits issue", :js do
             issue.save!
           end
 
-          it 'shows milestone text' do
+          it 'shows milestone text', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/389287' do
             sign_out(:user)
             sign_in(guest)
 

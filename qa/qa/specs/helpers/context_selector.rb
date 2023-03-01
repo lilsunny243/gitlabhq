@@ -18,15 +18,16 @@ module QA
 
         def context_matches?(*options)
           return false unless Runtime::Scenario.attributes[:gitlab_address]
+          return false if Runtime::Scenario.attributes[:test_metadata_only]
 
           opts = {}
           opts[:domain] = '.+'
-          opts[:tld] = '.com'
+          opts[:tld] = opts_tld
 
           uri = URI(Runtime::Scenario.gitlab_address)
 
           options.each do |option|
-            opts[:domain] = 'gitlab' if option == :production
+            opts[:domain] = production_domain if option == :production
 
             next unless option.is_a?(Hash)
 
@@ -73,6 +74,14 @@ module QA
 
         def pipeline_from_project_name(project_name)
           project_name.to_s.start_with?('gitlab-qa') ? Runtime::Env.default_branch : project_name
+        end
+
+        def production_domain
+          GitlabEdition.jh? ? 'jihulab' : 'gitlab'
+        end
+
+        def opts_tld
+          GitlabEdition.jh? ? '(.com|.hk)' : '.com'
         end
       end
     end

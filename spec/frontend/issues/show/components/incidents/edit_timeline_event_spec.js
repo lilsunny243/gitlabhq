@@ -22,7 +22,11 @@ describe('Edit Timeline events', () => {
 
   const findTimelineEventsForm = () => wrapper.findComponent(TimelineEventsForm);
 
-  const mockSaveData = { ...fakeEventData, ...mockInputData };
+  const mockSaveData = {
+    ...fakeEventData,
+    ...mockInputData,
+    timelineEventTags: ['Start time', 'End time'],
+  };
 
   describe('editTimelineEvent', () => {
     const saveEventEvent = { 'handle-save-edit': [[mockSaveData, false]] };
@@ -39,6 +43,14 @@ describe('Edit Timeline events', () => {
       await findTimelineEventsForm().vm.$emit('cancel');
 
       expect(wrapper.emitted()).toEqual(cancelEvent);
+    });
+
+    it('should emit the delete event', async () => {
+      const deleteEvent = { delete: [[]] };
+
+      await findTimelineEventsForm().vm.$emit('delete');
+
+      expect(wrapper.emitted()).toEqual(deleteEvent);
     });
   });
 });

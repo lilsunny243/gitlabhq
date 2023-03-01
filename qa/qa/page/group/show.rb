@@ -13,12 +13,9 @@ module QA
           element :group_id_content
         end
 
-        view 'app/assets/javascripts/groups/constants.js' do
-          element :no_result_text, 'No groups or projects matched your search' # rubocop:disable QA/ElementWithPattern
-        end
-
         view 'app/views/shared/members/_access_request_links.html.haml' do
           element :leave_group_link
+          element :request_access_link
         end
 
         def click_subgroup(name)
@@ -43,12 +40,16 @@ module QA
         end
 
         def group_id
-          find_element(:group_id_content).text.delete('Group ID: ')
+          find_element(:group_id_content).text.delete('Group ID: ').sub(/\n.*/, '')
         end
 
         def leave_group
           click_element :leave_group_link
           click_confirmation_ok_button
+        end
+
+        def click_request_access
+          click_element :request_access_link
         end
       end
     end

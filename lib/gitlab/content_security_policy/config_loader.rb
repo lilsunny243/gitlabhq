@@ -24,9 +24,9 @@ module Gitlab
           'frame_src' => ContentSecurityPolicy::Directives.frame_src,
           'img_src' => "'self' data: blob: http: https:",
           'manifest_src' => "'self'",
-          'media_src' => "'self' data:",
+          'media_src' => "'self' data: http: https:",
           'script_src' => ContentSecurityPolicy::Directives.script_src,
-          'style_src' => "'self' 'unsafe-inline'",
+          'style_src' => ContentSecurityPolicy::Directives.style_src,
           'worker_src' => "#{Gitlab::Utils.append_path(Gitlab.config.gitlab.url, 'assets/')} blob: data:",
           'object_src' => "'none'",
           'report_uri' => nil
@@ -43,7 +43,11 @@ module Gitlab
 
         allow_websocket_connections(directives)
         allow_cdn(directives, Settings.gitlab.cdn_host) if Settings.gitlab.cdn_host.present?
-        allow_sentry(directives) if Gitlab.config.sentry&.enabled && Gitlab.config.sentry&.clientside_dsn
+        allow_zuora(directives) if Gitlab.com?
+        # Support for Sentry setup via configuration files will be removed in 16.0
+        # in favor of Gitlab::CurrentSettings.
+        allow_legacy_sentry(directives) if Gitlab.config.sentry&.enabled && Gitlab.config.sentry&.clientside_dsn
+        allow_sentry(directives) if Gitlab::CurrentSettings.try(:sentry_enabled) && Gitlab::CurrentSettings.try(:sentry_clientside_dsn)
         allow_framed_gitlab_paths(directives)
         allow_customersdot(directives) if ENV['CUSTOMER_PORTAL_URL'].present?
         allow_review_apps(directives) if ENV['REVIEW_APPS_ENABLED']
@@ -125,6 +129,14 @@ module Gitlab
         append_to_directive(directives, 'frame_src', cdn_host)
       end
 
+      def self.zuora_host
+        "https://*.zuora.com/apps/PublicHostedPageLite.do"
+      end
+
+      def self.allow_zuora(directives)
+        append_to_directive(directives, 'frame_src', zuora_host)
+      end
+
       def self.append_to_directive(directives, directive, text)
         directives[directive] = "#{directives[directive]} #{text}".strip
       end
@@ -135,8 +147,17 @@ module Gitlab
         append_to_directive(directives, 'frame_src', customersdot_host)
       end
 
-      def self.allow_sentry(directives)
+      def self.allow_legacy_sentry(directives)
+        # Support for Sentry setup via configuration files will be removed in 16.0
+        # in favor of Gitlab::CurrentSettings.
         sentry_dsn = Gitlab.config.sentry.clientside_dsn
+        sentry_uri = URI(sentry_dsn)
+
+        append_to_directive(directives, 'connect_src', "#{sentry_uri.scheme}://#{sentry_uri.host}")
+      end
+
+      def self.allow_sentry(directives)
+        sentry_dsn = Gitlab::CurrentSettings.sentry_clientside_dsn
         sentry_uri = URI(sentry_dsn)
 
         append_to_directive(directives, 'connect_src', "#{sentry_uri.scheme}://#{sentry_uri.host}")
@@ -154,7 +175,7 @@ module Gitlab
       # Using 'self' in the CSP introduces several CSP bypass opportunities
       # for this reason we list the URLs where GitLab frames itself instead
       def self.allow_framed_gitlab_paths(directives)
-        ['/admin/', '/assets/', '/-/speedscope/index.html', '/-/sandbox/mermaid'].map do |path|
+        ['/admin/', '/assets/', '/-/speedscope/index.html', '/-/sandbox/'].map do |path|
           append_to_directive(directives, 'frame_src', Gitlab::Utils.append_path(Gitlab.config.gitlab.url, path))
         end
       end

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Geo sites Admin Area **(PREMIUM SELF)**
@@ -11,7 +11,7 @@ You can configure various settings for GitLab Geo sites. For more information, s
 
 On either the primary or secondary site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 
 ## Common settings
@@ -52,7 +52,7 @@ How long the backfill takes is dependent on the maximum concurrency, but higher
 values place more strain on the **primary** site. The limits are configurable.
 If your **primary** site has lots of surplus capacity,
 you can increase the values to complete backfill in a shorter time. If it's
-under heavy load and backfill reduces its availability for normal requests,
+under heavy load and backfill reduces its availability for standard requests,
 you can decrease them.
 
 ## Set up the internal URLs
@@ -71,7 +71,7 @@ the primary uses the secondary's internal URL to contact it directly.
 
 The internal URL defaults to external URL. To change it:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Select **Edit** on the site you want to customize.
 1. Edit the internal URL.
@@ -112,6 +112,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

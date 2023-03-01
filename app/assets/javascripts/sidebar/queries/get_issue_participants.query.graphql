@@ -1,0 +1,17 @@
+#import "~/graphql_shared/fragments/user.fragment.graphql"
+#import "~/graphql_shared/fragments/user_availability.fragment.graphql"
+
+query issueParticipants($fullPath: ID!, $iid: String!, $getStatus: Boolean = false) {
+  workspace: project(fullPath: $fullPath) {
+    id
+    issuable: issue(iid: $iid) {
+      id
+      participants {
+        nodes {
+          ...User
+          ...UserAvailability @include(if: $getStatus)
+        }
+      }
+    }
+  }
+}

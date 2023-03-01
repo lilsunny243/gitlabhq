@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_dependency 'gitlab/encoding_helper'
+require_relative 'encoding_helper'
 
 module Gitlab
   module Git
@@ -16,6 +16,7 @@ module Gitlab
     CommitError = Class.new(BaseError)
     OSError = Class.new(BaseError)
     UnknownRef = Class.new(BaseError)
+    AmbiguousRef = Class.new(BaseError)
     CommandTimedOut = Class.new(CommandError)
     InvalidPageToken = Class.new(BaseError)
     InvalidRefFormatError = Class.new(BaseError)

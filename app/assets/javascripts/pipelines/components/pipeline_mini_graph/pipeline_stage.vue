@@ -14,7 +14,7 @@
 
 import { GlDropdown, GlLoadingIcon, GlTooltipDirective } from '@gitlab/ui';
 import CiIcon from '~/vue_shared/components/ci_icon.vue';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { __, sprintf } from '~/locale';
 import eventHub from '../../event_hub';
@@ -27,6 +27,7 @@ export default {
   },
   dropdownPopperOpts: {
     placement: 'bottom',
+    positionFixed: true,
   },
   components: {
     CiIcon,
@@ -77,6 +78,10 @@ export default {
       this.isDropdownOpen = true;
       this.isLoading = true;
       this.fetchJobs();
+
+      // used for tracking and is separate from event hub
+      // to avoid complexity with mixin
+      this.$emit('miniGraphStageClick');
     },
     fetchJobs() {
       axios
@@ -90,17 +95,10 @@ export default {
           this.$refs.dropdown.hide();
           this.isLoading = false;
 
-          createFlash({
+          createAlert({
             message: __('Something went wrong on our end.'),
           });
         });
-    },
-    pipelineActionRequestComplete() {
-      // close the dropdown in MR widget
-      this.$refs.dropdown.hide();
-
-      // warn the pipelines table to update
-      this.$emit('pipelineActionRequestComplete');
     },
     stageAriaLabel(title) {
       return sprintf(__('View Stage: %{title}'), { title });
@@ -132,25 +130,19 @@ export default {
         :is-active="isDropdownOpen"
         :size="24"
         :status="stage.status"
-        class="gl-align-items-center gl-border gl-display-inline-flex gl-z-index-1"
+        class="gl-display-inline-flex gl-align-items-center gl-border gl-z-index-1"
       />
     </template>
-    <div
-      v-if="isLoading"
-      class="gl-display-flex gl-justify-content-center gl-p-2"
-      data-testid="pipeline-stage-loading-state"
-    >
+    <div v-if="isLoading" class="gl--flex-center gl-p-2" data-testid="pipeline-stage-loading-state">
       <gl-loading-icon size="sm" class="gl-mr-3" />
-      <p class="gl-mb-0">{{ $options.i18n.loadingText }}</p>
+      <p class="gl-line-height-normal gl-mb-0">{{ $options.i18n.loadingText }}</p>
     </div>
     <ul
       v-else
       class="js-builds-dropdown-list scrollable-menu"
       data-testid="mini-pipeline-graph-dropdown-menu-list"
     >
-      <div
-        class="gl-align-items-center gl-border-b gl-display-flex gl-font-weight-bold gl-justify-content-center gl-pb-3"
-      >
+      <div class="gl--flex-center gl-border-b gl-font-weight-bold gl-mb-3 gl-pb-3">
         <span class="gl-mr-1">{{ $options.i18n.stage }}</span>
         <span data-testid="pipeline-stage-dropdown-menu-title">{{ stageName }}</span>
       </div>
@@ -159,11 +151,10 @@ export default {
           :dropdown-length="dropdownContent.length"
           :job="job"
           css-class-job-name="mini-pipeline-graph-dropdown-item"
-          @pipelineActionRequestComplete="pipelineActionRequestComplete"
         />
       </li>
       <template v-if="isMergeTrain">
-        <li class="gl-new-dropdown-divider" role="presentation">
+        <li class="gl-dropdown-divider" role="presentation">
           <hr role="separator" aria-orientation="horizontal" class="dropdown-divider" />
         </li>
         <li>

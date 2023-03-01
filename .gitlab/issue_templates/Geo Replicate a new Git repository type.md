@@ -18,7 +18,7 @@ If your Model's pluralized form is non-standard, i.e. it doesn't just end in `s`
 
 -->
 
-## Replicate Cool Widgets
+## Replicate Cool Widgets - Repository
 
 This issue is for implementing Geo replication and verification of Cool Widgets.
 
@@ -39,8 +39,6 @@ You can look into the following example for implementing replication/verificatio
 
 ### Modify database schemas to prepare to add Geo support for Cool Widgets
 
-You might do this section in its own merge request, but it is not required.
-
 #### Add the registry table to track replication and verification state
 
 Geo secondary sites have a [Geo tracking database](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/development/geo.md#tracking-database) independent of the main database. It is used to track the replication and verification state of all replicables. Every Model has a corresponding "registry" table in the Geo tracking database.
@@ -51,67 +49,70 @@ Geo secondary sites have a [Geo tracking database](https://gitlab.com/gitlab-org
   bin/rails generate migration CreateCoolWidgetRegistry --database geo
   ```
 
-Geo should continue using `Gitlab::Database::Migration[1.0]` until the `gitlab_geo` schema is supported, and is for the time being exempt from being validated by `Gitlab::Database::Migration[2.0]`. This requires a developer to manually amend the migration file to change from `[2.0]` to `[1.0]` due to the migration defaults being 2.0.
-
-For more information, see the [Enable Geo migrations to use Migration[2.0]](https://gitlab.com/gitlab-org/gitlab/-/issues/363491) issue.
-
 - [ ] Replace the contents of the migration file with the following. Note that we cannot add a foreign key constraint on `cool_widget_id` because the `cool_widgets` table is in a different database. The application code must handle logic such as propagating deletions.
 
   ```ruby
   # frozen_string_literal: true
 
-  class CreateCoolWidgetRegistry < Gitlab::Database::Migration[1.0]
-    disable_ddl_transaction!
+  class CreateCoolWidgetRegistry < Gitlab::Database::Migration[2.0]
+    def change
+      create_table :cool_widget_registry, id: :bigserial, force: :cascade do |t|
+        t.bigint :cool_widget_id, null: false
+        t.datetime_with_timezone :created_at, null: false
+        t.datetime_with_timezone :last_synced_at
+        t.datetime_with_timezone :retry_at
+        t.datetime_with_timezone :verified_at
+        t.datetime_with_timezone :verification_started_at
+        t.datetime_with_timezone :verification_retry_at
+        t.integer :state, default: 0, null: false, limit: 2
+        t.integer :verification_state, default: 0, null: false, limit: 2
+        t.integer :retry_count, default: 0, limit: 2, null: false
+        t.integer :verification_retry_count, default: 0, limit: 2, null: false
+        t.boolean :checksum_mismatch, default: false, null: false
+        t.boolean :force_to_redownload, default: false, null: false
+        t.boolean :missing_on_primary, default: false, null: false
+        t.binary :verification_checksum
+        t.binary :verification_checksum_mismatched
+        t.text :verification_failure, limit: 255
+        t.text :last_sync_failure, limit: 255
 
-    def up
-      ApplicationRecord.transaction do
-        create_table :cool_widget_registry, id: :bigserial, force: :cascade do |t|
-          t.bigint :cool_widget_id, null: false
-          t.datetime_with_timezone :created_at, null: false
-          t.datetime_with_timezone :last_synced_at
-          t.datetime_with_timezone :retry_at
-          t.datetime_with_timezone :verified_at
-          t.datetime_with_timezone :verification_started_at
-          t.datetime_with_timezone :verification_retry_at
-          t.integer :state, default: 0, null: false, limit: 2
-          t.integer :verification_state, default: 0, null: false, limit: 2
-          t.integer :retry_count, default: 0, limit: 2, null: false
-          t.integer :verification_retry_count, default: 0, limit: 2, null: false
-          t.boolean :checksum_mismatch, default: false, null: false
-          t.boolean :force_to_redownload, default: false, null: false
-          t.boolean :missing_on_primary, default: false, null: false
-          t.binary :verification_checksum
-          t.binary :verification_checksum_mismatched
-          t.text :verification_failure, limit: 255
-          t.text :last_sync_failure, limit: 255
-
-          t.index :cool_widget_id, name: :index_cool_widget_registry_on_cool_widget_id, unique: true
-          t.index :retry_at
-          t.index :state
-          # To optimize performance of CoolWidgetRegistry.verification_failed_batch
-          t.index :verification_retry_at, name:  :cool_widget_registry_failed_verification, order: "NULLS FIRST",  where: "((state = 2) AND (verification_state = 3))"
-          # To optimize performance of CoolWidgetRegistry.needs_verification_count
-          t.index :verification_state, name:  :cool_widget_registry_needs_verification, where: "((state = 2)  AND (verification_state = ANY (ARRAY[0, 3])))"
-          # To optimize performance of CoolWidgetRegistry.verification_pending_batch
-          t.index :verified_at, name: :cool_widget_registry_pending_verification, order: "NULLS FIRST", where: "((state = 2) AND (verification_state = 0))"
-        end
+        t.index :cool_widget_id, name: :index_cool_widget_registry_on_cool_widget_id, unique: true
+        t.index :retry_at
+        t.index :state
+        # To optimize performance of CoolWidgetRegistry.verification_failed_batch
+        t.index :verification_retry_at, name: :cool_widget_registry_failed_verification, order: "NULLS FIRST", where: "((state = 2) AND (verification_state = 3))"
+        # To optimize performance of CoolWidgetRegistry.needs_verification_count
+        t.index :verification_state, name: :cool_widget_registry_needs_verification, where: "((state = 2) AND (verification_state = ANY (ARRAY[0, 3])))"
+        # To optimize performance of CoolWidgetRegistry.verification_pending_batch
+        t.index :verified_at, name: :cool_widget_registry_pending_verification, order: "NULLS FIRST", where: "((state = 2) AND (verification_state = 0))"
       end
-    end
-
-    def down
-      drop_table :cool_widget_registry
     end
   end
   ```
 
 - [ ] If deviating from the above example, then be sure to order columns according to [our guidelines](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/development/ordering_table_columns.md).
+
+- [ ] Add the new table to the [database dictionary](database_dictionary.md) defined in [`ee/db/docs/`](https://gitlab.com/gitlab-org/gitlab/-/tree/master/ee/db/docs):
+
+  ```yaml
+  table_name: cool_widget_registry
+  description: Description example
+  introduced_by_url: Merge request link
+  milestone: Milestone example
+  feature_categories:
+   - Feature category example
+  classes:
+   - Class example
+  gitlab_schema: gitlab_geo
+  ```
+
 - [ ] Run Geo tracking database migrations:
 
   ```shell
   bin/rake db:migrate:geo
   ```
 
-- [ ] Be sure to commit the relevant changes in `ee/db/geo/structure.sql`
+- [ ] Be sure to commit the relevant changes in `ee/db/geo/structure.sql` and the file under `ee/db/geo/schema_migrations`
 
 ### Add verification state to the Model
 
@@ -141,9 +142,9 @@ The Geo primary site needs to checksum every replicable so secondaries can verif
         t.datetime_with_timezone :verification_started_at
         t.datetime_with_timezone :verification_retry_at
         t.datetime_with_timezone :verified_at
-        t.references :cool_widget, primary_key: true, null: false, foreign_key: { on_delete: :cascade }
+        t.references :cool_widget, primary_key: true, default: nil, index: false, foreign_key: { on_delete: :cascade }
         t.integer :verification_state, default: 0, limit: 2, null: false
-        t.integer :verification_retry_count, limit: 2
+        t.integer :verification_retry_count, default: 0, limit: 2, null: false
         t.binary :verification_checksum, using: 'verification_checksum::bytea'
         t.text :verification_failure, limit: 255
 
@@ -162,13 +163,41 @@ The Geo primary site needs to checksum every replicable so secondaries can verif
 
 - [ ] If deviating from the above example, then be sure to order columns according to [our guidelines](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/development/ordering_table_columns.md).
 
+- [ ] Add the new table to the [database dictionary](database_dictionary.md) defined in [`db/docs/`](https://gitlab.com/gitlab-org/gitlab/-/tree/master/db/docs):
+
+  ```yaml
+  table_name: cool_widget_states
+  description: Description example
+  introduced_by_url: Merge request link
+  milestone: Milestone example
+  feature_categories:
+   - Feature category example
+  classes:
+   - Class example
+  gitlab_schema: gitlab_main
+  ```
+
 - [ ] Run database migrations:
 
   ```shell
   bin/rake db:migrate
   ```
 
-- [ ] Be sure to commit the relevant changes in `db/structure.sql`
+- [ ] Be sure to commit the relevant changes in `db/structure.sql` and the file under `db/schema_migrations`
+
+- [ ] Add an entry for the state table in `db/docs/cool_widget_states.yml`
+
+  ```yaml
+  ---
+  table_name: cool_widget_states
+  classes:
+    - Geo::CoolWidgetState
+  feature_categories:
+    - geo_replication
+  description: Separate table for cool widget verification states
+  introduced_by_url: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/XXXXX
+  milestone: 'XX.Y'
+  ```
 
 That's all of the required database changes.
 
@@ -260,7 +289,6 @@ That's all of the required database changes.
     def pool_repository
       nil
     end
-    ...
 
     def cool_widget_state
       super || build_cool_widget_state
@@ -316,6 +344,15 @@ That's all of the required database changes.
         true
       end
 
+      override :housekeeping_enabled?
+      def self.housekeeping_enabled?
+        # Remove this method if the new Git repository type supports git
+        # repository housekeeping and the ::CoolWidget#git_garbage_collect_worker_klass
+        # is implemented. If the data type requires any action to be performed
+        # before running the housekeeping override the `before_housekeeping` method
+        # (see `RepositoryReplicatorStrategy#before_housekeeping`)
+        false
+      end
     end
   end
   ```
@@ -346,7 +383,6 @@ That's all of the required database changes.
 
   ```shell
   bin/feature-flag --ee geo_cool_widget_replication --type development --group 'group::geo'
-  bin/feature-flag --ee geo_cool_widget_verification --type development --group 'group::geo'
   ```
 
 - [ ] Add this replicator class to the method `replicator_classes` in
@@ -357,7 +393,6 @@ That's all of the required database changes.
     ::Geo::PackageFileReplicator,
     ::Geo::CoolWidgetReplicator
   ]
-  end
   ```
 
 - [ ] Create `ee/spec/replicators/geo/cool_widget_replicator_spec.rb` and perform the necessary setup to define the `model_record` variable for the shared examples:
@@ -380,14 +415,16 @@ That's all of the required database changes.
   ```ruby
   # frozen_string_literal: true
 
-  class Geo::CoolWidgetRegistry < Geo::BaseRegistry
-    include ::Geo::ReplicableRegistry
-    include ::Geo::VerifiableRegistry
+  module Geo
+    class CoolWidgetRegistry < Geo::BaseRegistry
+      include ::Geo::ReplicableRegistry
+      include ::Geo::VerifiableRegistry
 
-    MODEL_CLASS = ::CoolWidget
-    MODEL_FOREIGN_KEY = :cool_widget_id
+      MODEL_CLASS = ::CoolWidget
+      MODEL_FOREIGN_KEY = :cool_widget_id
 
-    belongs_to :cool_widget, class_name: 'CoolWidget'
+      belongs_to :cool_widget, class_name: 'CoolWidget'
+    end
   end
   ```
 
@@ -451,32 +488,35 @@ That's all of the required database changes.
   end
   ```
 
-- [ ] Add the following to `spec/factories/cool_widgets.rb`:
+- [ ] Add the following to `ee/spec/factories/cool_widgets.rb`:
 
   ```ruby
-  trait(:verification_succeeded) do
-    with_file
-    verification_checksum { 'abc' }
-    verification_state { CoolWidget.verification_state_value(:verification_succeeded) }
-  end
+  FactoryBot.modify do
+    trait :verification_succeeded do
+        with_file
+        verification_checksum { 'abc' }
+        verification_state { CoolWidget.verification_state_value(:verification_succeeded) }
+    end
 
-  trait(:verification_failed) do
-    with_file
-    verification_failure { 'Could not calculate the checksum' }
-    verification_state { CoolWidget.verification_state_value(:verification_failed) }
+    trait :verification_failed do
+        with_file
+        verification_failure { 'Could not calculate the checksum' }
+        verification_state { CoolWidget.verification_state_value(:verification_failed) }
+    end
   end
   ```
 
+  If there is not an existing factory for the object in `spec/factories/cool_widgets.rb`, wrap the traits in `FactoryBot.create` instead of `FactoryBot.modify`.
+
 - [ ] Make sure the factory also allows setting a `project` attribute. If the model does not have a direct relation to a project, you can use a `transient` attribute. Check out `spec/factories/merge_request_diffs.rb` for an example.
 
-- [ ] Following [the example of Merge Request Diffs](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/63309) add a `Geo::CoolWidgetState` model in `ee/app/models/ee/geo/cool_widget_state.rb`:
+- [ ] Following [the example of Merge Request Diffs](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/63309) add a `Geo::CoolWidgetState` model in `ee/app/models/geo/cool_widget_state.rb`:
 
   ``` ruby
   # frozen_string_literal: true
 
   module Geo
     class CoolWidgetState < ApplicationRecord
-      include EachBatch
       include ::Geo::VerificationStateDefinition
 
       self.primary_key = :cool_widget_id
@@ -498,16 +538,18 @@ That's all of the required database changes.
     factory :geo_cool_widget_state, class: 'Geo::CoolWidgetState' do
       cool_widget
 
-      trait(:checksummed) do
+      trait :checksummed do
         verification_checksum { 'abc' }
       end
 
-      trait(:checksum_failure) do
+      trait :checksum_failure do
         verification_failure { 'Could not calculate the checksum' }
       end
     end
   end
   ```
+
+- [ ] Add `[:cool_widget, :remote_store]` and `[:geo_cool_widget_state, any]` to `skipped` in `spec/models/factories_spec.rb`
 
 #### Step 2. Implement metrics gathering
 
@@ -529,16 +571,18 @@ Metrics are gathered by `Geo::MetricsUpdateWorker`, persisted in `GeoNodeStatus`
 - [ ] Add the same fields to `GET /geo_nodes/status` example response in
   `ee/spec/fixtures/api/schemas/public_api/v4/geo_node_status.json`.
 - [ ] Add the following fields to the `Sidekiq metrics` table in `doc/administration/monitoring/prometheus/gitlab_metrics.md`:
-  - `geo_cool_widgets`
-  - `geo_cool_widgets_checksum_total`
-  - `geo_cool_widgets_checksummed`
-  - `geo_cool_widgets_checksum_failed`
-  - `geo_cool_widgets_synced`
-  - `geo_cool_widgets_failed`
-  - `geo_cool_widgets_registry`
-  - `geo_cool_widgets_verification_total`
-  - `geo_cool_widgets_verified`
-  - `geo_cool_widgets_verification_failed`
+  ```markdown
+  | `geo_cool_widgets` | Gauge | XX.Y | Number of Cool Widgets on primary | `url` |
+  | `geo_cool_widgets_checksum_total` | Gauge | XX.Y | Number of Cool Widgets checksummed successfully on primary | `url` |
+  | `geo_cool_widgets_checksummed` | Gauge | XX.Y | Number of Cool Widgets failed to calculate the checksum on primary | `url` |
+  | `geo_cool_widgets_checksum_failed` | Gauge | XX.Y | Number of Cool Widgets tried to checksum on primary | `url` |
+  | `geo_cool_widgets_synced` | Gauge | XX.Y | Number of syncable Cool Widgets synced on secondary | `url` |
+  | `geo_cool_widgets_failed` | Gauge | XX.Y | Number of syncable Cool Widgets failed to sync on secondary | `url` |
+  | `geo_cool_widgets_registry` | Gauge | XX.Y | Number of Cool Widgets in the registry | `url` |
+  | `geo_cool_widgets_verification_total` | Gauge | XX.Y | Number of Cool Widgets verified on secondary | `url` |
+  | `geo_cool_widgets_verified` | Gauge | XX.Y | Number of Cool Widgets' verifications failed on secondary | `url` |
+  | `geo_cool_widgets_verification_failed` | Gauge | XX.Y | Number of Cool Widgets' verifications tried on secondary | `url` |
+  ```
 
 Cool Widget replication and verification metrics should now be available in the API, the `Admin > Geo > Nodes` view, and Prometheus.
 
@@ -552,8 +596,9 @@ The GraphQL API is used by `Admin > Geo > Replication Details` views, and is dir
   field :cool_widget_registries, ::Types::Geo::CoolWidgetRegistryType.connection_type,
         null: true,
         resolver: ::Resolvers::Geo::CoolWidgetRegistriesResolver,
-        description: 'Find Cool Widget registries on this Geo node',
-        feature_flag: :geo_cool_widget_replication
+        description: 'Find Cool Widget registries on this Geo node. '\
+                     'Ignored if `geo_cool_widget_replication` feature flag is disabled.',
+        alpha: { milestone: '15.5' } # Update the milestone
   ```
 
 - [ ] Add the new `cool_widget_registries` field name to the `expected_fields` array in `ee/spec/graphql/types/geo/geo_node_type_spec.rb`.
@@ -618,13 +663,15 @@ The GraphQL API is used by `Admin > Geo > Replication Details` views, and is dir
     module Geo
       # rubocop:disable Graphql/AuthorizeTypes because it is included
       class CoolWidgetRegistryType < BaseObject
+        graphql_name 'CoolWidgetRegistry'
+
         include ::Types::Geo::RegistryType
 
-        graphql_name 'CoolWidgetRegistry'
         description 'Represents the Geo replication and verification state of a cool_widget'
 
         field :cool_widget_id, GraphQL::Types::ID, null: false, description: 'ID of the Cool Widget.'
       end
+      # rubocop:enable Graphql/AuthorizeTypes
     end
   end
   ```
@@ -701,6 +748,14 @@ As illustrated by the above two examples, batch destroy logic cannot be handled 
     end
   end
 ```
+
+### Code Review
+
+When requesting review from database reviewers:
+
+- [ ] Include a comment mentioning that the change is based on a documented template.
+- [ ] `replicables_for_current_secondary` and `available_replicables` may differ per Model. If their queries are new, then add [query plans](https://docs.gitlab.com/ee/development/database_review.html#query-plans) to the MR description. An easy place to gather SQL queries is your GDK's `log/test.log` when running tests of these methods.
+
 ### Release Geo support of Cool Widgets
 
 - [ ] In the rollout issue you created when creating the feature flag, modify the Roll Out Steps:
@@ -708,14 +763,15 @@ As illustrated by the above two examples, batch destroy logic cannot be handled 
   - [ ] Add a step to `Test replication and verification of Cool Widgets on a non-GDK-deployment. For example, using GitLab Environment Toolkit`.
   - [ ] Add a step to `Ping the Geo PM and EM to coordinate testing`. For example, you might add steps to generate Cool Widgets, and then a Geo engineer may take it from there.
 - [ ] In `ee/config/feature_flags/development/geo_cool_widget_replication.yml`, set `default_enabled: true`
-- [ ] In `ee/app/graphql/types/geo/geo_node_type.rb`, remove the `feature_flag` option for the released type:
+- [ ] In `ee/app/graphql/types/geo/geo_node_type.rb`, remove the `alpha` option for the released type:
 
   ```ruby
   field :cool_widget_registries, ::Types::Geo::CoolWidgetRegistryType.connection_type,
         null: true,
         resolver: ::Resolvers::Geo::CoolWidgetRegistriesResolver,
-        description: 'Find Cool Widget registries on this Geo node',
-        feature_flag: :geo_cool_widget_replication # REMOVE THIS LINE
+        description: 'Find Cool Widget registries on this Geo node. '\
+                     'Ignored if `geo_cool_widget_replication` feature flag is disabled.',
+        alpha: { milestone: '15.5' } # Update the milestone
   ```
 
 - [ ] Run `bundle exec rake gitlab:graphql:compile_docs` after the step above to regenerate the GraphQL docs.

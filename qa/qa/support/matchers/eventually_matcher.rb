@@ -21,6 +21,8 @@ module QA
           eq
           be
           include
+          match
+          have_content
           be_truthy
           be_falsey
           be_empty
@@ -139,9 +141,9 @@ module QA
             # @param [Boolean] negate
             # @return [String]
             def fail_message(negate: false)
-              "#{e}:\n\nexpected #{negate ? 'not ' : ''}to #{description}\n\n"\
-              "last attempt was: #{@result.nil? ? 'nil' : actual_formatted}\n\n"\
-              "Diff:#{diff}"
+              "#{e}:\n\nexpected #{negate ? 'not ' : ''}to #{description}\n\n" \
+                "last attempt was: #{@result.nil? ? 'nil' : actual_formatted}\n\n" \
+                "Diff:#{diff}"
             end
 
             # Formatted expect

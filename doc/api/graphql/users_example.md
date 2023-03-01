@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
-group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Manage
+group: Authentication and Authorization
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Query users with GraphQL **(FREE)**
@@ -12,7 +12,6 @@ You can run the same query directly via a HTTP endpoint, using `cURL`. For more 
 guidance on getting started from the [command line](getting_started.md#command-line).
 
 The [example users query](#set-up-the-graphiql-explorer) looks for a subset of users in
-o
 a GitLab instance either by username or
 [Global ID](../../development/api_graphql_styleguide.md#global-ids).
 The query includes:
@@ -20,13 +19,13 @@ The query includes:
 - [`pageInfo`](#pageinfo)
 - [`nodes`](#nodes)
 
-## pageInfo
+## `pageInfo`
 
 This contains the data needed to implement pagination. GitLab uses cursor-based
 [pagination](getting_started.md#pagination). For more information, see
 [Pagination](https://graphql.org/learn/pagination/) in the GraphQL documentation.
 
-## nodes
+## `nodes`
 
 In a GraphQL query, `nodes` is used to represent a collection of [`nodes` on a graph](https://en.wikipedia.org/wiki/Vertex_(graph_theory)).
 In this case, the collection of nodes is a collection of `User` objects. For each one,
@@ -82,7 +81,7 @@ NOTE:
 a single integer.
 
 This GraphQL query returns the specified information for the three users with the listed username. Since the GraphiQL explorer uses the session token to authorize access to resources,
-the output is limited to the projects and groups accessible to the currently signed-in user.
+the output is limited to the projects and groups accessible to the currently authenticated user.
 
 If you've signed in as an instance administrator, you would have access to all records, regardless of ownership.
 

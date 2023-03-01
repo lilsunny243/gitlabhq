@@ -3,6 +3,9 @@
 module Gitlab
   module BackgroundMigration
     class BackfillProjectImportLevel < BatchedMigrationJob
+      operation_name :update_import_level
+      feature_category :database
+
       LEVEL = {
         Gitlab::Access::NO_ACCESS => [0],
         Gitlab::Access::DEVELOPER => [2],
@@ -11,7 +14,7 @@ module Gitlab
       }.freeze
 
       def perform
-        each_sub_batch(operation_name: :update_import_level) do |sub_batch|
+        each_sub_batch do |sub_batch|
           update_import_level(sub_batch)
         end
       end

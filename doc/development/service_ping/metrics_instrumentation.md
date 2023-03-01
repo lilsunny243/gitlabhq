@@ -1,7 +1,7 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Metrics instrumentation guide
@@ -41,7 +41,7 @@ We have built a domain-specific language (DSL) to define the metrics instrumenta
 You can use database metrics to track data kept in the database, for example, a count of issues that exist on a given instance.
 
 - `operation`: Operations for the given `relation`, one of `count`, `distinct_count`, `sum`, and `average`.
-- `relation`: `ActiveRecord::Relation` for the objects we want to perform the `operation`.
+- `relation`: Assigns lambda that returns the `ActiveRecord::Relation` for the objects we want to perform the `operation`. The assigned lambda can accept up to one parameter. The parameter is hashed and stored under the `options` key in the metric definition.
 - `start`: Specifies the start value of the batch counting, by default is `relation.minimum(:id)`.
 - `finish`: Specifies the end value of the batch counting, by default is `relation.maximum(:id)`.
 - `cache_start_and_finish_as`: Specifies the cache key for `start` and `finish` values and sets up caching them. Use this call when `start` and `finish` are expensive queries that should be reused between different metric calculations.
@@ -55,10 +55,10 @@ module Gitlab
   module Usage
     module Metrics
       module Instrumentations
-        class CountBoardsMetric < DatabaseMetric
+        class CountIssuesMetric < DatabaseMetric
           operation :count
 
-          relation { Board }
+          relation ->(options) { Issue.where(confidential: options[:confidential]) }
         end
       end
     end
@@ -154,22 +154,24 @@ end
 
 You can use Redis metrics to track events not kept in the database, for example, a count of how many times the search bar has been used.
 
-[Example of a merge request that adds a `Redis` metric](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/66582).
+[Example of a merge request that adds a `Redis` metric](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/97009).
+
+The `RedisMetric` class can only be used as the `instrumentation_class` for Redis metrics with simple counters classes (classes that only inherit `BaseCounter` and set `PREFIX` and `KNOWN_EVENTS` constants). In case the counter class has additional logic included in it, a new `instrumentation_class`, inheriting from `RedisMetric`, needs to be created. This new class needs to include the additional logic from the counter class.
 
 Count unique values for `source_code_pushes` event.
 
 Required options:
 
 - `event`: the event name.
-- `counter_class`: one of the counter classes from the `Gitlab::UsageDataCounters` namespace; it should implement `read` method or inherit it from `BaseCounter`.
+- `prefix`: the value of the `PREFIX` constant used in the counter classes from the `Gitlab::UsageDataCounters` namespace.
 
 ```yaml
 time_frame: all
 data_source: redis
-instrumentation_class: 'RedisMetric'
+instrumentation_class: RedisMetric
 options:
   event: pushes
-  counter_class: SourceCodeCounter
+  prefix: source_code
 ```
 
 ### Availability-restrained Redis metrics
@@ -197,10 +199,10 @@ You must also use the class's name in the YAML setup.
 ```yaml
 time_frame: all
 data_source: redis
-instrumentation_class: 'MergeUsageCountRedisMetric'
+instrumentation_class: MergeUsageCountRedisMetric
 options:
   event: pushes
-  counter_class: SourceCodeCounter
+  prefix: source_code
 ```
 
 ## Redis HyperLogLog metrics
@@ -215,7 +217,7 @@ Count unique values for `i_quickactions_approve` event.
 ```yaml
 time_frame: 28d
 data_source: redis_hll
-instrumentation_class: 'RedisHLLMetric'
+instrumentation_class: RedisHLLMetric
 options:
   events:
     - i_quickactions_approve
@@ -246,10 +248,97 @@ You must also use the class's name in the YAML setup.
 ```yaml
 time_frame: 28d
 data_source: redis_hll
-instrumentation_class: 'MergeUsageCountRedisHLLMetric'
+instrumentation_class: MergeUsageCountRedisHLLMetric
 options:
   events:
     - i_quickactions_approve
+```
+
+## Aggregated metrics
+
+<div class="video-fallback">
+  See the video from: <a href="https://www.youtube.com/watch?v=22LbYqHwtUQ">Product Intelligence Office Hours Oct 6th</a> for an aggregated metrics walk-through.
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/22LbYqHwtUQ" frameborder="0" allowfullscreen> </iframe>
+</figure>
+
+The aggregated metrics feature provides insight into the number of data attributes, for example `pseudonymized_user_ids`, that occurred in a collection of events. For example, you can aggregate the number of users who perform multiple actions such as creating a new issue and opening
+a new merge request.
+
+You can use a YAML file to define your aggregated metrics. The following arguments are required:
+
+- `options.events`: List of event names to aggregate into metric data. All events in this list must
+  use the same data source. Additional data source requirements are described in
+  [Database sourced aggregated metrics](implement.md#database-sourced-aggregated-metrics) and
+  [Redis sourced aggregated metrics](implement.md#redis-sourced-aggregated-metrics).
+- `options.aggregate.operator`: Operator that defines how the aggregated metric data is counted. Available operators are:
+  - `OR`: Removes duplicates and counts all entries that triggered any of the listed events.
+  - `AND`: Removes duplicates and counts all elements that were observed triggering all of the following events.
+- `options.aggregate.attribute`: Information pointing to the attribute that is being aggregated across events.
+- `time_frame`: One or more valid time frames. Use these to limit the data included in aggregated metrics to events within a specific date-range. Valid time frames are:
+  - `7d`: The last 7 days of data.
+  - `28d`: The last 28 days of data.
+  - `all`: All historical data, only available for `database` sourced aggregated metrics.
+- `data_source`: Data source used to collect all events data included in the aggregated metrics. Valid data sources are:
+  - [`database`](implement.md#database-sourced-aggregated-metrics)
+  - [`redis_hll`](implement.md#redis-sourced-aggregated-metrics)
+
+Refer to merge request [98206](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/98206) for an example of a merge request that adds an `AggregatedMetric` metric.
+
+Count unique `user_ids` that occurred in at least one of the events: `incident_management_alert_status_changed`,
+`incident_management_alert_assigned`, `incident_management_alert_todo`, `incident_management_alert_create_incident`.
+
+```yaml
+time_frame: 28d
+instrumentation_class: AggregatedMetric
+data_source: redis_hll
+options:
+    aggregate:
+        operator: OR
+        attribute: user_id
+    events:
+        - `incident_management_alert_status_changed`
+        - `incident_management_alert_assigned`
+        - `incident_management_alert_todo`
+        - `incident_management_alert_create_incident`
+```
+
+### Availability-restrained Aggregated metrics
+
+If the Aggregated metric should only be available in the report under specific conditions, then you must specify these conditions in a new class that is a child of the `AggregatedMetric` class.
+
+```ruby
+# frozen_string_literal: true
+
+module Gitlab
+  module Usage
+    module Metrics
+      module Instrumentations
+        class MergeUsageCountAggregatedMetric < AggregatedMetric
+          available? { Feature.enabled?(:merge_usage_data_missing_key_paths) }
+        end
+      end
+    end
+  end
+end
+```
+
+You must also use the class's name in the YAML setup.
+
+```yaml
+time_frame: 28d
+instrumentation_class: MergeUsageCountAggregatedMetric
+data_source: redis_hll
+options:
+    aggregate:
+        operator: OR
+        attribute: user_id
+    events:
+        - `incident_management_alert_status_changed`
+        - `incident_management_alert_assigned`
+        - `incident_management_alert_todo`
+        - `incident_management_alert_create_incident`
 ```
 
 ## Numbers metrics
@@ -286,7 +375,7 @@ You must also include the instrumentation class name in the YAML setup.
 
 ```yaml
 time_frame: 28d
-instrumentation_class: 'IssuesBoardsCountMetric'
+instrumentation_class: IssuesBoardsCountMetric
 ```
 
 ## Generic metrics
@@ -343,7 +432,7 @@ The generator takes the class name as an argument and the following options:
 - `--ee` Indicates if the metric is for EE.
 
 ```shell
-rails generate gitlab:usage_metric CountIssues --type database
+rails generate gitlab:usage_metric CountIssues --type database --operation distinct_count
         create lib/gitlab/usage/metrics/instrumentations/count_issues_metric.rb
         create spec/lib/gitlab/usage/metrics/instrumentations/count_issues_metric_spec.rb
 ```
@@ -375,3 +464,15 @@ This guide describes how to migrate a Service Ping metric from [`lib/gitlab/usag
 1. Remove the code from [`lib/gitlab/usage_data.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data.rb) or [`ee/lib/ee/gitlab/usage_data.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/lib/ee/gitlab/usage_data.rb).
 
 1. Remove the tests from [`spec/lib/gitlab/usage_data.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/lib/gitlab/usage_data_spec.rb) or [`ee/spec/lib/ee/gitlab/usage_data.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/lib/ee/gitlab/usage_data_spec.rb).
+
+## Troubleshoot metrics
+
+Sometimes metrics fail for reasons that are not immediately clear. The failures can be related to performance issues or other problems.
+The following pairing session video gives you an example of an investigation in to a real-world failing metric.
+
+<div class="video-fallback">
+  See the video from: <a href="https://www.youtube.com/watch?v=y_6m2POx2ug">Product Intelligence Office Hours Oct 27th</a> to learn more about the metrics troubleshooting process.
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/y_6m2POx2ug" frameborder="0" allowfullscreen> </iframe>
+</figure>

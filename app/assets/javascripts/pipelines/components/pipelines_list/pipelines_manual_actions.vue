@@ -1,11 +1,13 @@
 <script>
 import { GlDropdown, GlDropdownItem, GlIcon, GlTooltipDirective } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
 import { s__, __, sprintf } from '~/locale';
+import Tracking from '~/tracking';
 import GlCountdown from '~/vue_shared/components/gl_countdown.vue';
 import eventHub from '../../event_hub';
+import { TRACKING_CATEGORIES } from '../../constants';
 
 export default {
   directives: {
@@ -17,6 +19,7 @@ export default {
     GlDropdownItem,
     GlIcon,
   },
+  mixins: [Tracking.mixin()],
   props: {
     actions: {
       type: Array,
@@ -63,16 +66,18 @@ export default {
         })
         .catch(() => {
           this.isLoading = false;
-          createFlash({ message: __('An error occurred while making the request.') });
+          createAlert({ message: __('An error occurred while making the request.') });
         });
     },
-
     isActionDisabled(action) {
       if (action.playable === undefined) {
         return false;
       }
 
       return !action.playable;
+    },
+    trackClick() {
+      this.track('click_manual_actions', { label: TRACKING_CATEGORIES.table });
     },
   },
 };
@@ -86,6 +91,7 @@ export default {
     right
     lazy
     icon="play"
+    @shown="trackClick"
   >
     <gl-dropdown-item
       v-for="action in actions"

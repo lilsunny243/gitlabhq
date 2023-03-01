@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: howto
 ---
 
@@ -37,7 +37,7 @@ You can also [switch to an existing branch](start-using-git.md#switch-to-a-branc
 if you have one already.
 
 Using your standard tool for copying files (for example, Finder in macOS, or File Explorer
-on Windows), put the file into a directory within the GitLab project.
+on Windows), put the file into a directory in the GitLab project.
 
 Check if your file is actually present in the directory (if you're on Windows,
 use `dir` instead):
@@ -90,6 +90,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

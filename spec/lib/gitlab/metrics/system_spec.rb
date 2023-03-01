@@ -20,6 +20,7 @@ RSpec.describe Gitlab::Metrics::System do
       VmHWM:      2468 kB
       VmRSS:      2468 kB
       RssAnon:    260 kB
+      RssFile:    1024 kB
       SNIP
     end
 
@@ -71,20 +72,87 @@ RSpec.describe Gitlab::Metrics::System do
       SNIP
     end
 
+    let(:mem_info) do
+      # full snapshot
+      <<~SNIP
+        MemTotal:       15362536 kB
+        MemFree:         3403136 kB
+        MemAvailable:   13044528 kB
+        Buffers:          272188 kB
+        Cached:          8171312 kB
+        SwapCached:            0 kB
+        Active:          3332084 kB
+        Inactive:        6981076 kB
+        Active(anon):    1603868 kB
+        Inactive(anon):     9044 kB
+        Active(file):    1728216 kB
+        Inactive(file):  6972032 kB
+        Unevictable:       18676 kB
+        Mlocked:           18676 kB
+        SwapTotal:             0 kB
+        SwapFree:              0 kB
+        Dirty:              6808 kB
+        Writeback:             0 kB
+        AnonPages:       1888300 kB
+        Mapped:           166164 kB
+        Shmem:             12932 kB
+        KReclaimable:    1275120 kB
+        Slab:            1495480 kB
+        SReclaimable:    1275120 kB
+        SUnreclaim:       220360 kB
+        KernelStack:        7072 kB
+        PageTables:        11936 kB
+        NFS_Unstable:          0 kB
+        Bounce:                0 kB
+        WritebackTmp:          0 kB
+        CommitLimit:     7681268 kB
+        Committed_AS:    4976100 kB
+        VmallocTotal:   34359738367 kB
+        VmallocUsed:       25532 kB
+        VmallocChunk:          0 kB
+        Percpu:            23200 kB
+        HardwareCorrupted:     0 kB
+        AnonHugePages:    202752 kB
+        ShmemHugePages:        0 kB
+        ShmemPmdMapped:        0 kB
+        FileHugePages:         0 kB
+        FilePmdMapped:         0 kB
+        CmaTotal:              0 kB
+        CmaFree:               0 kB
+        HugePages_Total:       0
+        HugePages_Free:        0
+        HugePages_Rsvd:        0
+        HugePages_Surp:        0
+        Hugepagesize:       2048 kB
+        Hugetlb:               0 kB
+        DirectMap4k:     4637504 kB
+        DirectMap2M:    11087872 kB
+        DirectMap1G:     2097152 kB
+      SNIP
+    end
+
     describe '.memory_usage_rss' do
       context 'without PID' do
-        it "returns the current process' resident set size (RSS) in bytes" do
+        it "returns a hash containing RSS metrics in bytes for current process" do
           mock_existing_proc_file('/proc/self/status', proc_status)
 
-          expect(described_class.memory_usage_rss).to eq(2527232)
+          expect(described_class.memory_usage_rss).to eq(
+            total: 2527232,
+            anon: 266240,
+            file: 1048576
+          )
         end
       end
 
       context 'with PID' do
-        it "returns the given process' resident set size (RSS) in bytes" do
+        it "returns a hash containing RSS metrics in bytes for given process" do
           mock_existing_proc_file('/proc/7/status', proc_status)
 
-          expect(described_class.memory_usage_rss(pid: 7)).to eq(2527232)
+          expect(described_class.memory_usage_rss(pid: 7)).to eq(
+            total: 2527232,
+            anon: 266240,
+            file: 1048576
+          )
         end
       end
     end
@@ -122,6 +190,14 @@ RSpec.describe Gitlab::Metrics::System do
           # (Private_Clean (152 kB) + Private_Dirty (312 kB) + Private_Hugetlb (0 kB)) * 1024
           expect(described_class.memory_usage_uss_pss(pid: 7)).to eq(uss: 475136, pss: 515072)
         end
+      end
+    end
+
+    describe '.memory_total' do
+      it "returns the current process' resident set size (RSS) in bytes" do
+        mock_existing_proc_file('/proc/meminfo', mem_info)
+
+        expect(described_class.memory_total).to eq(15731236864)
       end
     end
 
@@ -174,8 +250,12 @@ RSpec.describe Gitlab::Metrics::System do
     end
 
     describe '.memory_usage_rss' do
-      it 'returns 0' do
-        expect(described_class.memory_usage_rss).to eq(0)
+      it 'returns 0 for all components' do
+        expect(described_class.memory_usage_rss).to eq(
+          total: 0,
+          anon: 0,
+          file: 0
+        )
       end
     end
 

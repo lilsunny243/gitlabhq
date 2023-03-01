@@ -2,7 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe ServiceHook do
+RSpec.describe ServiceHook, feature_category: :integrations do
+  it_behaves_like 'a hook that does not get automatically disabled on failure' do
+    let(:hook) { create(:service_hook) }
+    let(:hook_factory) { :service_hook }
+    let(:default_factory_arguments) { {} }
+
+    def find_hooks
+      described_class.all
+    end
+  end
+
   describe 'associations' do
     it { is_expected.to belong_to :integration }
   end

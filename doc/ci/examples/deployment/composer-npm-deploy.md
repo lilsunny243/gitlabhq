@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: tutorial
 ---
 
@@ -47,7 +47,7 @@ All these operations put all files into a `build` folder, which is ready to be d
 
 ## How to transfer files to a live server
 
-You have multiple options: rsync, SCP, SFTP, and so on. For now, use SCP.
+You have multiple options such as rsync, SCP, or SFTP. For now, use SCP.
 
 To make this work, you must add a GitLab CI/CD Variable (accessible on `gitlab.example/your-project-name/variables`). Name this variable `STAGING_PRIVATE_KEY` and set it to the **private** SSH key of your server.
 
@@ -120,7 +120,7 @@ Therefore, for a production environment we use additional steps to ensure that a
 
 ## Where to go next
 
-Since this was a WordPress project, I gave real life code snippets. Some further ideas you can pursue:
+Since this was a WordPress project, it includes real code snippets. Some further ideas you can pursue:
 
 - Having a slightly different script for the default branch allows you to deploy to a production server from that branch and to a stage server from any other branches.
 - Instead of pushing it live, you can push it to WordPress official repository.

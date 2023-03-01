@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Admin::ClustersController do
+RSpec.describe Admin::ClustersController, feature_category: :kubernetes_management do
   include AccessMatchersForController
   include GoogleApi::CloudPlatformHelpers
 
@@ -159,8 +159,6 @@ RSpec.describe Admin::ClustersController do
     describe 'functionality' do
       context 'when creates a cluster' do
         it 'creates a new cluster' do
-          expect(ClusterProvisionWorker).to receive(:perform_async)
-
           expect { post_create_user }.to change { Clusters::Cluster.count }
             .and change { Clusters::Platforms::Kubernetes.count }
 
@@ -187,8 +185,6 @@ RSpec.describe Admin::ClustersController do
         end
 
         it 'creates a new cluster' do
-          expect(ClusterProvisionWorker).to receive(:perform_async)
-
           expect { post_create_user }.to change { Clusters::Cluster.count }
             .and change { Clusters::Platforms::Kubernetes.count }
 

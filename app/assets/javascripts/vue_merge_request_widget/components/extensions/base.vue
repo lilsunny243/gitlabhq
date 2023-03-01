@@ -1,18 +1,14 @@
 <script>
-import {
-  GlButton,
-  GlLoadingIcon,
-  GlSafeHtmlDirective,
-  GlTooltipDirective,
-  GlIntersectionObserver,
-} from '@gitlab/ui';
+import { GlButton, GlLoadingIcon, GlTooltipDirective, GlIntersectionObserver } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { DynamicScroller, DynamicScrollerItem } from 'vendor/vue-virtual-scroller';
 import { sprintf, s__, __ } from '~/locale';
 import Poll from '~/lib/utils/poll';
 import { normalizeHeaders } from '~/lib/utils/common_utils';
 import { EXTENSION_ICON_CLASS, EXTENSION_ICONS } from '../../constants';
 import Actions from '../action_buttons.vue';
+import StateContainer from '../state_container.vue';
 import StatusIcon from './status_icon.vue';
 import ChildContent from './child_content.vue';
 import { createTelemetryHub } from './telemetry';
@@ -36,9 +32,10 @@ export default {
     ChildContent,
     DynamicScroller,
     DynamicScrollerItem,
+    StateContainer,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
     GlTooltip: GlTooltipDirective,
   },
   data() {
@@ -72,7 +69,7 @@ export default {
     isCollapsible() {
       if (!this.isLoadingSummary && this.loadingState !== LOADING_STATES.collapsedError) {
         if (this.shouldCollapse) {
-          return this.shouldCollapse();
+          return this.shouldCollapse(this.collapsedData);
         }
 
         return true;
@@ -296,7 +293,7 @@ export default {
       }
     },
     onClickedAction(action) {
-      if (action.fullReport) {
+      if (action.trackFullReportClicked) {
         this.telemetry?.fullReportClicked();
       }
     },
@@ -312,32 +309,41 @@ export default {
     data-testid="widget-extension"
     data-qa-selector="mr_widget_extension"
   >
-    <div
+    <state-container
+      :status="statusIconName"
+      :is-loading="isLoadingSummary"
       :class="{ 'gl-cursor-pointer': isCollapsible }"
-      class="media gl-p-5"
+      class="gl-pl-5 gl-pr-4 gl-py-4"
       @mousedown="onRowMouseDown"
       @mouseup="onRowMouseUp"
     >
-      <status-icon
-        :level="1"
-        :name="$options.label || $options.name"
-        :is-loading="isLoadingSummary"
-        :icon-name="statusIconName"
-      />
       <div
-        class="media-body gl-display-flex gl-flex-direction-row! gl-align-self-center"
+        :class="{ 'gl-h-full': isLoadingSummary }"
+        class="media-body gl-display-flex gl-flex-direction-row! gl-w-full"
         data-testid="widget-extension-top-level"
       >
-        <div class="gl-flex-grow-1" data-testid="widget-extension-top-level-summary">
-          <template v-if="isLoadingSummary">{{ widgetLoadingText }}</template>
-          <template v-else-if="hasFetchError">{{ widgetErrorText }}</template>
-          <div v-else>
-            <span v-safe-html="hydratedSummary.subject"></span>
-            <template v-if="hydratedSummary.meta">
-              <br />
-              <span v-safe-html="hydratedSummary.meta" class="gl-font-sm"></span>
-            </template>
+        <div
+          class="gl-flex-grow-1 gl-display-flex gl-align-items-center gl-flex-wrap"
+          data-testid="widget-extension-top-level-summary"
+        >
+          <div v-if="isLoadingSummary" class="gl-w-full gl-line-height-normal">
+            {{ widgetLoadingText }}
           </div>
+          <div v-else-if="hasFetchError" class="gl-w-full gl-line-height-normal">
+            {{ widgetErrorText }}
+          </div>
+          <template v-else>
+            <div
+              v-safe-html="hydratedSummary.subject"
+              class="gl-w-full gl-line-height-normal"
+            ></div>
+            <template v-if="hydratedSummary.meta">
+              <div
+                v-safe-html="hydratedSummary.meta"
+                class="gl-w-full gl-font-sm gl-line-height-normal"
+              ></div>
+            </template>
+          </template>
         </div>
         <actions
           :widget="$options.label || $options.name"
@@ -362,7 +368,7 @@ export default {
           />
         </div>
       </div>
-    </div>
+    </state-container>
     <div
       v-if="!isCollapsed"
       class="mr-widget-grouped-section gl-relative"
@@ -375,7 +381,7 @@ export default {
         v-else-if="hasFullData"
         :items="fullData"
         :min-item-size="32"
-        class="report-block-container gl-px-5 gl-py-0"
+        class="report-block-container gl-p-0"
       >
         <template #default="{ item, index, active }">
           <dynamic-scroller-item :item="item" :active="active" :class="{ active }">
@@ -383,7 +389,7 @@ export default {
               :class="{
                 'gl-border-b-solid gl-border-b-1 gl-border-gray-100': index !== fullData.length - 1,
               }"
-              class="gl-py-3 gl-pl-7"
+              class="gl-py-3 gl-pl-9"
               data-testid="extension-list-item"
             >
               <gl-intersection-observer

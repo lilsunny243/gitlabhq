@@ -2,25 +2,25 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::Client do
-  describe '#parallel?' do
-    it 'returns true when the client is running in parallel mode' do
-      client = described_class.new('foo', parallel: true)
+RSpec.describe Gitlab::GithubImport::Client, feature_category: :importers do
+  subject(:client) { described_class.new('foo', parallel: parallel) }
 
-      expect(client).to be_parallel
+  let(:parallel) { true }
+
+  describe '#parallel?' do
+    context 'when the client is running in parallel mode' do
+      it { expect(client).to be_parallel }
     end
 
-    it 'returns false when the client is running in sequential mode' do
-      client = described_class.new('foo', parallel: false)
+    context 'when the client is running in sequential mode' do
+      let(:parallel) { false }
 
-      expect(client).not_to be_parallel
+      it { expect(client).not_to be_parallel }
     end
   end
 
   describe '#user' do
     it 'returns the details for the given username' do
-      client = described_class.new('foo')
-
       expect(client.octokit).to receive(:user).with('foo')
       expect(client).to receive(:with_rate_limit).and_yield
 
@@ -30,8 +30,6 @@ RSpec.describe Gitlab::GithubImport::Client do
 
   describe '#pull_request_reviews' do
     it 'returns the pull request reviews' do
-      client = described_class.new('foo')
-
       expect(client)
         .to receive(:each_object)
         .with(:pull_request_reviews, 'foo/bar', 999)
@@ -40,21 +38,52 @@ RSpec.describe Gitlab::GithubImport::Client do
     end
   end
 
+  describe '#pull_request_review_requests' do
+    it 'returns the pull request review requests' do
+      expect(client.octokit).to receive(:pull_request_review_requests).with('foo/bar', 999)
+      expect(client).to receive(:with_rate_limit).and_yield
+
+      client.pull_request_review_requests('foo/bar', 999)
+    end
+  end
+
+  describe '#repos' do
+    it 'returns the user\'s repositories as a hash' do
+      stub_request(:get, 'https://api.github.com/rate_limit')
+        .to_return(status: 200, headers: { 'X-RateLimit-Limit' => 5000, 'X-RateLimit-Remaining' => 5000 })
+
+      stub_request(:get, 'https://api.github.com/user/repos?page=1&page_length=10&per_page=100')
+        .to_return(status: 200, body: [{ id: 1 }, { id: 2 }].to_json, headers: { 'Content-Type' => 'application/json' })
+
+      repos = client.repos({ page: 1, page_length: 10 })
+
+      expect(repos).to match_array([{ id: 1 }, { id: 2 }])
+    end
+  end
+
   describe '#repository' do
     it 'returns the details of a repository' do
-      client = described_class.new('foo')
-
       expect(client.octokit).to receive(:repo).with('foo/bar')
       expect(client).to receive(:with_rate_limit).and_yield
 
       client.repository('foo/bar')
     end
+
+    it 'returns repository data as a hash' do
+      stub_request(:get, 'https://api.github.com/rate_limit')
+        .to_return(status: 200, headers: { 'X-RateLimit-Limit' => 5000, 'X-RateLimit-Remaining' => 5000 })
+
+      stub_request(:get, 'https://api.github.com/repos/foo/bar')
+        .to_return(status: 200, body: { id: 1 }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      repository = client.repository('foo/bar')
+
+      expect(repository).to eq({ id: 1 })
+    end
   end
 
   describe '#pull_request' do
     it 'returns the details of a pull_request' do
-      client = described_class.new('foo')
-
       expect(client.octokit).to receive(:pull_request).with('foo/bar', 999)
       expect(client).to receive(:with_rate_limit).and_yield
 
@@ -64,8 +93,6 @@ RSpec.describe Gitlab::GithubImport::Client do
 
   describe '#labels' do
     it 'returns the labels' do
-      client = described_class.new('foo')
-
       expect(client)
         .to receive(:each_object)
         .with(:labels, 'foo/bar')
@@ -76,8 +103,6 @@ RSpec.describe Gitlab::GithubImport::Client do
 
   describe '#milestones' do
     it 'returns the milestones' do
-      client = described_class.new('foo')
-
       expect(client)
         .to receive(:each_object)
         .with(:milestones, 'foo/bar')
@@ -88,8 +113,6 @@ RSpec.describe Gitlab::GithubImport::Client do
 
   describe '#releases' do
     it 'returns the releases' do
-      client = described_class.new('foo')
-
       expect(client)
         .to receive(:each_object)
         .with(:releases, 'foo/bar')
@@ -98,8 +121,43 @@ RSpec.describe Gitlab::GithubImport::Client do
     end
   end
 
+  describe '#branches' do
+    it 'returns the branches' do
+      expect(client)
+        .to receive(:each_object)
+          .with(:branches, 'foo/bar')
+
+      client.branches('foo/bar')
+    end
+  end
+
+  describe '#branch_protection' do
+    it 'returns the protection details for the given branch' do
+      expect(client.octokit)
+        .to receive(:branch_protection).with('org/repo', 'bar')
+      expect(client).to receive(:with_rate_limit).and_yield
+
+      branch_protection = client.branch_protection('org/repo', 'bar')
+
+      expect(branch_protection).to be_a(Hash)
+    end
+  end
+
+  describe '#each_object' do
+    it 'converts each object into a hash' do
+      stub_request(:get, 'https://api.github.com/rate_limit')
+        .to_return(status: 200, headers: { 'X-RateLimit-Limit' => 5000, 'X-RateLimit-Remaining' => 5000 })
+
+      stub_request(:get, 'https://api.github.com/repos/foo/bar/releases?per_page=100')
+        .to_return(status: 200, body: [{ id: 1 }].to_json, headers: { 'Content-Type' => 'application/json' })
+
+      client.each_object(:releases, 'foo/bar') do |release|
+        expect(release).to eq({ id: 1 })
+      end
+    end
+  end
+
   describe '#each_page' do
-    let(:client) { described_class.new('foo') }
     let(:object1) { double(:object1) }
     let(:object2) { double(:object2) }
 
@@ -170,8 +228,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#with_rate_limit' do
-    let(:client) { described_class.new('foo') }
-
     it 'yields the supplied block when enough requests remain' do
       expect(client).to receive(:requests_remaining?).and_return(true)
 
@@ -234,7 +290,7 @@ RSpec.describe Gitlab::GithubImport::Client do
           expect(client).to receive(:requests_remaining?).twice.and_return(true)
           expect(Gitlab::Import::Logger).to receive(:info).with(hash_including(info_params)).once
 
-          expect(client.with_rate_limit(&block_to_rate_limit)).to be(true)
+          expect(client.with_rate_limit(&block_to_rate_limit)).to eq({})
         end
 
         it 'retries and does not succeed' do
@@ -255,7 +311,7 @@ RSpec.describe Gitlab::GithubImport::Client do
 
           expect(Gitlab::Import::Logger).to receive(:info).with(hash_including(info_params)).once
 
-          expect(client.with_rate_limit(&block_to_rate_limit)).to be(true)
+          expect(client.with_rate_limit(&block_to_rate_limit)).to eq({})
         end
 
         it 'retries and does not succeed' do
@@ -268,8 +324,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#requests_remaining?' do
-    let(:client) { described_class.new('foo') }
-
     context 'when default requests limit is set' do
       before do
         allow(client).to receive(:requests_limit).and_return(5000)
@@ -308,44 +362,43 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#raise_or_wait_for_rate_limit' do
-    it 'raises RateLimitError when running in parallel mode' do
-      client = described_class.new('foo', parallel: true)
-
-      expect { client.raise_or_wait_for_rate_limit }
-        .to raise_error(Gitlab::GithubImport::RateLimitError)
+    context 'when running in parallel mode' do
+      it 'raises RateLimitError' do
+        expect { client.raise_or_wait_for_rate_limit }
+          .to raise_error(Gitlab::GithubImport::RateLimitError)
+      end
     end
 
-    it 'sleeps when running in sequential mode' do
-      client = described_class.new('foo', parallel: false)
+    context 'when running in sequential mode' do
+      let(:parallel) { false }
 
-      expect(client).to receive(:rate_limit_resets_in).and_return(1)
-      expect(client).to receive(:sleep).with(1)
+      it 'sleeps' do
+        expect(client).to receive(:rate_limit_resets_in).and_return(1)
+        expect(client).to receive(:sleep).with(1)
 
-      client.raise_or_wait_for_rate_limit
-    end
+        client.raise_or_wait_for_rate_limit
+      end
 
-    it 'increments the rate limit counter' do
-      client = described_class.new('foo', parallel: false)
+      it 'increments the rate limit counter' do
+        expect(client)
+          .to receive(:rate_limit_resets_in)
+          .and_return(1)
 
-      expect(client)
-        .to receive(:rate_limit_resets_in)
-        .and_return(1)
+        expect(client)
+          .to receive(:sleep)
+          .with(1)
 
-      expect(client)
-        .to receive(:sleep)
-        .with(1)
+        expect(client.rate_limit_counter)
+          .to receive(:increment)
+          .and_call_original
 
-      expect(client.rate_limit_counter)
-        .to receive(:increment)
-        .and_call_original
-
-      client.raise_or_wait_for_rate_limit
+        client.raise_or_wait_for_rate_limit
+      end
     end
   end
 
   describe '#remaining_requests' do
     it 'returns the number of remaining requests' do
-      client = described_class.new('foo')
       rate_limit = double(remaining: 1)
 
       expect(client.octokit).to receive(:rate_limit).and_return(rate_limit)
@@ -355,7 +408,6 @@ RSpec.describe Gitlab::GithubImport::Client do
 
   describe '#requests_limit' do
     it 'returns requests limit' do
-      client = described_class.new('foo')
       rate_limit = double(limit: 1)
 
       expect(client.octokit).to receive(:rate_limit).and_return(rate_limit)
@@ -365,7 +417,6 @@ RSpec.describe Gitlab::GithubImport::Client do
 
   describe '#rate_limit_resets_in' do
     it 'returns the number of seconds after which the rate limit is reset' do
-      client = described_class.new('foo')
       rate_limit = double(resets_in: 1)
 
       expect(client.octokit).to receive(:rate_limit).and_return(rate_limit)
@@ -375,8 +426,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#api_endpoint' do
-    let(:client) { described_class.new('foo') }
-
     context 'without a custom endpoint configured in Omniauth' do
       it 'returns the default API endpoint' do
         expect(client)
@@ -401,8 +450,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#web_endpoint' do
-    let(:client) { described_class.new('foo') }
-
     context 'without a custom endpoint configured in Omniauth' do
       it 'returns the default web endpoint' do
         expect(client)
@@ -427,8 +474,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#custom_api_endpoint' do
-    let(:client) { described_class.new('foo') }
-
     context 'without a custom endpoint' do
       it 'returns nil' do
         expect(client)
@@ -461,8 +506,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#verify_ssl' do
-    let(:client) { described_class.new('foo') }
-
     context 'without a custom configuration' do
       it 'returns true' do
         expect(client)
@@ -481,8 +524,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#github_omniauth_provider' do
-    let(:client) { described_class.new('foo') }
-
     context 'without a configured provider' do
       it 'returns an empty Hash' do
         expect(Gitlab.config.omniauth)
@@ -504,8 +545,6 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe '#rate_limiting_enabled?' do
-    let(:client) { described_class.new('foo') }
-
     it 'returns true when using GitHub.com' do
       expect(client.rate_limiting_enabled?).to eq(true)
     end
@@ -520,12 +559,11 @@ RSpec.describe Gitlab::GithubImport::Client do
   end
 
   describe 'search' do
-    let(:client) { described_class.new('foo') }
-    let(:user) { double(:user, login: 'user') }
-    let(:org1) { double(:org, login: 'org1') }
-    let(:org2) { double(:org, login: 'org2') }
-    let(:repo1) { double(:repo, full_name: 'repo1') }
-    let(:repo2) { double(:repo, full_name: 'repo2') }
+    let(:user) { { login: 'user' } }
+    let(:org1) { { login: 'org1' } }
+    let(:org2) { { login: 'org2' } }
+    let(:repo1) { { full_name: 'repo1' } }
+    let(:repo2) { { full_name: 'repo2' } }
 
     before do
       allow(client)
@@ -541,13 +579,151 @@ RSpec.describe Gitlab::GithubImport::Client do
       allow(client.octokit).to receive(:user).and_return(user)
     end
 
-    describe '#search_repos_by_name' do
-      it 'searches for repositories based on name' do
-        expected_search_query = 'test in:name is:public,private user:user repo:repo1 repo:repo2 org:org1 org:org2'
+    describe '#search_repos_by_name_graphql' do
+      let(:expected_query) { 'test in:name is:public,private user:user repo:repo1 repo:repo2 org:org1 org:org2' }
+      let(:expected_graphql_params) { "type: REPOSITORY, query: \"#{expected_query}\"" }
+      let(:expected_graphql) do
+        <<-TEXT
+          {
+              search(#{expected_graphql_params}) {
+                  nodes {
+                      __typename
+                      ... on Repository {
+                          id: databaseId
+                          name
+                          full_name: nameWithOwner
+                          owner { login }
+                      }
+                  }
+                  pageInfo {
+                      startCursor
+                      endCursor
+                      hasNextPage
+                      hasPreviousPage
+                  }
+              }
+          }
+        TEXT
+      end
 
-        expect(client.octokit).to receive(:search_repositories).with(expected_search_query, {})
+      it 'searches for repositories based on name' do
+        expect(client.octokit).to receive(:post).with(
+          '/graphql', { query: expected_graphql }.to_json
+        )
+
+        client.search_repos_by_name_graphql('test')
+      end
+
+      context 'when relation type option present' do
+        context 'when relation type is owned' do
+          let(:expected_query) { 'test in:name is:public,private user:user' }
+
+          it 'searches for repositories within the organization based on name' do
+            expect(client.octokit).to receive(:post).with(
+              '/graphql', { query: expected_graphql }.to_json
+            )
+
+            client.search_repos_by_name_graphql('test', relation_type: 'owned')
+          end
+        end
+
+        context 'when relation type is organization' do
+          let(:expected_query) { 'test in:name is:public,private org:test-login' }
+
+          it 'searches for repositories within the organization based on name' do
+            expect(client.octokit).to receive(:post).with(
+              '/graphql', { query: expected_graphql }.to_json
+            )
+
+            client.search_repos_by_name_graphql(
+              'test', relation_type: 'organization', organization_login: 'test-login'
+            )
+          end
+        end
+
+        context 'when relation type is collaborated' do
+          let(:expected_query) { 'test in:name is:public,private repo:repo1 repo:repo2' }
+
+          it 'searches for collaborated repositories based on name' do
+            expect(client.octokit).to receive(:post).with(
+              '/graphql', { query: expected_graphql }.to_json
+            )
+
+            client.search_repos_by_name_graphql('test', relation_type: 'collaborated')
+          end
+        end
+      end
+
+      context 'when pagination options present' do
+        context 'with "first" option' do
+          let(:expected_graphql_params) do
+            "type: REPOSITORY, query: \"#{expected_query}\", first: 25"
+          end
+
+          it 'searches for repositories via expected query' do
+            expect(client.octokit).to receive(:post).with(
+              '/graphql', { query: expected_graphql }.to_json
+            )
+
+            client.search_repos_by_name_graphql('test', { first: 25 })
+          end
+        end
+
+        context 'with "after" option' do
+          let(:expected_graphql_params) do
+            "type: REPOSITORY, query: \"#{expected_query}\", after: \"Y3Vyc29yOjE=\""
+          end
+
+          it 'searches for repositories via expected query' do
+            expect(client.octokit).to receive(:post).with(
+              '/graphql', { query: expected_graphql }.to_json
+            )
+
+            client.search_repos_by_name_graphql('test', { after: 'Y3Vyc29yOjE=' })
+          end
+        end
+      end
+
+      context 'when Faraday error received from octokit', :aggregate_failures do
+        let(:error_class) { described_class::CLIENT_CONNECTION_ERROR }
+        let(:info_params) { { 'error.class': error_class } }
+
+        it 'retries on error and succeeds' do
+          allow_retry(:post)
+
+          expect(Gitlab::Import::Logger).to receive(:info).with(hash_including(info_params)).once
+
+          expect(client.search_repos_by_name_graphql('test')).to eq({})
+        end
+
+        it 'retries and does not succeed' do
+          allow(client.octokit)
+            .to receive(:post)
+            .with('/graphql', { query: expected_graphql }.to_json)
+            .and_raise(error_class, 'execution expired')
+
+          expect { client.search_repos_by_name_graphql('test') }.to raise_error(error_class, 'execution expired')
+        end
+      end
+    end
+
+    describe '#search_repos_by_name' do
+      let(:expected_query) { 'test in:name is:public,private user:user repo:repo1 repo:repo2 org:org1 org:org2' }
+
+      it 'searches for repositories based on name' do
+        expect(client.octokit).to receive(:search_repositories).with(expected_query, {})
 
         client.search_repos_by_name('test')
+      end
+
+      context 'when pagination options present' do
+        it 'searches for repositories via expected query' do
+          expect(client.octokit).to receive(:search_repositories).with(
+            expected_query, { page: 2, per_page: 25 }
+          )
+
+          client.search_repos_by_name('test', { page: 2, per_page: 25 })
+        end
       end
 
       context 'when Faraday error received from octokit', :aggregate_failures do
@@ -559,37 +735,16 @@ RSpec.describe Gitlab::GithubImport::Client do
 
           expect(Gitlab::Import::Logger).to receive(:info).with(hash_including(info_params)).once
 
-          expect(client.search_repos_by_name('test')).to be(true)
+          expect(client.search_repos_by_name('test')).to eq({})
         end
 
         it 'retries and does not succeed' do
-          allow(client.octokit).to receive(:search_repositories).and_raise(error_class, 'execution expired')
+          allow(client.octokit)
+            .to receive(:search_repositories)
+            .with(expected_query, {})
+            .and_raise(error_class, 'execution expired')
 
           expect { client.search_repos_by_name('test') }.to raise_error(error_class, 'execution expired')
-        end
-      end
-    end
-
-    describe '#search_query' do
-      it 'returns base search query' do
-        result = client.search_query(str: 'test', type: :test, include_collaborations: false, include_orgs: false)
-
-        expect(result).to eq('test in:test is:public,private user:user')
-      end
-
-      context 'when include_collaborations is true' do
-        it 'returns search query including users' do
-          result = client.search_query(str: 'test', type: :test, include_collaborations: true, include_orgs: false)
-
-          expect(result).to eq('test in:test is:public,private user:user repo:repo1 repo:repo2')
-        end
-      end
-
-      context 'when include_orgs is true' do
-        it 'returns search query including users' do
-          result = client.search_query(str: 'test', type: :test, include_collaborations: false, include_orgs: true)
-
-          expect(result).to eq('test in:test is:public,private user:user org:org1 org:org2')
         end
       end
     end
@@ -599,7 +754,7 @@ RSpec.describe Gitlab::GithubImport::Client do
     call_count = 0
     allow(client.octokit).to receive(method) do
       call_count += 1
-      call_count > 1 ? true : raise(described_class::CLIENT_CONNECTION_ERROR, 'execution expired')
+      call_count > 1 ? {} : raise(described_class::CLIENT_CONNECTION_ERROR, 'execution expired')
     end
   end
 end

@@ -71,6 +71,10 @@ RSpec.describe Import::GithubController, 'routing' do
   it 'to #personal_access_token' do
     expect(post('/import/github/personal_access_token')).to route_to('import/github#personal_access_token')
   end
+
+  it 'to #cancel_all' do
+    expect(post('/import/github/cancel_all')).to route_to('import/github#cancel_all')
+  end
 end
 
 # personal_access_token_import_gitea POST     /import/gitea/personal_access_token(.:format)                                                 import/gitea#personal_access_token
@@ -175,5 +179,12 @@ RSpec.describe Import::PhabricatorController, 'routing' do
 
   it 'to #new' do
     expect(get("/import/phabricator/new")).to route_to("import/phabricator#new")
+  end
+end
+
+# status_import_github_group GET /import/github_group/status(.:format) import/github_groups#status
+RSpec.describe Import::GithubGroupsController, 'routing' do
+  it 'to #status' do
+    expect(get('/import/github_group/status')).to route_to('import/github_groups#status')
   end
 end

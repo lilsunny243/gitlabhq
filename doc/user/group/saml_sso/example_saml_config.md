@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -9,7 +9,7 @@ type: reference
 
 These are notes and screenshots regarding Group SAML and SCIM that the GitLab Support Team sometimes uses while troubleshooting, but which do not fit into the official documentation. GitLab is making this public, so that anyone can make use of the Support team's collected knowledge.
 
-Please refer to the GitLab [Group SAML](index.md) docs for information on the feature and how to set it up.
+Refer to the GitLab [Group SAML](index.md) documentation for information on the feature and how to set it up.
 
 When troubleshooting a SAML configuration, GitLab team members will frequently start with the [SAML troubleshooting section](index.md#troubleshooting).
 
@@ -31,22 +31,32 @@ If you are currently having an issue with GitLab, you may want to check your [su
 
 ## Azure Active Directory
 
-Basic SAML app configuration:
+This section has screenshots for the elements of Azure Active Directory configuration.
+
+### Basic SAML app configuration
 
 ![Azure AD basic SAML](img/AzureAD-basic_SAML.png)
 
-User claims and attributes:
+### User claims and attributes
 
 ![Azure AD user claims](img/AzureAD-claims.png)
 
-SCIM mapping:
+### SCIM mapping
+
+Provisioning:
 
 ![Azure AD SCIM Provisioning](img/AzureAD-scim_provisioning.png)
+
+Attribute mapping:
+
 ![Azure AD SCIM Attribute Mapping](img/AzureAD-scim_attribute_mapping.png)
 
-Group Sync:
+### Group Sync
 
 ![Azure Group Claims](img/azure_configure_group_claim.png)
+
+NOTE:
+Using the **Group ID** source attribute requires users to enter the group ID or object ID when configuring SAML group links. If available, use the **sAMAccountName** source attribute for the friendly group name instead.
 
 ## Google Workspace
 

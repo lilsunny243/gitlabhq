@@ -6,16 +6,18 @@ module QA
       module Settings
         class Main < Page::Base
           include QA::Page::Settings::Common
-          include Component::Select2
           include SubMenus::Project
           include Component::Breadcrumbs
           include Layout::Flash
 
           view 'app/views/projects/edit.html.haml' do
             element :advanced_settings_content
-            element :merge_request_settings_content
             element :visibility_features_permissions_content
             element :badges_settings_content
+          end
+
+          view 'app/views/projects/settings/merge_requests/show.html.haml' do
+            element :merge_request_settings_content
           end
 
           view 'app/views/projects/settings/_general.html.haml' do
@@ -39,12 +41,6 @@ module QA
           def expand_advanced_settings(&block)
             expand_content(:advanced_settings_content) do
               Advanced.perform(&block)
-            end
-          end
-
-          def expand_merge_requests_settings(&block)
-            expand_content(:merge_request_settings_content) do
-              MergeRequest.perform(&block)
             end
           end
 

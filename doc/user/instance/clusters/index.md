@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Instance-level Kubernetes clusters (certificate-based) (DEPRECATED) **(FREE SELF)**
@@ -21,7 +21,7 @@ projects.
 
 To view the instance level Kubernetes clusters:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Kubernetes**.
 
 ## Cluster precedence
@@ -33,7 +33,7 @@ GitLab tries to match clusters in the following order:
 - Instance-level clusters.
 
 To be selected, the cluster must be enabled and
-match the [environment selector](../../../ci/environments/index.md#scope-environments-with-specs).
+match the [environment selector](../../../ci/environments/index.md#limit-the-environment-scope-of-a-cicd-variable).
 
 ## Cluster environments **(PREMIUM)**
 

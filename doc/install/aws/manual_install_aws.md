@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 {::options parse_block_html="true" /}
@@ -147,7 +147,7 @@ We now create a VPC, a virtual networking environment that you control:
 
    ![Create VPC](img/create_vpc.png)
 
-1. Select the VPC, select **Actions**, select **Edit DNS resolution**, and enable DNS resolution. Hit **Save** when done.
+1. Select the VPC, select **Actions**, select **Edit DNS resolution**, and enable DNS resolution. Select **Save** when done.
 
 ### Subnets
 
@@ -226,7 +226,7 @@ it receive traffic from any destination.
    route to show the options at the bottom.
 1. Select the **Routes** tab, select **Edit routes > Add route** and set `0.0.0.0/0`
    as the destination. In the target column, select the `gitlab-gateway` we created previously.
-   Hit **Save routes** once done.
+   Select **Save routes** when done.
 
 Next, we must associate the **public** subnets to the route table:
 
@@ -268,7 +268,7 @@ On the EC2 dashboard, look for Load Balancer in the left navigation bar:
 1. Select **Configure Health Check** and set up a health check for your EC2 instances.
    1. For **Ping Protocol**, select HTTP.
    1. For **Ping Port**, enter 80.
-   1. For **Ping Path** - we recommend that you [use the Readiness check endpoint](../../administration/load_balancer.md#readiness-check). You must add [the VPC IP Address Range (CIDR)](https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/elb-security-groups.html#elb-vpc-nacl) to the [IP allowlist](../../administration/monitoring/ip_whitelist.md) for the [Health Check endpoints](../../user/admin_area/monitoring/health_check.md)
+   1. For **Ping Path** - we recommend that you [use the Readiness check endpoint](../../administration/load_balancer.md#readiness-check). You must add [the VPC IP Address Range (CIDR)](https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/elb-security-groups.html#elb-vpc-nacl) to the [IP allowlist](../../administration/monitoring/ip_allowlist.md) for the [Health Check endpoints](../../user/admin_area/monitoring/health_check.md)
    1. Keep the default **Advanced Details** or adjust them according to your needs.
 1. Select **Add EC2 Instances** - don't add anything as we create an Auto Scaling Group later to manage instances for us.
 1. Select **Add Tags** and add any tags you need.
@@ -465,7 +465,7 @@ We need a preconfigured, custom GitLab AMI to use in our launch configuration la
 From the EC2 dashboard:
 
 1. Use the section below titled "[Find official GitLab-created AMI IDs on AWS](#find-official-gitlab-created-ami-ids-on-aws)" to find the correct AMI to launch.
-1. After clicking **Launch** on the desired AMI, select an instance type based on your workload. Consult the [hardware requirements](../../install/requirements.md#hardware-requirements) to choose one that fits your needs (at least `c5.xlarge`, which is sufficient to accommodate 100 users).
+1. After selecting **Launch** on the desired AMI, select an instance type based on your workload. Consult the [hardware requirements](../../install/requirements.md#hardware-requirements) to choose one that fits your needs (at least `c5.xlarge`, which is sufficient to accommodate 100 users).
 1. Select **Configure Instance Details**:
    1. In the **Network** dropdown list, select `gitlab-vpc`, the VPC we created earlier.
    1. In the **Subnet** dropdown list, select `gitlab-private-10.0.1.0` from the list of subnets we created earlier.
@@ -613,7 +613,7 @@ Remember to run `sudo gitlab-ctl reconfigure` after saving the changes to the `g
 
 The public SSH keys for users allowed to access GitLab are stored in `/var/opt/gitlab/.ssh/authorized_keys`. Typically we'd use shared storage so that all the instances are able to access this file when a user performs a Git action over SSH. Because we do not have shared storage in our setup, we update our configuration to authorize SSH users via indexed lookup in the GitLab database.
 
-Follow the instructions at [Setting up fast lookup via GitLab Shell](../../administration/operations/fast_ssh_key_lookup.md#setting-up-fast-lookup-via-gitlab-shell) to switch from using the `authorized_keys` file to the database.
+Follow the instructions at [Set up fast SSH key lookup](../../administration/operations/fast_ssh_key_lookup.md#set-up-fast-lookup) to switch from using the `authorized_keys` file to the database.
 
 If you do not configure fast lookup, Git actions over SSH results in the following error:
 
@@ -670,9 +670,9 @@ Depending on how you installed GitLab and if you did not change the password by 
 - Your instance ID if you used the official GitLab AMI.
 - A randomly generated password stored for 24 hours in `/etc/gitlab/initial_root_password`.
 
-To change the default password, log in as the `root` user with the default password and [change it in the user profile](../../user/profile#change-your-password).
+To change the default password, log in as the `root` user with the default password and [change it in the user profile](../../user/profile/user_passwords.md#change-your-password).
 
-When our [auto scaling group](#create-an-auto-scaling-group) spins up new instances, we are able to log in with username `root` and the newly created password.
+When our [auto scaling group](#create-an-auto-scaling-group) spins up new instances, we are able to sign in with username `root` and the newly created password.
 
 ### Create custom AMI
 
@@ -732,8 +732,8 @@ Because our instances are created by the auto scaling group, go back to your ins
 
 Apart from Amazon's Cloudwatch which you can enable on various services,
 GitLab provides its own integrated monitoring solution based on Prometheus.
-For more information on how to set it up, visit the
-[GitLab Prometheus documentation](../../administration/monitoring/prometheus/index.md)
+For more information about how to set it up, see
+[GitLab Prometheus](../../administration/monitoring/prometheus/index.md).
 
 GitLab also has various [health check endpoints](../../user/admin_area/monitoring/health_check.md)
 that you can ping and get reports.

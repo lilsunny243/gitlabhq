@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User adds lists', :js do
+RSpec.describe 'User adds lists', :js, feature_category: :team_planning do
   let_it_be(:group) { create(:group, :nested) }
   let_it_be(:project) { create(:project, :public, namespace: group) }
   let_it_be(:group_board) { create(:board, group: group) }
@@ -31,13 +31,15 @@ RSpec.describe 'User adds lists', :js do
 
   with_them do
     before do
+      stub_feature_flags(apollo_boards: false)
       sign_in(user)
 
       set_cookie('sidebar_collapsed', 'true')
 
-      if board_type == :project
+      case board_type
+      when :project
         visit project_board_path(project, project_board)
-      elsif board_type == :group
+      when :group
         visit group_board_path(group, group_board)
       end
 

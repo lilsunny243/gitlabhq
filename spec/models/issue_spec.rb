@@ -2,13 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe Issue do
+RSpec.describe Issue, feature_category: :team_planning do
   include ExternalAuthorizationServiceHelpers
 
   using RSpec::Parameterized::TableSyntax
 
   let_it_be(:user) { create(:user) }
-  let_it_be(:reusable_project) { create(:project) }
+  let_it_be_with_reload(:reusable_project) { create(:project) }
 
   describe "Associations" do
     it { is_expected.to belong_to(:milestone) }
@@ -25,6 +25,7 @@ RSpec.describe Issue do
     it { is_expected.to have_many(:design_versions) }
     it { is_expected.to have_one(:sentry_issue) }
     it { is_expected.to have_one(:alert_management_alert) }
+    it { is_expected.to have_many(:alert_management_alerts).validate(false) }
     it { is_expected.to have_many(:resource_milestone_events) }
     it { is_expected.to have_many(:resource_state_events) }
     it { is_expected.to have_and_belong_to_many(:prometheus_alert_events) }
@@ -69,6 +70,11 @@ RSpec.describe Issue do
   end
 
   describe 'validations' do
+    it { is_expected.not_to allow_value(nil).for(:confidential) }
+    it { is_expected.to allow_value(true, false).for(:confidential) }
+  end
+
+  describe 'custom validations' do
     subject(:valid?) { issue.valid? }
 
     describe 'due_date_after_start_date' do
@@ -134,6 +140,31 @@ RSpec.describe Issue do
         let(:issue_type) { nil }
 
         it { is_expected.to eq(false) }
+      end
+    end
+
+    describe '#allowed_work_item_type_change' do
+      where(:old_type, :new_type, :is_valid) do
+        :issue     | :incident  | true
+        :incident  | :issue     | true
+        :test_case | :issue     | true
+        :issue     | :test_case | true
+        :issue     | :task      | false
+        :test_case | :task      | false
+        :incident  | :task      | false
+        :task      | :issue     | false
+        :task      | :incident  | false
+        :task      | :test_case | false
+      end
+
+      with_them do
+        it 'is possible to change type only between selected types' do
+          issue = create(:issue, old_type, project: reusable_project)
+
+          issue.work_item_type_id = WorkItems::Type.default_by_type(new_type).id
+
+          expect(issue.valid?).to eq(is_valid)
+        end
       end
     end
 
@@ -256,7 +287,7 @@ RSpec.describe Issue do
       end
 
       context 'when no type was set' do
-        let_it_be(:issue, refind: true) { build(:issue, project: project, work_item_type: nil).tap { |issue| issue.save!(validate: false) } }
+        let(:issue) { build(:issue, project: project, work_item_type: nil) }
 
         it 'sets a work item type before validation' do
           expect(issue.work_item_type_id).to be_nil
@@ -445,17 +476,6 @@ RSpec.describe Issue do
       subject { described_class.order_escalation_status_desc }
 
       it { is_expected.to eq([resolved_incident, triggered_incident, issue_no_status]) }
-    end
-  end
-
-  # TODO: Remove when NOT NULL constraint is added to the relationship
-  describe '#work_item_type' do
-    let(:issue) { build(:issue, :incident, project: reusable_project, work_item_type: nil).tap { |issue| issue.save!(validate: false) } }
-
-    it 'returns a default type if the legacy issue does not have a work item type associated yet' do
-      expect(issue.work_item_type_id).to be_nil
-      expect(issue.issue_type).to eq('incident')
-      expect(issue.work_item_type).to eq(WorkItems::Type.default_by_type(:incident))
     end
   end
 
@@ -654,7 +674,7 @@ RSpec.describe Issue do
     let_it_be(:authorized_issue_a) { create(:issue, project: authorized_project) }
     let_it_be(:authorized_issue_b) { create(:issue, project: authorized_project) }
     let_it_be(:authorized_issue_c) { create(:issue, project: authorized_project2) }
-    let_it_be(:authorized_incident_a) { create(:incident, project: authorized_project ) }
+    let_it_be(:authorized_incident_a) { create(:incident, project: authorized_project) }
 
     let_it_be(:unauthorized_issue) { create(:issue, project: unauthorized_project) }
 
@@ -863,7 +883,7 @@ RSpec.describe Issue do
 
   describe '.to_branch_name' do
     it 'parameterizes arguments and joins with dashes' do
-      expect(described_class.to_branch_name(123, 'foo bar', '!@#$%', 'f!o@o#b$a%r^')).to eq('123-foo-bar-f-o-o-b-a-r')
+      expect(described_class.to_branch_name(123, 'foo bar!@#$%f!o@o#b$a%r^')).to eq('123-foo-bar-f-o-o-b-a-r')
     end
 
     it 'preserves the case in the first argument' do
@@ -871,7 +891,7 @@ RSpec.describe Issue do
     end
 
     it 'truncates branch name to at most 100 characters' do
-      expect(described_class.to_branch_name('a' * 101)).to eq('a' * 100)
+      expect(described_class.to_branch_name('a' * 101, 'a')).to eq('a' * 100)
     end
 
     it 'truncates dangling parts of the branch name' do
@@ -882,6 +902,13 @@ RSpec.describe Issue do
 
       # 100 characters would've got us "999-lorem...lacus-custom-fri".
       expect(branch_name).to eq('999-lorem-ipsum-dolor-sit-amet-consectetur-adipiscing-elit-mauris-sit-amet-ipsum-id-lacus-custom')
+    end
+
+    it 'takes issue branch template into account' do
+      project = create(:project)
+      project.project_setting.update!(issue_branch_template: 'feature-%{id}-%{title}')
+
+      expect(described_class.to_branch_name(123, 'issue title', project: project)).to eq('feature-123-issue-title')
     end
   end
 
@@ -971,13 +998,8 @@ RSpec.describe Issue do
 
     context 'with a project' do
       it 'returns false when feature is disabled' do
+        project.add_developer(user)
         project.project_feature.update_attribute(:issues_access_level, ProjectFeature::DISABLED)
-
-        is_expected.to eq(false)
-      end
-
-      it 'returns false when restricted for members' do
-        project.project_feature.update_attribute(:issues_access_level, ProjectFeature::PRIVATE)
 
         is_expected.to eq(false)
       end
@@ -1448,16 +1470,6 @@ RSpec.describe Issue do
     it 'only returns without_hidden issues' do
       expect(described_class.without_hidden).to eq([public_issue])
     end
-
-    context 'when feature flag is disabled' do
-      before do
-        stub_feature_flags(ban_user_feature_flag: false)
-      end
-
-      it 'returns public and hidden issues' do
-        expect(described_class.without_hidden).to contain_exactly(public_issue, hidden_issue)
-      end
-    end
   end
 
   describe '.by_project_id_and_iid' do
@@ -1787,6 +1799,24 @@ RSpec.describe Issue do
     describe '.order_closed_at_desc' do
       it 'orders on closed at' do
         expect(described_class.order_closed_at_desc.to_a).to eq([issue_a, issue_d, issue_b, issue_c_nil, issue_e_nil])
+      end
+    end
+  end
+
+  describe '#full_search' do
+    context 'when searching non-english terms' do
+      [
+        'abc 中文語',
+        '中文語cn',
+        '中文語',
+        'Привет'
+      ].each do |term|
+        it 'adds extra where clause to match partial index' do
+          expect(described_class.full_search(term).to_sql).to include(
+            "AND (issues.title NOT SIMILAR TO '[\\u0000-\\u02FF\\u1E00-\\u1EFF\\u2070-\\u218F]*' " \
+            "OR issues.description NOT SIMILAR TO '[\\u0000-\\u02FF\\u1E00-\\u1EFF\\u2070-\\u218F]*')"
+          )
+        end
       end
     end
   end

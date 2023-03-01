@@ -1,9 +1,9 @@
-import Audio from '~/content_editor/extensions/audio';
 import Blockquote from '~/content_editor/extensions/blockquote';
 import Bold from '~/content_editor/extensions/bold';
 import BulletList from '~/content_editor/extensions/bullet_list';
 import Code from '~/content_editor/extensions/code';
 import CodeBlockHighlight from '~/content_editor/extensions/code_block_highlight';
+import Comment from '~/content_editor/extensions/comment';
 import DescriptionItem from '~/content_editor/extensions/description_item';
 import DescriptionList from '~/content_editor/extensions/description_list';
 import Details from '~/content_editor/extensions/details';
@@ -16,7 +16,7 @@ import FootnoteReference from '~/content_editor/extensions/footnote_reference';
 import HardBreak from '~/content_editor/extensions/hard_break';
 import Heading from '~/content_editor/extensions/heading';
 import HorizontalRule from '~/content_editor/extensions/horizontal_rule';
-import HTMLMarks from '~/content_editor/extensions/html_marks';
+import Highlight from '~/content_editor/extensions/highlight';
 import HTMLNodes from '~/content_editor/extensions/html_nodes';
 import Image from '~/content_editor/extensions/image';
 import InlineDiff from '~/content_editor/extensions/inline_diff';
@@ -34,53 +34,13 @@ import TableHeader from '~/content_editor/extensions/table_header';
 import TableRow from '~/content_editor/extensions/table_row';
 import TaskItem from '~/content_editor/extensions/task_item';
 import TaskList from '~/content_editor/extensions/task_list';
-import Video from '~/content_editor/extensions/video';
 import markdownSerializer from '~/content_editor/services/markdown_serializer';
 import remarkMarkdownDeserializer from '~/content_editor/services/remark_markdown_deserializer';
-import { createTestEditor, createDocBuilder } from '../test_utils';
+import { createTiptapEditor, createDocBuilder } from '../test_utils';
 
 jest.mock('~/emoji');
 
-const tiptapEditor = createTestEditor({
-  extensions: [
-    Audio,
-    Blockquote,
-    Bold,
-    BulletList,
-    Code,
-    CodeBlockHighlight,
-    DescriptionItem,
-    DescriptionList,
-    Details,
-    DetailsContent,
-    Emoji,
-    FootnoteDefinition,
-    FootnoteReference,
-    Figure,
-    FigureCaption,
-    HardBreak,
-    Heading,
-    HorizontalRule,
-    Image,
-    InlineDiff,
-    Italic,
-    Link,
-    ListItem,
-    OrderedList,
-    ReferenceDefinition,
-    Sourcemap,
-    Strike,
-    Table,
-    TableCell,
-    TableHeader,
-    TableRow,
-    TaskItem,
-    TaskList,
-    Video,
-    ...HTMLMarks,
-    ...HTMLNodes,
-  ],
-});
+const tiptapEditor = createTiptapEditor([Sourcemap]);
 
 const {
   builders: {
@@ -91,6 +51,7 @@ const {
     bulletList,
     code,
     codeBlock,
+    comment,
     details,
     detailsContent,
     div,
@@ -103,6 +64,7 @@ const {
     figureCaption,
     heading,
     hardBreak,
+    highlight,
     horizontalRule,
     image,
     inlineDiff,
@@ -129,6 +91,7 @@ const {
     bulletList: { nodeType: BulletList.name },
     code: { markType: Code.name },
     codeBlock: { nodeType: CodeBlockHighlight.name },
+    comment: { nodeType: Comment.name },
     details: { nodeType: Details.name },
     detailsContent: { nodeType: DetailsContent.name },
     descriptionItem: { nodeType: DescriptionItem.name },
@@ -141,6 +104,7 @@ const {
     hardBreak: { nodeType: HardBreak.name },
     heading: { nodeType: Heading.name },
     horizontalRule: { nodeType: HorizontalRule.name },
+    highlight: { markType: Highlight.name },
     image: { nodeType: Image.name },
     inlineDiff: { markType: InlineDiff.name },
     italic: { nodeType: Italic.name },
@@ -200,6 +164,23 @@ describe('markdownSerializer', () => {
         ),
       ),
     ).toBe('{++30 lines+}{--10 lines-}');
+  });
+
+  it('correctly serializes highlight', () => {
+    expect(serialize(paragraph('this is some ', highlight('highlighted'), ' text'))).toBe(
+      'this is some <mark>highlighted</mark> text',
+    );
+  });
+
+  it('correctly serializes a comment node', () => {
+    expect(serialize(paragraph('hi'), comment(' this is a\ncomment '))).toBe(
+      `
+hi
+
+<!-- this is a
+comment -->
+    `.trim(),
+    );
   });
 
   it('correctly serializes a line break', () => {
@@ -337,7 +318,7 @@ var y = 10;
     expect(
       serialize(
         codeBlock(
-          { language: 'json' },
+          { language: 'json', langParams: '' },
           'this is not really json but just trying out whether this case works or not',
         ),
       ),
@@ -345,6 +326,23 @@ var y = 10;
       `
 \`\`\`json
 this is not really json but just trying out whether this case works or not
+\`\`\`
+      `.trim(),
+    );
+  });
+
+  it('correctly serializes a code block with language parameters', () => {
+    expect(
+      serialize(
+        codeBlock(
+          { language: 'json', langParams: 'table' },
+          'this is not really json:table but just trying out whether this case works or not',
+        ),
+      ),
+    ).toBe(
+      `
+\`\`\`json:table
+this is not really json:table but just trying out whether this case works or not
 \`\`\`
       `.trim(),
     );
@@ -398,6 +396,26 @@ this is not really json but just trying out whether this case works or not
       '![foo bar](img.jpg)',
     );
   });
+
+  it.each`
+    width        | height       | outputAttributes
+    ${300}       | ${undefined} | ${'width=300'}
+    ${undefined} | ${300}       | ${'height=300'}
+    ${300}       | ${300}       | ${'width=300 height=300'}
+    ${'300%'}    | ${'300px'}   | ${'width="300%" height="300px"'}
+  `(
+    'correctly serializes an image with width and height attributes',
+    ({ width, height, outputAttributes }) => {
+      const imageAttrs = { src: 'img.jpg', alt: 'foo bar' };
+
+      if (width) imageAttrs.width = width;
+      if (height) imageAttrs.height = height;
+
+      expect(serialize(paragraph(image(imageAttrs)))).toBe(
+        `![foo bar](img.jpg){${outputAttributes}}`,
+      );
+    },
+  );
 
   it('does not serialize an image when src and canonicalSrc are empty', () => {
     expect(serialize(paragraph(image({})))).toBe('');
@@ -1201,6 +1219,24 @@ Oranges are orange [^1]
 
 [^1]: Oranges are fruits
 `.trimLeft(),
+    );
+  });
+
+  it('correctly adds a space between a preceding block element and a markdown table', () => {
+    expect(
+      serialize(
+        bulletList(listItem(paragraph('List item 1')), listItem(paragraph('List item 2'))),
+        table(tableRow(tableHeader(paragraph('header'))), tableRow(tableCell(paragraph('cell')))),
+      ).trim(),
+    ).toBe(
+      `
+* List item 1
+* List item 2
+
+| header |
+|--------|
+| cell |
+    `.trim(),
     );
   });
 

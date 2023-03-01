@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Issues do
+RSpec.describe API::Issues, feature_category: :team_planning do
   using RSpec::Parameterized::TableSyntax
 
   let_it_be(:user) { create(:user) }
@@ -92,7 +92,7 @@ RSpec.describe API::Issues do
   describe 'GET /issues/:id' do
     context 'when unauthorized' do
       it 'returns unauthorized' do
-        get api("/issues/#{issue.id}" )
+        get api("/issues/#{issue.id}")
 
         expect(response).to have_gitlab_http_status(:unauthorized)
       end
@@ -101,7 +101,7 @@ RSpec.describe API::Issues do
     context 'when authorized' do
       context 'as a normal user' do
         it 'returns forbidden' do
-          get api("/issues/#{issue.id}", user )
+          get api("/issues/#{issue.id}", user)
 
           expect(response).to have_gitlab_http_status(:forbidden)
         end
@@ -139,10 +139,9 @@ RSpec.describe API::Issues do
         expect(json_response).to be_an Array
       end
 
-      it_behaves_like 'issuable anonymous search' do
+      it_behaves_like 'issuable API rate-limited search' do
         let(:url) { '/issues' }
         let(:issuable) { issue }
-        let(:result) { issuable.id }
       end
 
       it 'returns authentication error without any scope' do
@@ -269,31 +268,6 @@ RSpec.describe API::Issues do
           let(:counts) { { all: 1, closed: 0, opened: 1 } }
 
           it_behaves_like 'issues statistics'
-
-          context 'with anonymous user' do
-            let(:user) { nil }
-
-            context 'with disable_anonymous_search disabled' do
-              before do
-                stub_feature_flags(disable_anonymous_search: false)
-              end
-
-              it_behaves_like 'issues statistics'
-            end
-
-            context 'with disable_anonymous_search enabled' do
-              before do
-                stub_feature_flags(disable_anonymous_search: true)
-              end
-
-              it 'returns a unprocessable entity 422' do
-                get api("/issues_statistics"), params: params
-
-                expect(response).to have_gitlab_http_status(:unprocessable_entity)
-                expect(json_response['message']).to include('User must be authenticated to use search')
-              end
-            end
-          end
         end
       end
     end
@@ -1163,6 +1137,30 @@ RSpec.describe API::Issues do
       expect(response).to have_gitlab_http_status(:created)
       expect(json_response['title']).to eq('new issue')
       expect(json_response['issue_type']).to eq('issue')
+    end
+
+    context 'when confidential is null' do
+      it 'responds with 400 error' do
+        post api("/projects/#{project.id}/issues", user), params: { title: 'issue', confidential: nil }
+
+        expect(response).to have_gitlab_http_status(:bad_request)
+        expect(json_response['error']).to eq('confidential is empty')
+      end
+    end
+
+    context 'when issue create service returns an unrecoverable error' do
+      before do
+        allow_next_instance_of(Issues::CreateService) do |create_service|
+          allow(create_service).to receive(:execute).and_return(ServiceResponse.error(message: 'some error', http_status: 403))
+        end
+      end
+
+      it 'returns and error message and status code from the service' do
+        post api("/projects/#{project.id}/issues", user), params: { title: 'new issue' }
+
+        expect(response).to have_gitlab_http_status(:forbidden)
+        expect(json_response['message']).to eq('some error')
+      end
     end
   end
 

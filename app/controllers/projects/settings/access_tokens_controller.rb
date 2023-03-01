@@ -3,6 +3,7 @@
 module Projects
   module Settings
     class AccessTokensController < Projects::ApplicationController
+      include RenderAccessTokens
       include AccessTokensActions
 
       layout 'project_settings'
@@ -12,6 +13,12 @@ module Projects
 
       def resource_access_tokens_path
         namespace_project_settings_access_tokens_path
+      end
+
+      private
+
+      def represent(tokens)
+        ::ProjectAccessTokenSerializer.new.represent(tokens, project: resource)
       end
     end
   end

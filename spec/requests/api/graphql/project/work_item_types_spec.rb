@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'getting a list of work item types for a project' do
+RSpec.describe 'getting a list of work item types for a project', feature_category: :team_planning do
   include GraphqlHelpers
 
   let_it_be(:developer) { create(:user) }
@@ -55,17 +55,6 @@ RSpec.describe 'getting a list of work item types for a project' do
 
     it 'does not return the project' do
       expect(graphql_data).to eq('project' => nil)
-    end
-  end
-
-  context 'when the work_items feature flag is disabled' do
-    before do
-      stub_feature_flags(work_items: false)
-      post_graphql(query, current_user: current_user)
-    end
-
-    it 'returns null' do
-      expect(graphql_data.dig('project', 'workItemTypes')).to be_nil
     end
   end
 end

@@ -29,10 +29,6 @@ describe('Board card', () => {
         ...initialState,
       },
       actions: mockActions,
-      getters: {
-        isEpicBoard: () => false,
-        isProjectBoard: () => false,
-      },
     });
   };
 
@@ -53,7 +49,6 @@ describe('Board card', () => {
       propsData: {
         list: mockLabelList,
         item,
-        disabled: false,
         index: 0,
         ...propsData,
       },
@@ -61,6 +56,12 @@ describe('Board card', () => {
         groupId: null,
         rootPath: '/',
         scopedLabelsAvailable: false,
+        isEpicBoard: false,
+        issuableType: 'issue',
+        isProjectBoard: false,
+        isGroupBoard: true,
+        disabled: false,
+        isApolloBoard: false,
         ...provide,
       },
     });

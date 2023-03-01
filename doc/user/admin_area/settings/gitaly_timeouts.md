@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Gitaly timeouts **(FREE SELF)**
@@ -11,7 +11,7 @@ configured to make sure that long-running Gitaly calls don't needlessly take up 
 
 To access Gitaly timeout settings:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand the **Gitaly timeouts** section.
 

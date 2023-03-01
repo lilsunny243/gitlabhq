@@ -2,18 +2,21 @@
 type: reference, dev
 stage: none
 group: Development
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 ---
 
-# Feature flag controls
+# Use ChatOps to enable and disable feature flags
 
-## Access
+NOTE:
+This document explains how to contribute to the development of the GitLab product.
+If you want to use feature flags to show and hide functionality in your own applications,
+view [this feature flags information](../../operations/feature_flags.md) instead.
 
-To be able to turn on/off features behind feature flags in any of the
-GitLab Inc. provided environments such as staging and production, you need to
+To turn on/off features behind feature flags in any of the
+GitLab-provided environments, like staging and production, you need to
 have access to the [ChatOps](../chatops_on_gitlabcom.md) bot. The ChatOps bot
 is currently running on the ops instance, which is different from
-[GitLab.com](https://gitlab.com) or [`dev.gitlab.org`](https://dev.gitlab.org).
+[GitLab.com](https://gitlab.com) or `dev.gitlab.org`.
 
 Follow the ChatOps document to [request access](../chatops_on_gitlabcom.md#requesting-access).
 
@@ -47,13 +50,13 @@ Note that all the examples in that file must be preceded by
 
 If you get an error "Whoops! This action is not allowed. This incident
 will be reported." that means your Slack account is not allowed to
-change feature flags or you do not [have access](#access).
+change feature flags or you do not have access.
 
 ### Enabling a feature for pre-production testing
 
 As a first step in a feature rollout, you should enable the feature on
-[`about.staging.gitlab.com`](https://about.staging.gitlab.com)
-and [`dev.gitlab.org`](https://dev.gitlab.org).
+`staging.gitlab.com`
+and `dev.gitlab.org`.
 
 These two environments have different scopes.
 `dev.gitlab.org` is a production CE environment that has internal GitLab Inc.
@@ -64,10 +67,8 @@ a (very) rough estimate of how your feature will look and behave on GitLab.com.
 Both of these instances are connected to Sentry so make sure you check the projects
 there for any exceptions while testing your feature after enabling the feature flag.
 
-For these pre-production environments, the commands should be run in a
-Slack channel for the stage the feature is relevant to. For example, use the
-`#s_monitor` channel for features developed by the Monitor stage, Health
-group.
+For these pre-production environments, it's strongly encouraged to run the command in
+`#staging`, `#production`, or `#chatops-ops-test`, for improved visibility.
 
 To enable a feature for 25% of the time, run the following in Slack:
 
@@ -82,6 +83,8 @@ When a feature has successfully been
 [enabled on a pre-production](#enabling-a-feature-for-pre-production-testing)
 environment and verified as safe and working, you can roll out the
 change to GitLab.com (production).
+
+If a feature is [deprecated](../../update/deprecations.md), do not enable the flag.
 
 #### Communicate the change
 
@@ -173,7 +176,7 @@ For project level features:
 Feature.enabled?(:feature_ice_cold_projects, project)
 ```
 
-If you are not certain what percentages to use, simply use the following steps:
+If you are not certain what percentages to use, use the following steps:
 
 1. 25%
 1. 50%
@@ -195,7 +198,22 @@ enabled for only the `gitlab` project. The project is passed by supplying a
 /chatops run feature set --project=gitlab-org/gitlab some_feature true
 ```
 
-For groups the `--group` flag is available:
+You can use the `--user` option to enable a feature flag for a specific user:
+
+```shell
+/chatops run feature set --user=myusername some_feature true
+```
+
+If you would like to gather feedback internally first,
+feature flags scoped to a user can also be enabled
+for GitLab team members with the `gitlab_team_members`
+[feature group](index.md#feature-groups):
+
+```shell
+/chatops run feature set --feature-group=gitlab_team_members some_feature true
+```
+
+You can use the `--group` flag to enable a feature flag for a specific group:
 
 ```shell
 /chatops run feature set --group=gitlab-org some_feature true
@@ -286,9 +304,61 @@ To disable a feature flag that has been enabled for a specific project you can r
 /chatops run feature set --project=gitlab-org/gitlab some_feature false
 ```
 
-You cannot selectively disable feature flags for a specific project/group/user without applying a [specific method of implementing](index.md#selectively-disable-by-actor) the feature flags.
+You cannot selectively disable feature flags for a specific project/group/user without applying a [specific method of implementing](controls.md#selectively-disable-by-actor) the feature flags.
 
 If a feature flag is disabled via ChatOps, that will take precedence over the `default_enabled` value in the YAML. In other words, you could have a feature enabled for on-premise installations but not for GitLab.com.
+
+#### Selectively disable by actor
+
+By default you cannot selectively disable a feature flag by actor.
+
+```shell
+# This will not work how you would expect.
+/chatops run feature set some_feature true
+/chatops run feature set --project=gitlab-org/gitlab some_feature false
+```
+
+However, if you add two feature flags, you can write your conditional statement in such a way that the equivalent selective disable is possible.
+
+```ruby
+Feature.enabled?(:a_feature, project) && Feature.disabled?(:a_feature_override, project)
+```
+
+```shell
+# This will enable a feature flag globally, except for gitlab-org/gitlab
+/chatops run feature set a_feature true
+/chatops run feature set --project=gitlab-org/gitlab a_feature_override true
+```
+
+#### Percentage-based actor selection
+
+When using the percentage rollout of actors on multiple feature flags, the actors for each feature flag are selected separately.
+
+For example, the following feature flags are enabled for a certain percentage of actors:
+
+```plaintext
+/chatops run feature set feature-set-1 25 --actors
+/chatops run feature set feature-set-2 25 --actors
+```
+
+If a project A has `:feature-set-1` enabled, there is no guarantee that project A also has `:feature-set-2` enabled.
+
+For more detail, see [This is how percentages work in Flipper](https://www.hackwithpassion.com/this-is-how-percentages-work-in-flipper/).
+
+### Verifying metrics after enabling feature flag
+
+After turning on the feature flag, you need to [monitor the relevant graphs](https://about.gitlab.com/handbook/engineering/monitoring/) between each step:
+
+1. Go to [`dashboards.gitlab.net`](https://dashboards.gitlab.net).
+1. Turn on the `feature-flag`.
+1. Watch `Latency: Apdex` for services that might be impacted by your change
+   (like `sidekiq service`, `api service` or `web service`). Then check out more in-depth
+   dashboards by selecting `Service Overview Dashboards` and choosing a dashboard that might
+   be related to your change.
+
+In this illustration, you can see that the Apdex score started to decline after the feature flag was enabled at `09:46`. The feature flag was then deactivated at `10:31`, and the service returned to the original value:
+
+![Feature Flag Metrics](../img/feature-flag-metrics.png)
 
 ### Feature flag change logging
 
@@ -339,7 +409,7 @@ take one of the following actions:
 
 To remove a feature flag, open **one merge request** to make the changes. In the MR:
 
-1. Add the ~"feature flag" label so release managers are aware the changes are hidden behind a feature flag.
+1. Add the ~"feature flag" label so release managers are aware of the removal.
 1. If the merge request has to be picked into a stable branch, add the
    appropriate `~"Pick into X.Y"` label, for example `~"Pick into 13.0"`.
    See [the feature flag process](https://about.gitlab.com/handbook/product-development-flow/feature-flag-lifecycle/#including-a-feature-behind-feature-flag-in-the-final-release)

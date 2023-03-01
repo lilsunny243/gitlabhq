@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Auth::AuthFinders do
+RSpec.describe Gitlab::Auth::AuthFinders, feature_category: :system_access do
   include described_class
   include HttpBasicAuthHelpers
 
@@ -69,7 +69,7 @@ RSpec.describe Gitlab::Auth::AuthFinders do
           expect(subject).to eq(user)
           expect(@current_authenticated_job).to eq job
           expect(subject).to be_from_ci_job_token
-          expect(subject.ci_job_token_scope.source_project).to eq(job.project)
+          expect(subject.ci_job_token_scope.current_project).to eq(job.project)
         end
       end
 
@@ -89,17 +89,18 @@ RSpec.describe Gitlab::Auth::AuthFinders do
       context 'with a running job' do
         let(:token) { job.token }
 
-        if without_job_token_allowed == :error
+        case without_job_token_allowed
+        when :error
           it 'returns an Unauthorized exception' do
             expect { subject }.to raise_error(Gitlab::Auth::UnauthorizedError)
             expect(@current_authenticated_job).to be_nil
           end
-        elsif without_job_token_allowed == :user
+        when :user
           it 'returns the user' do
             expect(subject).to eq(user)
             expect(@current_authenticated_job).to eq job
             expect(subject).to be_from_ci_job_token
-            expect(subject.ci_job_token_scope.source_project).to eq(job.project)
+            expect(subject.ci_job_token_scope.current_project).to eq(job.project)
           end
         else
           it 'returns nil' do
@@ -188,7 +189,7 @@ RSpec.describe Gitlab::Auth::AuthFinders do
         end
 
         it 'returns nil if valid feed_token and disabled' do
-          stub_application_setting(disable_feed_token: true)
+          allow(Gitlab::CurrentSettings).to receive_messages(disable_feed_token: true)
           set_param(:feed_token, user.feed_token)
 
           expect(find_user_from_feed_token(:rss)).to be_nil
@@ -388,6 +389,15 @@ RSpec.describe Gitlab::Auth::AuthFinders do
         it { is_expected.to be_nil }
       end
     end
+
+    context 'when the the deploy token is restricted with external_authorization' do
+      before do
+        allow(Gitlab::ExternalAuthorization).to receive(:allow_deploy_tokens_and_deploy_keys?).and_return(false)
+        set_header(described_class::DEPLOY_TOKEN_HEADER, deploy_token.token)
+      end
+
+      it { is_expected.to be_nil }
+    end
   end
 
   describe '#find_user_from_access_token' do
@@ -460,7 +470,7 @@ RSpec.describe Gitlab::Auth::AuthFinders do
       expect { find_user_from_access_token }.to raise_error(Gitlab::Auth::UnauthorizedError)
     end
 
-    context 'no feed, API or archive requests' do
+    context 'no feed, API, archive or download requests' do
       it 'returns nil if the request is not RSS' do
         expect(find_user_from_web_access_token(:rss)).to be_nil
       end
@@ -475,6 +485,10 @@ RSpec.describe Gitlab::Auth::AuthFinders do
 
       it 'returns nil if the request is not ARCHIVE' do
         expect(find_user_from_web_access_token(:archive)).to be_nil
+      end
+
+      it 'returns nil if the request is not DOWNLOAD' do
+        expect(find_user_from_web_access_token(:download)).to be_nil
       end
     end
 
@@ -494,6 +508,12 @@ RSpec.describe Gitlab::Auth::AuthFinders do
       set_header('SCRIPT_NAME', '/-/archive/main.zip')
 
       expect(find_user_from_web_access_token(:archive)).to eq(user)
+    end
+
+    it 'returns the user for DOWNLOAD requests' do
+      set_header('SCRIPT_NAME', '/-/1.0.0/downloads/main.zip')
+
+      expect(find_user_from_web_access_token(:download)).to eq(user)
     end
 
     context 'for API requests' do

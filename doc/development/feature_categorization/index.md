@@ -1,14 +1,14 @@
 ---
 stage: Enablement
 group: Infrastructure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Feature Categorization
 
 > [Introduced](https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/269) in GitLab 13.2.
 
-Each Sidekiq worker, controller action, or API endpoint
+Each Sidekiq worker, Batched Background migrations, controller action, [test example](../testing_guide/best_practices.md#feature-category-metadata) or API endpoint
 must declare a `feature_category` attribute. This attribute maps each
 of these to a [feature category](https://about.gitlab.com/handbook/product/categories/). This
 is done for error budgeting, alert routing, and team attribution.
@@ -76,6 +76,25 @@ category (worker or HTTP endpoint) in metrics and logs.
 For instance, `ReactiveCachingWorker` can have multiple feature
 categories in metrics and logs.
 
+## Batched background migrations
+
+Long-running migrations (as per the [time limits guidelines](../migration_style_guide.md#how-long-a-migration-should-take))
+are pulled out as [batched background migrations](../database/batched_background_migrations.md).
+They should define a `feature_category`, like this:
+
+```ruby
+# File name: lib/gitlab/background_migration/my_background_migration_job.rb
+
+class MyBackgroundMigrationJob < BatchedMigrationJob
+  feature_category :gitaly
+
+  #...
+end
+```
+
+NOTE:
+[`RuboCop::Cop::BackgroundMigration::FeatureCategory`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/rubocop/cop/background_migration/feature_category.rb) cop ensures a valid `feature_category` is defined.
+
 ## Rails controllers
 
 Specifying feature categories on controller actions can be done using
@@ -96,7 +115,7 @@ second argument:
 ```ruby
 class DashboardController < ApplicationController
   feature_category :team_planning, [:issues, :issues_calendar]
-  feature_category :code_review, [:merge_requests]
+  feature_category :code_review_workflow, [:merge_requests]
 end
 ```
 
@@ -147,7 +166,7 @@ specific routes:
 ```ruby
 module API
   class Users < ::API::Base
-    feature_category :users, ['/users/:id/custom_attributes', '/users/:id/custom_attributes/:key']
+    feature_category :user_profile, ['/users/:id/custom_attributes', '/users/:id/custom_attributes/:key']
   end
 end
 ```
@@ -157,7 +176,7 @@ Or the feature category can be specified in the action itself:
 ```ruby
 module API
   class Users < ::API::Base
-    get ':id', feature_category: :users do
+    get ':id', feature_category: :user_profile do
     end
   end
 end
@@ -166,3 +185,44 @@ end
 As with Rails controllers, an API class must specify the category for
 every single action unless the same category is used for every action
 within that class.
+
+## RSpec Examples
+
+You must set feature category metadata for each RSpec example. This information is used for flaky test
+issues to identify the group that owns the feature.
+
+The `feature_category` should be a value from [`config/feature_categories.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/config/feature_categories.yml).
+
+The `feature_category` metadata can be set:
+
+- [In the top-level `RSpec.describe` blocks](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104274/diffs#6bd01173381e873f3e1b6c55d33cdaa3d897156b_5_5).
+- [In `describe` blocks](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104274/diffs#a520db2677a30e7f1f5593584f69c49031b894b9_12_12).
+
+Consider splitting the file in the case there are multiple feature categories identified in the same file.
+
+Example:
+
+ ```ruby
+ RSpec.describe Admin::Geo::SettingsController, :geo, feature_category: :geo_replication do
+ ```
+
+For examples that don't have a `feature_category` set we add a warning when running them in local environment.
+
+To disable the warning use `RSPEC_WARN_MISSING_FEATURE_CATEGORY=false` when running RSpec tests:
+
+```shell
+RSPEC_WARN_MISSING_FEATURE_CATEGORY=false bin/rspec spec/<test_file>
+```
+
+Additionally, we flag the offenses via `RSpec/MissingFeatureCategory` RuboCop rule.
+
+### Tooling feature category
+
+For Engineering Productivity internal tooling we use `feature_category: :tooling`.
+
+For example in [`spec/tooling/danger/specs_spec.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/tooling/danger/specs_spec.rb#L12).
+
+### Shared feature category
+
+For features that support developers and they are not specific to a product group we use `feature_category: :shared`
+For example [`spec/lib/gitlab/job_waiter_spec.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/lib/gitlab/job_waiter_spec.rb)

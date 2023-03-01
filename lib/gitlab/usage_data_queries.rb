@@ -5,7 +5,7 @@ module Gitlab
   # See https://gitlab.com/gitlab-org/gitlab/-/merge_requests/41091
   class UsageDataQueries < UsageData
     class << self
-      def with_duration
+      def with_metadata
         yield
       end
 
@@ -75,10 +75,6 @@ module Gitlab
         }
       end
 
-      def epics_deepest_relationship_level
-        { epics_deepest_relationship_level: 0 }
-      end
-
       def topology_usage_data
         {
           duration_s: 0,
@@ -95,6 +91,14 @@ module Gitlab
         count(Users::InProductMarketingEmail.where(track: track, series: series).where.not(cta_clicked_at: nil))
       end
       # rubocop: enable CodeReuse/ActiveRecord
+
+      def stage_manage_events(time_period)
+        # rubocop: disable CodeReuse/ActiveRecord
+        # rubocop: disable UsageData/LargeTable
+        estimate_batch_distinct_count(::Event.where(time_period), :author_id)
+        # rubocop: enable UsageData/LargeTable
+        # rubocop: enable CodeReuse/ActiveRecord
+      end
     end
   end
 end

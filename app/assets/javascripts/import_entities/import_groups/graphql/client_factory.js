@@ -10,7 +10,6 @@ import typeDefs from './typedefs.graphql';
 export const clientTypenames = {
   BulkImportSourceGroupConnection: 'ClientBulkImportSourceGroupConnection',
   BulkImportSourceGroup: 'ClientBulkImportSourceGroup',
-  AvailableNamespace: 'ClientAvailableNamespace',
   BulkImportPageInfo: 'ClientBulkImportPageInfo',
   BulkImportTarget: 'ClientBulkImportTarget',
   BulkImportProgress: 'ClientBulkImportProgress',
@@ -110,15 +109,6 @@ export function createResolvers({ endpoints }) {
         };
         return response;
       },
-
-      availableNamespaces: () =>
-        axios.get(endpoints.availableNamespaces).then(({ data }) =>
-          data.map((namespace) => ({
-            __typename: clientTypenames.AvailableNamespace,
-            id: namespace.id,
-            fullPath: namespace.full_path,
-          })),
-        ),
     },
     Mutation: {
       async updateImportStatus(_, { id, status: newStatus }, { client, getCacheKey }) {
@@ -163,6 +153,7 @@ export function createResolvers({ endpoints }) {
             source_full_path: op.group.fullPath,
             destination_namespace: op.targetNamespace,
             destination_name: op.newName,
+            migrate_projects: op.migrateProjects,
           })),
         });
 

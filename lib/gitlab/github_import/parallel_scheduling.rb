@@ -3,11 +3,18 @@
 module Gitlab
   module GithubImport
     module ParallelScheduling
-      attr_reader :project, :client, :page_counter, :already_imported_cache_key
+      attr_reader :project, :client, :page_counter, :already_imported_cache_key,
+                  :job_waiter_cache_key, :job_waiter_remaining_cache_key
 
       # The base cache key to use for tracking already imported objects.
       ALREADY_IMPORTED_CACHE_KEY =
         'github-importer/already-imported/%{project}/%{collection}'
+      # The base cache key to use for storing job waiter key
+      JOB_WAITER_CACHE_KEY =
+        'github-importer/job-waiter/%{project}/%{collection}'
+      # The base cache key to use for storing job waiter remaining jobs
+      JOB_WAITER_REMAINING_CACHE_KEY =
+        'github-importer/job-waiter-remaining/%{project}/%{collection}'
 
       # project - An instance of `Project`.
       # client - An instance of `Gitlab::GithubImport::Client`.
@@ -18,6 +25,10 @@ module Gitlab
         @parallel = parallel
         @page_counter = PageCounter.new(project, collection_method)
         @already_imported_cache_key = ALREADY_IMPORTED_CACHE_KEY %
+          { project: project.id, collection: collection_method }
+        @job_waiter_cache_key = JOB_WAITER_CACHE_KEY %
+          { project: project.id, collection: collection_method }
+        @job_waiter_remaining_cache_key = JOB_WAITER_REMAINING_CACHE_KEY %
           { project: project.id, collection: collection_method }
       end
 
@@ -78,30 +89,19 @@ module Gitlab
       end
 
       def spread_parallel_import
-        waiter = JobWaiter.new
-
-        import_arguments = []
+        enqueued_job_counter = 0
 
         each_object_to_import do |object|
           repr = object_representation(object)
 
-          import_arguments << [project.id, repr.to_hash, waiter.key]
+          job_delay = calculate_job_delay(enqueued_job_counter)
+          sidekiq_worker_class.perform_in(job_delay, project.id, repr.to_hash, job_waiter.key)
+          enqueued_job_counter += 1
 
-          waiter.jobs_remaining += 1
+          job_waiter.jobs_remaining = Gitlab::Cache::Import::Caching.increment(job_waiter_remaining_cache_key)
         end
 
-        # rubocop:disable Scalability/BulkPerformWithContext
-        Gitlab::ApplicationContext.with_context(project: project) do
-          sidekiq_worker_class.bulk_perform_in(
-            1.second,
-            import_arguments,
-            batch_size: parallel_import_batch[:size],
-            batch_delay: parallel_import_batch[:delay]
-          )
-        end
-        # rubocop:enable Scalability/BulkPerformWithContext
-
-        waiter
+        job_waiter
       end
 
       # The method that will be called for traversing through all the objects to
@@ -125,9 +125,13 @@ module Gitlab
           next unless page_counter.set(page.number)
 
           page.objects.each do |object|
+            object = object.to_h
+
             next if already_imported?(object)
 
-            Gitlab::GithubImport::ObjectCounter.increment(project, object_type, :fetched)
+            if increment_object_counter?(object)
+              Gitlab::GithubImport::ObjectCounter.increment(project, object_type, :fetched)
+            end
 
             yield object
 
@@ -136,6 +140,10 @@ module Gitlab
             mark_as_imported(object)
           end
         end
+      end
+
+      def increment_object_counter?(_object)
+        true
       end
 
       # Returns true if the given object has already been imported, false
@@ -224,6 +232,22 @@ module Gitlab
           importer: importer_class.name,
           parallel: parallel?
         )
+      end
+
+      def job_waiter
+        @job_waiter ||= begin
+          key = Gitlab::Cache::Import::Caching.read(job_waiter_cache_key)
+          key ||= Gitlab::Cache::Import::Caching.write(job_waiter_cache_key, JobWaiter.generate_key)
+          jobs_remaining = Gitlab::Cache::Import::Caching.read(job_waiter_remaining_cache_key).to_i || 0
+
+          JobWaiter.new(jobs_remaining, key)
+        end
+      end
+
+      def calculate_job_delay(job_index)
+        multiplier = (job_index / parallel_import_batch[:size])
+
+        (multiplier * parallel_import_batch[:delay]) + 1.second
       end
     end
   end

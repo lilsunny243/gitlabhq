@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Plan
 group: Optimize
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Group DevOps Adoption **(ULTIMATE)**
@@ -12,7 +12,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 > - DAST and SAST metrics [added](https://gitlab.com/gitlab-org/gitlab/-/issues/328033) in GitLab 14.1.
 > - Fuzz Testing metrics [added](https://gitlab.com/gitlab-org/gitlab/-/issues/330398) in GitLab 14.2.
 > - Dependency Scanning metrics [added](https://gitlab.com/gitlab-org/gitlab/-/issues/328034) in GitLab 14.2.
-> - Multiselect [added](https://gitlab.com/gitlab-org/gitlab/-/issues/333586) in GitLab 14.2.
+> - Multi-select [added](https://gitlab.com/gitlab-org/gitlab/-/issues/333586) in GitLab 14.2.
 > - Overview table [added](https://gitlab.com/gitlab-org/gitlab/-/issues/335638) in GitLab 14.3.
 > - Adoption over time chart [added](https://gitlab.com/gitlab-org/gitlab/-/issues/337561) in GitLab 14.4.
 
@@ -36,7 +36,7 @@ Prerequisite:
 
 To view DevOps Adoption:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Analytics > DevOps adoption**
 
 ## DevOps Adoption categories
@@ -80,7 +80,7 @@ twelve months. The chart only shows data from when you enabled DevOps Adoption f
 
 To view feature adoption over time:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Analytics > DevOps adoption**.
 1. Select the **Overview** tab.
 

@@ -2,13 +2,20 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::GrafanaApiController do
-  let_it_be(:project) { create(:project) }
-  let_it_be(:user) { create(:user) }
+RSpec.describe Projects::GrafanaApiController, feature_category: :metrics do
+  let_it_be(:project) { create(:project, :public) }
+  let_it_be(:reporter) { create(:user) }
+  let_it_be(:guest) { create(:user) }
+  let(:anonymous) { nil }
+  let(:user) { reporter }
+
+  before_all do
+    project.add_reporter(reporter)
+    project.add_guest(guest)
+  end
 
   before do
-    project.add_reporter(user)
-    sign_in(user)
+    sign_in(user) if user
   end
 
   describe 'GET #proxy' do
@@ -41,19 +48,54 @@ RSpec.describe Projects::GrafanaApiController do
       end
     end
 
+    shared_examples_for 'accessible' do
+      let(:service_result) { nil }
+
+      it 'returns non erroneous response' do
+        get :proxy, params: params
+
+        # We don't care about the specific code as long it's not an error.
+        expect(response).to have_gitlab_http_status(:no_content)
+      end
+    end
+
+    shared_examples_for 'not accessible' do
+      let(:service_result) { nil }
+
+      it 'returns 404 Not found' do
+        get :proxy, params: params
+
+        expect(response).to have_gitlab_http_status(:not_found)
+        expect(Grafana::ProxyService).not_to have_received(:new)
+      end
+    end
+
+    shared_examples_for 'login required' do
+      let(:service_result) { nil }
+
+      it 'redirects to login page' do
+        get :proxy, params: params
+
+        expect(response).to redirect_to(new_user_session_path)
+        expect(Grafana::ProxyService).not_to have_received(:new)
+      end
+    end
+
     context 'with a successful result' do
       let(:service_result) { { status: :success, body: '{}' } }
 
       it 'returns a grafana datasource response' do
         get :proxy, params: params
 
-        expect(Grafana::ProxyService)
-          .to have_received(:new)
-          .with(project, '1', 'api/v1/query_range',
-                 { 'query' => params[:query],
-                   'start' => params[:start_time],
-                   'end' => params[:end_time],
-                   'step' => params[:step] })
+        expect(Grafana::ProxyService).to have_received(:new).with(
+          project, '1', 'api/v1/query_range',
+          {
+            'query' => params[:query],
+            'start' => params[:start_time],
+            'end' => params[:end_time],
+            'step' => params[:step]
+          }
+        )
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response).to eq({})
@@ -94,6 +136,38 @@ RSpec.describe Projects::GrafanaApiController do
         end
 
         it_behaves_like 'error response', :bad_request
+      end
+    end
+
+    context 'as guest' do
+      let(:user) { guest }
+
+      it_behaves_like 'not accessible'
+    end
+
+    context 'as anonymous' do
+      let(:user) { anonymous }
+
+      it_behaves_like 'not accessible'
+    end
+
+    context 'on a private project' do
+      let_it_be(:project) { create(:project, :private) }
+
+      before_all do
+        project.add_guest(guest)
+      end
+
+      context 'as anonymous' do
+        let(:user) { anonymous }
+
+        it_behaves_like 'login required'
+      end
+
+      context 'as guest' do
+        let(:user) { guest }
+
+        it_behaves_like 'accessible'
       end
     end
   end

@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Install Ingress with a cluster management project **(FREE)**
@@ -22,5 +22,5 @@ of your cluster.
 You can customize the installation of Ingress by updating the
 `applications/ingress/values.yaml` file in your cluster
 management project. Refer to the
-[chart](https://github.com/helm/charts/tree/master/stable/nginx-ingress)
+[chart](https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx)
 for the available configuration options.

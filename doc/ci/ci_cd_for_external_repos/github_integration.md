@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -34,7 +34,8 @@ repositories:
       `repo` and `admin:repo_hook` so that GitLab can access your project,
       update commit statuses, and create a web hook to notify GitLab of new commits.
 1. In GitLab, create a project:
-   1. On the top menu, select **Projects > Create new project**.
+   1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+   1. On the right of the page, select **New project**.
    1. Select **Run CI/CD for external repository**.
    1. Select **GitHub**.
    1. For **Personal access token**, paste the token.
@@ -61,7 +62,8 @@ To manually enable GitLab CI/CD for your repository:
    1. Enter a **Token description** and update the scope to allow
       `repo` so that GitLab can access your project and update commit statuses.
 1. In GitLab, create a project:
-   1. On the top menu, select **Projects > Create new project**.
+   1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+   1. On the right of the page, select **New project**.
    1. Select **Run CI/CD for external repository** and **Repository by URL**.
    1. In the **Git repository URL** field, enter the HTTPS URL for your GitHub repository.
       If your project is private, use the personal access token you just created for authentication.
@@ -96,6 +98,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Tags do
+RSpec.describe API::Tags, feature_category: :source_code_management do
   let(:user) { create(:user) }
   let(:guest) { create(:user).tap { |u| project.add_guest(u) } }
   let(:project) { create(:project, :repository, creator: user, path: 'my.project') }
@@ -55,11 +55,23 @@ RSpec.describe API::Tags do
 
         expect(json_response.map { |tag| tag['name'] }).to eq(ordered_by_name)
       end
+
+      it 'sorts by version in ascending order when requested' do
+        repository = project.repository
+        repository.add_tag(user, 'v1.2.0', repository.commit.id)
+        repository.add_tag(user, 'v1.10.0', repository.commit.id)
+
+        get api("#{route}?order_by=version&sort=asc", current_user)
+
+        ordered_by_version = VersionSorter.sort(project.repository.tags.map { |tag| tag.name })
+
+        expect(json_response.map { |tag| tag['name'] }).to eq(ordered_by_version)
+      end
     end
 
     context 'searching' do
       it 'only returns searched tags' do
-        get api("#{route}", user), params: { search: 'v1.1.0' }
+        get api(route.to_s, user), params: { search: 'v1.1.0' }
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to include_pagination_headers
@@ -406,14 +418,6 @@ RSpec.describe API::Tags do
 
       context 'annotated tag' do
         it 'creates a new annotated tag' do
-          # Identity must be set in .gitconfig to create annotated tag.
-          repo_path = Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-            project.repository.path_to_repo
-          end
-
-          system(*%W(#{Gitlab.config.git.bin_path} --git-dir=#{repo_path} config user.name #{user.name}))
-          system(*%W(#{Gitlab.config.git.bin_path} --git-dir=#{repo_path} config user.email #{user.email}))
-
           post api(route, current_user), params: { tag_name: 'v7.1.0', ref: 'master', message: 'Release 7.1.0' }
 
           expect(response).to have_gitlab_http_status(:created)
@@ -472,6 +476,62 @@ RSpec.describe API::Tags do
         let(:project_id) { CGI.escape(project.full_path) }
 
         it_behaves_like 'repository delete tag'
+      end
+    end
+  end
+
+  describe 'GET /projects/:id/repository/tags/:tag_name/signature' do
+    let_it_be(:project) { create(:project, :repository, :public) }
+    let(:project_id) { project.id }
+    let(:route) { "/projects/#{project_id}/repository/tags/#{tag_name}/signature" }
+
+    context 'when tag does not exist' do
+      let(:tag_name) { 'unknown' }
+
+      it_behaves_like '404 response' do
+        let(:request) { get api(route, current_user) }
+        let(:message) { '404 Tag Not Found' }
+      end
+    end
+
+    context 'unsigned tag' do
+      let(:tag_name) { 'v1.1.0' }
+
+      it_behaves_like '404 response' do
+        let(:request) { get api(route, current_user) }
+        let(:message) { '404 Signature Not Found' }
+      end
+    end
+
+    context 'x509 signed tag' do
+      let(:tag_name) { 'v1.1.1' }
+      let(:tag) { project.repository.find_tag(tag_name) }
+      let(:signature) { tag.signature }
+      let(:x509_certificate) { signature.x509_certificate }
+      let(:x509_issuer) { x509_certificate.x509_issuer }
+
+      it 'returns correct JSON' do
+        get api(route, current_user)
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response).to eq(
+          'signature_type' => 'X509',
+          'verification_status' => signature.verification_status.to_s,
+          'x509_certificate' => {
+            'id' => x509_certificate.id,
+            'subject' => x509_certificate.subject,
+            'subject_key_identifier' => x509_certificate.subject_key_identifier,
+            'email' => x509_certificate.email,
+            'serial_number' => x509_certificate.serial_number,
+            'certificate_status' => x509_certificate.certificate_status,
+            'x509_issuer' => {
+              'id' => x509_issuer.id,
+              'subject' => x509_issuer.subject,
+              'subject_key_identifier' => x509_issuer.subject_key_identifier,
+              'crl_url' => x509_issuer.crl_url
+            }
+          }
+        )
       end
     end
   end

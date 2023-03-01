@@ -22,6 +22,7 @@ module API
     end
 
     helpers ::API::Helpers::PackagesHelpers
+    helpers ::API::Helpers::Packages::DependencyProxyHelpers
 
     helpers do
       def path_exists?(path)
@@ -76,7 +77,10 @@ module API
         format == 'jar'
       end
 
-      def present_carrierwave_file_with_head_support!(file, supports_direct_download: true)
+      def present_carrierwave_file_with_head_support!(package_file, supports_direct_download: true)
+        package_file.package.touch_last_downloaded_at
+        file = package_file.file
+
         if head_request_on_aws_file?(file, supports_direct_download) && !file.file_storage?
           return redirect(signed_head_url(file))
         end
@@ -103,23 +107,60 @@ module API
 
       def fetch_package(file_name:, project: nil, group: nil)
         order_by_package_file = file_name.include?(::Packages::Maven::Metadata.filename) &&
-                                  !params[:path].include?(::Packages::Maven::FindOrCreatePackageService::SNAPSHOT_TERM)
+          !params[:path].include?(::Packages::Maven::FindOrCreatePackageService::SNAPSHOT_TERM)
 
         ::Packages::Maven::PackageFinder.new(
           current_user,
           project || group,
           path: params[:path],
           order_by_package_file: order_by_package_file
-        ).execute!
+        ).execute
+      end
+
+      def find_and_present_package_file(package, file_name, format, params)
+        project = package&.project
+        package_file = nil
+
+        package_file = ::Packages::PackageFileFinder.new(package, file_name).execute if package
+
+        no_package_found = package_file ? false : true
+
+        redirect_registry_request(
+          forward_to_registry: no_package_found,
+          package_type: :maven,
+          target: params[:target],
+          path: params[:path],
+          file_name: params[:file_name]
+        ) do
+          not_found!('Package') if no_package_found
+
+          case format
+          when 'md5'
+            package_file.file_md5
+          when 'sha1'
+            package_file.file_sha1
+          else
+            track_package_event('pull_package', :maven, project: project, namespace: project&.namespace) if jar_file?(format)
+
+            present_carrierwave_file_with_head_support!(package_file)
+          end
+        end
       end
     end
 
     desc 'Download the maven package file at instance level' do
       detail 'This feature was introduced in GitLab 11.6'
+      success code: 200
+      failure [
+        { code: 401, message: 'Unauthorized' },
+        { code: 403, message: 'Forbidden' },
+        { code: 404, message: 'Not Found' }
+      ]
+      tags %w[maven_packages]
     end
     params do
-      requires :path, type: String, desc: 'Package path'
-      requires :file_name, type: String, desc: 'Package file name'
+      requires :path, type: String, desc: 'Package path', documentation: { example: 'foo/bar/mypkg/1.0-SNAPSHOT' }
+      requires :file_name, type: String, desc: 'Package file name', documentation: { example: 'mypkg-1.0-SNAPSHOT.jar' }
     end
     route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
     get 'packages/maven/*path/:file_name', requirements: MAVEN_ENDPOINT_REQUIREMENTS do
@@ -138,6 +179,8 @@ module API
 
       package = fetch_package(file_name: file_name, project: project)
 
+      not_found!('Package') unless package
+
       package_file = ::Packages::PackageFileFinder
         .new(package, file_name).execute!
 
@@ -148,95 +191,104 @@ module API
         package_file.file_sha1
       else
         track_package_event('pull_package', :maven, project: project, namespace: project.namespace) if jar_file?(format)
-        present_carrierwave_file_with_head_support!(package_file.file)
+        present_carrierwave_file_with_head_support!(package_file)
       end
     end
 
     desc 'Download the maven package file at a group level' do
       detail 'This feature was introduced in GitLab 11.7'
+      success [
+        { code: 200 },
+        { code: 302 }
+      ]
+      failure [
+        { code: 401, message: 'Unauthorized' },
+        { code: 403, message: 'Forbidden' },
+        { code: 404, message: 'Not Found' }
+      ]
+      tags %w[maven_packages]
     end
     params do
-      requires :id, type: String, desc: 'The ID of a group'
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the group'
     end
     resource :groups, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       params do
-        requires :path, type: String, desc: 'Package path'
-        requires :file_name, type: String, desc: 'Package file name'
+        requires :path, type: String, desc: 'Package path', documentation: { example: 'foo/bar/mypkg/1.0-SNAPSHOT' }
+        requires :file_name, type: String, desc: 'Package file name', documentation: { example: 'mypkg-1.0-SNAPSHOT.jar' }
       end
       route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
       get ':id/-/packages/maven/*path/:file_name', requirements: MAVEN_ENDPOINT_REQUIREMENTS do
         # return a similar failure to group = find_group(params[:id])
-        not_found!('Group') unless path_exists?(params[:path])
-
-        file_name, format = extract_format(params[:file_name])
-
         group = find_group(params[:id])
+
+        if Feature.disabled?(:maven_central_request_forwarding, group&.root_ancestor)
+          not_found!('Group') unless path_exists?(params[:path])
+        end
 
         not_found!('Group') unless can?(current_user, :read_group, group)
 
+        file_name, format = extract_format(params[:file_name])
         package = fetch_package(file_name: file_name, group: group)
 
-        authorize_read_package!(package.project)
+        authorize_read_package!(package.project) if package
 
-        package_file = ::Packages::PackageFileFinder
-          .new(package, file_name).execute!
-
-        case format
-        when 'md5'
-          package_file.file_md5
-        when 'sha1'
-          package_file.file_sha1
-        else
-          track_package_event('pull_package', :maven, project: package.project, namespace: package.project.namespace) if jar_file?(format)
-
-          present_carrierwave_file_with_head_support!(package_file.file)
-        end
+        find_and_present_package_file(package, file_name, format, params.merge(target: group))
       end
     end
 
     params do
-      requires :id, type: String, desc: 'The ID of a project'
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
     end
     resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       desc 'Download the maven package file' do
         detail 'This feature was introduced in GitLab 11.3'
+        success [
+          { code: 200 },
+          { code: 302 }
+        ]
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not Found' }
+        ]
+        tags %w[maven_packages]
       end
       params do
-        requires :path, type: String, desc: 'Package path'
-        requires :file_name, type: String, desc: 'Package file name'
+        requires :path, type: String, desc: 'Package path', documentation: { example: 'foo/bar/mypkg/1.0-SNAPSHOT' }
+        requires :file_name, type: String, desc: 'Package file name', documentation: { example: 'mypkg-1.0-SNAPSHOT.jar' }
       end
       route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
       get ':id/packages/maven/*path/:file_name', requirements: MAVEN_ENDPOINT_REQUIREMENTS do
-        # return a similar failure to user_project
-        not_found!('Project') unless path_exists?(params[:path])
+        project = user_project(action: :read_package)
 
-        authorize_read_package!(user_project)
+        # return a similar failure to user_project
+        unless Feature.enabled?(:maven_central_request_forwarding, project&.root_ancestor)
+          not_found!('Project') unless path_exists?(params[:path])
+        end
+
+        authorize_read_package!(project)
 
         file_name, format = extract_format(params[:file_name])
 
-        package = fetch_package(file_name: file_name, project: user_project)
+        package = fetch_package(file_name: file_name, project: project)
 
-        package_file = ::Packages::PackageFileFinder
-          .new(package, file_name).execute!
-
-        case format
-        when 'md5'
-          package_file.file_md5
-        when 'sha1'
-          package_file.file_sha1
-        else
-          track_package_event('pull_package', :maven, project: user_project, namespace: user_project.namespace) if jar_file?(format)
-
-          present_carrierwave_file_with_head_support!(package_file.file)
-        end
+        find_and_present_package_file(package, file_name, format, params.merge(target: project))
       end
 
       desc 'Workhorse authorize the maven package file upload' do
         detail 'This feature was introduced in GitLab 11.3'
+        success code: 200
+        failure [
+          { code: 400, message: 'Bad Request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not Found' }
+        ]
+        tags %w[maven_packages]
       end
       params do
-        requires :path, type: String, desc: 'Package path'
-        requires :file_name, type: String, desc: 'Package file name', regexp: Gitlab::Regex.maven_file_name_regex
+        requires :path, type: String, desc: 'Package path', documentation: { example: 'foo/bar/mypkg/1.0-SNAPSHOT' }
+        requires :file_name, type: String, desc: 'Package file name', regexp: Gitlab::Regex.maven_file_name_regex, documentation: { example: 'mypkg-1.0-SNAPSHOT.pom' }
       end
       route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
       put ':id/packages/maven/*path/:file_name/authorize', requirements: MAVEN_ENDPOINT_REQUIREMENTS do
@@ -249,11 +301,20 @@ module API
 
       desc 'Upload the maven package file' do
         detail 'This feature was introduced in GitLab 11.3'
+        success code: 200
+        failure [
+          { code: 400, message: 'Bad Request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not Found' },
+          { code: 422, message: 'Unprocessable Entity' }
+        ]
+        tags %w[maven_packages]
       end
       params do
-        requires :path, type: String, desc: 'Package path'
-        requires :file_name, type: String, desc: 'Package file name', regexp: Gitlab::Regex.maven_file_name_regex
-        requires :file, type: ::API::Validations::Types::WorkhorseFile, desc: 'The package file to be published (generated by Multipart middleware)'
+        requires :path, type: String, desc: 'Package path', documentation: { example: 'foo/bar/mypkg/1.0-SNAPSHOT' }
+        requires :file_name, type: String, desc: 'Package file name', regexp: Gitlab::Regex.maven_file_name_regex, documentation: { example: 'mypkg-1.0-SNAPSHOT.pom' }
+        requires :file, type: ::API::Validations::Types::WorkhorseFile, desc: 'The package file to be published (generated by Multipart middleware)', documentation: { type: 'file' }
       end
       route_setting :authentication, job_token_allowed: true, deploy_token_allowed: true
       put ':id/packages/maven/*path/:file_name', requirements: MAVEN_ENDPOINT_REQUIREMENTS do

@@ -1,0 +1,5 @@
+---
+# Cop supports --autocorrect.
+Style/ConditionalAssignment:
+  Exclude:
+    - 'app/helpers/icons_helper.rb'

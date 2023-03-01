@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Groups do
+RSpec.describe API::Groups, feature_category: :subgroups do
   include GroupAPIHelpers
   include UploadHelpers
   include WorkhorseHelpers
@@ -91,11 +91,8 @@ RSpec.describe API::Groups do
           .to satisfy_one { |group| group['name'] == group1.name }
       end
 
-      it 'avoids N+1 queries' do
-        # Establish baseline
-        get api("/groups", admin)
-
-        control = ActiveRecord::QueryRecorder.new do
+      it 'avoids N+1 queries', :use_sql_query_cache do
+        control = ActiveRecord::QueryRecorder.new(skip_cached: false) do
           get api("/groups", admin)
         end
 
@@ -103,7 +100,7 @@ RSpec.describe API::Groups do
 
         expect do
           get api("/groups", admin)
-        end.not_to exceed_query_limit(control)
+        end.not_to exceed_all_query_limit(control)
       end
 
       context 'when statistics are requested' do
@@ -505,13 +502,35 @@ RSpec.describe API::Groups do
         group3.add_maintainer(user2)
       end
 
-      it 'returns an array of groups the user has at least master access' do
-        get api('/groups', user2), params: { min_access_level: 40 }
+      context 'with min_access_level parameter' do
+        it 'returns an array of groups the user has at least master access' do
+          get api('/groups', user2), params: { min_access_level: 40 }
 
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(response).to include_pagination_headers
-        expect(json_response).to be_an Array
-        expect(response_groups).to contain_exactly(group2.id, group3.id)
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response).to include_pagination_headers
+          expect(json_response).to be_an Array
+          expect(response_groups).to contain_exactly(group2.id, group3.id)
+        end
+
+        context 'distinct count with present_groups_select_all feature flag' do
+          subject { get api('/groups', user2), params: { min_access_level: 40 } }
+
+          it 'counts with *' do
+            count_sql = /#{Regexp.escape('SELECT count(*)')}/i
+            expect { subject }.to make_queries_matching count_sql
+          end
+
+          context 'when present_groups_select_all feature flag is disabled' do
+            before do
+              stub_feature_flags(present_groups_select_all: false)
+            end
+
+            it 'counts with count_column' do
+              count_sql = /#{Regexp.escape('SELECT count(count_column)')}/i
+              expect { subject }.to make_queries_matching count_sql
+            end
+          end
+        end
       end
     end
 
@@ -923,6 +942,16 @@ RSpec.describe API::Groups do
         expect(json_response['prevent_sharing_groups_outside_hierarchy']).to eq(true)
       end
 
+      it 'removes the group avatar' do
+        put api("/groups/#{group1.id}", user1), params: { avatar: '' }
+
+        aggregate_failures "testing response" do
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(json_response['avatar_url']).to be_nil
+          expect(group1.reload.avatar_url).to be_nil
+        end
+      end
+
       it 'does not update visibility_level if it is restricted' do
         stub_application_setting(restricted_visibility_levels: [Gitlab::VisibilityLevel::INTERNAL])
 
@@ -1198,16 +1227,25 @@ RSpec.describe API::Groups do
           group1.reload
         end
 
-        it "only looks up root ancestor once and returns projects including those in subgroups" do
-          expect(Namespace).to receive(:find_by).with(id: group1.id.to_s).once.and_call_original # For the group sent in the API call
-          expect(Namespace).to receive(:joins).with(start_with('INNER JOIN (SELECT id, traversal_ids[1]')).once.and_call_original # All-in-one root_ancestor query
-
+        it "returns projects including those in subgroups" do
           get api("/groups/#{group1.id}/projects", user1), params: { include_subgroups: true }
 
           expect(response).to have_gitlab_http_status(:ok)
           expect(response).to include_pagination_headers
           expect(json_response).to be_an(Array)
           expect(json_response.length).to eq(6)
+        end
+
+        it 'avoids N+1 queries', :use_sql_query_cache, quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/383788' do
+          control = ActiveRecord::QueryRecorder.new(skip_cached: false) do
+            get api("/groups/#{group1.id}/projects", user1), params: { include_subgroups: true }
+          end
+
+          create_list(:project, 2, :public, namespace: group1)
+
+          expect do
+            get api("/groups/#{group1.id}/projects", user1), params: { include_subgroups: true }
+          end.not_to exceed_all_query_limit(control.count)
         end
       end
 
@@ -2060,6 +2098,7 @@ RSpec.describe API::Groups do
       let_it_be(:maintainer_group) { create(:group, name: 'maintainer group', path: 'maintainer-group') }
       let_it_be(:owner_group_1) { create(:group, name: 'owner group', path: 'owner-group') }
       let_it_be(:owner_group_2) { create(:group, name: 'gitlab group', path: 'gitlab-group') }
+      let_it_be(:shared_with_group_where_direct_owner_as_owner) { create(:group) }
 
       before do
         source_group.add_owner(user)
@@ -2067,6 +2106,10 @@ RSpec.describe API::Groups do
         maintainer_group.add_maintainer(user)
         owner_group_1.add_owner(user)
         owner_group_2.add_owner(user)
+        create(:group_group_link, :owner,
+               shared_with_group: owner_group_1,
+               shared_group: shared_with_group_where_direct_owner_as_owner
+        )
       end
 
       it 'returns 200' do
@@ -2079,7 +2122,11 @@ RSpec.describe API::Groups do
       it 'only includes groups where the user has permissions to transfer a group to' do
         request
 
-        expect(group_ids_from_response).to contain_exactly(owner_group_1.id, owner_group_2.id)
+        expect(group_ids_from_response).to contain_exactly(
+          owner_group_1.id,
+          owner_group_2.id,
+          shared_with_group_where_direct_owner_as_owner.id
+        )
       end
 
       context 'with search' do

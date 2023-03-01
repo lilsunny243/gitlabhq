@@ -23,7 +23,8 @@ first-line-h1: false
 code-block-style:
   style: "fenced"
 emphasis-style: false
-strong-style: false
+link-fragments: false
+reference-links-images: false
 proper-names:
   names: [
     "Akismet",
@@ -32,7 +33,6 @@ proper-names:
     "API",
     "Asana",
     "Auth0",
-    "Authentiq",
     "Azure",
     "Bamboo",
     "Bitbucket",
@@ -108,6 +108,7 @@ proper-names:
     "PgBouncer",
     "Postfix",
     "PostgreSQL",
+    "PowerShell",
     "Praefect",
     "Prometheus",
     "Puma",

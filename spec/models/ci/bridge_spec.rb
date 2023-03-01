@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::Bridge do
+RSpec.describe Ci::Bridge, feature_category: :continuous_integration do
   let_it_be(:project) { create(:project) }
   let_it_be(:target_project) { create(:project, name: 'project', namespace: create(:namespace, name: 'my')) }
   let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
@@ -21,11 +21,13 @@ RSpec.describe Ci::Bridge do
     { trigger: { project: 'my/project', branch: 'master' } }
   end
 
-  it 'has many sourced pipelines' do
-    expect(bridge).to have_many(:sourced_pipelines)
+  it 'has one sourced pipeline' do
+    expect(bridge).to have_one(:sourced_pipeline)
   end
 
   it_behaves_like 'has ID tokens', :ci_bridge
+
+  it_behaves_like 'a retryable job'
 
   it 'has one downstream pipeline' do
     expect(bridge).to have_one(:sourced_pipeline)
@@ -86,9 +88,9 @@ RSpec.describe Ci::Bridge do
   describe '#scoped_variables' do
     it 'returns a hash representing variables' do
       variables = %w[
-        CI_JOB_NAME CI_JOB_STAGE CI_COMMIT_SHA CI_COMMIT_SHORT_SHA
-        CI_COMMIT_BEFORE_SHA CI_COMMIT_REF_NAME CI_COMMIT_REF_SLUG
-        CI_PROJECT_ID CI_PROJECT_NAME CI_PROJECT_PATH
+        CI_JOB_NAME CI_JOB_NAME_SLUG CI_JOB_STAGE CI_COMMIT_SHA
+        CI_COMMIT_SHORT_SHA CI_COMMIT_BEFORE_SHA CI_COMMIT_REF_NAME
+        CI_COMMIT_REF_SLUG CI_PROJECT_ID CI_PROJECT_NAME CI_PROJECT_PATH
         CI_PROJECT_PATH_SLUG CI_PROJECT_NAMESPACE CI_PROJECT_ROOT_NAMESPACE
         CI_PIPELINE_IID CI_CONFIG_PATH CI_PIPELINE_SOURCE CI_COMMIT_MESSAGE
         CI_COMMIT_TITLE CI_COMMIT_DESCRIPTION CI_COMMIT_REF_PROTECTED
@@ -204,6 +206,8 @@ RSpec.describe Ci::Bridge do
   end
 
   describe '#downstream_variables' do
+    subject(:downstream_variables) { bridge.downstream_variables }
+
     it 'returns variables that are going to be passed downstream' do
       expect(bridge.downstream_variables)
         .to include(key: 'BRIDGE', value: 'cross')
@@ -309,7 +313,7 @@ RSpec.describe Ci::Bridge do
       end
 
       context 'when the pipeline runs from a pipeline schedule' do
-        let(:pipeline_schedule) { create(:ci_pipeline_schedule, :nightly, project: project ) }
+        let(:pipeline_schedule) { create(:ci_pipeline_schedule, :nightly, project: project) }
         let(:pipeline) { create(:ci_pipeline, pipeline_schedule: pipeline_schedule) }
 
         let(:options) do
@@ -326,6 +330,60 @@ RSpec.describe Ci::Bridge do
             { key: 'schedule_var_key', value: 'schedule var value' }
           )
         end
+      end
+    end
+
+    context 'when using raw variables' do
+      let(:options) do
+        {
+          trigger: {
+            project: 'my/project',
+            branch: 'master',
+            forward: { yaml_variables: true,
+                       pipeline_variables: true }.compact
+          }
+        }
+      end
+
+      let(:yaml_variables) do
+        [
+          {
+            key: 'VAR6',
+            value: 'value6 $VAR1'
+          },
+          {
+            key: 'VAR7',
+            value: 'value7 $VAR1',
+            raw: true
+          }
+        ]
+      end
+
+      let(:pipeline_schedule) { create(:ci_pipeline_schedule, :nightly, project: project) }
+      let(:pipeline) { create(:ci_pipeline, pipeline_schedule: pipeline_schedule) }
+
+      before do
+        create(:ci_pipeline_variable, pipeline: pipeline, key: 'VAR1', value: 'value1')
+        create(:ci_pipeline_variable, pipeline: pipeline, key: 'VAR2', value: 'value2 $VAR1')
+        create(:ci_pipeline_variable, pipeline: pipeline, key: 'VAR3', value: 'value3 $VAR1', raw: true)
+
+        pipeline_schedule.variables.create!(key: 'VAR4', value: 'value4 $VAR1')
+        pipeline_schedule.variables.create!(key: 'VAR5', value: 'value5 $VAR1', raw: true)
+
+        bridge.yaml_variables.concat(yaml_variables)
+      end
+
+      it 'expands variables according to their raw attributes' do
+        expect(downstream_variables).to contain_exactly(
+          { key: 'BRIDGE', value: 'cross' },
+          { key: 'VAR1', value: 'value1' },
+          { key: 'VAR2', value: 'value2 value1' },
+          { key: 'VAR3', value: 'value3 $VAR1', raw: true },
+          { key: 'VAR4', value: 'value4 value1' },
+          { key: 'VAR5', value: 'value5 $VAR1', raw: true },
+          { key: 'VAR6', value: 'value6 value1' },
+          { key: 'VAR7', value: 'value7 $VAR1', raw: true }
+        )
       end
     end
   end
@@ -521,5 +579,31 @@ RSpec.describe Ci::Bridge do
         expect(subject.to_hash).to eq(job_variable_1.key => job_variable_1.value)
       end
     end
+  end
+
+  describe 'metadata partitioning', :ci_partitioning do
+    let(:pipeline) { create(:ci_pipeline, project: project, partition_id: ci_testing_partition_id) }
+
+    let(:bridge) do
+      build(:ci_bridge, pipeline: pipeline)
+    end
+
+    it 'creates the metadata record and assigns its partition' do
+      # the factory doesn't use any metadatable setters by default
+      # so the record will be initialized by the before_validation callback
+      expect(bridge.metadata).to be_nil
+
+      expect(bridge.save!).to be_truthy
+
+      expect(bridge.metadata).to be_present
+      expect(bridge.metadata).to be_valid
+      expect(bridge.metadata.partition_id).to eq(ci_testing_partition_id)
+    end
+  end
+
+  describe '#deployment_job?' do
+    subject { bridge.deployment_job? }
+
+    it { is_expected.to eq(false) }
   end
 end

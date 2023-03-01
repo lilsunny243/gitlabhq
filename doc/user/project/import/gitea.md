@@ -1,15 +1,22 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Import your project from Gitea to GitLab **(FREE)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/381902) in GitLab 15.8, GitLab no longer automatically creates namespaces or groups that don't exist. GitLab also no longer falls back to using the user's personal namespace if the namespace or group name is taken.
 
 Import your projects from Gitea to GitLab with minimal effort.
 
 NOTE:
 This requires Gitea `v1.0.0` or later.
+
+Prerequisite:
+
+- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
+  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
 
 The Gitea importer can import:
 
@@ -29,10 +36,6 @@ Because Gitea isn't an OAuth provider, author/assignee can't be mapped to users
 in your GitLab instance. This means the project creator (usually the user that
 started the import process) is set as the author. A reference, however, is kept
 on the issue about the original Gitea author.
-
-The importer creates any new namespaces (groups) if they don't exist. If the
-namespace is taken, the repository is imported under the user's namespace
-that started the import process.
 
 ## Import your Gitea repositories
 
@@ -67,15 +70,14 @@ From there, you can view the import statuses of your Gitea repositories:
 
 - Those that are being imported show a _started_ status.
 - Those already successfully imported are green with a _done_ status.
-- Those that aren't yet imported have an **Import** button on the
-  right side of the table.
+- Those that aren't yet imported have **Import** on the right side of the table.
+- Those that are already imported have **Re-import** on the right side of the table.
 
 You also can:
 
-- Import all of your Gitea projects in one go by selecting **Import all projects**
-  in the upper left corner.
-- Filter projects by name. If filter is applied, selecting **Import all projects**
-  imports only matched projects.
+- In the upper-left corner, select **Import all projects** to import all of your Gitea projects at once.
+- Filter projects by name. If a filter is applied, **Import all projects**
+  imports only selected projects.
 
 ![Gitea importer page](img/import_projects_from_gitea_importer_v12_3.png)
 

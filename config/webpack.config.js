@@ -16,17 +16,20 @@ const VueLoaderPlugin = require('vue-loader/lib/plugin');
 const VUE_LOADER_VERSION = require('vue-loader/package.json').version;
 const VUE_VERSION = require('vue/package.json').version;
 
+const { ESBuildMinifyPlugin } = require('esbuild-loader');
+
 const webpack = require('webpack');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const { StatsWriterPlugin } = require('webpack-stats-plugin');
 const WEBPACK_VERSION = require('webpack/package.json').version;
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
+const esbuildConfiguration = require('./esbuild.config');
 
 const createIncrementalWebpackCompiler = require('./helpers/incremental_webpack_compiler');
 const IS_EE = require('./helpers/is_ee_env');
 const IS_JH = require('./helpers/is_jh_env');
 const vendorDllHash = require('./helpers/vendor_dll_hash');
 
-const MonacoWebpackPlugin = require('./plugins/monaco_webpack');
 const GraphqlKnownOperationsPlugin = require('./plugins/graphql_known_operations_plugin');
 
 const ROOT_PATH = path.resolve(__dirname, '..');
@@ -40,6 +43,8 @@ const VENDOR_DLL = process.env.WEBPACK_VENDOR_DLL && process.env.WEBPACK_VENDOR_
 const CACHE_PATH = process.env.WEBPACK_CACHE_PATH || path.join(ROOT_PATH, 'tmp/cache');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const IS_DEV_SERVER = process.env.WEBPACK_SERVE === 'true';
+const WEBPACK_USE_ESBUILD_LOADER =
+  process.env.WEBPACK_USE_ESBUILD_LOADER && process.env.WEBPACK_USE_ESBUILD_LOADER !== 'false';
 
 const { DEV_SERVER_HOST, DEV_SERVER_PUBLIC_ADDR } = process.env;
 const DEV_SERVER_PORT = parseInt(process.env.DEV_SERVER_PORT, 10);
@@ -49,14 +54,25 @@ const DEV_SERVER_LIVERELOAD = IS_DEV_SERVER && process.env.DEV_SERVER_LIVERELOAD
 const INCREMENTAL_COMPILER_ENABLED =
   IS_DEV_SERVER &&
   process.env.DEV_SERVER_INCREMENTAL &&
-  process.env.DEV_SERVER_INCREMENTAL !== 'false';
+  process.env.DEV_SERVER_INCREMENTAL !== 'false' &&
+  !WEBPACK_USE_ESBUILD_LOADER;
 const INCREMENTAL_COMPILER_TTL = Number(process.env.DEV_SERVER_INCREMENTAL_TTL) || Infinity;
-const INCREMENTAL_COMPILER_RECORD_HISTORY = IS_DEV_SERVER && !process.env.CI;
+const INCREMENTAL_COMPILER_RECORD_HISTORY =
+  IS_DEV_SERVER && !process.env.CI && !WEBPACK_USE_ESBUILD_LOADER;
 const WEBPACK_REPORT = process.env.WEBPACK_REPORT && process.env.WEBPACK_REPORT !== 'false';
 const WEBPACK_MEMORY_TEST =
   process.env.WEBPACK_MEMORY_TEST && process.env.WEBPACK_MEMORY_TEST !== 'false';
-const NO_COMPRESSION = process.env.NO_COMPRESSION && process.env.NO_COMPRESSION !== 'false';
-const NO_SOURCEMAPS = process.env.NO_SOURCEMAPS && process.env.NO_SOURCEMAPS !== 'false';
+let NO_COMPRESSION = process.env.NO_COMPRESSION && process.env.NO_COMPRESSION !== 'false';
+let NO_SOURCEMAPS = process.env.NO_SOURCEMAPS && process.env.NO_SOURCEMAPS !== 'false';
+let NO_HASHED_CHUNKS = process.env.NO_HASHED_CHUNKS && process.env.NO_HASHED_CHUNKS !== 'false';
+
+if (WEBPACK_REPORT) {
+  console.log('Webpack report enabled. Running a "slim" production build.');
+  // For our webpack report we need no source maps, compression _or_ hashed file names.
+  NO_SOURCEMAPS = true;
+  NO_COMPRESSION = true;
+  NO_HASHED_CHUNKS = true;
+}
 
 const WEBPACK_OUTPUT_PATH = path.join(ROOT_PATH, 'public/assets/webpack');
 const WEBPACK_PUBLIC_PATH = '/assets/webpack/';
@@ -144,11 +160,13 @@ function generateEntries() {
    */
   const manualEntries = {
     default: defaultEntries,
+    legacy_sentry: './sentry/legacy_index.js',
     sentry: './sentry/index.js',
     performance_bar: './performance_bar/index.js',
     jira_connect_app: './jira_connect/subscriptions/index.js',
     sandboxed_mermaid: './lib/mermaid.js',
     redirect_listbox: './entrypoints/behaviors/redirect_listbox.js',
+    sandboxed_swagger: './lib/swagger.js',
   };
 
   return Object.assign(manualEntries, incrementalCompiler.filterEntryPoints(autoEntries));
@@ -157,6 +175,14 @@ function generateEntries() {
 const alias = {
   // Map Apollo client to apollo/client/core to prevent react related imports from being loaded
   '@apollo/client$': '@apollo/client/core',
+  // Map Sentry calls to use local wrapper
+  '@sentry/browser$': path.join(
+    ROOT_PATH,
+    'app/assets/javascripts/sentry/sentry_browser_wrapper.js',
+  ),
+  // temporary alias until we replace all `flash` imports for `alert`
+  // https://gitlab.com/gitlab-org/gitlab/-/merge_requests/109449
+  '~/flash': path.join(ROOT_PATH, 'app/assets/javascripts/alert.js'),
   '~': path.join(ROOT_PATH, 'app/assets/javascripts'),
   emojis: path.join(ROOT_PATH, 'fixtures/emojis'),
   empty_states: path.join(ROOT_PATH, 'app/views/shared/empty_states'),
@@ -241,6 +267,24 @@ if (VENDOR_DLL && !IS_PRODUCTION) {
   };
 }
 
+const defaultJsOptions = {
+  cacheDirectory: path.join(CACHE_PATH, 'babel-loader'),
+  cacheIdentifier: [
+    process.env.BABEL_ENV || process.env.NODE_ENV || 'development',
+    webpack.version,
+    BABEL_VERSION,
+    BABEL_LOADER_VERSION,
+    // Ensure that changing supported browsers will refresh the cache
+    // in order to not pull in outdated files that import core-js
+    SUPPORTED_BROWSERS_HASH,
+  ].join('|'),
+  cacheCompression: false,
+};
+
+if (WEBPACK_USE_ESBUILD_LOADER) {
+  console.log('esbuild-loader is active');
+}
+
 module.exports = {
   mode: IS_PRODUCTION ? 'production' : 'development',
 
@@ -251,8 +295,10 @@ module.exports = {
   output: {
     path: WEBPACK_OUTPUT_PATH,
     publicPath: WEBPACK_PUBLIC_PATH,
-    filename: IS_PRODUCTION ? '[name].[contenthash:8].bundle.js' : '[name].bundle.js',
-    chunkFilename: IS_PRODUCTION ? '[name].[contenthash:8].chunk.js' : '[name].chunk.js',
+    filename:
+      IS_PRODUCTION && !NO_HASHED_CHUNKS ? '[name].[contenthash:8].bundle.js' : '[name].bundle.js',
+    chunkFilename:
+      IS_PRODUCTION && !NO_HASHED_CHUNKS ? '[name].[contenthash:8].chunk.js' : '[name].chunk.js',
     globalObject: 'this', // allow HMR and web workers to play nice
   },
 
@@ -270,22 +316,43 @@ module.exports = {
         use: [],
       },
       {
-        test: /\.js$/,
+        test: /(@cubejs-client\/vue).*\.(js)?$/,
+        include: /node_modules/,
+        loader: 'babel-loader',
+      },
+      WEBPACK_USE_ESBUILD_LOADER && {
+        test: /\.(js|cjs)$/,
+        exclude: (modulePath) =>
+          /node_modules|vendor[\\/]assets/.test(modulePath) && !/\.vue\.js/.test(modulePath),
+        loader: 'esbuild-loader',
+        options: esbuildConfiguration,
+      },
+      !WEBPACK_USE_ESBUILD_LOADER && {
+        test: /\.(js|cjs)$/,
         exclude: (modulePath) =>
           /node_modules|vendor[\\/]assets/.test(modulePath) && !/\.vue\.js/.test(modulePath),
         loader: 'babel-loader',
+        options: defaultJsOptions,
+      },
+      WEBPACK_USE_ESBUILD_LOADER && {
+        test: /\.(js|cjs)$/,
+        include: (modulePath) =>
+          /node_modules\/(monaco-worker-manager|monaco-marker-data-provider)\/index\.js/.test(
+            modulePath,
+          ) || /node_modules\/yaml/.test(modulePath),
+        loader: 'esbuild-loader',
+        options: esbuildConfiguration,
+      },
+      !WEBPACK_USE_ESBUILD_LOADER && {
+        test: /\.(js|cjs)$/,
+        include: (modulePath) =>
+          /node_modules\/(monaco-worker-manager|monaco-marker-data-provider)\/index\.js/.test(
+            modulePath,
+          ) || /node_modules\/yaml/.test(modulePath),
+        loader: 'babel-loader',
         options: {
-          cacheDirectory: path.join(CACHE_PATH, 'babel-loader'),
-          cacheIdentifier: [
-            process.env.BABEL_ENV || process.env.NODE_ENV || 'development',
-            webpack.version,
-            BABEL_VERSION,
-            BABEL_LOADER_VERSION,
-            // Ensure that changing supported browsers will refresh the cache
-            // in order to not pull in outdated files that import core-js
-            SUPPORTED_BROWSERS_HASH,
-          ].join('|'),
-          cacheCompression: false,
+          plugins: ['@babel/plugin-proposal-numeric-separator'],
+          ...defaultJsOptions,
         },
       },
       {
@@ -316,7 +383,19 @@ module.exports = {
       {
         test: /\.svg$/,
         exclude: /icons\.svg$/,
-        loader: 'raw-loader',
+        oneOf: [
+          {
+            resourceQuery: /url/,
+            loader: 'file-loader',
+            options: {
+              name: '[name].[contenthash:8].[ext]',
+              esModule: false,
+            },
+          },
+          {
+            loader: 'raw-loader',
+          },
+        ],
       },
       {
         test: /\.(gif|png|mp4)$/,
@@ -325,6 +404,7 @@ module.exports = {
       },
       {
         test: /_worker\.js$/,
+        resourceQuery: /worker/,
         use: [
           {
             loader: 'worker-loader',
@@ -376,9 +456,10 @@ module.exports = {
       },
       {
         test: /\.(yml|yaml)$/,
+        resourceQuery: /raw/,
         loader: 'raw-loader',
       },
-    ],
+    ].filter(Boolean),
   },
 
   optimization: {
@@ -449,6 +530,9 @@ module.exports = {
         },
       },
     },
+    ...(WEBPACK_USE_ESBUILD_LOADER
+      ? { minimizer: [new ESBuildMinifyPlugin(esbuildConfiguration)] }
+      : {}),
   },
 
   plugins: [
@@ -479,7 +563,19 @@ module.exports = {
     new VueLoaderPlugin(),
 
     // automatically configure monaco editor web workers
-    new MonacoWebpackPlugin(),
+    new MonacoWebpackPlugin({
+      filename: '[name].[contenthash:8].worker.js',
+      customLanguages: [
+        {
+          label: 'yaml',
+          entry: 'monaco-yaml',
+          worker: {
+            id: 'monaco-yaml/yamlWorker',
+            entry: 'monaco-yaml/yaml.worker',
+          },
+        },
+      ],
+    }),
 
     new GraphqlKnownOperationsPlugin({ filename: 'graphql_known_operations.yml' }),
 
@@ -579,7 +675,11 @@ module.exports = {
       patterns: [
         {
           from: path.join(ROOT_PATH, 'node_modules/pdfjs-dist/cmaps/'),
-          to: path.join(WEBPACK_OUTPUT_PATH, 'cmaps/'),
+          to: path.join(WEBPACK_OUTPUT_PATH, 'pdfjs/cmaps/'),
+        },
+        {
+          from: path.join(ROOT_PATH, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js'),
+          to: path.join(WEBPACK_OUTPUT_PATH, 'pdfjs/'),
         },
         {
           from: path.join(ROOT_PATH, 'node_modules', SOURCEGRAPH_PACKAGE, '/'),
@@ -687,6 +787,8 @@ module.exports = {
         statsFilename: path.join(ROOT_PATH, 'webpack-report/stats.json'),
         statsOptions: {
           source: false,
+          errors: false,
+          warnings: false,
         },
       }),
 

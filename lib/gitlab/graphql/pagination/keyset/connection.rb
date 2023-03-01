@@ -59,12 +59,7 @@ module Gitlab
               if before
                 true
               elsif first
-                case sliced_nodes
-                when Array
-                  sliced_nodes.size > limit_value
-                else
-                  sliced_nodes.limit(1).offset(limit_value).exists? # rubocop: disable CodeReuse/ActiveRecord
-                end
+                limited_nodes.size > limit_value
               else
                 false
               end
@@ -89,7 +84,7 @@ module Gitlab
             # So we're ok loading them into memory here as that's bound to happen
             # anyway. Having them ready means we can modify the result while
             # rendering the fields.
-            @nodes ||= limited_nodes.to_a
+            @nodes ||= limited_nodes.to_a.take(limit_value) # rubocop: disable CodeReuse/ActiveRecord
           end
 
           def items
@@ -122,9 +117,9 @@ module Gitlab
                 @has_previous_page = paginated_nodes.count > limit_value
                 @has_previous_page ? paginated_nodes.last(limit_value) : paginated_nodes
               elsif loaded?(sliced_nodes)
-                sliced_nodes.take(limit_value) # rubocop: disable CodeReuse/ActiveRecord
+                sliced_nodes.take(limit_value + 1) # rubocop: disable CodeReuse/ActiveRecord
               else
-                sliced_nodes.limit(limit_value) # rubocop: disable CodeReuse/ActiveRecord
+                sliced_nodes.limit(limit_value + 1).to_a
               end
             end
           end
@@ -141,7 +136,7 @@ module Gitlab
 
           def limit_value
             # note: only first _or_ last can be specified, not both
-            @limit_value ||= [first, last, max_page_size].compact.min
+            @limit_value ||= [first, last, max_page_size || GitlabSchema.default_max_page_size].compact.min
           end
 
           def loaded?(items)

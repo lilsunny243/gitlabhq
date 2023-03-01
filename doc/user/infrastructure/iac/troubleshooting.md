@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting the Terraform integration with GitLab
@@ -110,7 +110,7 @@ If you don't set `TF_STATE_NAME` or `TF_ADDRESS` in your job, the job fails with
 To resolve this, ensure that either `TF_ADDRESS` or `TF_STATE_NAME` is accessible in the
 job that returned the error:
 
-1. Configure the [CI/CD environment scope](../../../ci/variables/index.md#add-a-cicd-variable-to-a-project) for the job.
+1. Configure the [CI/CD environment scope](../../../ci/variables/index.md#for-a-project) for the job.
 1. Set the job's [environment](../../../ci/yaml/index.md#environment), matching the environment scope from the previous step.
 
 ### Error refreshing state: HTTP remote state endpoint requires auth
@@ -121,3 +121,51 @@ To resolve this, ensure that:
 - If you have set the `TF_HTTP_PASSWORD` CI/CD variable, make sure that you either:
   - Set the same value as `TF_PASSWORD`
   - Remove `TF_HTTP_PASSWORD` variable if your CI/CD job does not explicitly use it.
+
+### Enable Developer role access to destructive commands
+
+To permit a user with the Developer role to run destructive commands, you need a workaround:
+
+1. [Create a project access token](../../project/settings/project_access_tokens.md#create-a-project-access-token) with `api` scope.
+1. Add `TF_USERNAME` and `TF_PASSWORD` to your CI/CD variables:
+   1. Set the value of `TF_USERNAME` to the username of your project access token.
+   1. Set the value of `TF_PASSWORD` to the password of your project access token.
+   1. Optional. Protect the variables to make them only available in pipelines that run on protected branches or protected tags.
+
+### State not found if the state name contains a period
+
+GitLab 15.6 and earlier returned 404 errors if the state name contained a period and Terraform attempted
+a state lock.
+
+You could work around this limitation by adding `-lock=false` to your Terraform commands. The GitLab backend
+accepted the request, but internally stripped the period and any characters that followed from the state name.
+For example, a state named `foo.bar` would be stored as `foo`. However, this workaround wasn't recommended,
+and could even cause state name collisions.
+
+In GitLab 15.7 and later, [state names with periods are supported](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106861). If you use the `-lock=false` workaround and upgrade to GitLab 15.7 or later,
+your jobs might fail. The failure is caused by the GitLab backend storing a new state with the full state name, which diverges from the existing state name.
+
+To fix the failing jobs, rename your state names to exclude the period and any characters that follow it. For example,
+if you use the Terraform template:
+
+```yaml
+include:
+  - template: Terraform.gitlab-ci.yml
+
+variables:
+  TF_STATE_NAME: foo
+```
+
+If your `TF_HTTP_ADDRESS`, `TF_HTTP_LOCK_ADDRESS` and `TF_HTTP_UNLOCK_ADDRESS` are set, be sure
+to update the state names there.
+
+Alternatively, you can [migrate your terraform state](terraform_state.md#migrate-to-a-gitlab-managed-terraform-state).
+
+#### Self-managed GitLab instances
+
+By default, support for state names with periods is not enabled on self-managed GitLab.
+You can enable it from the Rails console:
+
+```ruby
+Feature.enable(:allow_dots_on_tf_state_names)
+```

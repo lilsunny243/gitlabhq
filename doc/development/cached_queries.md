@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Application Performance
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Cached queries guidelines
@@ -37,9 +37,9 @@ in-memory objects whenever possible.
 When you introduce a new feature, you should:
 
 - Avoid N+1 queries.
-- Minimize the [query count](merge_request_performance_guidelines.md#query-counts).
+- Minimize the [query count](merge_request_concepts/performance.md#query-counts).
 - Pay special attention to ensure
-  [cached queries](merge_request_performance_guidelines.md#cached-queries) are not
+  [cached queries](merge_request_concepts/performance.md#cached-queries) are not
   masking N+1 problems.
 
 ## How to detect cached queries
@@ -65,8 +65,8 @@ to view the list of database queries, including cached queries. The
 performance bar shows a warning when the number of total executed and cached queries is
 greater than 100.
 
-To learn more about the statistics available to you, read the
-[Performance Bar documentation](../administration/monitoring/performance/performance_bar.md).
+For more information about the statistics available to you, see
+[Performance bar](../administration/monitoring/performance/performance_bar.md).
 
 ## What to look for
 
@@ -87,7 +87,7 @@ and the number of executed cached queries:
 
 ![Performance Bar Database Queries](img/performance_bar_members_page.png)
 
-The page included 55 cached queries. Clicking the number displays a modal window
+The page included 55 cached queries. Selecting the number displays a modal window
 with more details about queries. Cached queries are marked with the `cached` label
 below the query. You can see multiple duplicate cached queries in this modal window:
 
@@ -149,19 +149,19 @@ the following statistics:
 - Total retained: 757595 bytes (6070 objects)
 - `db_count`: 144
 - `db_cached_count`: 55
-- `db_duration`: 303ms
+- `db_duration`: 303 ms
 
 The fix reduced the allocated memory, and the number of cached queries. These
 factors help improve the overall execution time:
 
-- Total allocated: 5313899 bytes (65290 objects), 1810KB (25%) less
-- Total retained: 685593 bytes (5278 objects), 72KB (9%) less
+- Total allocated: 5313899 bytes (65290 objects), 1810 KB (25%) less
+- Total retained: 685593 bytes (5278 objects), 72 KB (9%) less
 - `db_count`: 95 (34% less)
 - `db_cached_count`: 6 (89% less)
-- `db_duration`: 162ms (87% faster)
+- `db_duration`: 162 ms (87% faster)
 
 ## For more information
 
 - [Metrics that would help us detect the potential N+1 Cached SQL calls](https://gitlab.com/gitlab-org/gitlab/-/issues/259007)
-- [Merge request performance guidelines for cached queries](merge_request_performance_guidelines.md#cached-queries)
+- [Merge request performance guidelines for cached queries](merge_request_concepts/performance.md#cached-queries)
 - [Improvements for biggest offenders](https://gitlab.com/groups/gitlab-org/-/epics/4508)

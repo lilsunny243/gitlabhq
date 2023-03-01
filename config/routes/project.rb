@@ -86,12 +86,11 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
             get :download
             get :browse, path: 'browse(/*path)', format: false
             get :file, path: 'file/*path', format: false
+            get :external_file, path: 'external_file/*path', format: false
             get :raw, path: 'raw/*path', format: false
             post :keep
           end
         end
-
-        get :learn_gitlab, action: :index, controller: 'learn_gitlab'
 
         namespace :ci do
           resource :lint, only: [:show, :create]
@@ -141,7 +140,7 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
             end
           end
 
-          resource :repository, only: [:show], controller: :repository do
+          resource :repository, only: [:show, :update], controller: :repository do
             # TODO: Removed this "create_deploy_token" route after change was made in app/helpers/ci_variables_helper.rb:14
             # See MR comment for more detail: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/27059#note_311585356
             post :create_deploy_token, path: 'deploy_token/create'
@@ -159,6 +158,7 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
           resource :packages_and_registries, only: [:show] do
             get '/cleanup_image_tags', to: 'packages_and_registries#cleanup_tags'
           end
+          resource :merge_requests, only: [:show, :update]
         end
 
         resources :usage_quotas, only: [:index]
@@ -222,11 +222,7 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
           end
         end
 
-        resources :boards, only: [:index, :show, :create, :update, :destroy], constraints: { id: /\d+/ } do
-          collection do
-            get :recent
-          end
-        end
+        resources :boards, only: [:index, :show], constraints: { id: /\d+/ }
 
         get 'releases/permalink/latest(/)(*suffix_path)', to: 'releases#latest_permalink', as: :latest_release_permalink, format: false
 
@@ -355,7 +351,9 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
         end
 
         resources :alert_management, only: [:index] do
-          get 'details', on: :member
+          member do
+            get 'details(/*page)', to: 'alert_management#details', as: 'details'
+          end
         end
 
         get 'alert_management/:id', to: 'alert_management#details', as: 'alert_management_alert'
@@ -367,18 +365,16 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
 
         resources :incidents, only: [:index]
 
-        get 'issues/incident/:id' => 'incidents#show', as: :issues_incident
+        namespace :incident_management do
+          resources :timeline_events, only: [] do
+            collection do
+              post :preview_markdown
+            end
+          end
+        end
 
         namespace :error_tracking do
           resources :projects, only: :index
-        end
-
-        resources :product_analytics, only: [:index] do
-          collection do
-            get :setup
-            get :test
-            get :graphs
-          end
         end
 
         resources :error_tracking, only: [:index], controller: :error_tracking do
@@ -471,6 +467,11 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
               resources :tags, only: [:index]
             end
           end
+        end
+
+        namespace :ml do
+          resources :experiments, only: [:index, :show], controller: 'experiments'
+          resources :candidates, only: [:show], controller: 'candidates', param: :iid
         end
       end
       # End of the /-/ scope.
@@ -587,8 +588,6 @@ constraints(::Constraints::ProjectUrlConstrainer.new) do
       end
 
       scope :service_ping, controller: :service_ping do
-        post :web_ide_clientside_preview # rubocop:todo Cop/PutProjectRoutesUnderScope
-        post :web_ide_clientside_preview_success # rubocop:todo Cop/PutProjectRoutesUnderScope
         post :web_ide_pipelines_count # rubocop:todo Cop/PutProjectRoutesUnderScope
       end
 

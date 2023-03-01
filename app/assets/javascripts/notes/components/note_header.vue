@@ -1,18 +1,11 @@
 <script>
-import {
-  GlIcon,
-  GlBadge,
-  GlLoadingIcon,
-  GlTooltipDirective,
-  GlSafeHtmlDirective as SafeHtml,
-} from '@gitlab/ui';
+import { GlIcon, GlBadge, GlLoadingIcon, GlTooltipDirective } from '@gitlab/ui';
 import { mapActions } from 'vuex';
+import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { __, s__ } from '~/locale';
 import TimeAgoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
-import UserNameWithStatus from '~/sidebar/components/assignees/user_name_with_status.vue';
 
 export default {
-  safeHtmlConfig: { ADD_TAGS: ['gl-emoji'] },
   components: {
     TimeAgoTooltip,
     GitlabTeamMemberBadge: () =>
@@ -20,10 +13,8 @@ export default {
     GlIcon,
     GlBadge,
     GlLoadingIcon,
-    UserNameWithStatus,
   },
   directives: {
-    SafeHtml,
     GlTooltip: GlTooltipDirective,
   },
   props: {
@@ -72,15 +63,24 @@ export default {
       required: false,
       default: false,
     },
+    isSystemNote: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     return {
       isUsernameLinkHovered: false,
-      emojiTitle: '',
-      authorStatusHasTooltip: false,
     };
   },
   computed: {
+    authorId() {
+      return getIdFromGraphQLId(this.author.id);
+    },
+    authorHref() {
+      return this.author.path || this.author.webUrl;
+    },
     toggleChevronIconName() {
       return this.expanded ? 'chevron-up' : 'chevron-down';
     },
@@ -96,16 +96,9 @@ export default {
         'text-underline': this.isUsernameLinkHovered,
         'author-name-link': true,
         'js-user-link': true,
+        'gl-overflow-hidden': true,
+        'gl-overflow-wrap-break': true,
       };
-    },
-    authorStatus() {
-      if (this.author?.show_status) {
-        return this.author.status_tooltip_html;
-      }
-      return false;
-    },
-    emojiElement() {
-      return this.$refs?.authorStatus?.querySelector('gl-emoji');
     },
     authorName() {
       return this.author.name;
@@ -113,14 +106,6 @@ export default {
     internalNoteTooltip() {
       return s__('Notes|This internal note will always remain confidential');
     },
-  },
-  mounted() {
-    this.emojiTitle = this.emojiElement ? this.emojiElement.getAttribute('title') : '';
-
-    const authorStatusTitle = this.$refs?.authorStatus
-      ?.querySelector('.user-status-emoji')
-      ?.getAttribute('title');
-    this.authorStatusHasTooltip = authorStatusTitle && authorStatusTitle !== '';
   },
   methods: {
     ...mapActions(['setTargetNoteHash']),
@@ -132,12 +117,6 @@ export default {
         this.setTargetNoteHash(this.noteTimestampLink);
       }
     },
-    removeEmojiTitle() {
-      this.emojiElement.removeAttribute('title');
-    },
-    addEmojiTitle() {
-      this.emojiElement.setAttribute('title', this.emojiTitle);
-    },
     handleUsernameMouseEnter() {
       this.$refs.authorNameLink.dispatchEvent(new Event('mouseenter'));
       this.isUsernameLinkHovered = true;
@@ -145,9 +124,6 @@ export default {
     handleUsernameMouseLeave() {
       this.$refs.authorNameLink.dispatchEvent(new Event('mouseleave'));
       this.isUsernameLinkHovered = false;
-    },
-    userAvailability(selectedAuthor) {
-      return selectedAuthor?.availability || '';
     },
   },
   i18n: {
@@ -178,26 +154,16 @@ export default {
     <template v-if="hasAuthor">
       <a
         ref="authorNameLink"
-        :href="author.path"
+        :href="authorHref"
         :class="authorLinkClasses"
-        :data-user-id="author.id"
+        :data-user-id="authorId"
         :data-username="author.username"
       >
-        <user-name-with-status
-          :name="authorName"
-          :availability="userAvailability(author)"
-          container-classes="note-header-author-name gl-font-weight-bold"
-        />
+        <span class="note-header-author-name gl-font-weight-bold">
+          {{ authorName }}
+        </span>
       </a>
-      <span
-        v-if="authorStatus"
-        ref="authorStatus"
-        v-safe-html:[$options.safeHtmlConfig]="authorStatus"
-        v-on="
-          authorStatusHasTooltip ? { mouseenter: removeEmojiTitle, mouseleave: addEmojiTitle } : {}
-        "
-      ></span>
-      <span class="text-nowrap author-username">
+      <span v-if="!isSystemNote" class="text-nowrap author-username">
         <a
           ref="authorUsernameLink"
           class="author-username-link"
@@ -233,10 +199,10 @@ export default {
       <gl-badge
         v-if="isInternalNote"
         v-gl-tooltip:tooltipcontainer.bottom
-        data-testid="internalNoteIndicator"
+        data-testid="internal-note-indicator"
         variant="warning"
         size="sm"
-        class="gl-mb-3 gl-ml-2"
+        class="gl-ml-2"
         :title="internalNoteTooltip"
       >
         {{ __('Internal note') }}

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Omnibus based packages and images **(FREE SELF)**
@@ -23,7 +23,7 @@ We have a few core goals with these packages:
 
 GitLab in its core is a Ruby on Rails project. However, GitLab as a whole
 application is more complex and has multiple components. If these components are
-not present or are incorrectly configured, GitLab will not work or it will work
+not present or are incorrectly configured, GitLab does not work or it works
 unpredictably.
 
 The [GitLab Architecture Overview](../../development/architecture.md#gitlab-architecture-overview) shows some of these components and how they
@@ -72,7 +72,7 @@ Some drawbacks of a package with bundled dependencies:
 1. Duplication with possibly existing software.
 1. Less flexibility in configuration.
 
-## Why would I install an omnibus package when I can use a system package?
+## Why would you install an omnibus package when you can use a system package?
 
 The answer can be simplified to: less maintenance required. Instead of handling
 multiple packages that *can* break existing functionality if the versions are
@@ -112,4 +112,4 @@ what was noted above:
 1. Running separate services in multiple containers and keeping them running
    can be more complex and might not be required for a given install.
 
-This method is useful for organizations just getting started with containers and schedulers, and may not be ready for a more complex installation. This method is a great introduction, and will work well for smaller organizations.
+This method is useful for organizations just getting started with containers and schedulers, and may not be ready for a more complex installation. This method is a great introduction, and works well for smaller organizations.

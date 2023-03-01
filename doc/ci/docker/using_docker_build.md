@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
@@ -25,9 +25,6 @@ To enable Docker commands for your CI/CD jobs, you can use:
 - [Docker-in-Docker](#use-docker-in-docker)
 - [Docker socket binding](#use-docker-socket-binding)
 
-If you are using shared runners on GitLab.com,
-[learn more about how these runners are configured](../runners/index.md).
-
 ### Use the shell executor
 
 To include Docker commands in your CI/CD jobs, you can configure your runner to
@@ -47,7 +44,7 @@ the Docker commands, but needs permission to do so.
    ```
 
 1. On the server where GitLab Runner is installed, install Docker Engine.
-   View a list of [supported platforms](https://docs.docker.com/engine/installation/).
+   View a list of [supported platforms](https://docs.docker.com/engine/install/).
 
 1. Add the `gitlab-runner` user to the `docker` group:
 
@@ -76,7 +73,7 @@ the Docker commands, but needs permission to do so.
 You can now use `docker` commands (and install `docker-compose` if needed).
 
 When you add `gitlab-runner` to the `docker` group, you are effectively granting `gitlab-runner` full root permissions.
-Learn more about the [security of the `docker` group](https://blog.zopyx.com/on-docker-security-docker-group-considered-harmful/).
+For more information, see the [security of the `docker` group](https://blog.zopyx.com/on-docker-security-docker-group-considered-harmful/).
 
 ### Use Docker-in-Docker
 
@@ -369,7 +366,7 @@ are done to the services as well, making these incompatible.
 
 #### Use the Docker executor with Docker socket binding
 
-To make Docker available in the context of the image, you will need to mount
+To make Docker available in the context of the image, you need to mount
 `/var/run/docker.sock` into the launched containers. To do this with the Docker
 executor, you need to add `"/var/run/docker.sock:/var/run/docker.sock"` to the
 [Volumes in the `[runners.docker]` section](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#volumes-in-the-runnersdocker-section).
@@ -608,7 +605,7 @@ build:
     - docker run my-docker-image /script/to/run/tests
 ```
 
-To log in to Docker Hub, leave `$DOCKER_REGISTRY`
+To sign in to Docker Hub, leave `$DOCKER_REGISTRY`
 empty or remove it.
 
 ### Option 2: Mount `~/.docker/config.json` on each job
@@ -829,7 +826,7 @@ environment = ["DOCKER_DRIVER=overlay2"]
 If you're running multiple runners, you have to modify all configuration files.
 
 Read more about the [runner configuration](https://docs.gitlab.com/runner/configuration/)
-and [using the OverlayFS storage driver](https://docs.docker.com/engine/userguide/storagedriver/overlayfs-driver/).
+and [using the OverlayFS storage driver](https://docs.docker.com/storage/storagedriver/overlayfs-driver/).
 
 ## Docker alternatives
 
@@ -857,10 +854,10 @@ build:
     BUILDAH_FORMAT: docker
     # You may need this workaround for some errors: https://stackoverflow.com/a/70438141/1233435
     BUILDAH_ISOLATION: chroot
-    FQ_IMAGE_NAME: "${CI_REGISTRY_IMAGE}/test"
+    FQ_IMAGE_NAME: "$CI_REGISTRY_IMAGE/test"
   before_script:
     # Log in to the GitLab container registry
-    - export REGISTRY_AUTH_FILE=${HOME}/auth.json
+    - export REGISTRY_AUTH_FILE=$HOME/auth.json
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
   script:
     - buildah images
@@ -872,7 +869,7 @@ build:
 ## Use the GitLab Container Registry
 
 After you've built a Docker image, you can push it up to the built-in
-[GitLab Container Registry](../../user/packages/container_registry/index.md#build-and-push-by-using-gitlab-cicd).
+[GitLab Container Registry](../../user/packages/container_registry/build_and_push_images.md#use-gitlab-cicd).
 
 ## Troubleshooting
 

@@ -1,7 +1,7 @@
 ---
 stage: none
 group: Development
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # End-to-end testing Best Practices
@@ -10,15 +10,15 @@ This is a tailored extension of the Best Practices [found in the testing guide](
 
 ## Class and module naming
 
-The QA framework uses [Zeitwerk](https://github.com/fxn/zeitwerk) for class and module autoloading. The default Zeitwerk [inflector](https://github.com/fxn/zeitwerk#zeitwerkinflector) simply converts snake_cased file names to PascalCased module or class names. It is advised to stick to this pattern to avoid manual maintenance of inflections.
+The QA framework uses [Zeitwerk](https://github.com/fxn/zeitwerk) for class and module autoloading. The default Zeitwerk [inflector](https://github.com/fxn/zeitwerk#zeitwerkinflector) converts snake_cased file names to PascalCased module or class names. It is advised to stick to this pattern to avoid manual maintenance of inflections.
 
 In case custom inflection logic is needed, custom inflectors are added in the [qa.rb](https://gitlab.com/gitlab-org/gitlab/-/blob/master/qa/qa.rb) file in the `loader.inflector.inflect` method invocation.
 
 ## Link a test to its test case
 
 Every test should have a corresponding test case in the [GitLab project Test Cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases) as well as a results issue in the [Quality Test Cases project](https://gitlab.com/gitlab-org/quality/testcases/-/issues).
-If a test case issue does not yet exist you can create one yourself. To do so, create a new
-issue in the [Test Cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases) GitLab project
+If a test case issue does not yet exist, any GitLab team member can create a new test case in
+the [Test Cases](https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases) GitLab project
 with a placeholder title. After the test case URL is linked to a test in the code, when the test is
 run in a pipeline that has reporting enabled, the `report-results` script automatically updates the
 test case and the results issue.
@@ -299,7 +299,7 @@ point of failure and so the screenshot would not be captured at the right moment
 
 ## Ensure tests do not leave the browser logged in
 
-All tests expect to be able to log in at the start of the test.
+All tests expect to be able to sign in at the start of the test.
 
 For an example see [issue #34736](https://gitlab.com/gitlab-org/gitlab/-/issues/34736).
 
@@ -358,7 +358,7 @@ using the Git CLI.
 
 ## Preferred method to blur elements
 
-To blur an element, the preferred method is to click another element that does not alter the test state.
+To blur an element, the preferred method is to select another element that does not alter the test state.
 If there's a mask that blocks the page elements, such as may occur with some dropdowns,
 use WebDriver's native mouse events to simulate a click event on the coordinates of an element. Use the following method: `click_element_coordinates`.
 

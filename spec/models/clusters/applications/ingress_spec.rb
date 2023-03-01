@@ -5,6 +5,11 @@ require 'spec_helper'
 RSpec.describe Clusters::Applications::Ingress do
   let(:ingress) { create(:clusters_applications_ingress) }
 
+  before do
+    allow(ClusterWaitForIngressIpAddressWorker).to receive(:perform_in)
+    allow(ClusterWaitForIngressIpAddressWorker).to receive(:perform_async)
+  end
+
   it_behaves_like 'having unique enum values'
 
   include_examples 'cluster application core specs', :clusters_applications_ingress
@@ -13,9 +18,9 @@ RSpec.describe Clusters::Applications::Ingress do
   include_examples 'cluster application helm specs', :clusters_applications_ingress
   include_examples 'cluster application initial status specs'
 
-  before do
-    allow(ClusterWaitForIngressIpAddressWorker).to receive(:perform_in)
-    allow(ClusterWaitForIngressIpAddressWorker).to receive(:perform_async)
+  describe 'default values' do
+    it { expect(subject.ingress_type).to eq("nginx") }
+    it { expect(subject.version).to eq(described_class::VERSION) }
   end
 
   describe '#can_uninstall?' do

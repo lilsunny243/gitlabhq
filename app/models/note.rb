@@ -22,6 +22,10 @@ class Note < ApplicationRecord
   include ThrottledTouch
   include FromUnion
   include Sortable
+  include EachBatch
+  include IgnorableColumns
+
+  ignore_column :id_convert_to_bigint, remove_with: '16.0', remove_after: '2023-05-22'
 
   ISSUE_TASK_SYSTEM_NOTE_PATTERN = /\A.*marked\sthe\stask.+as\s(completed|incomplete).*\z/.freeze
 
@@ -56,10 +60,13 @@ class Note < ApplicationRecord
   # Attribute used to store the attributes that have been changed by quick actions.
   attr_writer :commands_changes
 
+  # Attribute used to store the quick action command names.
+  attr_accessor :command_names
+
   # Attribute used to determine whether keep_around_commits will be skipped for diff notes.
   attr_accessor :skip_keep_around_commits
 
-  default_value_for :system, false
+  attribute :system, default: false
 
   attr_mentionable :note, pipeline: :note
   participant :author
@@ -124,6 +131,7 @@ class Note < ApplicationRecord
   scope :for_commit_id, ->(commit_id) { where(noteable_type: "Commit", commit_id: commit_id) }
   scope :system, -> { where(system: true) }
   scope :user, -> { where(system: false) }
+  scope :not_internal, -> { where(internal: false) }
   scope :common, -> { where(noteable_type: ["", nil]) }
   scope :fresh, -> { order_created_asc.with_order_id_asc }
   scope :updated_after, ->(time) { where('updated_at > ?', time) }
@@ -132,9 +140,15 @@ class Note < ApplicationRecord
   scope :inc_author, -> { includes(:author) }
   scope :inc_note_diff_file, -> { includes(:note_diff_file) }
   scope :with_api_entity_associations, -> { preload(:note_diff_file, :author) }
-  scope :inc_relations_for_view, -> do
-    includes({ project: :group }, { author: :status }, :updated_by, :resolved_by, :award_emoji,
-             { system_note_metadata: :description_version }, :note_diff_file, :diff_note_positions, :suggestions)
+  scope :inc_relations_for_view, ->(noteable = nil) do
+    relations = [{ project: :group }, { author: :status }, :updated_by, :resolved_by,
+      :award_emoji, { system_note_metadata: :description_version }, :suggestions]
+
+    if noteable.nil? || DiffNote.noteable_types.include?(noteable.class.name)
+      relations += [:note_diff_file, :diff_note_positions]
+    end
+
+    includes(relations)
   end
 
   scope :with_notes_filter, -> (notes_filter) do
@@ -164,12 +178,48 @@ class Note < ApplicationRecord
   scope :like_note_or_capitalized_note, ->(text) { where('(note LIKE ? OR note LIKE ?)', text, text.capitalize) }
 
   before_validation :nullify_blank_type, :nullify_blank_line_code
+  # Syncs `confidential` with `internal` as we rename the column.
+  # https://gitlab.com/gitlab-org/gitlab/-/issues/367923
+  before_create :set_internal_flag
+  after_destroy :expire_etag_cache
   after_save :keep_around_commit, if: :for_project_noteable?, unless: -> { importing? || skip_keep_around_commits }
   after_save :expire_etag_cache, unless: :importing?
   after_save :touch_noteable, unless: :importing?
-  after_destroy :expire_etag_cache
   after_commit :notify_after_create, on: :create
   after_commit :notify_after_destroy, on: :destroy
+
+  after_commit :trigger_note_subscription_create, on: :create
+  after_commit :trigger_note_subscription_update, on: :update
+  after_commit :trigger_note_subscription_destroy, on: :destroy
+
+  def trigger_note_subscription_create
+    return unless trigger_note_subscription?
+
+    GraphqlTriggers.work_item_note_created(noteable.to_work_item_global_id, self)
+  end
+
+  def trigger_note_subscription_update
+    return unless trigger_note_subscription?
+
+    GraphqlTriggers.work_item_note_updated(noteable.to_work_item_global_id, self)
+  end
+
+  def trigger_note_subscription_destroy
+    return unless trigger_note_subscription?
+
+    # when deleting a note, we cannot pass it on as a Note instance, as GitlabSchema.object_from_id
+    # would try to resolve the given Note and fetch it from DB which would raise NotFound exception.
+    # So instead we just pass over the string representations of the note and discussion IDs,
+    # so that the subscriber can identify the discussion and the note.
+    deleted_note_data = {
+      id: self.id,
+      model_name: self.class.name,
+      discussion_id: self.discussion_id,
+      last_discussion_note: discussion.notes == [self]
+    }
+
+    GraphqlTriggers.work_item_note_deleted(noteable.to_work_item_global_id, deleted_note_data)
+  end
 
   class << self
     extend Gitlab::Utils::Override
@@ -355,14 +405,6 @@ class Note < ApplicationRecord
   #        For more information visit http://api.rubyonrails.org/classes/ActiveRecord/Associations/ClassMethods.html#label-Polymorphic+Associations
   def noteable_type=(noteable_type)
     super(noteable_type.to_s.classify.constantize.base_class.to_s)
-  end
-
-  def noteable_assignee_or_author?(user)
-    return false unless user
-    return false unless noteable.respond_to?(:author_id)
-    return noteable.assignee_or_author?(user) if [MergeRequest, Issue].include?(noteable.class)
-
-    noteable.author_id == user.id
   end
 
   def contributor?
@@ -690,7 +732,7 @@ class Note < ApplicationRecord
   # Method necesary while we transition into the new format for task system notes
   # TODO: https://gitlab.com/gitlab-org/gitlab/-/issues/369923
   def note
-    return super unless system? && for_issue? && super.match?(ISSUE_TASK_SYSTEM_NOTE_PATTERN)
+    return super unless system? && for_issue? && super&.match?(ISSUE_TASK_SYSTEM_NOTE_PATTERN)
 
     super.sub!('task', 'checklist item')
   end
@@ -698,12 +740,26 @@ class Note < ApplicationRecord
   # Method necesary while we transition into the new format for task system notes
   # TODO: https://gitlab.com/gitlab-org/gitlab/-/issues/369923
   def note_html
-    return super unless system? && for_issue? && super.match?(ISSUE_TASK_SYSTEM_NOTE_PATTERN)
+    return super unless system? && for_issue? && super&.match?(ISSUE_TASK_SYSTEM_NOTE_PATTERN)
 
     super.sub!('task', 'checklist item')
   end
 
+  def issuable_ability_name
+    confidential? ? :read_internal_note : :read_note
+  end
+
+  def exportable_record?(user)
+    return true unless system?
+
+    readable_by?(user)
+  end
+
   private
+
+  def trigger_note_subscription?
+    for_issue? && noteable
+  end
 
   def system_note_viewable_by?(user)
     return true unless system_note_metadata
@@ -748,7 +804,8 @@ class Note < ApplicationRecord
 
     if user_visible_reference_count.present? && total_reference_count.present?
       # if they are not equal, then there are private/confidential references as well
-      user_visible_reference_count > 0 && user_visible_reference_count == total_reference_count
+      total_reference_count == 0 ||
+        user_visible_reference_count > 0 && user_visible_reference_count == total_reference_count
     else
       refs = all_references(user)
       refs.all.any? && refs.all_visible?
@@ -812,6 +869,10 @@ class Note < ApplicationRecord
 
   def noteable_can_have_confidential_note?
     for_issue?
+  end
+
+  def set_internal_flag
+    self.internal = confidential if confidential
   end
 end
 

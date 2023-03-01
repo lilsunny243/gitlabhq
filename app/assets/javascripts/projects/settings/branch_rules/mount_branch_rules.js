@@ -1,7 +1,8 @@
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
 import createDefaultClient from '~/lib/graphql';
-import RuleEdit from './components/rule_edit.vue';
+import { parseBoolean } from '~/lib/utils/common_utils';
+import View from 'ee_else_ce/projects/settings/branch_rules/components/view/index.vue';
 
 export default function mountBranchRules(el) {
   if (!el) {
@@ -14,13 +15,30 @@ export default function mountBranchRules(el) {
     defaultClient: createDefaultClient(),
   });
 
-  const { projectPath } = el.dataset;
+  const {
+    projectPath,
+    protectedBranchesPath,
+    approvalRulesPath,
+    statusChecksPath,
+    branchesPath,
+    showStatusChecks,
+    showApprovers,
+  } = el.dataset;
 
   return new Vue({
     el,
     apolloProvider,
+    provide: {
+      projectPath,
+      protectedBranchesPath,
+      approvalRulesPath,
+      statusChecksPath,
+      branchesPath,
+      showStatusChecks: parseBoolean(showStatusChecks),
+      showApprovers: parseBoolean(showApprovers),
+    },
     render(h) {
-      return h(RuleEdit, { props: { projectPath } });
+      return h(View);
     },
   });
 }

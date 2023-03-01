@@ -23,7 +23,7 @@ describe('FrequentItemsSearchInputComponent', () => {
       },
     });
 
-  const findSearchBoxByType = () => wrapper.find(GlSearchBoxByType);
+  const findSearchBoxByType = () => wrapper.findComponent(GlSearchBoxByType);
 
   beforeEach(() => {
     store = createStore();
@@ -65,6 +65,7 @@ describe('FrequentItemsSearchInputComponent', () => {
 
       expect(trackingSpy).toHaveBeenCalledWith(undefined, 'type_search_query', {
         label: 'projects_dropdown_frequent_items_search_input',
+        property: 'navigation_top',
       });
       expect(store.dispatch).toHaveBeenCalledWith('frequentProjects/setSearchQuery', value);
     });

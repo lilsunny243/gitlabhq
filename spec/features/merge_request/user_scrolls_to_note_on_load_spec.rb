@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > User scrolls to note on load', :js do
+RSpec.describe 'Merge request > User scrolls to note on load', :js, feature_category: :code_review_workflow do
   let(:project) { create(:project, :public, :repository) }
   let(:user) { project.creator }
   let(:merge_request) { create(:merge_request, source_project: project, author: user) }
@@ -19,7 +19,7 @@ RSpec.describe 'Merge request > User scrolls to note on load', :js do
 
     wait_for_all_requests
 
-    expect(page).to have_selector("#{fragment_id}")
+    expect(page).to have_selector(fragment_id.to_s)
 
     page_scroll_y = page.evaluate_script("window.scrollY")
     fragment_position_top = page.evaluate_script("Math.round(document.querySelector('#{fragment_id}').getBoundingClientRect().top + window.pageYOffset)")

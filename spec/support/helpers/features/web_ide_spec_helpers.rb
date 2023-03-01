@@ -8,20 +8,23 @@
 #     ...
 #
 #     ide_visit(project)
-#     ide_create_new_file('path/to/file.txt', content: 'Lorem ipsum')
 #     ide_commit
 #
 module WebIdeSpecHelpers
   include Spec::Support::Helpers::Features::SourceEditorSpecHelpers
 
+  # Open the IDE from anywhere by first visiting the given project's page
   def ide_visit(project)
     visit project_path(project)
 
-    wait_for_requests
+    ide_visit_from_link
+  end
 
-    click_link('Web IDE')
+  # Open the IDE from the current page by clicking the Web IDE link
+  def ide_visit_from_link(link_sel = 'Web IDE')
+    new_tab = window_opened_by { click_link(link_sel) }
 
-    wait_for_requests
+    switch_to_window new_tab
   end
 
   def ide_tree_body
@@ -38,29 +41,6 @@ module WebIdeSpecHelpers
 
   def ide_folder_row_open?(row)
     row.matches_css?('.folder.is-open')
-  end
-
-  # Creates a file in the IDE by expanding directories
-  # then using the dropdown next to the parent directory
-  #
-  # - Throws an error if the parent directory is not found
-  def ide_create_new_file(path, content: '')
-    parent_path = path.split('/')[0...-1].join('/')
-
-    container = ide_traverse_to_file(parent_path)
-
-    if container
-      click_file_action(container, 'New file')
-    else
-      ide_tree_actions.click_button('New file')
-    end
-
-    within '#ide-new-entry' do
-      find('input').fill_in(with: path)
-      click_button('Create file')
-    end
-
-    ide_set_editor_value(content)
   end
 
   # Deletes a file by traversing to `path`

@@ -4,11 +4,6 @@ class NamespaceSetting < ApplicationRecord
   include CascadingNamespaceSettingAttribute
   include Sanitizable
   include ChronicDurationAttribute
-  include IgnorableColumns
-
-  ignore_columns %i[exclude_from_free_user_cap include_for_free_user_cap_preview],
-                 remove_with: '15.5',
-                 remove_after: '2022-09-23'
 
   cascading_attr :delayed_project_removal
 
@@ -19,9 +14,10 @@ class NamespaceSetting < ApplicationRecord
 
   validates :enabled_git_access_protocol, inclusion: { in: enabled_git_access_protocols.keys }
 
-  validate :default_branch_name_content
   validate :allow_mfa_for_group
   validate :allow_resource_access_token_creation_for_group
+
+  sanitizes! :default_branch_name
 
   before_validation :normalize_default_branch_name
 
@@ -50,26 +46,42 @@ class NamespaceSetting < ApplicationRecord
     NAMESPACE_SETTINGS_PARAMS
   end
 
-  sanitizes! :default_branch_name
-
   def prevent_sharing_groups_outside_hierarchy
     return super if namespace.root?
 
     namespace.root_ancestor.prevent_sharing_groups_outside_hierarchy
   end
 
+  def show_diff_preview_in_email?
+    return show_diff_preview_in_email unless namespace.has_parent?
+
+    all_ancestors_allow_diff_preview_in_email?
+  end
+
+  def runner_registration_enabled?
+    runner_registration_enabled && all_ancestors_have_runner_registration_enabled?
+  end
+
+  def all_ancestors_have_runner_registration_enabled?
+    return true unless namespace.has_parent?
+
+    !self.class.where(namespace_id: namespace.ancestors, runner_registration_enabled: false).exists?
+  end
+
+  def allow_runner_registration_token?
+    settings = Gitlab::CurrentSettings.current_application_settings
+
+    settings.allow_runner_registration_token && namespace.root_ancestor.allow_runner_registration_token
+  end
+
   private
+
+  def all_ancestors_allow_diff_preview_in_email?
+    !self.class.where(namespace_id: namespace.self_and_ancestors, show_diff_preview_in_email: false).exists?
+  end
 
   def normalize_default_branch_name
     self.default_branch_name = default_branch_name.presence
-  end
-
-  def default_branch_name_content
-    return if default_branch_name.nil?
-
-    if default_branch_name.blank?
-      errors.add(:default_branch_name, "can not be an empty string")
-    end
   end
 
   def allow_mfa_for_group

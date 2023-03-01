@@ -15,7 +15,19 @@
       %td
         = _('Secret')
       %td
-        = clipboard_button(clipboard_text: @application.secret, button_text: _('Copy'), title: _("Copy secret"), class: "btn btn-default btn-md gl-button")
+        - if Feature.enabled?('hash_oauth_secrets')
+          - if @application.plaintext_secret
+            = render Pajamas::AlertComponent.new(variant: :warning, dismissible: false, alert_options: { class: 'gl-mb-5'}) do |c|
+              = c.body do
+                = _('This is the only time the secret is accessible. Copy the secret and store it securely.')
+            = clipboard_button(clipboard_text: @application.plaintext_secret, button_text: _('Copy'), title: _("Copy secret"), class: "btn btn-default btn-md gl-button")
+          - else
+            = render Pajamas::AlertComponent.new(variant: :warning, dismissible: false, alert_options: { class: 'gl-mb-5'}) do |c|
+              = c.body do
+                = _('The secret is only available when you create the application or renew the secret.')
+        - else
+          = clipboard_button(clipboard_text: @application.secret, button_text: _('Copy'), title: _("Copy secret"), class: "btn btn-default btn-md gl-button")
+        = render 'shared/doorkeeper/applications/update_form', path: renew_path
     %tr
       %td
         = _('Callback URL')
@@ -44,4 +56,4 @@
     - if @created
       = link_to _('Continue'), index_path, class: 'btn btn-confirm btn-md gl-button gl-mr-3'
     = link_to _('Edit'), edit_path, class: 'btn btn-default btn-md gl-button'
-  = render 'shared/doorkeeper/applications/delete_form', path: delete_path, submit_btn_css: 'btn btn-danger btn-md gl-button btn-danger-secondary'
+  = render 'shared/doorkeeper/applications/delete_form', path: delete_path

@@ -12,6 +12,7 @@ module Tooling
         sidekiq_queues
         specialization_labels
         specs
+        stable_branch_patch
         z_metadata
       ].freeze
 
@@ -20,6 +21,10 @@ module Tooling
         # GitLab Flavored Markdown Specification files. See more context at: https://docs.gitlab.com/ee/development/gitlab_flavored_markdown/specification_guide/#specification-files
         %r{\Aglfm_specification/.+prosemirror_json\.yml} => [:frontend],
         %r{\Aglfm_specification/.+\.yml} => [:frontend, :backend],
+
+        # API auto generated doc files and schema (must come before generic docs regex)
+        %r{\Adoc/api/graphql/reference/} => [:docs, :backend],
+        %r{\Adoc/api/openapi/.*\.yaml\z} => [:docs, :backend],
 
         [%r{usage_data\.rb}, %r{^(\+|-).*\s+(count|distinct_count|estimate_batch_distinct_count)\(.*\)(.*)$}] => [:database, :backend, :product_intelligence],
 
@@ -94,14 +99,14 @@ module Tooling
 
         %r{\A((ee|jh)/)?db/(geo/)?(migrate|post_migrate)/} => [:database, :migration],
         %r{\A((ee|jh)/)?db/(?!fixtures)[^/]+} => [:database],
-        %r{\A((ee|jh)/)?lib/gitlab/(database|background_migration|sql|github_import)(/|\.rb)} => [:database, :backend],
+        %r{\A((ee|jh)/)?lib/gitlab/(database|background_migration|sql)(/|\.rb)} => [:database, :backend],
         %r{\A(app/services/authorized_project_update/find_records_due_for_refresh_service)(/|\.rb)} => [:database, :backend],
         %r{\A(app/models/project_authorization|app/services/users/refresh_authorized_projects_service)(/|\.rb)} => [:database, :backend],
         %r{\A((ee|jh)/)?app/finders/} => [:database, :backend],
         %r{\Arubocop/cop/migration(/|\.rb)} => :database,
 
         %r{\A(\.ruby-version\z|\.nvmrc\z|\.tool-versions\z)} => :tooling,
-        %r{\A(\.gitlab-ci\.yml\z|\.gitlab\/ci)} => :tooling,
+        %r{\A(\.gitlab-ci\.yml\z|\.gitlab/ci)} => :tooling,
         %r{\A\.codeclimate\.yml\z} => :tooling,
         %r{\Alefthook.yml\z} => :tooling,
         %r{\A\.editorconfig\z} => :tooling,
@@ -152,7 +157,7 @@ module Tooling
         %r{\A((ee|jh)/)?spec/migrations} => :database,
         %r{\A((ee|jh)/)?spec/} => :backend,
         %r{\A((ee|jh)/)?vendor/} => :backend,
-        %r{\A(Gemfile|Gemfile.lock|Rakefile)\z} => :backend,
+        %r{\A(Gemfile.*|Rakefile)\z} => :backend,
         %r{\A[A-Z_]+_VERSION\z} => :backend,
         %r{\A\.rubocop(_todo)?\.yml\z} => :backend,
         %r{\A\.rubocop_todo/.*\.yml\z} => :backend,
@@ -165,9 +170,6 @@ module Tooling
         # Files that don't fit into any category are marked with :none
         %r{\A((ee|jh)/)?changelogs/} => :none,
         %r{\Alocale/gitlab\.pot\z} => :none,
-
-        # GraphQL auto generated doc files and schema
-        %r{\Adoc/api/graphql/reference/} => :backend,
 
         # Fallbacks in case the above patterns miss anything
         %r{\.rb\z} => :backend,

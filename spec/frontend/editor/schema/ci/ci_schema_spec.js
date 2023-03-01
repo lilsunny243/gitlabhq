@@ -18,9 +18,7 @@ import VariablesJson from './json_tests/positive_tests/variables.json';
 import DefaultNoAdditionalPropertiesJson from './json_tests/negative_tests/default_no_additional_properties.json';
 import InheritDefaultNoAdditionalPropertiesJson from './json_tests/negative_tests/inherit_default_no_additional_properties.json';
 import JobVariablesMustNotContainObjectsJson from './json_tests/negative_tests/job_variables_must_not_contain_objects.json';
-import ReleaseAssetsLinksEmptyJson from './json_tests/negative_tests/release_assets_links_empty.json';
-import ReleaseAssetsLinksInvalidLinkTypeJson from './json_tests/negative_tests/release_assets_links_invalid_link_type.json';
-import ReleaseAssetsLinksMissingJson from './json_tests/negative_tests/release_assets_links_missing.json';
+import ReleaseAssetsLinksJson from './json_tests/negative_tests/release_assets_links.json';
 import RetryUnknownWhenJson from './json_tests/negative_tests/retry_unknown_when.json';
 
 // YAML POSITIVE TEST
@@ -29,12 +27,33 @@ import CacheYaml from './yaml_tests/positive_tests/cache.yml';
 import FilterYaml from './yaml_tests/positive_tests/filter.yml';
 import IncludeYaml from './yaml_tests/positive_tests/include.yml';
 import RulesYaml from './yaml_tests/positive_tests/rules.yml';
+import ProjectPathYaml from './yaml_tests/positive_tests/project_path.yml';
+import VariablesYaml from './yaml_tests/positive_tests/variables.yml';
+import JobWhenYaml from './yaml_tests/positive_tests/job_when.yml';
+import IdTokensYaml from './yaml_tests/positive_tests/id_tokens.yml';
+import HooksYaml from './yaml_tests/positive_tests/hooks.yml';
+import SecretsYaml from './yaml_tests/positive_tests/secrets.yml';
+import ServicesYaml from './yaml_tests/positive_tests/services.yml';
 
 // YAML NEGATIVE TEST
 import ArtifactsNegativeYaml from './yaml_tests/negative_tests/artifacts.yml';
-import CacheNegativeYaml from './yaml_tests/negative_tests/cache.yml';
+import CacheKeyNeative from './yaml_tests/negative_tests/cache.yml';
 import IncludeNegativeYaml from './yaml_tests/negative_tests/include.yml';
+import JobWhenNegativeYaml from './yaml_tests/negative_tests/job_when.yml';
+import ProjectPathIncludeEmptyYaml from './yaml_tests/negative_tests/project_path/include/empty.yml';
+import ProjectPathIncludeInvalidVariableYaml from './yaml_tests/negative_tests/project_path/include/invalid_variable.yml';
+import ProjectPathIncludeLeadSlashYaml from './yaml_tests/negative_tests/project_path/include/leading_slash.yml';
+import ProjectPathIncludeNoSlashYaml from './yaml_tests/negative_tests/project_path/include/no_slash.yml';
+import ProjectPathIncludeTailSlashYaml from './yaml_tests/negative_tests/project_path/include/tailing_slash.yml';
 import RulesNegativeYaml from './yaml_tests/negative_tests/rules.yml';
+import TriggerNegative from './yaml_tests/negative_tests/trigger.yml';
+import VariablesInvalidOptionsYaml from './yaml_tests/negative_tests/variables/invalid_options.yml';
+import VariablesInvalidSyntaxDescYaml from './yaml_tests/negative_tests/variables/invalid_syntax_desc.yml';
+import VariablesWrongSyntaxUsageExpand from './yaml_tests/negative_tests/variables/wrong_syntax_usage_expand.yml';
+import IdTokensNegativeYaml from './yaml_tests/negative_tests/id_tokens.yml';
+import HooksNegative from './yaml_tests/negative_tests/hooks.yml';
+import SecretsNegativeYaml from './yaml_tests/negative_tests/secrets.yml';
+import ServicesNegativeYaml from './yaml_tests/negative_tests/services.yml';
 
 const ajv = new Ajv({
   strictTypes: false,
@@ -44,7 +63,7 @@ const ajv = new Ajv({
 ajv.addKeyword('markdownDescription');
 
 AjvFormats(ajv);
-const schema = ajv.compile(CiSchema);
+const ajvSchema = ajv.compile(CiSchema);
 
 describe('positive tests', () => {
   it.each(
@@ -66,10 +85,21 @@ describe('positive tests', () => {
       CacheYaml,
       FilterYaml,
       IncludeYaml,
+      JobWhenYaml,
+      HooksYaml,
       RulesYaml,
+      VariablesYaml,
+      ProjectPathYaml,
+      IdTokensYaml,
+      ServicesYaml,
+      SecretsYaml,
     }),
   )('schema validates %s', (_, input) => {
-    expect(input).toValidateJsonSchema(schema);
+    // We construct a new "JSON" from each main key that is inside a
+    // file which allow us to make sure each blob is valid.
+    Object.keys(input).forEach((key) => {
+      expect({ [key]: input[key] }).toValidateJsonSchema(ajvSchema);
+    });
   });
 });
 
@@ -80,18 +110,34 @@ describe('negative tests', () => {
       DefaultNoAdditionalPropertiesJson,
       JobVariablesMustNotContainObjectsJson,
       InheritDefaultNoAdditionalPropertiesJson,
-      ReleaseAssetsLinksEmptyJson,
-      ReleaseAssetsLinksInvalidLinkTypeJson,
-      ReleaseAssetsLinksMissingJson,
+      ReleaseAssetsLinksJson,
       RetryUnknownWhenJson,
 
       // YAML
       ArtifactsNegativeYaml,
-      CacheNegativeYaml,
+      CacheKeyNeative,
+      HooksNegative,
+      IdTokensNegativeYaml,
       IncludeNegativeYaml,
+      JobWhenNegativeYaml,
       RulesNegativeYaml,
+      TriggerNegative,
+      VariablesInvalidOptionsYaml,
+      VariablesInvalidSyntaxDescYaml,
+      VariablesWrongSyntaxUsageExpand,
+      ProjectPathIncludeEmptyYaml,
+      ProjectPathIncludeInvalidVariableYaml,
+      ProjectPathIncludeLeadSlashYaml,
+      ProjectPathIncludeNoSlashYaml,
+      ProjectPathIncludeTailSlashYaml,
+      SecretsNegativeYaml,
+      ServicesNegativeYaml,
     }),
   )('schema validates %s', (_, input) => {
-    expect(input).not.toValidateJsonSchema(schema);
+    // We construct a new "JSON" from each main key that is inside a
+    // file which allow us to make sure each blob is invalid.
+    Object.keys(input).forEach((key) => {
+      expect({ [key]: input[key] }).not.toValidateJsonSchema(ajvSchema);
+    });
   });
 });

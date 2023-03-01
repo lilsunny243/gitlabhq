@@ -1,13 +1,16 @@
 ---
 stage: none
 group: none
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 ---
 
 # Removals by version
 
 In each release, GitLab removes features that were deprecated in an earlier release.
 Some features cause breaking changes when they are removed.
+
+**{rss}** **To be notified of upcoming breaking changes**,
+add this URL to your RSS feed reader: `https://about.gitlab.com/breaking-changes.xml`
 
 <!-- vale off -->
 
@@ -30,6 +33,99 @@ For removal reviewers (Technical Writers only):
 - For more information about updating the removal doc, see the removal doc update guidance:
   https://about.gitlab.com/handbook/marketing/blog/release-posts/#update-the-removals-doc
 -->
+
+## Removed in 16.0
+
+### Embedding Grafana panels in Markdown is removed
+
+WARNING:
+This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
+Review the details carefully before upgrading.
+
+The ability to add Grafana panels in GitLab Flavored Markdown is removed.
+We intend to replace this feature with the ability to [embed charts](https://gitlab.com/groups/gitlab-org/opstrace/-/epics/33)
+with the [GitLab Observability UI](https://gitlab.com/gitlab-org/opstrace/opstrace-ui).
+
+## Removed in 15.9
+
+### Live Preview no longer available in the Web IDE
+
+WARNING:
+This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
+Review the details carefully before upgrading.
+
+The Live Preview feature of the Web IDE was intended to provide a client-side preview of static web applications. However, complex configuration steps and a narrow set of supported project types have limited its utility. With the introduction of the Web IDE Beta in GitLab 15.7, you can now connect to a full server-side runtime environment. With upcoming support for installing extensions in the Web IDE, we’ll also support more advanced workflows than those available with Live Preview. As of GitLab 15.9, Live Preview is no longer available in the Web IDE.
+
+## Removed in 15.8
+
+### CiliumNetworkPolicy within the auto deploy Helm chart is removed
+
+All functionality related to the GitLab Container Network Security and Container Host Security categories was deprecated in GitLab 14.8 and scheduled for removal in GitLab 15.0. The [CiliumNetworkPolicy definition](https://gitlab.com/gitlab-org/cluster-integration/auto-deploy-image/-/blob/master/assets/auto-deploy-app/values.yaml#L175) that exists as part of the [GitLab Auto Deploy Helm chart](https://gitlab.com/gitlab-org/cluster-integration/auto-deploy-image/-/tree/master/assets/auto-deploy-app) was not removed as scheduled in GitLab 15.0. This policy is planned to be removed in the GitLab 15.8 release.
+
+If you want to preserve this functionality, you can follow one of these two paths:
+
+1. Fork the [GitLab Auto Deploy Helm chart](https://gitlab.com/gitlab-org/cluster-integration/auto-deploy-image/-/tree/master/assets/auto-deploy-app) into the `chart/` path within your project
+1. Set `AUTO_DEPLOY_IMAGE_VERSION` and `DAST_AUTO_DEPLOY_IMAGE_VERSION` to the most recent version of the image that included the CiliumNetworkPolicy
+
+## Removed in 15.7
+
+### File Type variable expansion in `.gitlab-ci.yml`
+
+WARNING:
+This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
+Review the details carefully before upgrading.
+
+Prior to this change, variables that referenced or applied alias file variables expanded the value of the `File` type variable. For example, the file contents. This behavior was incorrect because it did not comply with typical shell variable expansion rules. A user could run an $echo command with the variable as an input parameter to leak secrets or sensitive information stored in 'File' type variables.
+
+In 15.7, we are removing file type variable expansion from GitLab. It is essential to check your CI pipelines to confirm if your scripts reference a file variable. If your CI job relies on the previous expansion functionality, that CI job will not work and generate an error as of 15.7.  The new behavior is that variable expansion that reference or apply alias file variables expand to the file name or path of the `File` type variable, instead of its value, such as the file contents.
+
+### Flowdock integration
+
+As of December 22, 2022, we are removing the Flowdock integration because the service was shut down on August 15, 2022.
+
+## Removed in 15.6
+
+### NFS as Git repository storage is no longer supported
+
+As of November 22, 2022, we have removed support for customers using NFS for Git repository storage. This was
+originally planned for May 22, 2022, but in an effort to allow continued maturity of Gitaly Cluster, we delayed
+our removal of support date until now. Please see our official [Statement of Support](https://about.gitlab.com/support/statement-of-support/#gitaly-and-nfs)
+for further information.
+
+This change in support follows the development deprecation for NFS for Git repository storage that occurred in GitLab 14.0.
+
+Gitaly Cluster offers tremendous benefits for our customers such as:
+
+- [Variable replication factors](https://docs.gitlab.com/ee/administration/gitaly/index.html#replication-factor).
+- [Strong consistency](https://docs.gitlab.com/ee/administration/gitaly/index.html#strong-consistency).
+- [Distributed read capabilities](https://docs.gitlab.com/ee/administration/gitaly/index.html#distributed-reads).
+
+We encourage customers currently using NFS for Git repositories to migrate as soon as possible by reviewing our documentation on
+[migrating to Gitaly Cluster](https://docs.gitlab.com/ee/administration/gitaly/index.html#migrate-to-gitaly-cluster).
+
+## Removed in 15.4
+
+### SAST analyzer consolidation and CI/CD template changes
+
+WARNING:
+This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
+Review the details carefully before upgrading.
+
+We have replaced the GitLab SAST [analyzers](https://docs.gitlab.com/ee/user/application_security/sast/analyzers/) for certain languages in GitLab 15.4 as part of our long-term strategy to deliver a more consistent user experience, faster scan times, and reduced CI minute usage.
+
+Starting from GitLab 15.4, the [GitLab-managed SAST CI/CD template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Security/SAST.gitlab-ci.yml) uses [Semgrep-based scanning](https://docs.gitlab.com/ee/user/application_security/sast/analyzers.html#transition-to-semgrep-based-scanning) instead of the following analyzers:
+
+- [ESLint](https://gitlab.com/gitlab-org/security-products/analyzers/eslint) for JavaScript, TypeScript, React
+- [Gosec](https://gitlab.com/gitlab-org/security-products/analyzers/gosec) for Go
+- [Bandit](https://gitlab.com/gitlab-org/security-products/analyzers/bandit) for Python
+- [SpotBugs](https://gitlab.com/gitlab-org/security-products/analyzers/spotbugs) for Java
+
+We will no longer make any updates to the ESLint-, Gosec-, and Bandit-based analyzers.
+The SpotBugs-based analyzer will continue to be used for Groovy, Kotlin, and Scala scanning.
+
+We won't delete container images previously published for these analyzers, so older versions of the CI/CD template will continue to work.
+
+If you changed the default GitLab SAST configuration, you may need to update your configuration as detailed in the [deprecation issue for this change](https://gitlab.com/gitlab-org/gitlab/-/issues/352554#actions-required).
 
 ## Removed in 15.3
 
@@ -140,8 +236,8 @@ If you have set a prefix, you can use a workaround to revert to background uploa
     gitlab_rails['env'] = { 'GITLAB_LEGACY_BACKGROUND_UPLOADS' => 'artifacts,external_diffs,lfs,uploads,packages,dependency_proxy,terraform_state,pages' }
     ```
 
-Prefixes will be supported officially in [GitLab 15.2](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/91307).
-This workaround will be dropped, so we encourage migrating to consolidated object storage.
+Support for prefixes was restored in GitLab 15.2 via [this MR](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/91307).
+Support for setting `GITLAB_LEGACY_BACKGROUND_UPLOADS` will be removed in GitLab 15.4.
 
 ### Container Network and Host Security
 
@@ -227,7 +323,7 @@ Elasticsearch 6.8 support has been removed in GitLab 15.0. Elasticsearch 6.8 has
 If you use Elasticsearch 6.8, **you must upgrade your Elasticsearch version to 7.x** prior to upgrading to GitLab 15.0.
 You should not upgrade to Elasticsearch 8 until you have completed the GitLab 15.0 upgrade.
 
-View the [version requirements](https://docs.gitlab.com/ee/integration/elasticsearch.html#version-requirements) for details.
+View the [version requirements](https://docs.gitlab.com/ee/integration/advanced_search/elasticsearch.html#version-requirements) for details.
 
 ### End of support for Python 3.6 in Dependency Scanning
 
@@ -420,7 +516,7 @@ WARNING:
 This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
 Review the details carefully before upgrading.
 
-[Request profiling](https://docs.gitlab.com/ee/administration/monitoring/performance/request_profiling.html) has been removed in GitLab 15.0.
+[Request profiling](https://docs.gitlab.com/ee/administration/monitoring/performance/index.html) has been removed in GitLab 15.0.
 
 We're working on [consolidating our profiling tools](https://gitlab.com/groups/gitlab-org/-/epics/7327) and making them more easily accessible.
 We [evaluated](https://gitlab.com/gitlab-org/gitlab/-/issues/350152) the use of this feature and we found that it is not widely used.
@@ -550,7 +646,7 @@ If you installed GitLab from source, verify manually that both servers are confi
 
 ### Static Site Editor
 
-The Static Site Editor was deprecated in GitLab 14.7 and the feature is being removed in GitLab 15.0. Incoming requests to the Static Site Editor will be redirected and open the target file to edit in the Web IDE. Current users of the Static Site Editor can view the [documentation](https://docs.gitlab.com/ee/user/project/static_site_editor/) for more information, including how to remove the configuration files from existing projects. We will continue investing in improvements to the Markdown editing experience by [maturing the Content Editor](https://gitlab.com/groups/gitlab-org/-/epics/5401) and making it available as a way to edit content across GitLab.
+The Static Site Editor was deprecated in GitLab 14.7 and the feature is being removed in GitLab 15.0. Incoming requests to the Static Site Editor will be redirected and open the target file to edit in the Web IDE. Current users of the Static Site Editor can view the [documentation](https://docs.gitlab.com/ee/user/project/web_ide/index.html) for more information, including how to remove the configuration files from existing projects. We will continue investing in improvements to the Markdown editing experience by [maturing the Content Editor](https://gitlab.com/groups/gitlab-org/-/epics/5401) and making it available as a way to edit content across GitLab.
 
 ### Support for `gitaly['internal_socket_dir']`
 
@@ -694,7 +790,7 @@ WARNING:
 This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
 Review the details carefully before upgrading.
 
-The `push_rules_supersede_code_owners` feature flag has been removed in GitLab 15.0. From now on, push rules will supersede the `CODEOWNERS` file. The code owners feature is no longer available for access control.
+The `push_rules_supersede_code_owners` feature flag has been removed in GitLab 15.0. From now on, push rules will supersede the `CODEOWNERS` file. Even if Code Owner approval is required, a push rule that explicitly allows a specific user to push code supersedes the Code Owners setting.
 
 ### `type` and `types` keyword from CI/CD configuration
 
@@ -825,7 +921,7 @@ WARNING:
 This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
 Review the details carefully before upgrading.
 
-By default, the Code Quality feature has not provided support for Ruby 2.6+ if you're using the Code Quality template. To better support the latest versions of Ruby, the default RuboCop version is updated to add support for Ruby 2.4 through 3.0. As a result, support for Ruby 2.1, 2.2, and 2.3 is removed. You can re-enable support for older versions by [customizing your configuration](https://docs.gitlab.com/ee/user/project/merge_requests/code_quality.html#rubocop-errors).
+By default, the Code Quality feature has not provided support for Ruby 2.6+ if you're using the Code Quality template. To better support the latest versions of Ruby, the default RuboCop version is updated to add support for Ruby 2.4 through 3.0. As a result, support for Ruby 2.1, 2.2, and 2.3 is removed. You can re-enable support for older versions by [customizing your configuration](https://docs.gitlab.com/ee/ci/testing/code_quality.html#rubocop-errors).
 
 Relevant Issue: [Default `codeclimate-rubocop` engine does not support Ruby 2.6+](https://gitlab.com/gitlab-org/ci-cd/codequality/-/issues/28)
 
@@ -868,7 +964,7 @@ WARNING:
 This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
 Review the details carefully before upgrading.
 
-Browser Performance Testing has run in a job named `performance` by default. With the introduction of [Load Performance Testing](https://docs.gitlab.com/ee/user/project/merge_requests/load_performance_testing.html) in GitLab 13.2, this naming could be confusing. To make it clear which job is running [Browser Performance Testing](https://docs.gitlab.com/ee/user/project/merge_requests/browser_performance_testing.html), the default job name is changed from `performance` to `browser_performance` in the template in GitLab 14.0.
+Browser Performance Testing has run in a job named `performance` by default. With the introduction of [Load Performance Testing](https://docs.gitlab.com/ee/ci/testing/code_quality.html) in GitLab 13.2, this naming could be confusing. To make it clear which job is running [Browser Performance Testing](https://docs.gitlab.com/ee/ci/testing/browser_performance_testing.html), the default job name is changed from `performance` to `browser_performance` in the template in GitLab 14.0.
 
 Relevant Issue: [Rename default Browser Performance Testing job](https://gitlab.com/gitlab-org/gitlab/-/issues/225914)
 
@@ -1134,7 +1230,7 @@ WARNING:
 This is a [breaking change](https://docs.gitlab.com/ee/development/deprecation_guidelines/).
 Review the details carefully before upgrading.
 
-The [deployment frequency project-level API](https://docs.gitlab.com/ee/api/dora4_project_analytics.html#list-project-deployment-frequencies) endpoint has been deprecated in favor of the [DORA 4 API](https://docs.gitlab.com/ee/api/dora/metrics.html), which consolidates all the metrics under one API with the specific metric as a required field. As a result, the timestamp field, which doesn't allow adding future extensions and causes performance issues, will be removed. With the old API, an example response would be `{ "2021-03-01": 3, "date": "2021-03-01", "value": 3 }`. The first key/value (`"2021-03-01": 3`) will be removed and replaced by the last two (`"date": "2021-03-01", "value": 3`).
+The [deployment frequency project-level API](https://docs.gitlab.com/ee/api/dora/metrics.html#list-project-deployment-frequencies) endpoint has been deprecated in favor of the [DORA 4 API](https://docs.gitlab.com/ee/api/dora/metrics.html), which consolidates all the metrics under one API with the specific metric as a required field. As a result, the timestamp field, which doesn't allow adding future extensions and causes performance issues, will be removed. With the old API, an example response would be `{ "2021-03-01": 3, "date": "2021-03-01", "value": 3 }`. The first key/value (`"2021-03-01": 3`) will be removed and replaced by the last two (`"date": "2021-03-01", "value": 3`).
 
 ### Release description in the Tags API
 

@@ -35,6 +35,14 @@ RSpec.describe Mutations::AlertManagement::UpdateAlertStatus do
         let(:user) { current_user }
       end
 
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        let(:namespace) { project.namespace }
+        let(:category) { described_class.to_s }
+        let(:user) { current_user }
+        let(:action) { 'incident_management_alert_status_changed' }
+        let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
+      end
+
       context 'error occurs when updating' do
         it 'returns the alert with errors' do
           # Stub an error on the alert

@@ -33,6 +33,12 @@ RSpec.describe Tooling::Danger::ProjectHelper do
     where(:path, :expected_categories) do
       'glfm_specification/example_snapshots/prosemirror_json.yml' | [:frontend]
       'glfm_specification/input/glfm_anything.yml' | [:frontend, :backend]
+
+      'doc/api/graphql/reference/index.md'               | [:docs, :backend]
+      'doc/api/graphql/reference/some_other_file.txt'    | [:docs, :backend]
+      'doc/api/openapi/openapi.yaml'                     | [:docs, :backend]
+      'doc/api/openapi/any_other_file.yaml'              | [:docs, :backend]
+
       'usage_data.rb'   | [:database, :backend, :product_intelligence]
       'doc/foo.md'      | [:docs]
       'CONTRIBUTING.md' | [:docs]
@@ -42,8 +48,8 @@ RSpec.describe Tooling::Danger::ProjectHelper do
       'PROCESS.md'      | [:docs]
       'README.md'       | [:docs]
 
-      'ee/doc/foo'      | [:unknown]
-      'ee/README'       | [:unknown]
+      'ee/doc/foo'      | [:none]
+      'ee/README'       | [:none]
 
       'app/assets/foo'                   | [:frontend]
       'app/views/foo'                    | [:frontend, :backend]
@@ -98,10 +104,11 @@ RSpec.describe Tooling::Danger::ProjectHelper do
       'vendor/languages.yml'    | [:backend]
       'file_hooks/examples/'    | [:backend]
 
-      'Gemfile'        | [:backend]
-      'Gemfile.lock'   | [:backend]
-      'Rakefile'       | [:backend]
-      'FOO_VERSION'    | [:backend]
+      'Gemfile'          | [:backend]
+      'Gemfile.lock'     | [:backend]
+      'Gemfile.checksum' | [:backend]
+      'Rakefile'         | [:backend]
+      'FOO_VERSION'      | [:backend]
 
       'scripts/glfm/bar.rb'                                   | [:backend]
       'scripts/glfm/bar.js'                                   | [:frontend]
@@ -132,7 +139,7 @@ RSpec.describe Tooling::Danger::ProjectHelper do
       'lib/gitlab/ci/templates/Security/SAST.gitlab-ci.yml'   | [:ci_template]
       'lib/gitlab/ci/templates/dotNET-Core.yml'               | [:ci_template]
 
-      'ee/FOO_VERSION' | [:unknown]
+      'ee/FOO_VERSION' | [:none]
 
       'db/schema.rb'                                              | [:database]
       'db/structure.sql'                                          | [:database]
@@ -149,8 +156,6 @@ RSpec.describe Tooling::Danger::ProjectHelper do
       'lib/gitlab/database.rb'                                    | [:database, :backend]
       'lib/gitlab/database/foo'                                   | [:database, :backend]
       'ee/lib/gitlab/database/foo'                                | [:database, :backend]
-      'lib/gitlab/github_import.rb'                               | [:database, :backend]
-      'lib/gitlab/github_import/foo'                              | [:database, :backend]
       'lib/gitlab/sql/foo'                                        | [:database, :backend]
       'rubocop/cop/migration/foo'                                 | [:database]
 
@@ -165,8 +170,8 @@ RSpec.describe Tooling::Danger::ProjectHelper do
 
       'locale/gitlab.pot' | [:none]
 
-      'FOO'          | [:unknown]
-      'foo'          | [:unknown]
+      'FOO'          | [:none]
+      'foo'          | [:none]
 
       'foo/bar.rb'  | [:backend]
       'foo/bar.js'  | [:frontend]

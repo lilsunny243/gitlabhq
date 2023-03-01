@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Config::External::File::Artifact do
+RSpec.describe Gitlab::Ci::Config::External::File::Artifact, feature_category: :pipeline_composition do
   let(:parent_pipeline) { create(:ci_pipeline) }
   let(:variables) {}
   let(:context) do
@@ -31,7 +31,7 @@ RSpec.describe Gitlab::Ci::Config::External::File::Artifact do
 
   describe '#valid?' do
     subject(:valid?) do
-      external_file.validate!
+      Gitlab::Ci::Config::External::Mapper::Verifier.new(context).process([external_file])
       external_file.valid?
     end
 
@@ -162,7 +162,8 @@ RSpec.describe Gitlab::Ci::Config::External::File::Artifact do
                       user: anything
                     }
                     expect(context).to receive(:mutate).with(expected_attrs).and_call_original
-                    external_file.validate!
+
+                    expect(valid?).to be_truthy
                     external_file.content
                   end
                 end
@@ -174,9 +175,10 @@ RSpec.describe Gitlab::Ci::Config::External::File::Artifact do
 
       context 'when job is provided as a variable' do
         let(:variables) do
-          Gitlab::Ci::Variables::Collection.new([
-            { key: 'VAR1', value: 'a_secret_variable_value', masked: true }
-          ])
+          Gitlab::Ci::Variables::Collection.new(
+            [
+              { key: 'VAR1', value: 'a_secret_variable_value', masked: true }
+            ])
         end
 
         let(:params) { { artifact: 'generated.yml', job: 'a_secret_variable_value' } }

@@ -1,7 +1,7 @@
 ---
 stage: Platforms
 group: Scalability
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Stage group dashboard
@@ -54,9 +54,9 @@ description, note the following:
   precision is 2. In some extremely low panels, you can see `0.00`, even though there is still some
   real traffic.
 
-To inspect the raw data of the panel for further calculation, select **Inspect** from the dropdown
-list of a panel. Queries, raw data, and panel JSON structure are available.
-Read more at [Grafana panel inspection](http://grafana.com/docs/grafana/next/panels/query-a-data-source/).
+To inspect the raw data of the panel for further calculation, select **Inspect** from the dropdown list of a panel.
+Queries, raw data, and panel JSON structure are available.
+Read more at [Grafana panel inspection](https://grafana.com/docs/grafana/latest/panels-visualizations/query-transform-data/).
 
 All the dashboards are powered by [Grafana](https://grafana.com/), a frontend for displaying metrics.
 Grafana consumes the data returned from queries to backend Prometheus data source, then presents it
@@ -168,7 +168,7 @@ stageGroupDashboards.dashboard('source_code')
 If you want to see the workflow in action, we've recorded a pairing session on customizing a dashboard,
 available on [GitLab Unfiltered](https://youtu.be/shEd_eiUjdI).
 
-For deeper customization and more complicated metrics, visit the
+For deeper customization and more complicated metrics, see the
 [Grafonnet lib](https://github.com/grafana/grafonnet-lib) project and the
 [GitLab Prometheus Metrics](../../../administration/monitoring/prometheus/gitlab_metrics.md#gitlab-prometheus-metrics)
 documentation.

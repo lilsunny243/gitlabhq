@@ -27,7 +27,6 @@
 #     last_activity_after: datetime
 #     last_activity_before: datetime
 #     repository_storage: string
-#     without_deleted: boolean
 #     not_aimed_for_deletion: boolean
 #
 class ProjectsFinder < UnionFinder
@@ -57,11 +56,7 @@ class ProjectsFinder < UnionFinder
     collection = Project.wrap_with_cte(collection) if use_cte
     collection = filter_projects(collection)
 
-    if params[:sort] == 'similarity' && params[:search]
-      collection.sorted_by_similarity_desc(params[:search])
-    else
-      sort(collection)
-    end
+    sort(collection)
   end
 
   private
@@ -76,6 +71,7 @@ class ProjectsFinder < UnionFinder
 
   # EE would override this to add more filters
   def filter_projects(collection)
+    collection = collection.without_deleted
     collection = by_ids(collection)
     collection = by_personal(collection)
     collection = by_starred(collection)
@@ -86,10 +82,11 @@ class ProjectsFinder < UnionFinder
     collection = by_search(collection)
     collection = by_archived(collection)
     collection = by_custom_attributes(collection)
-    collection = by_deleted_status(collection)
     collection = by_not_aimed_for_deletion(collection)
     collection = by_last_activity_after(collection)
     collection = by_last_activity_before(collection)
+    collection = by_language(collection)
+    collection = by_feature_availability(collection)
     by_repository_storage(collection)
   end
 
@@ -98,12 +95,10 @@ class ProjectsFinder < UnionFinder
       current_user.owned_projects
     elsif min_access_level?
       current_user.authorized_projects(params[:min_access_level])
+    elsif private_only? || impossible_visibility_level?
+      current_user.authorized_projects
     else
-      if private_only? || impossible_visibility_level?
-        current_user.authorized_projects
-      else
-        Project.public_or_visible_to_user(current_user)
-      end
+      Project.public_or_visible_to_user(current_user)
     end
   end
 
@@ -119,9 +114,9 @@ class ProjectsFinder < UnionFinder
   # This is an optimization - surprisingly PostgreSQL does not optimize
   # for this.
   #
-  # If the default visiblity level and desired visiblity level filter cancels
+  # If the default visibility level and desired visibility level filter cancels
   # each other out, don't use the SQL clause for visibility level in
-  # `Project.public_or_visible_to_user`. In fact, this then becames equivalent
+  # `Project.public_or_visible_to_user`. In fact, this then becomes equivalent
   # to just authorized projects for the user.
   #
   # E.g.
@@ -212,10 +207,6 @@ class ProjectsFinder < UnionFinder
     items.optionally_search(params[:search], include_namespace: params[:search_namespaces].present?)
   end
 
-  def by_deleted_status(items)
-    params[:without_deleted].present? ? items.without_deleted : items
-  end
-
   def by_not_aimed_for_deletion(items)
     params[:not_aimed_for_deletion].present? ? items.not_aimed_for_deletion : items
   end
@@ -244,12 +235,22 @@ class ProjectsFinder < UnionFinder
     end
   end
 
-  def sort(items)
-    if params[:sort].present?
-      items.sort_by_attribute(params[:sort])
+  def by_language(items)
+    if params[:language].present?
+      items.with_programming_language_id(params[:language])
     else
-      items.projects_order_id_desc
+      items
     end
+  end
+
+  def sort(items)
+    return items.projects_order_id_desc unless params[:sort]
+
+    if params[:sort] == 'similarity' && params[:search].present?
+      return items.sorted_by_similarity_desc(params[:search], include_in_select: true)
+    end
+
+    items.sort_by_attribute(params[:sort])
   end
 
   def by_archived(projects)
@@ -266,6 +267,12 @@ class ProjectsFinder < UnionFinder
     else
       projects
     end
+  end
+
+  def by_feature_availability(items)
+    items = items.with_issues_available_for_user(current_user) if params[:with_issues_enabled]
+    items = items.with_merge_requests_available_for_user(current_user) if params[:with_merge_requests_enabled]
+    items
   end
 
   def finder_params

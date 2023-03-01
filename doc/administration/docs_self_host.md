@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Host the GitLab product documentation **(FREE SELF)**
@@ -91,7 +91,7 @@ Prerequisite:
 
 To host the product documentation site with GitLab Pages:
 
-1. [Create a blank project](../user/project/working_with_projects.md#create-a-blank-project).
+1. [Create a blank project](../user/project/index.md#create-a-blank-project).
 1. Create a new or edit your existing `.gitlab-ci.yml` file, and add the following
    `pages` job, while ensuring the version is the same as your GitLab installation:
 
@@ -177,7 +177,7 @@ documentation URL requests as needed. For example, if your GitLab version is
 - When you select the link, you are redirected to
 `http://0.0.0.0:4000/14.5/ee/user/admin_area/settings/help_page/#destination-requirements`.
 
-To test the setting, select a **Learn more** link within the GitLab application.
+To test the setting, select a **Learn more** link in the GitLab application.
 
 ## Upgrade the product documentation to a later version
 
@@ -261,7 +261,7 @@ To upgrade to a later version [using your own web-server](#self-host-the-product
 
 If you self-host the product documentation:
 
-- The version dropdown displays additional versions that don't exist. Selecting
+- The version dropdown list displays additional versions that don't exist. Selecting
   these versions displays a `404 Not Found` page.
 - The search displays results from `docs.gitlab.com` and not the local site.
 - By default, the landing page redirects to the

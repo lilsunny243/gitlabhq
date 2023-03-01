@@ -14,11 +14,11 @@ RSpec.describe ProjectsFinder do
     end
 
     let_it_be(:internal_project) do
-      create(:project, :internal, group: group, name: 'B', path: 'B')
+      create(:project, :internal, :merge_requests_disabled, group: group, name: 'B', path: 'B')
     end
 
     let_it_be(:public_project) do
-      create(:project, :public, group: group, name: 'C', path: 'C')
+      create(:project, :public, :merge_requests_enabled, :issues_disabled, group: group, name: 'C', path: 'C')
     end
 
     let_it_be(:shared_project) do
@@ -350,43 +350,6 @@ RSpec.describe ProjectsFinder do
         end
       end
 
-      describe 'filter by without_deleted' do
-        let_it_be(:pending_delete_project) { create(:project, :public, pending_delete: true) }
-
-        let(:params) { { without_deleted: without_deleted } }
-
-        shared_examples 'returns all projects' do
-          it { expect(subject).to include(public_project, internal_project, pending_delete_project) }
-        end
-
-        context 'when without_deleted is true' do
-          let(:without_deleted) { true }
-
-          it 'returns projects that are not pending_delete' do
-            expect(subject).not_to include(pending_delete_project)
-            expect(subject).to include(public_project, internal_project)
-          end
-        end
-
-        context 'when without_deleted is false' do
-          let(:without_deleted) { false }
-
-          it_behaves_like 'returns all projects'
-        end
-
-        context 'when without_deleted is nil' do
-          let(:without_deleted) { nil }
-
-          it_behaves_like 'returns all projects'
-        end
-
-        context 'when without_deleted is not present' do
-          let(:params) { {} }
-
-          it_behaves_like 'returns all projects'
-        end
-      end
-
       describe 'filter by last_activity_after' do
         let(:params) { { last_activity_after: 60.minutes.ago } }
 
@@ -396,6 +359,15 @@ RSpec.describe ProjectsFinder do
         end
 
         it { is_expected.to match_array([internal_project]) }
+      end
+
+      describe 'always filters by without_deleted' do
+        let_it_be(:pending_delete_project) { create(:project, :public, pending_delete: true) }
+
+        it 'returns projects that are not pending_delete' do
+          expect(subject).not_to include(pending_delete_project)
+          expect(subject).to include(public_project, internal_project)
+        end
       end
 
       describe 'filter by last_activity_before' do
@@ -418,6 +390,27 @@ RSpec.describe ProjectsFinder do
         end
 
         it { is_expected.to match_array([project]) }
+      end
+
+      describe 'filter by language' do
+        let_it_be(:ruby) { create(:programming_language, name: 'Ruby') }
+        let_it_be(:repository_language) { create(:repository_language, project: internal_project, programming_language: ruby) }
+
+        let(:params) { { language: ruby.id } }
+
+        it { is_expected.to match_array([internal_project]) }
+      end
+
+      describe 'when with_issues_enabled is true' do
+        let(:params) { { with_issues_enabled: true } }
+
+        it { is_expected.to match_array([internal_project]) }
+      end
+
+      describe 'when with_merge_requests_enabled is true' do
+        let(:params) { { with_merge_requests_enabled: true } }
+
+        it { is_expected.to match_array([public_project]) }
       end
 
       describe 'sorting' do

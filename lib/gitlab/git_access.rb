@@ -49,7 +49,7 @@ module Gitlab
 
     def self.error_message(key)
       self.ancestors.each do |cls|
-        return cls.const_get('ERROR_MESSAGES', false).fetch(key)
+        return cls.const_get(:ERROR_MESSAGES, false).fetch(key)
       rescue NameError, KeyError
         next
       end
@@ -157,10 +157,10 @@ module Gitlab
     # for deploy tokens and builds
     def can_download?
       deploy_key_can_download_code? ||
-      deploy_token_can_download? ||
-      build_can_download? ||
-      user_can_download? ||
-      guest_can_download?
+        deploy_token_can_download? ||
+        build_can_download? ||
+        user_can_download? ||
+        guest_can_download?
     end
 
     def check_container!
@@ -339,7 +339,7 @@ module Gitlab
     def check_change_access!
       if changes == ANY
         can_push = deploy_key? ||
-                   user_can_push? ||
+          user_can_push? ||
           project&.any_branch_allows_collaboration?(user_access.user)
 
         unless can_push
@@ -367,7 +367,7 @@ module Gitlab
     end
 
     def deploy_key?
-      actor.is_a?(DeployKey)
+      actor.is_a?(DeployKey) && Gitlab::ExternalAuthorization.allow_deploy_tokens_and_deploy_keys?
     end
 
     def deploy_token
@@ -375,7 +375,7 @@ module Gitlab
     end
 
     def deploy_token?
-      actor.is_a?(DeployToken)
+      actor.is_a?(DeployToken) && Gitlab::ExternalAuthorization.allow_deploy_tokens_and_deploy_keys?
     end
 
     def ci?
@@ -394,7 +394,7 @@ module Gitlab
       elsif user
         user.can?(:read_project, project)
       elsif ci?
-        true # allow CI (build without a user) for backwards compatibility
+        false
       end || Guest.can?(:read_project, project)
     end
 
@@ -445,9 +445,6 @@ module Gitlab
           nil
         when Key
           actor.user
-        when :ci
-          Gitlab::AppJsonLogger.info(message: 'Actor was :ci', project_id: project.id)
-          nil
         end
       end
     end

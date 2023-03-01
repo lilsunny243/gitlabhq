@@ -61,14 +61,6 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     handle_omniauth
   end
 
-  def authentiq
-    if params['sid']
-      handle_service_ticket oauth['provider'], params['sid']
-    end
-
-    handle_omniauth
-  end
-
   def auth0
     if oauth['uid'].blank?
       fail_auth0_login
@@ -119,6 +111,7 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
 
       identity_linker ||= auth_module::IdentityLinker.new(current_user, oauth, session)
       link_identity(identity_linker)
+      set_remember_me(current_user)
 
       if identity_linker.changed?
         redirect_identity_linked
@@ -169,6 +162,7 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
       # available in the logs for this request.
       Gitlab::ApplicationContext.push(user: user)
       log_audit_event(user, with: oauth['provider'])
+      Gitlab::Tracking.event(self.class.name, "#{oauth['provider']}_sso", user: user) if new_user
 
       set_remember_me(user)
 
@@ -181,8 +175,10 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
         end
 
         accept_pending_invitations(user: user) if new_user
+        persist_accepted_terms_if_required(user) if new_user
+
         store_after_sign_up_path_for_user if intent_to_register?
-        sign_in_and_redirect(user, event: :authentication)
+        sign_in_and_redirect_or_confirm_identity(user, auth_user, new_user)
       end
     else
       fail_login(user)
@@ -301,8 +297,21 @@ class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     redirect_to new_admin_session_path, alert: _('Invalid login or password')
   end
 
+  def persist_accepted_terms_if_required(user)
+    return unless user.persisted?
+    return unless Gitlab::CurrentSettings.current_application_settings.enforce_terms?
+
+    terms = ApplicationSetting::Term.latest
+    Users::RespondToTermsService.new(user, terms).execute(accepted: true)
+  end
+
   def store_after_sign_up_path_for_user
     store_location_for(:user, users_sign_up_welcome_path)
+  end
+
+  # overridden in EE
+  def sign_in_and_redirect_or_confirm_identity(user, _, _)
+    sign_in_and_redirect(user, event: :authentication)
   end
 end
 

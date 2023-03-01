@@ -8,14 +8,14 @@ describe('import_projects store mutations', () => {
 
   const SOURCE_PROJECT = {
     id: 1,
-    full_name: 'full/name',
-    sanitized_name: 'name',
-    provider_link: 'https://demo.link/full/name',
+    fullName: 'full/name',
+    sanitizedName: 'name',
+    providerLink: 'https://demo.link/full/name',
   };
   const IMPORTED_PROJECT = {
     name: 'demo',
     importSource: 'something',
-    providerLink: 'custom-link',
+    providerLink: 'https://demo.link/full/name',
     importStatus: 'status',
     fullName: 'fullName',
   };
@@ -27,7 +27,12 @@ describe('import_projects store mutations', () => {
       state = {
         filter: 'some-value',
         repositories: ['some', ' repositories'],
-        pageInfo: { page: 1 },
+        pageInfo: {
+          page: 1,
+          startCursor: 'Y3Vyc30yOjI2',
+          endCursor: 'Y3Vyc29yOjI1',
+          hasNextPage: false,
+        },
       };
       mutations[types.SET_FILTER](state, NEW_VALUE);
     });
@@ -36,8 +41,11 @@ describe('import_projects store mutations', () => {
       expect(state.repositories.length).toBe(0);
     });
 
-    it('resets current page to 0', () => {
+    it('resets pagintation', () => {
       expect(state.pageInfo.page).toBe(0);
+      expect(state.pageInfo.startCursor).toBe(null);
+      expect(state.pageInfo.endCursor).toBe(null);
+      expect(state.pageInfo.hasNextPage).toBe(true);
     });
   });
 
@@ -56,21 +64,15 @@ describe('import_projects store mutations', () => {
       describe('for imported projects', () => {
         const response = {
           importedProjects: [IMPORTED_PROJECT],
-          providerRepos: [],
+          providerRepos: [SOURCE_PROJECT],
         };
 
-        it('recreates importSource from response', () => {
+        it('adds importedProject to relevant provider repo', () => {
           state = getInitialState();
 
           mutations[types.RECEIVE_REPOS_SUCCESS](state, response);
 
-          expect(state.repositories[0].importSource).toStrictEqual(
-            expect.objectContaining({
-              fullName: IMPORTED_PROJECT.importSource,
-              sanitizedName: IMPORTED_PROJECT.name,
-              providerLink: IMPORTED_PROJECT.providerLink,
-            }),
-          );
+          expect(state.repositories[0].importedProject).toStrictEqual(IMPORTED_PROJECT);
         });
 
         it('passes project to importProject', () => {
@@ -208,13 +210,13 @@ describe('import_projects store mutations', () => {
   describe(`${types.RECEIVE_IMPORT_ERROR}`, () => {
     beforeEach(() => {
       const REPO_ID = 1;
-      state = { repositories: [{ importSource: { id: REPO_ID } }] };
+      state = { repositories: [{ importSource: { id: REPO_ID }, importedProject: {} }] };
 
       mutations[types.RECEIVE_IMPORT_ERROR](state, REPO_ID);
     });
 
-    it(`removes importedProject entry`, () => {
-      expect(state.repositories[0].importedProject).toBeNull();
+    it('sets status to failed', () => {
+      expect(state.repositories[0].importedProject.importStatus).toBe(STATUSES.FAILED);
     });
   });
 
@@ -263,43 +265,6 @@ describe('import_projects store mutations', () => {
     });
   });
 
-  describe(`${types.REQUEST_NAMESPACES}`, () => {
-    it('sets namespaces loading flag to true', () => {
-      state = {};
-
-      mutations[types.REQUEST_NAMESPACES](state);
-
-      expect(state.isLoadingNamespaces).toBe(true);
-    });
-  });
-
-  describe(`${types.RECEIVE_NAMESPACES_SUCCESS}`, () => {
-    const response = [{ fullPath: 'some/path' }];
-
-    beforeEach(() => {
-      state = {};
-      mutations[types.RECEIVE_NAMESPACES_SUCCESS](state, response);
-    });
-
-    it('stores namespaces to state', () => {
-      expect(state.namespaces).toStrictEqual(response);
-    });
-
-    it('sets namespaces loading flag to false', () => {
-      expect(state.isLoadingNamespaces).toBe(false);
-    });
-  });
-
-  describe(`${types.RECEIVE_NAMESPACES_ERROR}`, () => {
-    it('sets namespaces loading flag to false', () => {
-      state = {};
-
-      mutations[types.RECEIVE_NAMESPACES_ERROR](state);
-
-      expect(state.isLoadingNamespaces).toBe(false);
-    });
-  });
-
   describe(`${types.SET_IMPORT_TARGET}`, () => {
     const PROJECT = {
       id: 2,
@@ -343,6 +308,36 @@ describe('import_projects store mutations', () => {
 
       mutations[types.SET_PAGE](state, NEW_PAGE);
       expect(state.pageInfo.page).toBe(NEW_PAGE);
+    });
+  });
+
+  describe(`${types.SET_PAGE_CURSORS}`, () => {
+    it('sets page cursors', () => {
+      const NEW_CURSORS = { startCursor: 'startCur', endCursor: 'endCur', hasNextPage: false };
+      state = { pageInfo: { page: 1, startCursor: null, endCursor: null, hasNextPage: true } };
+
+      mutations[types.SET_PAGE_CURSORS](state, NEW_CURSORS);
+      expect(state.pageInfo).toEqual({ ...NEW_CURSORS, page: 1 });
+    });
+  });
+
+  describe(`${types.CANCEL_IMPORT_SUCCESS}`, () => {
+    const payload = { repoId: 1 };
+
+    beforeEach(() => {
+      state = {
+        repositories: [
+          {
+            importSource: { id: 1 },
+            importedProject: { importStatus: STATUSES.NONE },
+          },
+        ],
+      };
+      mutations[types.CANCEL_IMPORT_SUCCESS](state, payload);
+    });
+
+    it('updates project status', () => {
+      expect(state.repositories[0].importedProject.importStatus).toBe(STATUSES.CANCELED);
     });
   });
 });

@@ -1,7 +1,8 @@
 import MockAdapter from 'axios-mock-adapter';
 import testAction from 'helpers/vuex_action_helper';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import * as actions from '~/issues/related_merge_requests/store/actions';
 import * as types from '~/issues/related_merge_requests/store/mutation_types';
 
@@ -72,7 +73,9 @@ describe('RelatedMergeRequest store actions', () => {
     describe('for a successful request', () => {
       it('should dispatch success action', () => {
         const data = { a: 1 };
-        mock.onGet(`${state.apiEndpoint}?per_page=100`).replyOnce(200, data, { 'x-total': 2 });
+        mock
+          .onGet(`${state.apiEndpoint}?per_page=100`)
+          .replyOnce(HTTP_STATUS_OK, data, { 'x-total': 2 });
 
         return testAction(
           actions.fetchMergeRequests,
@@ -86,7 +89,7 @@ describe('RelatedMergeRequest store actions', () => {
 
     describe('for a failing request', () => {
       it('should dispatch error action', async () => {
-        mock.onGet(`${state.apiEndpoint}?per_page=100`).replyOnce(400);
+        mock.onGet(`${state.apiEndpoint}?per_page=100`).replyOnce(HTTP_STATUS_BAD_REQUEST);
 
         await testAction(
           actions.fetchMergeRequests,
@@ -95,8 +98,8 @@ describe('RelatedMergeRequest store actions', () => {
           [],
           [{ type: 'requestData' }, { type: 'receiveDataError' }],
         );
-        expect(createFlash).toHaveBeenCalledTimes(1);
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledTimes(1);
+        expect(createAlert).toHaveBeenCalledWith({
           message: expect.stringMatching('Something went wrong'),
         });
       });

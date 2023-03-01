@@ -2,7 +2,7 @@
 type: howto
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Redis replication and failover with Omnibus GitLab **(PREMIUM SELF)**
@@ -66,7 +66,7 @@ When a **Primary** fails to respond, it's the application's responsibility
 (in our case GitLab) to handle timeout and reconnect (querying a **Sentinel**
 for a new **Primary**).
 
-To get a better understanding on how to correctly set up Sentinel, please read
+To get a better understanding on how to correctly set up Sentinel, read
 the [Redis Sentinel](https://redis.io/docs/manual/sentinel/) documentation first, as
 failing to configure it correctly can lead to data loss or can bring your
 whole cluster down, invalidating the failover effort.
@@ -324,6 +324,14 @@ Read more about [roles](https://docs.gitlab.com/omnibus/roles/).
    sudo touch /etc/gitlab/skip-auto-reconfigure
    ```
 
+1. Only the primary GitLab application server should handle migrations. To
+   prevent database migrations from running on upgrade, add the following
+   configuration to your `/etc/gitlab/gitlab.rb` file:
+
+   ```ruby
+   gitlab_rails['auto_migrate'] = false
+   ```
+
 1. [Reconfigure Omnibus GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
 1. Go through the steps again for all the other replica nodes.
 
@@ -350,7 +358,7 @@ Now that the Redis servers are all set up, let's configure the Sentinel
 servers.
 
 If you are not sure if your Redis servers are working and replicating
-correctly, please read the [Troubleshooting Replication](troubleshooting.md#troubleshooting-redis-replication)
+correctly, read the [Troubleshooting Replication](troubleshooting.md#troubleshooting-redis-replication)
 and fix it before proceeding with Sentinel setup.
 
 You must have at least `3` Redis Sentinel servers, and they need to

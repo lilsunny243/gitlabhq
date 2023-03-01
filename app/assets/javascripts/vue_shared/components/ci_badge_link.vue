@@ -1,5 +1,5 @@
 <script>
-import { GlTooltipDirective } from '@gitlab/ui';
+import { GlTooltipDirective, GlLink } from '@gitlab/ui';
 import CiIcon from './ci_icon.vue';
 /**
  * Renders CI Badge link with CI icon and status text based on
@@ -26,6 +26,7 @@ import CiIcon from './ci_icon.vue';
 
 export default {
   components: {
+    GlLink,
     CiIcon,
   },
   directives: {
@@ -40,11 +41,6 @@ export default {
       type: Boolean,
       required: false,
       default: true,
-    },
-    iconClasses: {
-      type: String,
-      required: false,
-      default: '',
     },
   },
   computed: {
@@ -63,17 +59,19 @@ export default {
 };
 </script>
 <template>
-  <a
+  <gl-link
     v-gl-tooltip
-    :href="detailsPath"
+    class="gl-display-inline-flex gl-align-items-center gl-line-height-0 gl-px-3 gl-py-2 gl-rounded-base"
     :class="cssClass"
     :title="title"
     data-qa-selector="status_badge_link"
+    :href="detailsPath"
+    @click="$emit('ciStatusBadgeClick')"
   >
-    <ci-icon :status="status" :css-classes="iconClasses" />
+    <ci-icon :status="status" />
 
     <template v-if="showText">
-      {{ status.text }}
+      <span class="gl-ml-2">{{ status.text }}</span>
     </template>
-  </a>
+  </gl-link>
 </template>

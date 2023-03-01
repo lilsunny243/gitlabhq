@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
+RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state, feature_category: :runner do
   include StubGitlabCalls
   include RedisHelpers
   include WorkhorseHelpers
@@ -238,7 +238,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
 
         context 'authorization token is invalid' do
           it 'responds with forbidden' do
-            authorize_artifacts(token: 'invalid', filesize: 100 )
+            authorize_artifacts(token: 'invalid', filesize: 100)
 
             expect(response).to have_gitlab_http_status(:forbidden)
           end
@@ -575,6 +575,45 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
             end
           end
 
+          context 'when access level is private' do
+            subject(:request) { upload_artifacts(file_upload, headers_with_token, params) }
+
+            let(:params) { { artifact_type: :archive, artifact_format: :zip, accessibility: 'private' } }
+
+            it 'sets job artifact access level to private' do
+              subject
+
+              expect(response).to have_gitlab_http_status(:created)
+              expect(job.reload.job_artifacts_archive).to be_private_accessibility
+            end
+          end
+
+          context 'when access level is public' do
+            subject(:request) { upload_artifacts(file_upload, headers_with_token, params) }
+
+            let(:params) { { artifact_type: :archive, artifact_format: :zip, accessibility: 'public' } }
+
+            it 'sets job artifact access level to public' do
+              subject
+
+              expect(response).to have_gitlab_http_status(:created)
+              expect(job.reload.job_artifacts_archive).to be_public_accessibility
+            end
+          end
+
+          context 'when access level is unknown' do
+            subject(:request) { upload_artifacts(file_upload, headers_with_token, params) }
+
+            let(:params) { { artifact_type: :archive, artifact_format: :zip } }
+
+            it 'sets job artifact access level to public' do
+              subject
+
+              expect(response).to have_gitlab_http_status(:created)
+              expect(job.reload.job_artifacts_archive).to be_public_accessibility
+            end
+          end
+
           context 'when artifact_type is archive' do
             context 'when artifact_format is zip' do
               subject(:request) { upload_artifacts(file_upload, headers_with_token, params) }
@@ -881,11 +920,11 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
             end
           end
 
-          shared_examples 'forbidden request' do
-            it 'responds with forbidden' do
+          shared_examples 'unauthorized request' do
+            it 'responds with unauthorized' do
               download_artifact
 
-              expect(response).to have_gitlab_http_status(:forbidden)
+              expect(response).to have_gitlab_http_status(:unauthorized)
             end
           end
 
@@ -899,7 +938,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
                 job.success!
               end
 
-              it_behaves_like 'successful artifact download'
+              it_behaves_like 'unauthorized request'
             end
           end
 
@@ -916,7 +955,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
                 dependent_job.success!
               end
 
-              it_behaves_like 'forbidden request'
+              it_behaves_like 'unauthorized request'
             end
           end
 
@@ -942,7 +981,7 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
 
             let(:token) { ci_build.token }
 
-            it_behaves_like 'forbidden request'
+            it_behaves_like 'unauthorized request'
           end
 
           context 'when using a token from a cross pipeline build' do
@@ -981,19 +1020,23 @@ RSpec.describe API::Ci::Runner, :clean_gitlab_redis_shared_state do
             let!(:unrelated_ci_build) { create(:ci_build, :running, user: create(:user)) }
             let(:token) { unrelated_ci_build.token }
 
-            it_behaves_like 'forbidden request'
+            it 'responds with forbidden' do
+              download_artifact
+
+              expect(response).to have_gitlab_http_status(:forbidden)
+            end
           end
 
           context 'when using runnners token' do
             let(:token) { job.project.runners_token }
 
-            it_behaves_like 'forbidden request'
+            it_behaves_like 'unauthorized request'
           end
 
           context 'when using an invalid token' do
             let(:token) { 'invalid-token' }
 
-            it_behaves_like 'forbidden request'
+            it_behaves_like 'unauthorized request'
           end
         end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge requests > User merges immediately', :js do
+RSpec.describe 'Merge requests > User merges immediately', :js, feature_category: :code_review_workflow do
   let(:project) { create(:project, :public, :repository) }
   let(:user) { project.creator }
   let!(:merge_request) do
@@ -38,7 +38,7 @@ RSpec.describe 'Merge requests > User merges immediately', :js do
         end
       end
 
-      expect(find('.media-body h4')).to have_content('Merging!')
+      expect(find('[data-testid="merging-state"]')).to have_content('Merging!')
 
       wait_for_requests
     end

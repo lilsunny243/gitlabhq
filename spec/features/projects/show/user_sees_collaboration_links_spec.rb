@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Show > Collaboration links', :js do
+RSpec.describe 'Projects > Show > Collaboration links', :js, feature_category: :projects do
   using RSpec::Parameterized::TableSyntax
 
-  let(:project) { create(:project, :repository, :public) }
-  let(:user) { create(:user) }
+  let_it_be(:project) { create(:project, :repository, :public) }
+  let_it_be(:user) { create(:user) }
 
   before do
     sign_in(user)
@@ -17,7 +17,7 @@ RSpec.describe 'Projects > Show > Collaboration links', :js do
   end
 
   context 'with developer user' do
-    before do
+    before_all do
       project.add_developer(user)
     end
 

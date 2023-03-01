@@ -2,13 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Editing file blob', :js do
+RSpec.describe 'Editing file blob', :js, feature_category: :projects do
   include Spec::Support::Helpers::Features::SourceEditorSpecHelpers
   include TreeHelper
   include BlobSpecHelpers
 
-  let(:project) { create(:project, :public, :repository) }
-  let(:merge_request) { create(:merge_request, source_project: project, source_branch: 'feature', target_branch: 'master') }
+  let_it_be(:project) { create(:project, :public, :repository) }
+  let_it_be(:merge_request) { create(:merge_request, source_project: project, source_branch: 'feature', target_branch: 'master') }
   let(:branch) { 'master' }
   let(:file_path) { project.repository.ls_files(project.repository.root_ref)[1] }
   let(:readme_file_path) { 'README.md' }
@@ -79,6 +79,39 @@ RSpec.describe 'Editing file blob', :js do
 
       find('#file_path').send_keys('foo.txt') do
         expect(find('#editor')['data-mode-id']).to eq('plaintext')
+      end
+    end
+
+    context 'blob edit toolbar' do
+      toolbar_buttons = [
+        "Add bold text",
+        "Add italic text",
+        "Add strikethrough text",
+        "Insert a quote",
+        "Insert code",
+        "Add a link",
+        "Add a bullet list",
+        "Add a numbered list",
+        "Add a checklist",
+        "Add a collapsible section",
+        "Add a table"
+      ]
+
+      it "does not have any buttons" do
+        stub_feature_flags(source_editor_toolbar: true)
+        visit project_edit_blob_path(project, tree_join(branch, readme_file_path))
+        buttons = page.all('.file-buttons .md-header-toolbar button[type="button"]')
+        expect(buttons.length).to eq(0)
+      end
+
+      it "has defined set of toolbar buttons when the flag is off" do
+        stub_feature_flags(source_editor_toolbar: false)
+        visit project_edit_blob_path(project, tree_join(branch, readme_file_path))
+        buttons = page.all('.file-buttons .md-header-toolbar button[type="button"]')
+        expect(buttons.length).to eq(toolbar_buttons.length)
+        toolbar_buttons.each_with_index do |button_title, i|
+          expect(buttons[i]['title']).to include(button_title)
+        end
       end
     end
 
@@ -156,11 +189,14 @@ RSpec.describe 'Editing file blob', :js do
     end
 
     context 'as developer' do
-      let(:user) { create(:user) }
+      let_it_be(:user) { create(:user) }
       let(:protected_branch) { 'protected-branch' }
 
-      before do
+      before_all do
         project.add_developer(user)
+      end
+
+      before do
         project.repository.add_branch(user, protected_branch, 'master')
         create(:protected_branch, project: project, name: protected_branch)
         sign_in(user)

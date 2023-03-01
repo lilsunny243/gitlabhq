@@ -10,7 +10,7 @@ module Gitlab
 
       ConfigError = Class.new(StandardError)
       TIMEOUT_SECONDS = 30.seconds
-      TIMEOUT_MESSAGE = 'Resolving config took longer than expected'
+      TIMEOUT_MESSAGE = 'Request timed out when fetching configuration files.'
 
       RESCUE_ERRORS = [
         Gitlab::Config::Loader::FormatError,
@@ -21,30 +21,36 @@ module Gitlab
 
       attr_reader :root, :context, :source_ref_path, :source, :logger
 
-      def initialize(config, project: nil, pipeline: nil, sha: nil, user: nil, parent_pipeline: nil, source: nil, logger: nil)
+      # rubocop: disable Metrics/ParameterLists
+      def initialize(config, project: nil, pipeline: nil, sha: nil, user: nil, parent_pipeline: nil, source: nil, pipeline_config: nil, logger: nil)
         @logger = logger || ::Gitlab::Ci::Pipeline::Logger.new(project: project)
         @source_ref_path = pipeline&.source_ref_path
         @project = project
 
-        @context = self.logger.instrument(:config_build_context) do
+        @context = self.logger.instrument(:config_build_context, once: true) do
           pipeline ||= ::Ci::Pipeline.new(project: project, sha: sha, user: user, source: source)
-          build_context(project: project, pipeline: pipeline, sha: sha, user: user, parent_pipeline: parent_pipeline)
+          build_context(project: project, pipeline: pipeline, sha: sha, user: user, parent_pipeline: parent_pipeline, pipeline_config: pipeline_config)
         end
 
         @context.set_deadline(TIMEOUT_SECONDS)
 
         @source = source
 
-        @config = self.logger.instrument(:config_expand) do
+        @config = self.logger.instrument(:config_expand, once: true) do
           expand_config(config)
         end
 
-        @root = self.logger.instrument(:config_compose) do
-          Entry::Root.new(@config, project: project, user: user).tap(&:compose!)
+        @root = self.logger.instrument(:config_root, once: true) do
+          Entry::Root.new(@config, project: project, user: user, logger: self.logger)
+        end
+
+        self.logger.instrument(:config_root_compose, once: true) do
+          @root.compose!
         end
       rescue *rescue_errors => e
         raise Config::ConfigError, e.message
       end
+      # rubocop: enable Metrics/ParameterLists
 
       def valid?
         @root.valid?
@@ -73,6 +79,10 @@ module Gitlab
         root.variables_entry.value_with_data
       end
 
+      def variables_with_prefill_data
+        root.variables_entry.value_with_prefill_data
+      end
+
       def stages
         root.stages_value
       end
@@ -83,6 +93,10 @@ module Gitlab
 
       def workflow_rules
         root.workflow_entry.rules_value
+      end
+
+      def workflow_name
+        root.workflow_entry.name
       end
 
       def normalized_jobs
@@ -105,7 +119,8 @@ module Gitlab
       def expand_config(config)
         build_config(config)
 
-      rescue Gitlab::Config::Loader::Yaml::DataTooLargeError => e
+      rescue Gitlab::Config::Loader::Yaml::DataTooLargeError,
+        Gitlab::Config::Loader::MultiDocYaml::DataTooLargeError => e
         track_and_raise_for_dev_exception(e)
         raise Config::ConfigError, e.message
 
@@ -115,23 +130,23 @@ module Gitlab
       end
 
       def build_config(config)
-        initial_config = logger.instrument(:config_yaml_load) do
+        initial_config = logger.instrument(:config_yaml_load, once: true) do
           Config::Yaml.load!(config)
         end
 
-        initial_config = logger.instrument(:config_external_process) do
+        initial_config = logger.instrument(:config_external_process, once: true) do
           Config::External::Processor.new(initial_config, @context).perform
         end
 
-        initial_config = logger.instrument(:config_yaml_extend) do
+        initial_config = logger.instrument(:config_yaml_extend, once: true) do
           Config::Extendable.new(initial_config).to_hash
         end
 
-        initial_config = logger.instrument(:config_tags_resolve) do
+        initial_config = logger.instrument(:config_tags_resolve, once: true) do
           Config::Yaml::Tags::Resolver.new(initial_config).to_hash
         end
 
-        logger.instrument(:config_stages_inject) do
+        logger.instrument(:config_stages_inject, once: true) do
           Config::EdgeStagesInjector.new(initial_config).to_hash
         end
       end
@@ -144,18 +159,19 @@ module Gitlab
         end
       end
 
-      def build_context(project:, pipeline:, sha:, user:, parent_pipeline:)
+      def build_context(project:, pipeline:, sha:, user:, parent_pipeline:, pipeline_config:)
         Config::External::Context.new(
           project: project,
           sha: sha || find_sha(project),
           user: user,
           parent_pipeline: parent_pipeline,
           variables: build_variables(pipeline: pipeline),
+          pipeline_config: pipeline_config,
           logger: logger)
       end
 
       def build_variables(pipeline:)
-        logger.instrument(:config_build_variables) do
+        logger.instrument(:config_build_variables, once: true) do
           pipeline
             .variables_builder
             .config_variables

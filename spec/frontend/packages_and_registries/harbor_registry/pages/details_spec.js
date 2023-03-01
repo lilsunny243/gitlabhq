@@ -8,7 +8,7 @@ import ArtifactsList from '~/packages_and_registries/harbor_registry/components/
 import waitForPromises from 'helpers/wait_for_promises';
 import DetailsHeader from '~/packages_and_registries/harbor_registry/components/details/details_header.vue';
 import PersistedSearch from '~/packages_and_registries/shared/components/persisted_search.vue';
-import { OPERATOR_IS_ONLY } from '~/vue_shared/components/filtered_search_bar/constants';
+import { OPERATORS_IS } from '~/vue_shared/components/filtered_search_bar/constants';
 import {
   NAME_SORT_FIELD,
   TOKEN_TYPE_TAG_NAME,
@@ -24,10 +24,10 @@ jest.mock('~/rest_api', () => ({
 describe('Harbor Details Page', () => {
   let wrapper;
 
-  const findTagsLoader = () => wrapper.find(TagsLoader);
-  const findArtifactsList = () => wrapper.find(ArtifactsList);
-  const findDetailsHeader = () => wrapper.find(DetailsHeader);
-  const findPersistedSearch = () => wrapper.find(PersistedSearch);
+  const findTagsLoader = () => wrapper.findComponent(TagsLoader);
+  const findArtifactsList = () => wrapper.findComponent(ArtifactsList);
+  const findDetailsHeader = () => wrapper.findComponent(DetailsHeader);
+  const findPersistedSearch = () => wrapper.findComponent(PersistedSearch);
 
   const waitForHarborDetailRequest = async () => {
     await waitForPromises();
@@ -137,7 +137,7 @@ describe('Harbor Details Page', () => {
             title: s__('HarborRegistry|Tag'),
             unique: true,
             token: GlFilteredSearchToken,
-            operators: OPERATOR_IS_ONLY,
+            operators: OPERATORS_IS,
           },
         ],
       });

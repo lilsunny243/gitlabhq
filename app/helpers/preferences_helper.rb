@@ -17,8 +17,11 @@ module PreferencesHelper
     dashboards -= excluded_dashboard_choices
 
     dashboards.map do |key|
-      # Use `fetch` so `KeyError` gets raised when a key is missing
-      [localized_dashboard_choices.fetch(key), key]
+      {
+        # Use `fetch` so `KeyError` gets raised when a key is missing
+        text: localized_dashboard_choices.fetch(key),
+        value: key
+      }
     end
   end
 
@@ -27,6 +30,7 @@ module PreferencesHelper
     {
       projects: _("Your Projects (default)"),
       stars: _("Starred Projects"),
+      your_activity: _("Your Activity"),
       project_activity: _("Your Projects' Activity"),
       starred_project_activity: _("Starred Projects' Activity"),
       followed_user_activity: _("Followed Users' Activity"),
@@ -99,9 +103,19 @@ module PreferencesHelper
   end
 
   def language_choices
+    selectable_locales_with_translation_level(Gitlab::I18n::MINIMUM_TRANSLATION_LEVEL).sort.map do |lang, key|
+      {
+        text: lang,
+        value: key
+      }
+    end
+  end
+
+  def default_preferred_language_choices
     options_for_select(
-      selectable_locales_with_translation_level.sort,
-      current_user.preferred_language
+      selectable_locales_with_translation_level(
+        PreferredLanguageSwitcherHelper::SWITCHER_MINIMUM_TRANSLATION_LEVEL).sort,
+      Gitlab::CurrentSettings.default_preferred_language
     )
   end
 
@@ -136,8 +150,8 @@ module PreferencesHelper
     first_day_of_week_choices.rassoc(Gitlab::CurrentSettings.first_day_of_week).first
   end
 
-  def selectable_locales_with_translation_level
-    Gitlab::I18n.selectable_locales.map do |code, language|
+  def selectable_locales_with_translation_level(minimum_level)
+    Gitlab::I18n.selectable_locales(minimum_level).map do |code, language|
       [
         s_("i18n|%{language} (%{percent_translated}%% translated)") % {
           language: language,

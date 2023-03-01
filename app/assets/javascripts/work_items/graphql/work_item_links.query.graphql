@@ -1,36 +1,7 @@
+#import "./work_item.fragment.graphql"
+
 query workItemLinksQuery($id: WorkItemID!) {
   workItem(id: $id) {
-    id
-    workItemType {
-      id
-    }
-    title
-    userPermissions {
-      deleteWorkItem
-      updateWorkItem
-    }
-    confidential
-    widgets {
-      type
-      ... on WorkItemWidgetHierarchy {
-        type
-        parent {
-          id
-        }
-        children {
-          nodes {
-            id
-            confidential
-            workItemType {
-              id
-            }
-            title
-            state
-            createdAt
-            closedAt
-          }
-        }
-      }
-    }
+    ...WorkItem
   }
 }

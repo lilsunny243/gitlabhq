@@ -16,14 +16,14 @@ module Gitlab
           [
             %r(\Apipelines/sha/\w{7,40}\z),
             'ci_editor',
-            'pipeline_authoring'
+            'pipeline_composition'
           ],
           [
             %r(\Aon_demand_scan/counts/),
             'on_demand_scans',
             'dynamic_application_security_testing'
           ]
-        ].map(&method(:build_route)).freeze
+        ].map { |attrs| build_graphql_route(*attrs) }.freeze
 
         def self.match(request)
           return unless request.path_info == graphql_api_path

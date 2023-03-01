@@ -17,6 +17,7 @@ import CollapsedFilesWarning from '~/diffs/components/collapsed_files_warning.vu
 import HiddenFilesWarning from '~/diffs/components/hidden_files_warning.vue';
 
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import * as urlUtils from '~/lib/utils/url_utility';
 import { stubPerformanceWebAPI } from 'helpers/performance';
 import createDiffsStore from '../create_diffs_store';
@@ -30,7 +31,7 @@ const UPDATED_COMMIT_URL = `${TEST_HOST}/COMMIT/NEW`;
 Vue.use(Vuex);
 
 function getCollapsedFilesWarning(wrapper) {
-  return wrapper.find(CollapsedFilesWarning);
+  return wrapper.findComponent(CollapsedFilesWarning);
 }
 
 describe('diffs/components/app', () => {
@@ -70,12 +71,6 @@ describe('diffs/components/app', () => {
       },
       provide,
       store,
-      stubs: {
-        DynamicScroller: {
-          template: `<div><slot :item="$store.state.diffs.diffFiles[0]"></slot></div>`,
-        },
-        DynamicScrollerItem: true,
-      },
     });
   }
 
@@ -87,7 +82,7 @@ describe('diffs/components/app', () => {
     };
     window.mrTabs.expandViewContainer = jest.fn();
     mock = new MockAdapter(axios);
-    mock.onGet(TEST_ENDPOINT).reply(200, {});
+    mock.onGet(TEST_ENDPOINT).reply(HTTP_STATUS_OK, {});
   });
 
   afterEach(() => {
@@ -107,6 +102,7 @@ describe('diffs/components/app', () => {
     beforeEach(() => {
       const fetchResolver = () => {
         store.state.diffs.retrievingBatches = false;
+        store.state.notes.doneFetchingBatchDiscussions = true;
         store.state.notes.discussions = 'test';
         return Promise.resolve({ real_size: 100 });
       };
@@ -152,6 +148,30 @@ describe('diffs/components/app', () => {
     });
   });
 
+  describe('fetch diff with no changes', () => {
+    beforeEach(() => {
+      const fetchResolver = () => {
+        store.state.diffs.retrievingBatches = false;
+        return Promise.resolve({ real_size: null });
+      };
+
+      createComponent();
+      jest.spyOn(wrapper.vm, 'fetchDiffFilesMeta').mockImplementation(fetchResolver);
+
+      return nextTick();
+    });
+
+    it('diff counter to be 0 after fetch', async () => {
+      expect(wrapper.vm.diffFilesLength).toEqual(0);
+      wrapper.vm.fetchData(false);
+
+      await nextTick();
+
+      expect(wrapper.vm.fetchDiffFilesMeta).toHaveBeenCalled();
+      expect(wrapper.vm.diffFilesLength).toEqual(0);
+    });
+  });
+
   describe('codequality diff', () => {
     it('does not fetch code quality data on FOSS', async () => {
       createComponent();
@@ -167,7 +187,7 @@ describe('diffs/components/app', () => {
       state.diffs.isLoading = true;
     });
 
-    expect(wrapper.find(GlLoadingIcon).exists()).toBe(true);
+    expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(true);
   });
 
   it('displays loading icon on batch loading', () => {
@@ -175,13 +195,13 @@ describe('diffs/components/app', () => {
       state.diffs.batchLoadingState = 'loading';
     });
 
-    expect(wrapper.find(GlLoadingIcon).exists()).toBe(true);
+    expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(true);
   });
 
   it('displays diffs container when not loading', () => {
     createComponent();
 
-    expect(wrapper.find(GlLoadingIcon).exists()).toBe(false);
+    expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(false);
     expect(wrapper.find('#diffs').exists()).toBe(true);
   });
 
@@ -239,7 +259,7 @@ describe('diffs/components/app', () => {
 
     it('sets width of tree list', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles = [{ file_hash: '111', file_path: '111.js' }];
+        state.diffs.treeEntries = { 111: { type: 'blob', fileHash: '111', path: '111.js' } };
       });
 
       expect(wrapper.find('.js-diff-tree-list').element.style.width).toEqual('320px');
@@ -263,18 +283,19 @@ describe('diffs/components/app', () => {
     it('renders empty state when no diff files exist', () => {
       createComponent();
 
-      expect(wrapper.find(NoChanges).exists()).toBe(true);
+      expect(wrapper.findComponent(NoChanges).exists()).toBe(true);
     });
 
     it('does not render empty state when diff files exist', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles.push({
-          id: 1,
-        });
+        state.diffs.diffFiles = ['anything'];
+        state.diffs.treeEntries['1'] = { type: 'blob', id: 1 };
       });
 
-      expect(wrapper.find(NoChanges).exists()).toBe(false);
-      expect(wrapper.findAll(DiffFile).length).toBe(1);
+      expect(wrapper.findComponent(NoChanges).exists()).toBe(false);
+      expect(wrapper.findComponent({ name: 'DynamicScroller' }).props('items')).toBe(
+        store.state.diffs.diffFiles,
+      );
     });
   });
 
@@ -362,10 +383,10 @@ describe('diffs/components/app', () => {
 
     beforeEach(() => {
       createComponent({}, () => {
-        store.state.diffs.diffFiles = [
-          { file_hash: '111', file_path: '111.js' },
-          { file_hash: '222', file_path: '222.js' },
-          { file_hash: '333', file_path: '333.js' },
+        store.state.diffs.treeEntries = [
+          { type: 'blob', fileHash: '111', path: '111.js' },
+          { type: 'blob', fileHash: '222', path: '222.js' },
+          { type: 'blob', fileHash: '333', path: '333.js' },
         ];
       });
       spy = jest.spyOn(store, 'dispatch');
@@ -481,14 +502,13 @@ describe('diffs/components/app', () => {
   describe('diffs', () => {
     it('should render compare versions component', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles = [{ file_hash: '111', file_path: '111.js' }];
         state.diffs.mergeRequestDiffs = diffsMockData;
         state.diffs.targetBranchName = 'target-branch';
         state.diffs.mergeRequestDiff = mergeRequestDiff;
       });
 
-      expect(wrapper.find(CompareVersions).exists()).toBe(true);
-      expect(wrapper.find(CompareVersions).props()).toEqual(
+      expect(wrapper.findComponent(CompareVersions).exists()).toBe(true);
+      expect(wrapper.findComponent(CompareVersions).props()).toEqual(
         expect.objectContaining({
           diffFilesCountText: null,
         }),
@@ -506,8 +526,8 @@ describe('diffs/components/app', () => {
             state.diffs.size = 1;
           });
 
-          expect(wrapper.find(HiddenFilesWarning).exists()).toBe(true);
-          expect(wrapper.find(HiddenFilesWarning).props()).toEqual(
+          expect(wrapper.findComponent(HiddenFilesWarning).exists()).toBe(true);
+          expect(wrapper.findComponent(HiddenFilesWarning).props()).toEqual(
             expect.objectContaining({
               total: '5',
               plainDiffPath: 'plain diff path',
@@ -547,29 +567,37 @@ describe('diffs/components/app', () => {
         };
       });
 
-      expect(wrapper.find(CommitWidget).exists()).toBe(true);
+      expect(wrapper.findComponent(CommitWidget).exists()).toBe(true);
     });
 
     it('should display diff file if there are diff files', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles.push({ sha: '123' });
+        state.diffs.diffFiles = [{ file_hash: '111', file_path: '111.js' }];
+        state.diffs.treeEntries = {
+          111: { type: 'blob', fileHash: '111', path: '111.js' },
+          123: { type: 'blob', fileHash: '123', path: '123.js' },
+          312: { type: 'blob', fileHash: '312', path: '312.js' },
+        };
       });
 
-      expect(wrapper.find(DiffFile).exists()).toBe(true);
+      expect(wrapper.findComponent({ name: 'DynamicScroller' }).exists()).toBe(true);
+      expect(wrapper.findComponent({ name: 'DynamicScroller' }).props('items')).toBe(
+        store.state.diffs.diffFiles,
+      );
     });
 
     it("doesn't render tree list when no changes exist", () => {
       createComponent();
 
-      expect(wrapper.find(TreeList).exists()).toBe(false);
+      expect(wrapper.findComponent(TreeList).exists()).toBe(false);
     });
 
     it('should render tree list', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles = [{ file_hash: '111', file_path: '111.js' }];
+        state.diffs.treeEntries = { 111: { type: 'blob', fileHash: '111', path: '111.js' } };
       });
 
-      expect(wrapper.find(TreeList).exists()).toBe(true);
+      expect(wrapper.findComponent(TreeList).exists()).toBe(true);
     });
   });
 
@@ -580,7 +608,7 @@ describe('diffs/components/app', () => {
 
     it('calls setShowTreeList when only 1 file', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles.push({ sha: '123' });
+        state.diffs.treeEntries = { 123: { type: 'blob', fileHash: '123' } };
       });
       jest.spyOn(store, 'dispatch');
       wrapper.vm.setTreeDisplay();
@@ -591,10 +619,12 @@ describe('diffs/components/app', () => {
       });
     });
 
-    it('calls setShowTreeList with true when more than 1 file is in diffs array', () => {
+    it('calls setShowTreeList with true when more than 1 file is in tree entries map', () => {
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles.push({ sha: '123' });
-        state.diffs.diffFiles.push({ sha: '124' });
+        state.diffs.treeEntries = {
+          111: { type: 'blob', fileHash: '111', path: '111.js' },
+          123: { type: 'blob', fileHash: '123', path: '123.js' },
+        };
       });
       jest.spyOn(store, 'dispatch');
 
@@ -614,7 +644,7 @@ describe('diffs/components/app', () => {
       localStorage.setItem('mr_tree_show', showTreeList);
 
       createComponent({}, ({ state }) => {
-        state.diffs.diffFiles.push({ sha: '123' });
+        state.diffs.treeEntries['123'] = { sha: '123' };
       });
       jest.spyOn(store, 'dispatch');
 
@@ -630,22 +660,28 @@ describe('diffs/components/app', () => {
   describe('file-by-file', () => {
     it('renders a single diff', async () => {
       createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-        state.diffs.diffFiles.push({ file_hash: '123' });
+        state.diffs.treeEntries = {
+          123: { type: 'blob', fileHash: '123' },
+          312: { type: 'blob', fileHash: '312' },
+        };
         state.diffs.diffFiles.push({ file_hash: '312' });
       });
 
       await nextTick();
 
-      expect(wrapper.findAll(DiffFile).length).toBe(1);
+      expect(wrapper.findAllComponents(DiffFile).length).toBe(1);
     });
 
     describe('pagination', () => {
       const fileByFileNav = () => wrapper.find('[data-testid="file-by-file-navigation"]');
-      const paginator = () => fileByFileNav().find(GlPagination);
+      const paginator = () => fileByFileNav().findComponent(GlPagination);
 
       it('sets previous button as disabled', async () => {
         createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-          state.diffs.diffFiles.push({ file_hash: '123' }, { file_hash: '312' });
+          state.diffs.treeEntries = {
+            123: { type: 'blob', fileHash: '123' },
+            312: { type: 'blob', fileHash: '312' },
+          };
         });
 
         await nextTick();
@@ -656,7 +692,10 @@ describe('diffs/components/app', () => {
 
       it('sets next button as disabled', async () => {
         createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-          state.diffs.diffFiles.push({ file_hash: '123' }, { file_hash: '312' });
+          state.diffs.treeEntries = {
+            123: { type: 'blob', fileHash: '123' },
+            312: { type: 'blob', fileHash: '312' },
+          };
           state.diffs.currentDiffFileId = '312';
         });
 
@@ -668,7 +707,7 @@ describe('diffs/components/app', () => {
 
       it("doesn't display when there's fewer than 2 files", async () => {
         createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-          state.diffs.diffFiles.push({ file_hash: '123' });
+          state.diffs.treeEntries = { 123: { type: 'blob', fileHash: '123' } };
           state.diffs.currentDiffFileId = '123';
         });
 
@@ -682,10 +721,13 @@ describe('diffs/components/app', () => {
         ${'123'}          | ${2}
         ${'312'}          | ${1}
       `(
-        'it calls navigateToDiffFileIndex with $index when $link is clicked',
+        'calls navigateToDiffFileIndex with $index when $link is clicked',
         async ({ currentDiffFileId, targetFile }) => {
           createComponent({ fileByFileUserPreference: true }, ({ state }) => {
-            state.diffs.diffFiles.push({ file_hash: '123' }, { file_hash: '312' });
+            state.diffs.treeEntries = {
+              123: { type: 'blob', fileHash: '123' },
+              312: { type: 'blob', fileHash: '312' },
+            };
             state.diffs.currentDiffFileId = currentDiffFileId;
           });
 

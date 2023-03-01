@@ -4,6 +4,7 @@ class Projects::MergeRequests::CreationsController < Projects::MergeRequests::Ap
   include DiffForPath
   include DiffHelper
   include RendersCommits
+  include ::Observability::ContentSecurityPolicy
 
   skip_before_action :merge_request
   before_action :authorize_create_merge_request_from!
@@ -89,6 +90,14 @@ class Projects::MergeRequests::CreationsController < Projects::MergeRequests::Ap
     render layout: false
   end
 
+  def target_projects
+    projects = MergeRequestTargetProjectFinder
+                .new(current_user: current_user, source_project: @project, project_feature: :repository)
+                .execute(include_routes: false, search: params[:search]).limit(20)
+
+    render json: ProjectSerializer.new.represent(projects)
+  end
+
   private
 
   def build_merge_request
@@ -105,11 +114,10 @@ class Projects::MergeRequests::CreationsController < Projects::MergeRequests::Ap
     @target_project = @merge_request.target_project
     @source_project = @merge_request.source_project
 
-    @commits =
-      set_commits_for_rendering(
-        @merge_request.recent_commits.with_latest_pipeline(@merge_request.source_branch),
-          commits_count: @merge_request.commits_count
-      )
+    @commits = set_commits_for_rendering(
+      @merge_request.recent_commits.with_latest_pipeline(@merge_request.source_branch),
+      commits_count: @merge_request.commits_count
+    )
 
     @commit = @merge_request.diff_head_commit
 

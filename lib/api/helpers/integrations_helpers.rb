@@ -63,6 +63,12 @@ module API
           },
           {
             required: false,
+            name: :incident_channel,
+            type: String,
+            desc: 'The name of the channel to receive incident_events notifications'
+          },
+          {
+            required: false,
             name: :confidential_issue_channel,
             type: String,
             desc: 'The name of the channel to receive confidential_issues_events notifications'
@@ -116,6 +122,12 @@ module API
           },
           {
             required: false,
+            name: :incident_events,
+            type: Boolean,
+            desc: 'Enable notifications for incident_events'
+          },
+          {
+            required: false,
             name: :confidential_issues_events,
             type: Boolean,
             desc: 'Enable notifications for confidential_issues_events'
@@ -161,6 +173,32 @@ module API
 
       def self.integrations
         {
+          'apple-app-store' => [
+            {
+              required: true,
+              name: :app_store_issuer_id,
+              type: String,
+              desc: 'The Apple App Store Connect Issuer ID'
+            },
+            {
+              required: true,
+              name: :app_store_key_id,
+              type: String,
+              desc: 'The Apple App Store Connect Key ID'
+            },
+            {
+              required: true,
+              name: :app_store_private_key,
+              type: String,
+              desc: 'The Apple App Store Connect Private Key'
+            },
+            {
+              required: true,
+              name: :app_store_private_key_file_name,
+              type: String,
+              desc: 'The Apple App Store Connect Private Key File Name'
+            }
+          ],
           'asana' => [
             {
               required: true,
@@ -415,12 +453,18 @@ module API
               desc: 'The URL of the external wiki'
             }
           ],
-          'flowdock' => [
+          'google-play' => [
             {
               required: true,
-              name: :token,
+              name: :service_account_key,
               type: String,
-              desc: 'Flowdock token'
+              desc: 'The Google Play Service Account Key'
+            },
+            {
+              required: true,
+              name: :service_account_key_file_name,
+              type: String,
+              desc: 'The Google Play Service Account Key File Name'
             }
           ],
           'hangouts-chat' => [
@@ -879,6 +923,7 @@ module API
 
       def self.integration_classes
         [
+          ::Integrations::AppleAppStore,
           ::Integrations::Asana,
           ::Integrations::Assembla,
           ::Integrations::Bamboo,
@@ -893,7 +938,7 @@ module API
           ::Integrations::EmailsOnPush,
           ::Integrations::Ewm,
           ::Integrations::ExternalWiki,
-          ::Integrations::Flowdock,
+          ::Integrations::GooglePlay,
           ::Integrations::HangoutsChat,
           ::Integrations::Harbor,
           ::Integrations::Irker,

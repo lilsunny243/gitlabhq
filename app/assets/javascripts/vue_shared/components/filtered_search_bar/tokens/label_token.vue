@@ -1,11 +1,11 @@
 <script>
 import { GlToken, GlFilteredSearchSuggestion } from '@gitlab/ui';
 
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { convertObjectPropsToCamelCase } from '~/lib/utils/common_utils';
 import { __ } from '~/locale';
 
-import { DEFAULT_NONE_ANY } from '../constants';
+import { OPTIONS_NONE_ANY } from '../constants';
 import { stripQuotes } from '../filtered_search_utils';
 
 import BaseToken from './base_token.vue';
@@ -38,7 +38,7 @@ export default {
   },
   computed: {
     defaultLabels() {
-      return this.config.defaultLabels || DEFAULT_NONE_ANY;
+      return this.config.defaultLabels || OPTIONS_NONE_ANY;
     },
   },
   methods: {
@@ -79,15 +79,33 @@ export default {
           // labels.json and /groups/:id/labels & /projects/:id/labels
           // return response differently.
           this.labels = Array.isArray(res) ? res : res.data;
+          if (this.config.fetchLatestLabels) {
+            this.fetchLatestLabels(searchTerm);
+          }
         })
         .catch(() =>
-          createFlash({
+          createAlert({
             message: __('There was a problem fetching labels.'),
           }),
         )
         .finally(() => {
           this.loading = false;
         });
+    },
+    fetchLatestLabels(searchTerm) {
+      this.config
+        .fetchLatestLabels(searchTerm)
+        .then((res) => {
+          // We'd want to avoid doing this check but
+          // labels.json and /groups/:id/labels & /projects/:id/labels
+          // return response differently.
+          this.labels = Array.isArray(res) ? res : res.data;
+        })
+        .catch(() =>
+          createAlert({
+            message: __('There was a problem fetching latest labels.'),
+          }),
+        );
     },
   },
 };

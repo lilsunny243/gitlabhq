@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::GenericPackages do
+RSpec.describe API::GenericPackages, feature_category: :package_registry do
   include HttpBasicAuthHelpers
   using RSpec::Parameterized::TableSyntax
 
@@ -19,7 +19,7 @@ RSpec.describe API::GenericPackages do
 
   let(:user) { personal_access_token.user }
   let(:ci_build) { create(:ci_build, :running, user: user, project: project) }
-  let(:snowplow_standard_context_params) { { user: user, project: project, namespace: project.namespace } }
+  let(:snowplow_gitlab_standard_context) { { user: user, project: project, namespace: project.namespace, property: 'i_package_generic_user' } }
 
   def auth_header
     return {} if user_role == :anonymous
@@ -408,8 +408,6 @@ RSpec.describe API::GenericPackages do
       end
 
       context 'event tracking' do
-        let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, user: user } }
-
         subject { upload_file(params, workhorse_headers.merge(personal_access_token_header)) }
 
         it_behaves_like 'a package tracking event', described_class.name, 'push_package'
@@ -572,6 +570,12 @@ RSpec.describe API::GenericPackages do
 
           expect(response).to have_gitlab_http_status(expected_status)
         end
+
+        if params[:expected_status] == :success
+          it_behaves_like 'bumping the package last downloaded at field' do
+            subject { download_file(auth_header) }
+          end
+        end
       end
 
       where(:authenticate_with, :expected_status) do
@@ -587,6 +591,27 @@ RSpec.describe API::GenericPackages do
 
           expect(response).to have_gitlab_http_status(expected_status)
         end
+
+        if params[:expected_status] == :success
+          it_behaves_like 'bumping the package last downloaded at field' do
+            subject { download_file(deploy_token_auth_header) }
+          end
+        end
+      end
+    end
+
+    context 'with access to package registry for everyone' do
+      let_it_be(:user_role) { :anonymous }
+
+      before do
+        project.update!(visibility_level: Gitlab::VisibilityLevel::PRIVATE)
+        project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+      end
+
+      it 'responds with success' do
+        download_file(auth_header)
+
+        expect(response).to have_gitlab_http_status(:success)
       end
     end
 
@@ -608,12 +633,16 @@ RSpec.describe API::GenericPackages do
 
           expect(response).to have_gitlab_http_status(expected_status)
         end
+
+        if params[:expected_status] == :success
+          it_behaves_like 'bumping the package last downloaded at field' do
+            subject { download_file(personal_access_token_header) }
+          end
+        end
       end
     end
 
     context 'event tracking' do
-      let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, user: user } }
-
       before do
         project.add_developer(user)
       end

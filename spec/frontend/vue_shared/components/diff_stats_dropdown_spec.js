@@ -66,7 +66,7 @@ describe('Diff Stats Dropdown', () => {
       createComponent({ files: mockFiles });
     });
 
-    it('when no file name provided ', () => {
+    it('when no file name provided', () => {
       expect(findChangedFiles().at(0).text()).toContain(i18n.noFileNameAvailable);
     });
 
@@ -106,11 +106,11 @@ describe('Diff Stats Dropdown', () => {
       expectedAddedDeletedExpanded,
       expectedAddedDeletedCollapsed,
     }) => {
-      beforeAll(() => {
+      beforeEach(() => {
         createComponent({ changed, added, deleted });
       });
 
-      afterAll(() => {
+      afterEach(() => {
         wrapper.destroy();
       });
 
@@ -153,7 +153,7 @@ describe('Diff Stats Dropdown', () => {
       createComponent({ files: mockFiles });
     });
 
-    it('updates the URL ', () => {
+    it('updates the URL', () => {
       findChangedFiles().at(0).vm.$emit('click');
       expect(window.location.hash).toBe(mockFiles[0].href);
       findChangedFiles().at(1).vm.$emit('click');

@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create a Pages website from a forked sample **(FREE)**
@@ -19,38 +19,50 @@ To fork a sample project and create a Pages website:
 
 1. View the sample projects by navigating to the [GitLab Pages examples](https://gitlab.com/pages) group.
 1. Select the name of the project you want to [fork](../../repository/forking_workflow.md#creating-a-fork).
-1. In the top right, select **Fork** and then choose a namespace to fork to.
+1. In the upper-right corner, select **Fork**, then choose a namespace to fork to.
 1. For your project, on the left sidebar, select **CI/CD > Pipelines** and then **Run pipeline**.
    GitLab CI/CD builds and deploys your site.
 
 The site can take approximately 30 minutes to deploy.
-When the pipeline is finished, go to **Settings > Pages** to find the link to your website from your project.
+When the pipeline is finished, go to **Settings > Pages** to find the link to
+your Pages website.
+If this path is not visible, select **Deployments > Pages**.
+[This location is part of an experiment](../index.md#menu-position-test).
 
 For every change pushed to your repository, GitLab CI/CD runs a new pipeline
 that immediately publishes your changes to the Pages site.
 
-You can take some **optional** further steps:
+## Remove the fork relationship
 
-- Remove the fork relationship. If you want to contribute to the project you forked from,
-  you can keep this relationship. Otherwise, go to your project's **Settings > General**,
-  expand **Advanced settings**, and scroll down to **Remove fork relationship**:
+If you want to contribute to the project you forked from,
+you can keep the forked relationship. Otherwise:
 
-  ![Remove fork relationship](../img/remove_fork_relationship_v13_1.png)
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Advanced settings**.
+1. Select **Remove fork relationship**.
 
-- Change the URL to match your namespace. If your Pages site is hosted on GitLab.com,
-  you can rename it to `<namespace>.gitlab.io`, where `<namespace>` is your GitLab namespace
-  (the one you chose when you forked the project).
+## Change the URL
 
-  - Go to your project's **Settings > General** and expand **Advanced**. Scroll down to
-    **Change path** and change the path to `<namespace>.gitlab.io`.
+You can change the URL to match your namespace.
+If your Pages site is hosted on GitLab.com,
+you can rename it to `<namespace>.gitlab.io`, where `<namespace>` is your GitLab namespace
+(the one you chose when you forked the project).
 
-    For example, if your project's URL is `gitlab.com/gitlab-tests/jekyll`, your namespace is
-    `gitlab-tests`.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Advanced**.
+1. In **Change path**, update the path to `<namespace>.gitlab.io`.
 
-    If you set the repository path to `gitlab-tests.gitlab.io`,
-    the resulting URL for your Pages website is `https://gitlab-tests.gitlab.io`.
+   For example, if your project's URL is `gitlab.com/gitlab-tests/jekyll`, your namespace is
+   `gitlab-tests`.
 
-    ![Change repository's path](../img/change_path_v12_10.png)
+   If you set the repository path to `gitlab-tests.gitlab.io`,
+   the resulting URL for your Pages website is `https://gitlab-tests.gitlab.io`.
 
-  - Now go to your SSG's configuration file and change the [base URL](../getting_started_part_one.md#urls-and-base-urls)
-    from `"project-name"` to `""`. The project name setting varies by SSG and may not be in the configuration file.
+   ![Change repository's path](../img/change_path_v12_10.png)
+
+1. Open your SSG configuration file and change the [base URL](../getting_started_part_one.md#urls-and-base-urls)
+   from `"project-name"` to `""`. The project name setting varies by SSG and may not be in the configuration file.
+
+## Related topics
+
+- [Download the job artifacts](../../../../ci/pipelines/job_artifacts.md#download-job-artifacts)

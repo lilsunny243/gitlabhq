@@ -1,5 +1,11 @@
-import { shallowMount } from '@vue/test-utils';
-import { toNounSeriesText } from '~/lib/utils/grammar';
+import Vue from 'vue';
+import VueApollo from 'vue-apollo';
+import { mount } from '@vue/test-utils';
+import approvedByMultipleUsers from 'test_fixtures/graphql/merge_requests/approvals/approvals.query.graphql_multiple_users.json';
+import noApprovalsResponse from 'test_fixtures/graphql/merge_requests/approvals/approvals.query.graphql_no_approvals.json';
+import approvedByCurrentUser from 'test_fixtures/graphql/merge_requests/approvals/approvals.query.graphql.json';
+import waitForPromises from 'helpers/wait_for_promises';
+import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import ApprovalsSummary from '~/vue_merge_request_widget/components/approvals/approvals_summary.vue';
 import {
   APPROVED_BY_OTHERS,
@@ -8,28 +14,21 @@ import {
 } from '~/vue_merge_request_widget/components/approvals/messages';
 import UserAvatarList from '~/vue_shared/components/user_avatar/user_avatar_list.vue';
 
-const exampleUserId = 1;
-const testApprovers = () => Array.from({ length: 5 }, (_, i) => i).map((id) => ({ id }));
-const testRulesLeft = () => ['Lorem', 'Ipsum', 'dolar & sit'];
-const TEST_APPROVALS_LEFT = 3;
+Vue.use(VueApollo);
 
 describe('MRWidget approvals summary', () => {
   const originalUserId = gon.current_user_id;
   let wrapper;
 
-  const createComponent = (props = {}) => {
-    wrapper = shallowMount(ApprovalsSummary, {
+  const createComponent = (data = approvedByCurrentUser) => {
+    wrapper = mount(ApprovalsSummary, {
       propsData: {
-        approved: false,
-        approvers: testApprovers(),
-        approvalsLeft: TEST_APPROVALS_LEFT,
-        rulesLeft: testRulesLeft(),
-        ...props,
+        approvalState: data.data.project.mergeRequest,
       },
     });
   };
 
-  const findAvatars = () => wrapper.find(UserAvatarList);
+  const findAvatars = () => wrapper.findComponent(UserAvatarList);
 
   afterEach(() => {
     wrapper.destroy();
@@ -38,10 +37,10 @@ describe('MRWidget approvals summary', () => {
   });
 
   describe('when approved', () => {
-    beforeEach(() => {
-      createComponent({
-        approved: true,
-      });
+    beforeEach(async () => {
+      createComponent();
+
+      await waitForPromises();
     });
 
     it('shows approved message', () => {
@@ -54,18 +53,19 @@ describe('MRWidget approvals summary', () => {
       expect(avatars.exists()).toBe(true);
       expect(avatars.props()).toEqual(
         expect.objectContaining({
-          items: testApprovers(),
+          items: approvedByCurrentUser.data.project.mergeRequest.approvedBy.nodes,
         }),
       );
     });
 
     describe('by the current user', () => {
-      beforeEach(() => {
-        gon.current_user_id = exampleUserId;
-        createComponent({
-          approvers: [{ id: exampleUserId }],
-          approved: true,
-        });
+      beforeEach(async () => {
+        gon.current_user_id = getIdFromGraphQLId(
+          approvedByCurrentUser.data.project.mergeRequest.approvedBy.nodes[0].id,
+        );
+        createComponent();
+
+        await waitForPromises();
       });
 
       it('shows "Approved by you" message', () => {
@@ -74,12 +74,13 @@ describe('MRWidget approvals summary', () => {
     });
 
     describe('by the current user and others', () => {
-      beforeEach(() => {
-        gon.current_user_id = exampleUserId;
-        createComponent({
-          approvers: [{ id: exampleUserId }, { id: exampleUserId + 1 }],
-          approved: true,
-        });
+      beforeEach(async () => {
+        gon.current_user_id = getIdFromGraphQLId(
+          approvedByMultipleUsers.data.project.mergeRequest.approvedBy.nodes[0].id,
+        );
+        createComponent(approvedByMultipleUsers);
+
+        await waitForPromises();
       });
 
       it('shows "Approved by you and others" message', () => {
@@ -88,12 +89,10 @@ describe('MRWidget approvals summary', () => {
     });
 
     describe('by other users than the current user', () => {
-      beforeEach(() => {
-        gon.current_user_id = exampleUserId;
-        createComponent({
-          approvers: [{ id: exampleUserId + 1 }],
-          approved: true,
-        });
+      beforeEach(async () => {
+        createComponent(approvedByMultipleUsers);
+
+        await waitForPromises();
       });
 
       it('shows "Approved by others" message', () => {
@@ -102,41 +101,15 @@ describe('MRWidget approvals summary', () => {
     });
   });
 
-  describe('when not approved', () => {
-    beforeEach(() => {
-      createComponent();
-    });
-
-    it('render message', () => {
-      const names = toNounSeriesText(testRulesLeft());
-
-      expect(wrapper.text()).toContain(`Requires ${TEST_APPROVALS_LEFT} approvals from ${names}.`);
-    });
-  });
-
-  describe('when no rulesLeft', () => {
-    beforeEach(() => {
-      createComponent({
-        rulesLeft: [],
-      });
-    });
-
-    it('renders message', () => {
-      expect(wrapper.text()).toContain(
-        `Requires ${TEST_APPROVALS_LEFT} approvals from eligible users`,
-      );
-    });
-  });
-
   describe('when no approvers', () => {
-    beforeEach(() => {
-      createComponent({
-        approvers: [],
-      });
+    beforeEach(async () => {
+      createComponent(noApprovalsResponse);
+
+      await waitForPromises();
     });
 
     it('does not render avatar list', () => {
-      expect(wrapper.find(UserAvatarList).exists()).toBe(false);
+      expect(wrapper.findComponent(UserAvatarList).exists()).toBe(false);
     });
   });
 });

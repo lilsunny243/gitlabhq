@@ -1,9 +1,11 @@
 ---
-stage: none
-group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
-comments: false
-description: 'Making GitLab Pages a Cloud Native application - architecture blueprint.'
+status: implemented
+creation-date: "2019-05-16"
+authors: [ "@grzesiek" ]
+coach: [ "@ayufan", "@grzesiek" ]
+approvers: [ "@ogolowinski", "@dcroft", "@vshushlin" ]
+owning-stage: "~devops::release"
+participating-stages: []
 ---
 
 # GitLab Pages New Architecture
@@ -20,7 +22,7 @@ company behind the project.
 This effort is described in more detail
 [in the infrastructure team handbook page](https://about.gitlab.com/handbook/engineering/infrastructure/production/kubernetes/gitlab-com/).
 
-GitLab Pages is tightly coupled with NFS and in order to unblock Kubernetes
+GitLab Pages is tightly coupled with NFS and to unblock Kubernetes
 migration a significant change to GitLab Pages' architecture is required. This
 is an ongoing work that we have started more than a year ago. This blueprint
 might be useful to understand why it is important, and what is the roadmap.
@@ -100,38 +102,3 @@ too.
 
 [GitLab Pages Architecture](https://gitlab.com/groups/gitlab-org/-/epics/1316)
 epic with detailed roadmap is also available.
-
-## Who
-
-Proposal:
-
-<!-- vale gitlab.Spelling = NO -->
-
-| Role                         | Who
-|------------------------------|-------------------------|
-| Author                       |    Grzegorz Bizon       |
-| Architecture Evolution Coach |    Kamil Trzciński      |
-| Engineering Leader           |    Daniel Croft         |
-| Domain Expert                |    Grzegorz Bizon       |
-| Domain Expert                |    Vladimir Shushlin    |
-| Domain Expert                |    Jaime Martinez       |
-
-DRIs:
-
-| Role                         | Who
-|------------------------------|------------------------|
-| Product                      |    Orit Golowinski       |
-| Leadership                   |    Daniel Croft        |
-| Engineering                  |    Vladimir Shushlin   |
-
-Domain Experts:
-
-| Role                         | Who
-|------------------------------|------------------------|
-| Domain Expert                |    Kamil Trzciński     |
-| Domain Expert                |    Grzegorz Bizon      |
-| Domain Expert                |    Vladimir Shushlin   |
-| Domain Expert                |    Jaime Martinez      |
-| Domain Expert                |    Krasimir Angelov    |
-
-<!-- vale gitlab.Spelling = YES -->

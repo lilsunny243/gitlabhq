@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe API::MavenPackages do
+RSpec.describe API::MavenPackages, feature_category: :package_registry do
+  using RSpec::Parameterized::TableSyntax
   include WorkhorseHelpers
 
   include_context 'workhorse headers'
@@ -21,7 +22,8 @@ RSpec.describe API::MavenPackages do
   let_it_be(:deploy_token_for_group) { create(:deploy_token, :group, read_package_registry: true, write_package_registry: true) }
   let_it_be(:group_deploy_token) { create(:group_deploy_token, deploy_token: deploy_token_for_group, group: group) }
 
-  let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, user: user } }
+  let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, property: 'i_package_maven_user' } }
+
   let(:package_name) { 'com/example/my-app' }
   let(:headers) { workhorse_headers }
   let(:headers_with_token) { headers.merge('Private-Token' => personal_access_token.token) }
@@ -40,15 +42,15 @@ RSpec.describe API::MavenPackages do
     project.add_developer(user)
   end
 
-  shared_examples 'handling groups and subgroups for' do |shared_example_name, visibilities: %i[public]|
+  shared_examples 'handling groups and subgroups for' do |shared_example_name, visibilities: { public: :redirect }|
     context 'within a group' do
-      visibilities.each do |visibility|
+      visibilities.each do |visibility, not_found_response|
         context "that is #{visibility}" do
           before do
             group.update!(visibility_level: Gitlab::VisibilityLevel.level_value(visibility.to_s))
           end
 
-          it_behaves_like shared_example_name
+          it_behaves_like shared_example_name, not_found_response
         end
       end
     end
@@ -60,20 +62,20 @@ RSpec.describe API::MavenPackages do
         move_project_to_namespace(subgroup)
       end
 
-      visibilities.each do |visibility|
+      visibilities.each do |visibility, not_found_response|
         context "that is #{visibility}" do
           before do
             subgroup.update!(visibility_level: Gitlab::VisibilityLevel.level_value(visibility.to_s))
             group.update!(visibility_level: Gitlab::VisibilityLevel.level_value(visibility.to_s))
           end
 
-          it_behaves_like shared_example_name
+          it_behaves_like shared_example_name, not_found_response
         end
       end
     end
   end
 
-  shared_examples 'handling groups, subgroups and user namespaces for' do |shared_example_name, visibilities: %i[public]|
+  shared_examples 'handling groups, subgroups and user namespaces for' do |shared_example_name, visibilities: { public: :redirect }|
     it_behaves_like 'handling groups and subgroups for', shared_example_name, visibilities: visibilities
 
     context 'within a user namespace' do
@@ -97,19 +99,7 @@ RSpec.describe API::MavenPackages do
     context 'with jar file' do
       let_it_be(:package_file) { jar_file }
 
-      let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace } }
-
       it_behaves_like 'a package tracking event', described_class.name, 'pull_package'
-    end
-  end
-
-  shared_examples 'rejecting the request for non existing maven path' do |expected_status: :not_found|
-    it 'rejects the request' do
-      expect(::Packages::Maven::PackageFinder).not_to receive(:new)
-
-      subject
-
-      expect(response).to have_gitlab_http_status(expected_status)
     end
   end
 
@@ -135,6 +125,8 @@ RSpec.describe API::MavenPackages do
           expect_any_instance_of(Fog::AWS::Storage::Files).not_to receive(:head_url)
 
           subject
+
+          expect(response).to have_gitlab_http_status(:redirect)
         end
       end
 
@@ -162,7 +154,7 @@ RSpec.describe API::MavenPackages do
       context 'with a non existing maven path' do
         let(:path) { 'foo/bar/1.2.3' }
 
-        it_behaves_like 'rejecting the request for non existing maven path', expected_status: instance_level ? :forbidden : :not_found
+        it_behaves_like 'returning response status', instance_level ? :forbidden : :redirect
       end
     end
   end
@@ -238,12 +230,66 @@ RSpec.describe API::MavenPackages do
     end
   end
 
+  shared_examples 'forwarding package requests' do
+    context 'request forwarding' do
+      include_context 'dependency proxy helpers context'
+
+      subject { download_file(file_name: package_name) }
+
+      shared_examples 'redirecting the request' do
+        it_behaves_like 'returning response status', :redirect
+      end
+
+      shared_examples 'package not found' do
+        it_behaves_like 'returning response status', :not_found
+      end
+
+      where(:forward, :package_in_project, :shared_examples_name) do
+        true  | true  | 'successfully returning the file'
+        true  | false | 'redirecting the request'
+        false | true  | 'successfully returning the file'
+        false | false | 'package not found'
+      end
+
+      with_them do
+        let(:package_name) { package_in_project ? package_file.file_name : 'foo' }
+
+        before do
+          allow_fetch_cascade_application_setting(attribute: 'maven_package_requests_forwarding', return_value: forward)
+        end
+
+        it_behaves_like params[:shared_examples_name]
+      end
+
+      context 'with maven_central_request_forwarding disabled' do
+        where(:forward, :package_in_project, :shared_examples_name) do
+          true  | true  | 'successfully returning the file'
+          true  | false | 'package not found'
+          false | true  | 'successfully returning the file'
+          false | false | 'package not found'
+        end
+
+        with_them do
+          let(:package_name) { package_in_project ? package_file.file_name : 'foo' }
+
+          before do
+            stub_feature_flags(maven_central_request_forwarding: false)
+            allow_fetch_cascade_application_setting(attribute: 'maven_package_requests_forwarding', return_value: forward)
+          end
+
+          it_behaves_like params[:shared_examples_name]
+        end
+      end
+    end
+  end
+
   describe 'GET /api/v4/packages/maven/*path/:file_name' do
     context 'a public project' do
       subject { download_file(file_name: package_file.file_name) }
 
       shared_examples 'getting a file' do
         it_behaves_like 'tracking the file download event'
+        it_behaves_like 'bumping the package last downloaded at field'
         it_behaves_like 'successfully returning the file'
         it_behaves_like 'file download in FIPS mode'
 
@@ -258,7 +304,16 @@ RSpec.describe API::MavenPackages do
         context 'with a non existing maven path' do
           subject { download_file(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-          it_behaves_like 'rejecting the request for non existing maven path', expected_status: :forbidden
+          it_behaves_like 'returning response status', :forbidden
+        end
+
+        it 'returns not found when a package is not found' do
+          finder = double('finder', execute: nil)
+          expect(::Packages::Maven::PackageFinder).to receive(:new).and_return(finder)
+
+          subject
+
+          expect(response).to have_gitlab_http_status(:not_found)
         end
       end
 
@@ -275,7 +330,7 @@ RSpec.describe API::MavenPackages do
 
       shared_examples 'getting a file' do
         it_behaves_like 'tracking the file download event'
-
+        it_behaves_like 'bumping the package last downloaded at field'
         it_behaves_like 'successfully returning the file'
 
         it 'denies download when no private token' do
@@ -285,17 +340,16 @@ RSpec.describe API::MavenPackages do
         end
 
         it_behaves_like 'downloads with a job token'
-
         it_behaves_like 'downloads with a deploy token'
 
         context 'with a non existing maven path' do
           subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-          it_behaves_like 'rejecting the request for non existing maven path', expected_status: :forbidden
+          it_behaves_like 'returning response status', :forbidden
         end
       end
 
-      it_behaves_like 'handling groups, subgroups and user namespaces for', 'getting a file', visibilities: %i[public internal]
+      it_behaves_like 'handling groups, subgroups and user namespaces for', 'getting a file', visibilities: { public: :redirect, internal: :not_found }
     end
 
     context 'private project' do
@@ -307,7 +361,7 @@ RSpec.describe API::MavenPackages do
 
       shared_examples 'getting a file' do
         it_behaves_like 'tracking the file download event'
-
+        it_behaves_like 'bumping the package last downloaded at field'
         it_behaves_like 'successfully returning the file'
 
         it 'denies download when not enough permissions' do
@@ -327,7 +381,6 @@ RSpec.describe API::MavenPackages do
         end
 
         it_behaves_like 'downloads with a job token'
-
         it_behaves_like 'downloads with a deploy token'
 
         it 'does not allow download by a unauthorized deploy token with same id as a user with access' do
@@ -350,11 +403,11 @@ RSpec.describe API::MavenPackages do
         context 'with a non existing maven path' do
           subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-          it_behaves_like 'rejecting the request for non existing maven path', expected_status: :forbidden
+          it_behaves_like 'returning response status', :forbidden
         end
       end
 
-      it_behaves_like 'handling groups, subgroups and user namespaces for', 'getting a file', visibilities: %i[public internal private]
+      it_behaves_like 'handling groups, subgroups and user namespaces for', 'getting a file', visibilities: { public: :redirect, internal: :not_found, private: :not_found }
     end
 
     context 'project name is different from a package name' do
@@ -386,21 +439,7 @@ RSpec.describe API::MavenPackages do
       it_behaves_like 'processing HEAD requests', instance_level: true
     end
 
-    context 'with check_maven_path_first enabled' do
-      before do
-        stub_feature_flags(check_maven_path_first: true)
-      end
-
-      it_behaves_like 'handling groups, subgroups and user namespaces for', 'heading a file'
-    end
-
-    context 'with check_maven_path_first disabled' do
-      before do
-        stub_feature_flags(check_maven_path_first: false)
-      end
-
-      it_behaves_like 'handling groups, subgroups and user namespaces for', 'heading a file'
-    end
+    it_behaves_like 'handling groups, subgroups and user namespaces for', 'heading a file'
   end
 
   describe 'GET /api/v4/groups/:id/-/packages/maven/*path/:file_name' do
@@ -409,11 +448,14 @@ RSpec.describe API::MavenPackages do
       group.add_developer(user)
     end
 
+    it_behaves_like 'forwarding package requests'
+
     context 'a public project' do
       subject { download_file(file_name: package_file.file_name) }
 
       shared_examples 'getting a file for a group' do
         it_behaves_like 'tracking the file download event'
+        it_behaves_like 'bumping the package last downloaded at field'
         it_behaves_like 'successfully returning the file'
         it_behaves_like 'file download in FIPS mode'
 
@@ -428,7 +470,7 @@ RSpec.describe API::MavenPackages do
         context 'with a non existing maven path' do
           subject { download_file(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-          it_behaves_like 'rejecting the request for non existing maven path'
+          it_behaves_like 'returning response status', :redirect
         end
       end
 
@@ -443,29 +485,28 @@ RSpec.describe API::MavenPackages do
 
       subject { download_file_with_token(file_name: package_file.file_name) }
 
-      shared_examples 'getting a file for a group' do
+      shared_examples 'getting a file for a group' do |not_found_response|
         it_behaves_like 'tracking the file download event'
-
+        it_behaves_like 'bumping the package last downloaded at field'
         it_behaves_like 'successfully returning the file'
 
-        it 'denies download when no private token' do
+        it 'forwards download when no private token' do
           download_file(file_name: package_file.file_name)
 
-          expect(response).to have_gitlab_http_status(:not_found)
+          expect(response).to have_gitlab_http_status(not_found_response)
         end
 
         it_behaves_like 'downloads with a job token'
-
         it_behaves_like 'downloads with a deploy token'
 
         context 'with a non existing maven path' do
           subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-          it_behaves_like 'rejecting the request for non existing maven path'
+          it_behaves_like 'returning response status', :redirect
         end
       end
 
-      it_behaves_like 'handling groups and subgroups for', 'getting a file for a group', visibilities: %i[internal public]
+      it_behaves_like 'handling groups and subgroups for', 'getting a file for a group', visibilities: { internal: :not_found, public: :redirect }
     end
 
     context 'private project' do
@@ -475,9 +516,9 @@ RSpec.describe API::MavenPackages do
 
       subject { download_file_with_token(file_name: package_file.file_name) }
 
-      shared_examples 'getting a file for a group' do
+      shared_examples 'getting a file for a group' do |not_found_response|
         it_behaves_like 'tracking the file download event'
-
+        it_behaves_like 'bumping the package last downloaded at field'
         it_behaves_like 'successfully returning the file'
 
         it 'denies download when not enough permissions' do
@@ -485,23 +526,22 @@ RSpec.describe API::MavenPackages do
 
           subject
 
-          expect(response).to have_gitlab_http_status(:not_found)
+          expect(response).to have_gitlab_http_status(:redirect)
         end
 
         it 'denies download when no private token' do
           download_file(file_name: package_file.file_name)
 
-          expect(response).to have_gitlab_http_status(:not_found)
+          expect(response).to have_gitlab_http_status(not_found_response)
         end
 
         it_behaves_like 'downloads with a job token'
-
         it_behaves_like 'downloads with a deploy token'
 
         context 'with a non existing maven path' do
           subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-          it_behaves_like 'rejecting the request for non existing maven path'
+          it_behaves_like 'returning response status', :redirect
         end
 
         context 'with group deploy token' do
@@ -521,12 +561,12 @@ RSpec.describe API::MavenPackages do
           context 'with a non existing maven path' do
             subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3', request_headers: group_deploy_token_headers) }
 
-            it_behaves_like 'rejecting the request for non existing maven path'
+            it_behaves_like 'returning response status', :redirect
           end
         end
       end
 
-      it_behaves_like 'handling groups and subgroups for', 'getting a file for a group', visibilities: %i[private internal public]
+      it_behaves_like 'handling groups and subgroups for', 'getting a file for a group', visibilities: { private: :not_found, internal: :not_found, public: :redirect }
 
       context 'with a reporter from a subgroup accessing the root group' do
         let_it_be(:root_group) { create(:group, :private) }
@@ -544,7 +584,7 @@ RSpec.describe API::MavenPackages do
         context 'with a non existing maven path' do
           subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3', request_headers: headers_with_token, group_id: root_group.id) }
 
-          it_behaves_like 'rejecting the request for non existing maven path'
+          it_behaves_like 'returning response status', :redirect
         end
       end
     end
@@ -615,21 +655,7 @@ RSpec.describe API::MavenPackages do
     let(:path) { package.maven_metadatum.path }
     let(:url) { "/groups/#{group.id}/-/packages/maven/#{path}/#{package_file.file_name}" }
 
-    context 'with check_maven_path_first enabled' do
-      before do
-        stub_feature_flags(check_maven_path_first: true)
-      end
-
-      it_behaves_like 'handling groups and subgroups for', 'processing HEAD requests'
-    end
-
-    context 'with check_maven_path_first disabled' do
-      before do
-        stub_feature_flags(check_maven_path_first: false)
-      end
-
-      it_behaves_like 'handling groups and subgroups for', 'processing HEAD requests'
-    end
+    it_behaves_like 'handling groups and subgroups for', 'processing HEAD requests'
   end
 
   describe 'GET /api/v4/projects/:id/packages/maven/*path/:file_name' do
@@ -640,12 +666,14 @@ RSpec.describe API::MavenPackages do
       it_behaves_like 'successfully returning the file'
       it_behaves_like 'file download in FIPS mode'
 
-      it 'returns sha1 of the file' do
-        download_file(file_name: package_file.file_name + '.sha1')
+      %w[sha1 md5].each do |format|
+        it "returns #{format} of the file" do
+          download_file(file_name: package_file.file_name + ".#{format}")
 
-        expect(response).to have_gitlab_http_status(:ok)
-        expect(response.media_type).to eq('text/plain')
-        expect(response.body).to eq(package_file.file_sha1)
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response.media_type).to eq('text/plain')
+          expect(response.body).to eq(package_file.send("file_#{format}".to_sym))
+        end
       end
 
       context 'when the repository is disabled' do
@@ -664,7 +692,7 @@ RSpec.describe API::MavenPackages do
       context 'with a non existing maven path' do
         subject { download_file(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-        it_behaves_like 'rejecting the request for non existing maven path'
+        it_behaves_like 'returning response status', :redirect
       end
     end
 
@@ -676,7 +704,7 @@ RSpec.describe API::MavenPackages do
       subject { download_file_with_token(file_name: package_file.file_name) }
 
       it_behaves_like 'tracking the file download event'
-
+      it_behaves_like 'bumping the package last downloaded at field'
       it_behaves_like 'successfully returning the file'
 
       it 'denies download when not enough permissions' do
@@ -693,16 +721,27 @@ RSpec.describe API::MavenPackages do
         expect(response).to have_gitlab_http_status(:not_found)
       end
 
-      it_behaves_like 'downloads with a job token'
+      context 'with access to package registry for everyone' do
+        subject { download_file(file_name: package_file.file_name) }
 
+        before do
+          project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+        end
+
+        it_behaves_like 'successfully returning the file'
+      end
+
+      it_behaves_like 'downloads with a job token'
       it_behaves_like 'downloads with a deploy token'
 
       context 'with a non existing maven path' do
         subject { download_file_with_token(file_name: package_file.file_name, path: 'foo/bar/1.2.3') }
 
-        it_behaves_like 'rejecting the request for non existing maven path'
+        it_behaves_like 'returning response status', :redirect
       end
     end
+
+    it_behaves_like 'forwarding package requests'
 
     def download_file(file_name:, params: {}, request_headers: headers, path: maven_metadatum.path)
       get api("/projects/#{project.id}/packages/maven/" \
@@ -718,21 +757,7 @@ RSpec.describe API::MavenPackages do
     let(:path) { package.maven_metadatum.path }
     let(:url) { "/projects/#{project.id}/packages/maven/#{path}/#{package_file.file_name}" }
 
-    context 'with check_maven_path_first enabled' do
-      before do
-        stub_feature_flags(check_maven_path_first: true)
-      end
-
-      it_behaves_like 'processing HEAD requests'
-    end
-
-    context 'with check_maven_path_first disabled' do
-      before do
-        stub_feature_flags(check_maven_path_first: false)
-      end
-
-      it_behaves_like 'processing HEAD requests'
-    end
+    it_behaves_like 'processing HEAD requests'
   end
 
   describe 'PUT /api/v4/projects/:id/packages/maven/*path/:file_name/authorize' do
@@ -876,6 +901,8 @@ RSpec.describe API::MavenPackages do
       it_behaves_like 'package workhorse uploads'
 
       context 'event tracking' do
+        let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, user: user, property: 'i_package_maven_user' } }
+
         it_behaves_like 'a package tracking event', described_class.name, 'push_package'
 
         context 'when the package file fails to be created' do

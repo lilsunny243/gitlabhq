@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -210,7 +210,7 @@ using the `-s` or `--sort` flag. The number of results defaults to 25 processes,
 can be changed using the `-c`/`--count` option. See `--help` for full details.
 
 ```shell
-$ ./strace-parser sidekiq_trace.txt summary -c15 -s=pid                                                                                                                                   
+$ ./strace-parser sidekiq_trace.txt summary -c15 -s=pid
 
 Top 15 PIDs by PID #
 -----------
@@ -244,7 +244,7 @@ processes using the `-p`/`--pid` for a specific process, or `-s`/`--stats` flags
 a sorted list. `--stats` takes the same sorting and count options as summary.
 
 ```shell
-./strace-parser sidekiq_trace.txt p 16815                                                                                                                                            
+./strace-parser sidekiq_trace.txt p 16815
 
 PID 16815
 
@@ -294,8 +294,8 @@ small differences should not be considered significant.
 
 |Setup          | access times  |
 |:--------------|:--------------|
-| EFS           | 10 - 30ms     |
-| Local Storage | 0.01 - 1ms    |
+| EFS           | 10 - 30 ms     |
+| Local Storage | 0.01 - 1 ms    |
 
 ## Networking
 

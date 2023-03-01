@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -14,12 +14,12 @@ downtime.
 
 As replication between Geo sites is asynchronous, a planned failover requires
 a maintenance window in which updates to the **primary** site are blocked. The
-length of this window is determined by your replication capacity - once the
+length of this window is determined by your replication capacity - when the
 **secondary** site is completely synchronized with the **primary** site, the failover can occur without
 data loss.
 
 This document assumes you already have a fully configured, working Geo setup.
-Please read it and the [Disaster Recovery](index.md) failover
+Read this document and the [Disaster Recovery](index.md) failover
 documentation in full before proceeding. Planned failover is a major operation,
 and if performed incorrectly, there is a high risk of data loss. Consider
 rehearsing the procedure until you are comfortable with the necessary steps and
@@ -149,7 +149,7 @@ ensure these processes are close to 100% as possible during active use.
 
 On the **secondary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
    Replicated objects (shown in green) should be close to 100%,
    and there should be no failures (shown in red). If a large proportion of
@@ -177,7 +177,7 @@ This [content was moved to another location](background_verification.md).
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Messages**.
 1. Add a message notifying users on the maintenance window.
    You can check under **Geo > Sites** to estimate how long it
@@ -190,7 +190,7 @@ To ensure that all data is replicated to a secondary site, updates (write reques
 be disabled on the **primary** site:
 
 1. Enable [maintenance mode](../../maintenance_mode/index.md) on the **primary** site.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Monitoring > Background Jobs**.
 1. On the Sidekiq dashboard, select **Cron**.
 1. Select `Disable All` to disable non-Geo periodic background jobs.
@@ -206,7 +206,7 @@ GitLab 13.9 through GitLab 14.3 are affected by a bug in which the Geo secondary
 1. If you are manually replicating any data not managed by Geo, trigger the
    final replication process now.
 1. On the **primary** site:
-   1. On the top bar, select **Menu > Admin**.
+   1. On the top bar, select **Main menu > Admin**.
    1. On the left sidebar, select **Monitoring > Background Jobs**.
    1. On the Sidekiq dashboard, select **Queues**, and wait for all queues except
       those with `geo` in the name to drop to 0.
@@ -217,11 +217,11 @@ GitLab 13.9 through GitLab 14.3 are affected by a bug in which the Geo secondary
 
       - All replication meters reach 100% replicated, 0% failures.
       - All verification meters reach 100% verified, 0% failures.
-      - Database replication lag is 0ms.
+      - Database replication lag is 0 ms.
       - The Geo log cursor is up to date (0 events behind).
 
 1. On the **secondary** site:
-   1. On the top bar, select **Menu > Admin**.
+   1. On the top bar, select **Main menu > Admin**.
    1. On the left sidebar, select **Monitoring > Background Jobs**.
    1. On the Sidekiq dashboard, select **Queues**, and wait for all the `geo`
       queues to drop to 0 queued and 0 running jobs.
@@ -233,7 +233,7 @@ At this point, your **secondary** site contains an up-to-date copy of everything
 
 ## Promote the **secondary** site
 
-After the replication is finished, [promote the **secondary** site to a **primary** site](index.md). This process causes a brief outage on the **secondary** site, and users may need to log in again. If you follow the steps correctly, the old primary Geo site should still be disabled and user traffic should go to the newly-promoted site instead.
+After the replication is finished, [promote the **secondary** site to a **primary** site](index.md). This process causes a brief outage on the **secondary** site, and users may need to sign in again. If you follow the steps correctly, the old primary Geo site should still be disabled and user traffic should go to the newly-promoted site instead.
 
 When the promotion is completed, the maintenance window is over, and your new **primary** site now
 begins to diverge from the old one. If problems do arise at this point, failing

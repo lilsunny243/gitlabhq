@@ -74,7 +74,7 @@ FactoryBot.define do
       allow_descendants_override_disabled_shared_runners { false }
     end
 
-    trait :disabled_with_override do
+    trait :disabled_and_overridable do
       shared_runners_disabled
       allow_descendants_override_disabled_shared_runners
     end
@@ -117,6 +117,10 @@ FactoryBot.define do
       after(:create) do |group|
         create(:crm_settings, group: group, enabled: true)
       end
+    end
+
+    trait :with_root_storage_statistics do
+      association :root_storage_statistics, factory: :namespace_root_storage_statistics
     end
   end
 end

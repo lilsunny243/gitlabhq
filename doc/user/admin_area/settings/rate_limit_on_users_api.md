@@ -2,7 +2,7 @@
 type: reference
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Rate limits on Users API **(FREE SELF)**
@@ -13,7 +13,7 @@ You can configure the per user rate limit for requests to [Users API](../../../a
 
 To change the rate limit:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**.
 1. Expand **Users API rate limit**.
 1. In the **Maximum requests per 10 minutes** text box, enter the new value.

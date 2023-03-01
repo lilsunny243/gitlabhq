@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Ruby gems in the Package Registry **(FREE)**
@@ -76,7 +76,7 @@ https://gitlab.example.com/api/v4/projects/<project_id>/packages/rubygems: '<you
 ### Authenticate with a CI job token
 
 To work with RubyGems commands within [GitLab CI/CD](../../../ci/index.md),
-you can use `CI_JOB_TOKEN` instead of a personal access token or deploy token.
+you can use the [`CI_JOB_TOKEN`](../../../ci/jobs/ci_job_token.md) predefined environment variable instead of a personal access token or deploy token.
 
 For example:
 
@@ -117,7 +117,7 @@ To push your gem, run a command like this one:
 gem push my_gem-0.0.1.gem --host <host>
 ```
 
-Note that `<host>` is the URL you used when setting up authentication. For example:
+`<host>` is the URL you used when setting up authentication. For example:
 
 ```shell
 gem push my_gem-0.0.1.gem --host https://gitlab.example.com/api/v4/projects/1/packages/rubygems
@@ -130,7 +130,7 @@ Pushing gem to https://gitlab.example.com/api/v4/projects/1/packages/rubygems...
 {"message":"201 Created"}
 ```
 
-To view the published gem, go to your project's **Packages & Registries** page. Gems pushed to
+To view the published gem, go to your project's **Packages and registries** page. Gems pushed to
 GitLab aren't displayed in your project's Packages UI immediately. It can take up to 10 minutes to
 process a gem.
 

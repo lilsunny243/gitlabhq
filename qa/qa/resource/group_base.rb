@@ -14,7 +14,10 @@ module QA
       attributes :id,
                  :runners_token,
                  :name,
-                 :full_path
+                 :full_path,
+                 # Add visibility to enable create private group
+                 :visibility,
+                 :shared_with_groups
 
       # Get group projects
       #
@@ -22,6 +25,7 @@ module QA
       def projects
         parse_body(api_get_from("#{api_get_path}/projects")).map do |project|
           Project.init do |resource|
+            resource.add_name_uuid = false
             resource.api_client = api_client
             resource.group = self
             resource.id = project[:id]
@@ -137,7 +141,8 @@ module QA
           :require_two_factor_authentication,
           :share_with_group_lock,
           :subgroup_creation_level,
-          :two_factor_grace_perion
+          :shared_with_groups,
+          :two_factor_grace_period
           # TODO: Add back visibility comparison once https://gitlab.com/gitlab-org/gitlab/-/issues/331252 is fixed
           # :visibility
         )

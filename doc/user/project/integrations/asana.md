@@ -1,12 +1,12 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Asana integration **(FREE)**
+# Asana **(FREE)**
 
-This integration adds commit messages as comments to Asana tasks.
+The Asana integration adds commit messages as comments to Asana tasks.
 Once enabled, commit messages are checked for Asana task URLs (for example,
 `https://app.asana.com/0/123456/987654`) or task IDs starting with `#`
 (for example, `#987654`). Every task ID found gets the commit comment added to it.
@@ -32,7 +32,7 @@ In Asana, create a Personal Access Token.
 
 Complete these steps in GitLab:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Asana**.
 1. Ensure that the **Active** toggle is enabled.

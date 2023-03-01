@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::Runners do
+RSpec.describe API::Ci::Runners, feature_category: :runner_fleet do
   let_it_be(:admin) { create(:user, :admin) }
   let_it_be(:user) { create(:user) }
   let_it_be(:user2) { create(:user) }
@@ -399,7 +399,7 @@ RSpec.describe API::Ci::Runners do
         it 'unrelated runner attribute on an existing runner with too many tags' do
           # This test ensures that it is possible to update any attribute on a runner that currently fails the
           # validation that ensures that there aren't too many tags associated with a runner
-          existing_invalid_shared_runner = build(:ci_runner, :instance, tag_list: (1..::Ci::Runner::TAG_LIST_MAX_LENGTH + 1).map { |i| "tag#{i}" } )
+          existing_invalid_shared_runner = build(:ci_runner, :instance, tag_list: (1..::Ci::Runner::TAG_LIST_MAX_LENGTH + 1).map { |i| "tag#{i}" })
           existing_invalid_shared_runner.save!(validate: false)
 
           active = existing_invalid_shared_runner.active
@@ -794,7 +794,7 @@ RSpec.describe API::Ci::Runners do
           end
         end
 
-        context 'when runner is specific' do
+        context 'when runner is a project runner' do
           it 'return jobs' do
             get api("/runners/#{project_runner.id}/jobs", admin)
 
@@ -918,10 +918,11 @@ RSpec.describe API::Ci::Runners do
         create(:ci_build, :failed, runner: shared_runner, project: project_with_repo, pipeline: pipeline)
 
         expect_next_instance_of(Repository) do |repo|
-          expect(repo).to receive(:commits_by).with(oids: %w[
-            1a0b36b3cdad1d2ee32457c102a8c0b7056fa863
-            c1c67abbaf91f624347bb3ae96eabe3a1b742478
-          ]).once.and_call_original
+          expect(repo).to receive(:commits_by).with(oids:
+            %w[
+              1a0b36b3cdad1d2ee32457c102a8c0b7056fa863
+              c1c67abbaf91f624347bb3ae96eabe3a1b742478
+            ]).once.and_call_original
         end
 
         get api("/runners/#{shared_runner.id}/jobs", admin), params: { per_page: 2, order_by: 'id', sort: 'desc' }
@@ -946,7 +947,7 @@ RSpec.describe API::Ci::Runners do
           end
         end
 
-        context 'when runner is specific' do
+        context 'when runner is a project runner' do
           it 'return jobs' do
             get api("/runners/#{project_runner.id}/jobs", user)
 
@@ -1124,30 +1125,27 @@ RSpec.describe API::Ci::Runners do
       it 'returns all runners' do
         get api("/groups/#{group.id}/runners", user)
 
-        expect(json_response).to match_array([
-          a_hash_including('description' => 'Group runner A', 'active' => true, 'paused' => false),
-          a_hash_including('description' => 'Shared runner', 'active' => true, 'paused' => false)
-        ])
+        expect(json_response).to match_array(
+          [
+            a_hash_including('description' => 'Group runner A', 'active' => true, 'paused' => false),
+            a_hash_including('description' => 'Shared runner', 'active' => true, 'paused' => false)
+          ])
       end
 
       context 'filter by type' do
         it 'returns record when valid and present' do
           get api("/groups/#{group.id}/runners?type=group_type", user)
 
-          expect(json_response).to match_array([
-            a_hash_including('description' => 'Group runner A')
-          ])
+          expect(json_response).to match_array([a_hash_including('description' => 'Group runner A')])
         end
 
         it 'returns instance runners when instance_type is specified' do
           get api("/groups/#{group.id}/runners?type=instance_type", user)
 
-          expect(json_response).to match_array([
-            a_hash_including('description' => 'Shared runner')
-          ])
+          expect(json_response).to match_array([a_hash_including('description' => 'Shared runner')])
         end
 
-        # TODO: Remove in %15.0 (https://gitlab.com/gitlab-org/gitlab/-/issues/351466)
+        # TODO: Remove when REST API v5 is implemented (https://gitlab.com/gitlab-org/gitlab/-/issues/351466)
         it 'returns empty result when type does not match' do
           get api("/groups/#{group.id}/runners?type=project_type", user)
 
@@ -1167,18 +1165,14 @@ RSpec.describe API::Ci::Runners do
         it 'returns runners by paused state' do
           get api("/groups/#{group.id}/runners?paused=true", user)
 
-          expect(json_response).to match_array([
-            a_hash_including('description' => 'Inactive group runner')
-          ])
+          expect(json_response).to match_array([a_hash_including('description' => 'Inactive group runner')])
         end
 
         context 'filter runners by status' do
           it 'returns runners by valid status' do
             get api("/groups/#{group.id}/runners?status=paused", user)
 
-            expect(json_response).to match_array([
-              a_hash_including('description' => 'Inactive group runner')
-            ])
+            expect(json_response).to match_array([a_hash_including('description' => 'Inactive group runner')])
           end
 
           it 'does not filter by invalid status' do
@@ -1195,9 +1189,7 @@ RSpec.describe API::Ci::Runners do
 
         get api("/groups/#{group.id}/runners?tag_list=tag1,tag2", user)
 
-        expect(json_response).to match_array([
-          a_hash_including('description' => 'Runner tagged with tag1 and tag2')
-        ])
+        expect(json_response).to match_array([a_hash_including('description' => 'Runner tagged with tag1 and tag2')])
       end
     end
 
@@ -1211,7 +1203,7 @@ RSpec.describe API::Ci::Runners do
     context 'authorized user' do
       let_it_be(:project_runner2) { create(:ci_runner, :project, projects: [project2]) }
 
-      it 'enables specific runner' do
+      it 'enables project runner' do
         expect do
           post api("/projects/#{project.id}/runners", user), params: { runner_id: project_runner2.id }
         end.to change { project.runners.count }.by(+1)
@@ -1251,7 +1243,7 @@ RSpec.describe API::Ci::Runners do
         context 'when project runner is used' do
           let!(:new_project_runner) { create(:ci_runner, :project) }
 
-          it 'enables any specific runner' do
+          it 'enables any project runner' do
             expect do
               post api("/projects/#{project.id}/runners", admin), params: { runner_id: new_project_runner.id }
             end.to change { project.runners.count }.by(+1)
@@ -1263,7 +1255,7 @@ RSpec.describe API::Ci::Runners do
               create(:plan_limits, :default_plan, ci_registered_project_runners: 1)
             end
 
-            it 'does not enable specific runner' do
+            it 'does not enable project runner' do
               expect do
                 post api("/projects/#{project.id}/runners", admin), params: { runner_id: new_project_runner.id }
               end.not_to change { project.runners.count }

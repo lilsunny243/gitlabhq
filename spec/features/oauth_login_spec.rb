@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'OAuth Login', :allow_forgery_protection do
+RSpec.describe 'OAuth Login', :allow_forgery_protection, feature_category: :system_access do
   include DeviseHelpers
 
   def enter_code(code)
@@ -16,7 +16,7 @@ RSpec.describe 'OAuth Login', :allow_forgery_protection do
   end
 
   providers = [:github, :twitter, :bitbucket, :gitlab, :google_oauth2,
-               :facebook, :cas3, :auth0, :authentiq, :salesforce, :dingtalk, :alicloud]
+               :facebook, :cas3, :auth0, :salesforce, :dingtalk, :alicloud]
 
   around do |example|
     with_omniauth_full_host { example.run }

@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe 'conan package details' do
+RSpec.describe 'conan package details', feature_category: :package_registry do
   include GraphqlHelpers
   include_context 'package details setup'
 
-  let_it_be(:package) { create(:conan_package, project: project) }
+  let_it_be(:package) { create(:conan_package, :last_downloaded_at, project: project) }
 
   let(:metadata) { query_graphql_fragment('ConanMetadata') }
   let(:package_files_metadata) { query_graphql_fragment('ConanFileMetadata') }

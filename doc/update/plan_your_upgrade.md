@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create a GitLab upgrade plan **(FREE SELF)**
@@ -42,7 +42,7 @@ to ensure the major components of GitLab are working:
    ```
 
 1. In GitLab UI, check that:
-   - Users can log in.
+   - Users can sign in.
    - The project list is visible.
    - Project issues and merge requests are accessible.
    - Users can clone repositories from GitLab.
@@ -122,17 +122,17 @@ to your instance and then upgrade it for any relevant features you're using.
   - [Convert from GitLab Community Edition to Enterprise Edition](package/convert_to_ee.md)
 - What version should you upgrade to:
   - [Determine what upgrade path](index.md#upgrade-paths) to follow.
-  - Account for any [version-specific update instructions](index.md#version-specific-upgrading-instructions).
+  - Account for any [version-specific update instructions](index.md#version-specific-upgrading-instructions) for both the current version and the destination version.
   - Account for any [version-specific changes](package/index.md#version-specific-changes).
   - Check the [OS compatibility with the target GitLab version](../administration/package_information/supported_os.md).
 - Due to background migrations, plan to pause before any further upgrades.
-  [All migrations must finish running](index.md#checking-for-background-migrations-before-upgrading)
+  [All migrations must finish running](background_migrations.md)
   before the next upgrade.
 - If available in your starting version, consider
   [turning on maintenance mode](../administration/maintenance_mode/index.md) during the
   upgrade.
 - About PostgreSQL:
-  - On the top bar, select **Menu > Admin**, and look for the version of
+  - On the top bar, select **Main menu > Admin**, and look for the version of
     PostgreSQL you are using.
     If [a PostgreSQL upgrade is needed](../administration/package_information/postgresql_versions.md),
     account for the relevant
@@ -172,6 +172,9 @@ If you have Kubernetes clusters connected with GitLab, [upgrade your GitLab agen
 
 #### Elasticsearch
 
+Before updating GitLab, confirm Advanced Search migrations are complete by
+[checking for pending advanced search migrations](background_migrations.md).
+
 After updating GitLab, you may have to upgrade
 [Elasticsearch if the new version breaks compatibility](../integration/advanced_search/elasticsearch.md#version-requirements).
 Updating Elasticsearch is **out of scope for GitLab Support**.
@@ -189,7 +192,7 @@ If anything doesn't go as planned:
     you installed GitLab using the Helm Charts.
 - For support:
   - [Contact GitLab Support](https://support.gitlab.com) and,
-    if you have one, your Technical Account Manager.
+    if you have one, your [Customer Success Managers](https://about.gitlab.com/job-families/sales/customer-success-management/).
   - If [the situation qualifies](https://about.gitlab.com/support/#definitions-of-support-impact)
     and [your plan includes emergency support](https://about.gitlab.com/support/#priority-support),
     create an emergency ticket.

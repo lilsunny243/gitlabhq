@@ -1,17 +1,29 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Import bare repositories **(FREE SELF)**
+# Import bare repositories (deprecated) **(FREE SELF)**
+
+WARNING:
+The Rake task for importing bare repositories was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/108507)
+in GitLab 15.8 and will be removed in GitLab 16.0.
+
+Alternatives to using the `gitlab:import:repos` Rake task include:
+
+- Migrating projects using either [an export file](../user/project/settings/import_export.md) or [direct transfer](../user/group/import/index.md#migrate-groups-by-direct-transfer-recommended) migrate repositories as well.
+- Importing a [repository by URL](../user/project/import/repo_by_url.md).
+- Importing a [repositories from a non-GitLab source](../user/project/import/index.md).
 
 Rake tasks are available to import bare repositories into a GitLab instance.
-When migrating from an existing GitLab instance,
-and to preserve ownership by users and their namespaces,
-use [our project-based import/export](../user/project/settings/import_export.md).
+When migrating from an existing GitLab instance, and to preserve ownership by users and their namespaces,
+migrate projects using either:
 
-Note that:
+- [Direct transfer](../user/group/import/index.md#migrate-groups-by-direct-transfer-recommended).
+- [An export file](../user/project/settings/import_export.md).
+
+When you import a repository:
 
 - The owner of the project is the first administrator.
 - The groups are created as needed, including subgroups.
@@ -19,7 +31,8 @@ Note that:
 - Existing projects are skipped.
 - Projects in hashed storage may be skipped. For more information, see
   [Importing bare repositories from hashed storage](#importing-bare-repositories-from-hashed-storage).
-- The existing Git repositories ware moved from disk (removed from the original path).
+- The existing Git repositories are moved from disk (removed from the original path).
+- You must manually [push Git LFS objects](#push-git-lfs-objects).
 
 To import bare repositories into a GitLab instance:
 
@@ -146,9 +159,18 @@ project.set_full_path
 ```
 
 In a Rails console session, run the following to migrate all of a namespace's
-projects (this may take a while if there are 1000s of projects in a namespace):
+projects (this may take a while if there are thousands of projects in a namespace):
 
 ```ruby
 namespace = Namespace.find_by_full_path('gitlab-org')
 namespace.send(:write_projects_repository_config)
+```
+
+## Push Git LFS objects
+
+The import task doesn't import Git LFS objects. You must manually push the LFS objects to the newly
+created GitLab repository using the following command:
+
+```shell
+git lfs push --all
 ```

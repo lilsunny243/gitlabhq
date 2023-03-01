@@ -80,8 +80,8 @@ module PageLayoutHelper
     tags = []
 
     page_card_attributes.each_with_index do |pair, i|
-      tags << tag(:meta, property: "twitter:label#{i + 1}", content: pair[0])
-      tags << tag(:meta, property: "twitter:data#{i + 1}",  content: pair[1])
+      tags << tag.meta(property: "twitter:label#{i + 1}", content: pair[0])
+      tags << tag.meta(property: "twitter:data#{i + 1}",  content: pair[1])
     end
 
     tags.join.html_safe
@@ -150,6 +150,10 @@ module PageLayoutHelper
     css_class.join(' ')
   end
 
+  def full_content_class
+    "#{container_class} #{@content_class}" # rubocop:disable Rails/HelperInstanceVariable
+  end
+
   def page_itemtype(itemtype = nil)
     if itemtype
       @page_itemtype = { itemscope: true, itemtype: itemtype }
@@ -171,7 +175,7 @@ module PageLayoutHelper
       current_emoji: user.status.emoji.to_s,
       current_message: user.status.message.to_s,
       current_availability: user.status.availability.to_s,
-      current_clear_status_after: user.status.clear_status_at.to_s
+      current_clear_status_after: user.status.clear_status_at&.to_s(:iso8601)
     })
   end
 

@@ -7,17 +7,19 @@ import {
   GlLink,
   GlModal,
   GlModalDirective,
+  GlTooltipDirective,
 } from '@gitlab/ui';
 import { mapActions, mapGetters, mapState } from 'vuex';
-import createFlash, { FLASH_TYPES } from '~/flash';
+import { createAlert, VARIANT_SUCCESS } from '~/flash';
 import { EVENT_ISSUABLE_VUE_APP_CHANGE } from '~/issuable/constants';
-import { IssuableStatus, IssueType } from '~/issues/constants';
+import { IssueType, STATUS_CLOSED, TYPE_INCIDENT } from '~/issues/constants';
 import { ISSUE_STATE_EVENT_CLOSE, ISSUE_STATE_EVENT_REOPEN } from '~/issues/show/constants';
 import { capitalizeFirstCharacter } from '~/lib/utils/text_utility';
 import { visitUrl } from '~/lib/utils/url_utility';
 import { s__, __, sprintf } from '~/locale';
 import eventHub from '~/notes/event_hub';
 import Tracking from '~/tracking';
+import AbuseCategorySelector from '~/abuse_reports/components/abuse_category_selector.vue';
 import promoteToEpicMutation from '../queries/promote_to_epic.mutation.graphql';
 import updateIssueMutation from '../queries/update_issue.mutation.graphql';
 import DeleteIssueModal from './delete_issue_modal.vue';
@@ -39,6 +41,7 @@ export default {
     promoteSuccessMessage: __(
       'The issue was successfully promoted to an epic. Redirecting to epic...',
     ),
+    reportAbuse: __('Report abuse to administrator'),
   },
   components: {
     DeleteIssueModal,
@@ -48,9 +51,11 @@ export default {
     GlDropdownItem,
     GlLink,
     GlModal,
+    AbuseCategorySelector,
   },
   directives: {
     GlModal: GlModalDirective,
+    GlTooltip: GlTooltipDirective,
   },
   mixins: [trackingMixin],
   inject: {
@@ -90,23 +95,31 @@ export default {
     projectPath: {
       default: '',
     },
-    reportAbusePath: {
-      default: '',
-    },
     submitAsSpamPath: {
       default: '',
     },
+    reportedUserId: {
+      default: '',
+    },
+    reportedFromUrl: {
+      default: '',
+    },
+  },
+  data() {
+    return {
+      isReportAbuseDrawerOpen: false,
+    };
   },
   computed: {
     ...mapState(['isToggleStateButtonLoading']),
     ...mapGetters(['openState', 'getBlockedByIssues']),
     isClosed() {
-      return this.openState === IssuableStatus.Closed;
+      return this.openState === STATUS_CLOSED;
     },
     issueTypeText() {
       const issueTypeTexts = {
         [IssueType.Issue]: s__('HeaderAction|issue'),
-        [IssueType.Incident]: s__('HeaderAction|incident'),
+        [TYPE_INCIDENT]: s__('HeaderAction|incident'),
       };
 
       return issueTypeTexts[this.issueType] ?? this.issueType;
@@ -160,6 +173,9 @@ export default {
 
       this.invokeUpdateIssueMutation();
     },
+    toggleReportAbuseDrawer(isOpen) {
+      this.isReportAbuseDrawerOpen = isOpen;
+    },
     invokeUpdateIssueMutation() {
       this.toggleStateButtonLoading(true);
 
@@ -189,7 +205,7 @@ export default {
           // Dispatch event which updates open/close state, shared among the issue show page
           document.dispatchEvent(new CustomEvent(EVENT_ISSUABLE_VUE_APP_CHANGE, payload));
         })
-        .catch(() => createFlash({ message: __('Error occurred while updating the issue status') }))
+        .catch(() => createAlert({ message: __('Error occurred while updating the issue status') }))
         .finally(() => {
           this.toggleStateButtonLoading(false);
         });
@@ -212,14 +228,14 @@ export default {
             throw new Error();
           }
 
-          createFlash({
+          createAlert({
             message: this.$options.i18n.promoteSuccessMessage,
-            type: FLASH_TYPES.SUCCESS,
+            variant: VARIANT_SUCCESS,
           });
 
           visitUrl(data.promoteToEpic.epic.webPath);
         })
-        .catch(() => createFlash({ message: this.$options.i18n.promoteErrorMessage }))
+        .catch(() => createAlert({ message: this.$options.i18n.promoteErrorMessage }))
         .finally(() => {
           this.toggleStateButtonLoading(false);
         });
@@ -229,7 +245,7 @@ export default {
 </script>
 
 <template>
-  <div class="detail-page-header-actions gl-display-flex">
+  <div class="detail-page-header-actions gl-display-flex gl-align-self-start">
     <gl-dropdown
       v-if="hasMobileDropdown"
       class="gl-sm-display-none! w-100"
@@ -252,8 +268,8 @@ export default {
       <gl-dropdown-item v-if="canPromoteToEpic" @click="promoteToEpic">
         {{ __('Promote to epic') }}
       </gl-dropdown-item>
-      <gl-dropdown-item v-if="!isIssueAuthor" :href="reportAbusePath">
-        {{ __('Report abuse') }}
+      <gl-dropdown-item v-if="!isIssueAuthor" @click="toggleReportAbuseDrawer(true)">
+        {{ $options.i18n.reportAbuse }}
       </gl-dropdown-item>
       <gl-dropdown-item
         v-if="canReportSpam"
@@ -287,12 +303,15 @@ export default {
 
     <gl-dropdown
       v-if="hasDesktopDropdown"
+      v-gl-tooltip.hover
       class="gl-display-none gl-sm-display-inline-flex! gl-ml-3"
       icon="ellipsis_v"
       category="tertiary"
       data-qa-selector="issue_actions_ellipsis_dropdown"
       :text="dropdownText"
       :text-sr-only="true"
+      :title="dropdownText"
+      :aria-label="dropdownText"
       data-testid="desktop-dropdown"
       no-caret
       right
@@ -308,8 +327,8 @@ export default {
       >
         {{ __('Promote to epic') }}
       </gl-dropdown-item>
-      <gl-dropdown-item v-if="!isIssueAuthor" :href="reportAbusePath">
-        {{ __('Report abuse') }}
+      <gl-dropdown-item v-if="!isIssueAuthor" @click="toggleReportAbuseDrawer(true)">
+        {{ $options.i18n.reportAbuse }}
       </gl-dropdown-item>
       <gl-dropdown-item
         v-if="canReportSpam"
@@ -353,6 +372,16 @@ export default {
       :issue-type="issueType"
       :modal-id="$options.deleteModalId"
       :title="deleteButtonText"
+    />
+
+    <!-- IMPORTANT: show this component lazily because it causes layout thrashing -->
+    <!-- https://gitlab.com/gitlab-org/gitlab/-/issues/331172#note_1269378396 -->
+    <abuse-category-selector
+      v-if="isReportAbuseDrawerOpen"
+      :reported-user-id="reportedUserId"
+      :reported-from-url="reportedFromUrl"
+      :show-drawer="isReportAbuseDrawerOpen"
+      @close-drawer="toggleReportAbuseDrawer(false)"
     />
   </div>
 </template>

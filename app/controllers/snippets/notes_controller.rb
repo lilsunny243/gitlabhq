@@ -8,12 +8,12 @@ class Snippets::NotesController < ApplicationController
   before_action :authorize_read_snippet!, only: [:show, :index]
   before_action :authorize_create_note!, only: [:create]
 
-  feature_category :snippets
+  feature_category :source_code_management
 
   private
 
   def note
-    @note ||= snippet.notes.inc_relations_for_view.find(params[:id])
+    @note ||= snippet.notes.inc_relations_for_view(snippet).find(params[:id])
   end
   alias_method :awardable, :note
 

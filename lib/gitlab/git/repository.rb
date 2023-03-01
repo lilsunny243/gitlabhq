@@ -45,7 +45,7 @@ module Gitlab
       # Relative path of repo
       attr_reader :relative_path
 
-      attr_reader :storage, :gl_repository, :gl_project_path
+      attr_reader :storage, :gl_repository, :gl_project_path, :container
 
       # This remote name has to be stable for all types of repositories that
       # can join an object pool. If it's structure ever changes, a migration
@@ -56,17 +56,23 @@ module Gitlab
 
       # This initializer method is only used on the client side (gitlab-ce).
       # Gitaly-ruby uses a different initializer.
-      def initialize(storage, relative_path, gl_repository, gl_project_path)
+      def initialize(storage, relative_path, gl_repository, gl_project_path, container: nil)
         @storage = storage
         @relative_path = relative_path
         @gl_repository = gl_repository
         @gl_project_path = gl_project_path
+        @container = container
 
         @name = @relative_path.split("/").last
       end
 
       def to_s
         "<#{self.class.name}: #{self.gl_project_path}>"
+      end
+
+      # Support Feature Flag Repository actor
+      def flipper_id
+        "Repository:#{@relative_path}"
       end
 
       def ==(other)
@@ -110,9 +116,9 @@ module Gitlab
       # Returns an Array of branch names
       # sorted by name ASC
       def branch_names
-        wrapped_gitaly_errors do
-          gitaly_ref_client.branch_names
-        end
+        refs = list_refs([Gitlab::Git::BRANCH_REF_PREFIX])
+
+        refs.map { |ref| Gitlab::Git.branch_name(ref.name) }
       end
 
       # Returns an Array of Branches
@@ -128,6 +134,10 @@ module Gitlab
         wrapped_gitaly_errors do
           gitaly_ref_client.find_branch(name)
         end
+      rescue Gitlab::Git::AmbiguousRef
+        # Gitaly returns "reference is ambiguous" error in case when users request
+        # branch "my-branch", when another branch "my-branch/branch" exists.
+        # We handle this error here and return nil for this case.
       end
 
       def find_tag(name)
@@ -152,9 +162,7 @@ module Gitlab
 
       # Returns the number of valid branches
       def branch_count
-        wrapped_gitaly_errors do
-          gitaly_ref_client.count_branch_names
-        end
+        branch_names.count
       end
 
       def rename(new_relative_path)
@@ -196,16 +204,14 @@ module Gitlab
 
       # Returns the number of valid tags
       def tag_count
-        wrapped_gitaly_errors do
-          gitaly_ref_client.count_tag_names
-        end
+        tag_names.count
       end
 
       # Returns an Array of tag names
       def tag_names
-        wrapped_gitaly_errors do
-          gitaly_ref_client.tag_names
-        end
+        refs = list_refs([Gitlab::Git::TAG_REF_PREFIX])
+
+        refs.map { |ref| Gitlab::Git.tag_name(ref.name) }
       end
 
       # Returns an Array of Tags
@@ -379,6 +385,12 @@ module Gitlab
         end
       end
 
+      def check_objects_exist(refs)
+        wrapped_gitaly_errors do
+          gitaly_commit_client.object_existence_map(Array.wrap(refs))
+        end
+      end
+
       def new_blobs(newrevs, dynamic_timeout: nil)
         newrevs = Array.wrap(newrevs).reject { |rev| rev.blank? || rev == ::Gitlab::Git::BLANK_SHA }
         return [] if newrevs.empty?
@@ -453,9 +465,9 @@ module Gitlab
       end
 
       # Returns the SHA of the most recent common ancestor of +from+ and +to+
-      def merge_base(*commits)
+      def merge_base(...)
         wrapped_gitaly_errors do
-          gitaly_repository_client.find_merge_base(*commits)
+          gitaly_repository_client.find_merge_base(...)
         end
       end
 
@@ -534,9 +546,9 @@ module Gitlab
       # Returns matching refs for OID
       #
       # Limit of 0 means there is no limit.
-      def refs_by_oid(oid:, limit: 0)
+      def refs_by_oid(oid:, limit: 0, ref_patterns: nil)
         wrapped_gitaly_errors do
-          gitaly_ref_client.find_refs_by_oid(oid: oid, limit: limit)
+          gitaly_ref_client.find_refs_by_oid(oid: oid, limit: limit, ref_patterns: ref_patterns)
         end
       rescue CommandError, TypeError, NoRepository
         nil
@@ -640,15 +652,23 @@ module Gitlab
         end
       end
 
-      def merge(user, source_sha, target_branch, message, &block)
+      def merge(user, source_sha:, target_branch:, message:, target_sha: nil, &block)
         wrapped_gitaly_errors do
-          gitaly_operation_client.user_merge_branch(user, source_sha, target_branch, message, &block)
+          gitaly_operation_client.user_merge_branch(user,
+                                                    source_sha: source_sha,
+                                                    target_branch: target_branch,
+                                                    message: message,
+                                                    target_sha: target_sha,
+                                                    &block)
         end
       end
 
-      def ff_merge(user, source_sha, target_branch)
+      def ff_merge(user, source_sha:, target_branch:, target_sha: nil)
         wrapped_gitaly_errors do
-          gitaly_operation_client.user_ff_branch(user, source_sha, target_branch)
+          gitaly_operation_client.user_ff_branch(user,
+                                                 source_sha: source_sha,
+                                                 target_branch: target_branch,
+                                                 target_sha: target_sha)
         end
       end
 
@@ -701,14 +721,16 @@ module Gitlab
       # Delete the specified branch from the repository
       # Note: No Git hooks are executed for this action
       def delete_branch(branch_name)
-        write_ref(branch_name, Gitlab::Git::BLANK_SHA)
+        branch_name = "#{Gitlab::Git::BRANCH_REF_PREFIX}#{branch_name}" unless branch_name.start_with?("refs/")
+
+        delete_refs(branch_name)
       rescue CommandError => e
         raise DeleteBranchError, e
       end
 
-      def delete_refs(*ref_names)
+      def delete_refs(...)
         wrapped_gitaly_errors do
-          gitaly_delete_refs(*ref_names)
+          gitaly_delete_refs(...)
         end
       end
 
@@ -781,10 +803,31 @@ module Gitlab
         end
       end
 
-      def license_short_name
+      def license(from_gitaly)
         wrapped_gitaly_errors do
-          gitaly_repository_client.license_short_name
+          response = gitaly_repository_client.find_license
+
+          break nil if response.license_short_name.empty?
+
+          if from_gitaly
+            break ::Gitlab::Git::DeclaredLicense.new(key: response.license_short_name,
+                                                     name: response.license_name,
+                                                     nickname: response.license_nickname.presence,
+                                                     url: response.license_url.presence,
+                                                     path: response.license_path)
+          end
+
+          licensee_object = Licensee::License.new(response.license_short_name)
+
+          break nil if licensee_object.name.blank?
+
+          licensee_object.meta.nickname = "LICENSE" if licensee_object.key == "other"
+
+          licensee_object
         end
+      rescue Licensee::InvalidLicense => e
+        Gitlab::ErrorTracking.track_exception(e)
+        nil
       end
 
       def fetch_source_branch!(source_repository, source_branch, local_ref)
@@ -794,9 +837,14 @@ module Gitlab
       end
 
       def compare_source_branch(target_branch_name, source_repository, source_branch_name, straight:)
-        CrossRepoComparer
-          .new(source_repository, self)
-          .compare(source_branch_name, target_branch_name, straight: straight)
+        CrossRepo.new(source_repository, self).execute(target_branch_name) do |target_commit_id|
+          Gitlab::Git::Compare.new(
+            source_repository,
+            target_commit_id,
+            source_branch_name,
+            straight: straight
+          )
+        end
       end
 
       def write_ref(ref_path, ref, old_ref: nil)
@@ -807,9 +855,10 @@ module Gitlab
         end
       end
 
-      def list_refs(patterns = [Gitlab::Git::BRANCH_REF_PREFIX])
+      # peel_tags slows down the request by a factor of 3-4
+      def list_refs(patterns = [Gitlab::Git::BRANCH_REF_PREFIX], pointing_at_oids: [], peel_tags: false)
         wrapped_gitaly_errors do
-          gitaly_ref_client.list_refs(patterns)
+          gitaly_ref_client.list_refs(patterns, pointing_at_oids: pointing_at_oids, peel_tags: peel_tags)
         end
       end
 
@@ -832,7 +881,11 @@ module Gitlab
       # no_tags - should we use --no-tags flag?
       # prune - should we use --prune flag?
       # check_tags_changed - should we ask gitaly to calculate whether any tags changed?
-      def fetch_remote(url, refmap: nil, ssh_auth: nil, forced: false, no_tags: false, prune: true, check_tags_changed: false, http_authorization_header: "")
+      # resolved_address - resolved IP address for provided URL
+      def fetch_remote( # rubocop:disable Metrics/ParameterLists
+        url,
+        refmap: nil, ssh_auth: nil, forced: false, no_tags: false, prune: true,
+        check_tags_changed: false, http_authorization_header: "", resolved_address: "")
         wrapped_gitaly_errors do
           gitaly_repository_client.fetch_remote(
             url,
@@ -843,16 +896,17 @@ module Gitlab
             prune: prune,
             check_tags_changed: check_tags_changed,
             timeout: GITLAB_PROJECTS_TIMEOUT,
-            http_authorization_header: http_authorization_header
+            http_authorization_header: http_authorization_header,
+            resolved_address: resolved_address
           )
         end
       end
 
-      def import_repository(url, http_authorization_header: '', mirror: false)
+      def import_repository(url, http_authorization_header: '', mirror: false, resolved_address: '')
         raise ArgumentError, "don't use disk paths with import_repository: #{url.inspect}" if url.start_with?('.', '/')
 
         wrapped_gitaly_errors do
-          gitaly_repository_client.import_repository(url, http_authorization_header: http_authorization_header, mirror: mirror)
+          gitaly_repository_client.import_repository(url, http_authorization_header: http_authorization_header, mirror: mirror, resolved_address: resolved_address)
         end
       end
 
@@ -913,8 +967,29 @@ module Gitlab
         true
       end
 
+      # Creates a commit
+      #
+      # @param [User] user The committer of the commit.
+      # @param [String] branch_name: The name of the branch to be created/updated.
+      # @param [String] message: The commit message.
+      # @param [Array<Hash>] actions: An array of files to be added/updated/removed.
+      # @option actions: [Symbol] :action One of :create, :create_dir, :update, :move, :delete, :chmod
+      # @option actions: [String] :file_path The path of the file or directory being added/updated/removed.
+      # @option actions: [String] :previous_path The path of the file being moved. Only used for the :move action.
+      # @option actions: [String,IO] :content The file content for :create or :update
+      # @option actions: [String] :encoding One of text, base64
+      # @option actions: [Boolean] :execute_filemode True sets the executable filemode on the file.
+      # @option actions: [Boolean] :infer_content True uses the existing file contents instead of using content on move.
+      # @param [String] author_email: The authors email, if unspecified the committers email is used.
+      # @param [String] author_name: The authors name, if unspecified the committers name is used.
+      # @param [String] start_branch_name: The name of the branch to be used as the parent of the commit. Only used if start_sha: is unspecified.
+      # @param [String] start_sha: The sha to be used as the parent of the commit.
+      # @param [Gitlab::Git::Repository] start_repository: The repository that contains the start branch or sha. Defaults to use this repository.
+      # @param [Boolean] force: Force update the branch.
+      # @return [Gitlab::Git::OperationService::BranchUpdate]
+      #
       # rubocop:disable Metrics/ParameterLists
-      def multi_action(
+      def commit_files(
         user, branch_name:, message:, actions:,
         author_email: nil, author_name: nil,
         start_branch_name: nil, start_sha: nil, start_repository: nil,
@@ -985,12 +1060,12 @@ module Gitlab
         @praefect_info_client ||= Gitlab::GitalyClient::PraefectInfoService.new(self)
       end
 
-      def branch_names_contains_sha(sha)
-        gitaly_ref_client.branch_names_contains_sha(sha)
+      def branch_names_contains_sha(sha, limit: 0)
+        gitaly_ref_client.branch_names_contains_sha(sha, limit: limit)
       end
 
-      def tag_names_contains_sha(sha)
-        gitaly_ref_client.tag_names_contains_sha(sha)
+      def tag_names_contains_sha(sha, limit: 0)
+        gitaly_ref_client.tag_names_contains_sha(sha, limit: limit)
       end
 
       def search_files_by_content(query, ref, options = {})
@@ -1010,19 +1085,19 @@ module Gitlab
         end
       end
 
-      def search_files_by_name(query, ref)
+      def search_files_by_name(query, ref, limit: 0, offset: 0)
         safe_query = query.sub(%r{^/*}, "")
         ref ||= root_ref
 
         return [] if empty? || safe_query.blank?
 
-        gitaly_repository_client.search_files_by_name(ref, safe_query).map do |file|
+        gitaly_repository_client.search_files_by_name(ref, safe_query, limit: limit, offset: offset).map do |file|
           Gitlab::EncodingHelper.encode_utf8(file)
         end
       end
 
-      def search_files_by_regexp(filter, ref = 'HEAD')
-        gitaly_repository_client.search_files_by_regexp(ref, filter).map do |file|
+      def search_files_by_regexp(filter, ref = 'HEAD', limit: 0, offset: 0)
+        gitaly_repository_client.search_files_by_regexp(ref, filter, limit: limit, offset: offset).map do |file|
           Gitlab::EncodingHelper.encode_utf8(file)
         end
       end
@@ -1031,6 +1106,24 @@ module Gitlab
         wrapped_gitaly_errors do
           gitaly_commit_client
             .commits_by_message(query, revision: ref, path: path, limit: limit, offset: offset)
+            .map { |c| commit(c) }
+        end
+      end
+
+      def list_commits_by(query, ref, author: nil, before: nil, after: nil, limit: 1000)
+        params = {
+          author: author,
+          ignore_case: true,
+          commit_message_patterns: query,
+          before: before,
+          after: after,
+          reverse: false,
+          pagination_params: { limit: limit }
+        }
+
+        wrapped_gitaly_errors do
+          gitaly_commit_client
+            .list_commits([ref], params)
             .map { |c| commit(c) }
         end
       end

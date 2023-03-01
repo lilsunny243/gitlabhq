@@ -3,9 +3,11 @@
 module Ci
   class Processable < ::CommitStatus
     include Gitlab::Utils::StrongMemoize
+    include FromUnion
     extend ::Gitlab::Utils::Override
 
     has_one :resource, class_name: 'Ci::Resource', foreign_key: 'build_id', inverse_of: :processable
+    has_one :sourced_pipeline, class_name: 'Ci::Sources::Pipeline', foreign_key: :source_job_id, inverse_of: :source_job
 
     belongs_to :resource_group, class_name: 'Ci::ResourceGroup', inverse_of: :processables
 
@@ -102,8 +104,8 @@ module Ci
       to: :pipeline
 
     def clone(current_user:, new_job_variables_attributes: [])
-      new_attributes = self.class.clone_accessors.to_h do |attribute|
-        [attribute, public_send(attribute)] # rubocop:disable GitlabSecurity/PublicSend
+      new_attributes = self.class.clone_accessors.index_with do |attribute|
+        public_send(attribute) # rubocop:disable GitlabSecurity/PublicSend
       end
 
       if persisted_environment.present?

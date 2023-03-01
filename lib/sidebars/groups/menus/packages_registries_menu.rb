@@ -8,14 +8,14 @@ module Sidebars
         def configure_menu_items
           add_item(packages_registry_menu_item)
           add_item(container_registry_menu_item)
-          add_item(harbor_registry__menu_item)
+          add_item(harbor_registry_menu_item)
           add_item(dependency_proxy_menu_item)
           true
         end
 
         override :title
         def title
-          _('Packages & Registries')
+          _('Packages and registries')
         end
 
         override :sprite_icon
@@ -49,8 +49,10 @@ module Sidebars
           )
         end
 
-        def harbor_registry__menu_item
-          if Feature.disabled?(:harbor_registry_integration) || context.group.harbor_integration.nil?
+        def harbor_registry_menu_item
+          if Feature.disabled?(:harbor_registry_integration) ||
+              context.group.harbor_integration.nil? ||
+              !context.group.harbor_integration.activated?
             return nil_menu_item(:harbor_registry)
           end
 
@@ -64,7 +66,7 @@ module Sidebars
 
         def dependency_proxy_menu_item
           setting_does_not_exist_or_is_enabled = !context.group.dependency_proxy_setting ||
-                                                  context.group.dependency_proxy_setting.enabled
+            context.group.dependency_proxy_setting.enabled
 
           return nil_menu_item(:dependency_proxy) unless can?(context.current_user, :read_dependency_proxy, context.group)
           return nil_menu_item(:dependency_proxy) unless setting_does_not_exist_or_is_enabled

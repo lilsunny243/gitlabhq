@@ -8,13 +8,17 @@ import {
   GlDropdownItem,
   GlDropdownDivider,
   GlDropdownSectionHeader,
+  GlTooltip,
+  GlSprintf,
+  GlTooltipDirective,
 } from '@gitlab/ui';
 import { mapState, mapGetters, mapActions } from 'vuex';
 import { __ } from '~/locale';
+import { helpPagePath } from '~/helpers/help_page_helper';
 import ImportGroupDropdown from '../../components/group_dropdown.vue';
 import ImportStatus from '../../components/import_status.vue';
 import { STATUSES } from '../../constants';
-import { isProjectImportable, isIncompatible, getImportStatus } from '../utils';
+import { isProjectImportable, isImporting, isIncompatible, getImportStatus } from '../utils';
 
 export default {
   name: 'ProviderRepoTableRow',
@@ -29,6 +33,11 @@ export default {
     GlIcon,
     GlBadge,
     GlLink,
+    GlTooltip,
+    GlSprintf,
+  },
+  directives: {
+    GlTooltip: GlTooltipDirective,
   },
   props: {
     repo: {
@@ -39,10 +48,21 @@ export default {
       type: String,
       required: true,
     },
-    availableNamespaces: {
-      type: Array,
+    optionalStages: {
+      type: Object,
       required: true,
     },
+    cancelable: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+  },
+
+  data() {
+    return {
+      isSelectedForReimport: false,
+    };
   },
 
   computed: {
@@ -69,6 +89,14 @@ export default {
       return getImportStatus(this.repo);
     },
 
+    isImporting() {
+      return isImporting(this.repo);
+    },
+
+    isCancelable() {
+      return this.cancelable && this.isImporting && this.importStatus !== STATUSES.SCHEDULING;
+    },
+
     stats() {
       return this.repo.importedProject?.stats;
     },
@@ -78,7 +106,11 @@ export default {
     },
 
     importButtonText() {
-      return this.ciCdOnly ? __('Connect') : __('Import');
+      if (this.ciCdOnly) {
+        return __('Connect');
+      }
+
+      return this.isFinished ? __('Re-import') : __('Import');
     },
 
     newNameInput: {
@@ -92,14 +124,32 @@ export default {
   },
 
   methods: {
-    ...mapActions(['fetchImport', 'setImportTarget']),
+    ...mapActions(['fetchImport', 'cancelImport', 'setImportTarget']),
     updateImportTarget(changedValues) {
       this.setImportTarget({
         repoId: this.repo.importSource.id,
         importTarget: { ...this.importTarget, ...changedValues },
       });
     },
+
+    handleImportRepo() {
+      if (this.isFinished && !this.isSelectedForReimport) {
+        this.isSelectedForReimport = true;
+        this.$nextTick(() => {
+          this.$refs.newNameInput.$el.focus();
+        });
+      } else {
+        this.isSelectedForReimport = false;
+
+        this.fetchImport({
+          repoId: this.repo.importSource.id,
+          optionalStages: this.optionalStages,
+        });
+      }
+    },
   },
+
+  helpUrl: helpPagePath('/user/project/import/github.md'),
 };
 </script>
 
@@ -114,6 +164,20 @@ export default {
         >{{ repo.importSource.fullName }}
         <gl-icon v-if="repo.importSource.providerLink" name="external-link" />
       </gl-link>
+      <div v-if="isFinished" class="gl-font-sm">
+        <gl-sprintf :message="s__('BulkImport|Last imported to %{link}')">
+          <template #link>
+            <gl-link
+              :href="repo.importedProject.fullPath"
+              class="gl-font-sm"
+              target="_blank"
+              data-qa-selector="go_to_project_link"
+            >
+              {{ displayFullPath }}
+            </gl-link>
+          </template>
+        </gl-sprintf>
+      </div>
     </td>
     <td
       class="gl-display-flex gl-sm-flex-wrap gl-p-4 gl-pt-5 gl-vertical-align-top"
@@ -121,13 +185,9 @@ export default {
       data-qa-selector="project_path_content"
     >
       <template v-if="repo.importSource.target">{{ repo.importSource.target }}</template>
-      <template v-else-if="isImportNotStarted">
-        <div class="import-entities-target-select gl-display-flex gl-align-items-stretch gl-w-full">
-          <import-group-dropdown
-            #default="{ namespaces }"
-            :text="importTarget.targetNamespace"
-            :namespaces="availableNamespaces"
-          >
+      <template v-else-if="isImportNotStarted || isSelectedForReimport">
+        <div class="gl-display-flex gl-align-items-stretch gl-w-full">
+          <import-group-dropdown #default="{ namespaces }" :text="importTarget.targetNamespace">
             <template v-if="namespaces.length">
               <gl-dropdown-section-header>{{ __('Groups') }}</gl-dropdown-section-header>
               <gl-dropdown-item
@@ -147,11 +207,12 @@ export default {
             }}</gl-dropdown-item>
           </import-group-dropdown>
           <div
-            class="import-entities-target-select-separator gl-px-3 gl-display-flex gl-align-items-center gl-border-solid gl-border-0 gl-border-t-1 gl-border-b-1"
+            class="gl-px-3 gl-display-flex gl-align-items-center gl-border-solid gl-border-0 gl-border-t-1 gl-border-b-1"
           >
             /
           </div>
           <gl-form-input
+            ref="newNameInput"
             v-model="newNameInput"
             class="gl-rounded-top-left-none gl-rounded-bottom-left-none"
             data-qa-selector="project_path_field"
@@ -163,24 +224,48 @@ export default {
     <td class="gl-p-4 gl-vertical-align-top" data-qa-selector="import_status_indicator">
       <import-status :status="importStatus" :stats="stats" />
     </td>
-    <td data-testid="actions" class="gl-vertical-align-top gl-pt-4">
+    <td data-testid="actions" class="gl-vertical-align-top gl-pt-4 gl-white-space-nowrap">
+      <gl-tooltip :target="() => $refs.cancelButton.$el">
+        <div class="gl-text-left">
+          <p class="gl-mb-5 gl-font-weight-bold">{{ s__('ImportProjects|Cancel import') }}</p>
+          {{
+            s__(
+              'ImportProjects|Imported files will be kept. You can import this repository again later.',
+            )
+          }}
+          <gl-link :href="$options.helpUrl" target="_blank">{{ __('Learn more.') }}</gl-link>
+        </div>
+      </gl-tooltip>
       <gl-button
-        v-if="isFinished"
-        class="btn btn-default"
-        :href="repo.importedProject.fullPath"
-        rel="noreferrer noopener"
-        target="_blank"
-        data-qa-selector="go_to_project_button"
-        >{{ __('Go to project') }}
-      </gl-button>
+        v-show="isCancelable"
+        ref="cancelButton"
+        variant="danger"
+        category="secondary"
+        icon="cancel"
+        :aria-label="__('Cancel')"
+        @click="cancelImport({ repoId: repo.importSource.id })"
+      />
       <gl-button
-        v-if="isImportNotStarted"
+        v-if="isImportNotStarted || isFinished"
         type="button"
         data-qa-selector="import_button"
-        @click="fetchImport(repo.importSource.id)"
+        @click="handleImportRepo()"
       >
         {{ importButtonText }}
       </gl-button>
+      <gl-icon
+        v-if="isFinished"
+        v-gl-tooltip
+        :size="16"
+        name="information-o"
+        :title="
+          s__(
+            'ImportProjects|Re-import creates a new project. It does not sync with the existing project.',
+          )
+        "
+        class="gl-ml-3"
+      />
+
       <gl-badge v-else-if="isIncompatible" variant="danger">{{
         __('Incompatible project')
       }}</gl-badge>

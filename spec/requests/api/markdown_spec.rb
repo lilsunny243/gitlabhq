@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe API::Markdown do
+RSpec.describe API::Markdown, feature_category: :team_planning do
   describe "POST /markdown" do
     let(:user) {} # No-op. It gets overwritten in the contexts below.
     let(:disable_authenticate_markdown_api) { false }
@@ -193,7 +193,7 @@ RSpec.describe API::Markdown do
           end
 
           let(:issue)  { create(:issue, project: public_project, title: 'Team only title') }
-          let(:text)   { "#{issue.to_reference}" }
+          let(:text)   { issue.to_reference.to_s }
           let(:params) { { text: text, gfm: true, project: public_project.full_path } }
 
           shared_examples 'user without proper access' do

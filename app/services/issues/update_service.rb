@@ -5,8 +5,8 @@ module Issues
     # NOTE: For Issues::UpdateService, we default the spam_params to nil, because spam_checking is not
     # necessary in many cases, and we don't want to require every caller to explicitly pass it as nil
     # to disable spam checking.
-    def initialize(project:, current_user: nil, params: {}, spam_params: nil)
-      super(project: project, current_user: current_user, params: params)
+    def initialize(container:, current_user: nil, params: {}, spam_params: nil)
+      super(container: container, current_user: current_user, params: params)
       @spam_params = spam_params
     end
 
@@ -63,7 +63,6 @@ module Issues
 
       handle_assignee_changes(issue, old_assignees)
       handle_confidential_change(issue)
-      handle_label_changes(issue, old_labels)
       handle_added_labels(issue, old_labels)
       handle_milestone_change(issue)
       handle_added_mentions(issue, old_mentioned_users)
@@ -97,7 +96,7 @@ module Issues
       canonical_issue = IssuesFinder.new(current_user).find_by(id: canonical_issue_id)
 
       if canonical_issue
-        Issues::DuplicateService.new(project: project, current_user: current_user).execute(issue, canonical_issue)
+        Issues::DuplicateService.new(container: project, current_user: current_user).execute(issue, canonical_issue)
       end
     end
     # rubocop: enable CodeReuse/ActiveRecord
@@ -110,12 +109,20 @@ module Issues
           target_project != issue.project
 
       update(issue)
-      Issues::MoveService.new(project: project, current_user: current_user).execute(issue, target_project)
+      Issues::MoveService.new(container: project, current_user: current_user).execute(issue, target_project)
     end
 
     private
 
     attr_reader :spam_params
+
+    def handle_quick_actions(issue)
+      # Do not handle quick actions unless the work item is the default Issue.
+      # The available quick actions for a work item depend on its type and widgets.
+      return unless issue.work_item_type.default_issue?
+
+      super
+    end
 
     def handle_date_changes(issue)
       return unless issue.previous_changes.slice('due_date', 'start_date').any?
@@ -132,7 +139,7 @@ module Issues
 
       # we've pre-empted this from running in #execute, so let's go ahead and update the Issue now.
       update(issue)
-      Issues::CloneService.new(project: project, current_user: current_user).execute(issue, target_project, with_notes: with_notes)
+      Issues::CloneService.new(container: project, current_user: current_user).execute(issue, target_project, with_notes: with_notes)
     end
 
     def create_merge_request_from_quick_action
@@ -147,7 +154,7 @@ module Issues
         # don't enqueue immediately to prevent todos removal in case of a mistake
         TodosDestroyer::ConfidentialIssueWorker.perform_in(Todo::WAIT_FOR_DELETE, issue.id) if issue.confidential?
         create_confidentiality_note(issue)
-        track_usage_event(:incident_management_incident_change_confidential, current_user.id)
+        track_incident_action(current_user, issue, :incident_change_confidential)
       end
     end
 
@@ -164,6 +171,7 @@ module Issues
 
       invalidate_milestone_issue_counters(issue)
       send_milestone_change_notification(issue)
+      GraphqlTriggers.issuable_milestone_updated(issue)
     end
 
     def invalidate_milestone_issue_counters(issue)
@@ -181,9 +189,9 @@ module Issues
       return if skip_milestone_email
 
       if issue.milestone.nil?
-        notification_service.async.removed_milestone_issue(issue, current_user)
+        notification_service.async.removed_milestone(issue, current_user)
       else
-        notification_service.async.changed_milestone_issue(issue, issue.milestone, current_user)
+        notification_service.async.changed_milestone(issue, issue.milestone, current_user)
       end
     end
 
@@ -199,15 +207,6 @@ module Issues
       return unless old_severity && issue.severity != old_severity
 
       ::IncidentManagement::AddSeveritySystemNoteWorker.perform_async(issue.id, current_user.id)
-    end
-
-    def handle_escalation_status_change(issue)
-      return unless issue.supports_escalation? && issue.escalation_status
-
-      ::IncidentManagement::IssuableEscalationStatuses::AfterUpdateService.new(
-        issue,
-        current_user
-      ).execute
     end
 
     def create_confidentiality_note(issue)

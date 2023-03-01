@@ -11,6 +11,17 @@ RSpec.describe Gitlab::X509::Signature do
     }
   end
 
+  it_behaves_like 'signature with type checking', :x509 do
+    subject(:signature) do
+      described_class.new(
+        X509Helpers::User1.signed_commit_signature,
+        X509Helpers::User1.signed_commit_base_data,
+        X509Helpers::User1.certificate_email,
+        X509Helpers::User1.signed_commit_time
+      )
+    end
+  end
+
   shared_examples "a verified signature" do
     let!(:user) { create(:user, email: X509Helpers::User1.certificate_email) }
 
@@ -24,6 +35,20 @@ RSpec.describe Gitlab::X509::Signature do
     end
 
     it 'returns a verified signature if email does match' do
+      expect(signature.x509_certificate).to have_attributes(certificate_attributes)
+      expect(signature.x509_certificate.x509_issuer).to have_attributes(issuer_attributes)
+      expect(signature.verified_signature).to be_truthy
+      expect(signature.verification_status).to eq(:verified)
+    end
+
+    it 'returns a verified signature if email does match, case-insensitively' do
+      signature = described_class.new(
+        X509Helpers::User1.signed_commit_signature,
+        X509Helpers::User1.signed_commit_base_data,
+        X509Helpers::User1.certificate_email.upcase,
+        X509Helpers::User1.signed_commit_time
+      )
+
       expect(signature.x509_certificate).to have_attributes(certificate_attributes)
       expect(signature.x509_certificate.x509_issuer).to have_attributes(issuer_attributes)
       expect(signature.verified_signature).to be_truthy
@@ -257,21 +282,21 @@ RSpec.describe Gitlab::X509::Signature do
     end
   end
 
-  describe '#user' do
+  describe '#signed_by_user' do
     subject do
       described_class.new(
         X509Helpers::User1.signed_tag_signature,
         X509Helpers::User1.signed_tag_base_data,
         X509Helpers::User1.certificate_email,
         X509Helpers::User1.signed_commit_time
-      ).user
+      ).signed_by_user
     end
 
     context 'if email is assigned to a user' do
-      let!(:user) { create(:user, email: X509Helpers::User1.certificate_email) }
+      let!(:signed_by_user) { create(:user, email: X509Helpers::User1.certificate_email) }
 
       it 'returns user' do
-        is_expected.to eq(user)
+        is_expected.to eq(signed_by_user)
       end
     end
 

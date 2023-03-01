@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dashboard Issues filtering', :js do
+RSpec.describe 'Dashboard Issues filtering', :js, feature_category: :team_planning do
   include Spec::Support::Helpers::Features::SortingHelpers
   include FilteredSearchHelpers
 
@@ -44,7 +44,7 @@ RSpec.describe 'Dashboard Issues filtering', :js do
     it 'updates atom feed link' do
       visit_issues(milestone_title: '', assignee_username: user.username)
 
-      link = find('.nav-controls a[title="Subscribe to RSS feed"]')
+      link = find('[data-testid="rss-feed-link"]')
       params = CGI.parse(URI.parse(link[:href]).query)
       auto_discovery_link = find('link[type="application/atom+xml"]', visible: false)
       auto_discovery_params = CGI.parse(URI.parse(auto_discovery_link[:href]).query)
@@ -92,7 +92,7 @@ RSpec.describe 'Dashboard Issues filtering', :js do
     end
   end
 
-  def visit_issues(*args)
-    visit issues_dashboard_path(*args)
+  def visit_issues(...)
+    visit issues_dashboard_path(...)
   end
 end

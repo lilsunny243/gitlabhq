@@ -13,10 +13,12 @@ import {
 } from '@gitlab/ui';
 import * as Sentry from '@sentry/browser';
 import Api, { DEFAULT_PER_PAGE } from '~/api';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_PAYLOAD_TOO_LARGE } from '~/lib/utils/http_status';
 import { __, s__, sprintf } from '~/locale';
 import Tracking from '~/tracking';
 import TimeagoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
+import MetadataButton from './metadata/button.vue';
+import MetadataModal from './metadata/modal.vue';
 
 export default {
   components: {
@@ -29,6 +31,8 @@ export default {
     GlSprintf,
     GlTable,
     TimeagoTooltip,
+    MetadataButton,
+    MetadataModal,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
@@ -57,6 +61,7 @@ export default {
     deleteModalButton: s__('SecureFiles|Delete secure file'),
   },
   deleteModalId: 'deleteModalId',
+  metadataModalId: 'metadataModalId',
   data() {
     return {
       page: 1,
@@ -68,6 +73,7 @@ export default {
       projectSecureFiles: [],
       deleteModalFileId: null,
       deleteModalFileName: null,
+      metadataSecureFile: {},
     };
   },
   fields: [
@@ -145,7 +151,7 @@ export default {
       let message = '';
       if (error?.response?.data?.message?.name) {
         message = this.$options.i18n.uploadErrorMessages.duplicate;
-      } else if (error.response.status === httpStatusCodes.PAYLOAD_TOO_LARGE) {
+      } else if (error.response.status === HTTP_STATUS_PAYLOAD_TOO_LARGE) {
         message = sprintf(this.$options.i18n.uploadErrorMessages.tooLarge, {
           limit: this.fileSizeLimit,
         });
@@ -161,6 +167,9 @@ export default {
     setDeleteModalData(secureFile) {
       this.deleteModalFileId = secureFile.id;
       this.deleteModalFileName = secureFile.name;
+    },
+    updateMetadataSecureFile(secureFile) {
+      this.metadataSecureFile = secureFile;
     },
     uploadFormData(file) {
       const formData = new FormData();
@@ -208,6 +217,12 @@ export default {
         </template>
 
         <template #cell(actions)="{ item }">
+          <metadata-button
+            :secure-file="item"
+            :admin="admin"
+            modal-id="$options.metadataModalId"
+            @selectSecureFile="updateMetadataSecureFile"
+          />
           <gl-button
             v-if="admin"
             v-gl-modal="$options.deleteModalId"
@@ -272,5 +287,12 @@ export default {
         <template #name>{{ deleteModalFileName }}</template>
       </gl-sprintf>
     </gl-modal>
+
+    <metadata-modal
+      :name="metadataSecureFile.name"
+      :file-extension="metadataSecureFile.file_extension"
+      :metadata="metadataSecureFile.metadata"
+      modal-id="$options.metadataModalId"
+    />
   </div>
 </template>

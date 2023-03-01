@@ -33,6 +33,18 @@ describe('ide/components/panes/right.vue', () => {
     wrapper = null;
   });
 
+  describe('default', () => {
+    beforeEach(() => {
+      createComponent();
+    });
+
+    it('renders collapsible-sidebar', () => {
+      expect(wrapper.findComponent(CollapsibleSidebar).props()).toMatchObject({
+        side: 'right',
+      });
+    });
+  });
+
   describe('pipelines tab', () => {
     it('is always shown', () => {
       createComponent();
@@ -48,31 +60,6 @@ describe('ide/components/panes/right.vue', () => {
               }),
               expect.objectContaining({
                 name: rightSidebarViews.jobsDetail.name,
-              }),
-            ]),
-          }),
-        ]),
-      );
-    });
-  });
-
-  describe('clientside live preview tab', () => {
-    it('is shown if there is a packageJson and clientsidePreviewEnabled', () => {
-      Vue.set(store.state.entries, 'package.json', {
-        name: 'package.json',
-      });
-      store.state.clientsidePreviewEnabled = true;
-
-      createComponent();
-
-      expect(wrapper.findComponent(CollapsibleSidebar).props('extensionTabs')).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            show: true,
-            title: 'Live preview',
-            views: expect.arrayContaining([
-              expect.objectContaining({
-                name: rightSidebarViews.clientSidePreview.name,
               }),
             ]),
           }),

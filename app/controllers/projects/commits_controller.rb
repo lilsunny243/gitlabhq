@@ -7,12 +7,11 @@ class Projects::CommitsController < Projects::ApplicationController
   include RendersCommits
 
   COMMITS_DEFAULT_LIMIT = 40
-
   prepend_before_action(only: [:show]) { authenticate_sessionless_user!(:rss) }
   around_action :allow_gitaly_ref_name_caching
   before_action :require_non_empty_project
   before_action :assign_ref_vars, except: :commits_root
-  before_action :authorize_download_code!
+  before_action :authorize_read_code!
   before_action :validate_ref!, except: :commits_root
   before_action :set_commits, except: :commits_root
 
@@ -27,6 +26,8 @@ class Projects::CommitsController < Projects::ApplicationController
   def show
     @merge_request = MergeRequestsFinder.new(current_user, project_id: @project.id).execute.opened
       .find_by(source_project: @project, source_branch: @ref, target_branch: @repository.root_ref)
+
+    @ref_type = ref_type
 
     respond_to do |format|
       format.html
@@ -73,18 +74,31 @@ class Projects::CommitsController < Projects::ApplicationController
     search = permitted_params[:search]
     author = permitted_params[:author]
 
+    # fully_qualified_ref is available in some situations from ExtractsRef
+    ref = @fully_qualified_ref || @ref
+
+    show_tags = Feature.enabled?(:show_tags_on_commits_view, @project)
     @commits =
       if search.present?
-        @repository.find_commits_by_message(search, @ref, @path, @limit, @offset)
-      elsif author.present?
-        @repository.commits(@ref, author: author, path: @path, limit: @limit, offset: @offset)
+        @repository.find_commits_by_message(search, ref, @path, @limit, @offset).tap do |collection|
+          collection.load_tags if show_tags
+        end
       else
-        @repository.commits(@ref, path: @path, limit: @limit, offset: @offset)
+        options = {
+          path: @path,
+          limit: @limit,
+          offset: @offset
+        }
+
+        options[:author] = author if author.present?
+        options[:include_referenced_by] = [Gitlab::Git::TAG_REF_PREFIX] if show_tags
+
+        @repository.commits(ref, **options)
       end
 
     @commits.each(&:lazy_author) # preload authors
 
-    @commits = @commits.with_markdown_cache.with_latest_pipeline(@ref)
+    @commits = @commits.with_markdown_cache.with_latest_pipeline(ref)
     @commits = set_commits_for_rendering(@commits)
   end
 

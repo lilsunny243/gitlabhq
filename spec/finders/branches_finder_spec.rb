@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BranchesFinder do
+RSpec.describe BranchesFinder, feature_category: :source_code_management do
   let(:user) { create(:user) }
   let(:project) { create(:project, :repository) }
   let(:repository) { project.repository }
@@ -72,13 +72,16 @@ RSpec.describe BranchesFinder do
         end
       end
 
-      context 'with an unknown name' do
-        let(:params) { { search: 'random' } }
+      context 'by string' do
+        let(:params) { { search: 'add' } }
 
-        it 'does not find any branch' do
+        it 'returns all branches contain name' do
           result = subject
 
-          expect(result.count).to eq(0)
+          result.each do |branch|
+            expect(branch.name).to include('add')
+          end
+          expect(result.count).to eq(5)
         end
       end
 
@@ -115,6 +118,77 @@ RSpec.describe BranchesFinder do
         end
       end
 
+      context 'by name with wildcard' do
+        let(:params) { { search: 'f*e' } }
+
+        it 'filters branches' do
+          result = subject
+
+          expect(result.first.name).to eq('2-mb-file')
+          expect(result.count).to eq(30)
+        end
+      end
+
+      context 'by mixed regex operators' do
+        let(:params) { { search: '^f*e$' } }
+
+        it 'filters branches' do
+          result = subject
+
+          expect(result.first.name).to eq('feature')
+          expect(result.count).to eq(1)
+        end
+      end
+
+      context 'by invalid regex' do
+        let(:params)  { { regex: '[' } }
+
+        it { expect { subject }.to raise_error(RegexpError) }
+      end
+
+      context 'by `|` regex' do
+        let(:params)  { { regex: 'audio|add-ipython-files' } }
+
+        it 'filters branches' do
+          branches = subject
+          expect(branches.first.name).to eq('add-ipython-files')
+          expect(branches.second.name).to eq('audio')
+          expect(branches.count).to eq(2)
+        end
+      end
+
+      context 'by exclude name' do
+        let(:params) { { regex: '^[^a]' } }
+
+        it 'filters branches' do
+          result = subject
+          result.each do |branch|
+            expect(branch.name).not_to start_with('a')
+          end
+        end
+      end
+
+      context 'by name with multiple wildcards' do
+        let(:params) { { search: 'f*a*e' } }
+
+        it 'filters branches' do
+          result = subject
+
+          expect(result.first.name).to eq('after-create-delete-modify-move')
+          expect(result.count).to eq(11)
+        end
+      end
+
+      context 'with an unknown name' do
+        let(:params) { { search: 'random' } }
+
+        it 'does not find any branch' do
+          result = subject
+
+          expect(result.count).to eq(0)
+        end
+      end
+
       context 'by nonexistent name that begins with' do
         let(:params) { { search: '^nope' } }
 
@@ -127,6 +201,16 @@ RSpec.describe BranchesFinder do
 
       context 'by nonexistent name that ends with' do
         let(:params) { { search: 'nope$' } }
+
+        it 'filters branches' do
+          result = subject
+
+          expect(result.count).to eq(0)
+        end
+      end
+
+      context 'by nonexistent name with wildcard' do
+        let(:params) { { search: 'zz*asdf' } }
 
         it 'filters branches' do
           result = subject
@@ -211,7 +295,7 @@ RSpec.describe BranchesFinder do
         it 'raises an error' do
           expect do
             subject
-          end.to raise_error(Gitlab::Git::CommandError, '13:could not find page token.')
+          end.to raise_error(Gitlab::Git::CommandError, /could not find page token/)
         end
       end
 

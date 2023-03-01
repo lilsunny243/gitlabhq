@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::Processable do
+RSpec.describe Ci::Processable, feature_category: :continuous_integration do
   let_it_be(:project) { create(:project) }
   let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
 
@@ -52,11 +52,14 @@ RSpec.describe Ci::Processable do
 
       let_it_be(:internal_job_variable) { create(:ci_job_variable, job: processable) }
 
-      let(:clone_accessors) { ::Ci::Build.clone_accessors.without(::Ci::Build.extra_accessors) }
+      let(:clone_accessors) do
+        %i[pipeline project ref tag options name allow_failure stage stage_idx trigger_request yaml_variables
+           when environment coverage_regex description tag_list protected needs_attributes job_variables_attributes
+           resource_group scheduling_type ci_stage partition_id id_tokens]
+      end
 
       let(:reject_accessors) do
-        %i[id status user token_encrypted coverage trace runner
-           artifacts_expire_at
+        %i[id status user token_encrypted coverage runner artifacts_expire_at
            created_at updated_at started_at finished_at queued_at erased_by
            erased_at auto_canceled_by job_artifacts job_artifacts_archive
            job_artifacts_metadata job_artifacts_trace job_artifacts_junit
@@ -70,6 +73,7 @@ RSpec.describe Ci::Processable do
            job_artifacts_network_referee job_artifacts_dotenv
            job_artifacts_cobertura needs job_artifacts_accessibility
            job_artifacts_requirements job_artifacts_coverage_fuzzing
+           job_artifacts_requirements_v2
            job_artifacts_api_fuzzing terraform_state_versions job_artifacts_cyclonedx].freeze
       end
 
@@ -78,13 +82,14 @@ RSpec.describe Ci::Processable do
            commit_id deployment erased_by_id project_id
            runner_id tag_taggings taggings tags trigger_request_id
            user_id auto_canceled_by_id retried failure_reason
-           sourced_pipelines artifacts_file_store artifacts_metadata_store
-           metadata runner_session trace_chunks upstream_pipeline_id
+           sourced_pipelines sourced_pipeline artifacts_file_store artifacts_metadata_store
+           metadata runner_machine_build runner_machine runner_session trace_chunks upstream_pipeline_id
            artifacts_file artifacts_metadata artifacts_size commands
            resource resource_group_id processed security_scans author
            pipeline_id report_results pending_state pages_deployments
            queuing_entry runtime_metadata trace_metadata
-           dast_site_profile dast_scanner_profile stage_id].freeze
+           dast_site_profile dast_scanner_profile stage_id dast_site_profiles_build
+           dast_scanner_profiles_build].freeze
       end
 
       before_all do
@@ -178,10 +183,7 @@ RSpec.describe Ci::Processable do
           Ci::Build.attribute_names.map(&:to_sym) +
           Ci::Build.attribute_aliases.keys.map(&:to_sym) +
           Ci::Build.reflect_on_all_associations.map(&:name) +
-          [:tag_list, :needs_attributes, :job_variables_attributes] -
-          # ToDo: Move EE accessors to ee/
-          ::Ci::Build.extra_accessors -
-          [:dast_site_profiles_build, :dast_scanner_profiles_build]
+          [:tag_list, :needs_attributes, :job_variables_attributes, :id_tokens]
 
         current_accessors.uniq!
 
@@ -428,8 +430,8 @@ RSpec.describe Ci::Processable do
 
       it 'returns all needs attributes' do
         is_expected.to contain_exactly(
-          { 'artifacts' => true, 'name' => 'test1', 'optional' => false },
-          { 'artifacts' => true, 'name' => 'test2', 'optional' => false }
+          { 'artifacts' => true, 'name' => 'test1', 'optional' => false, 'partition_id' => build.partition_id },
+          { 'artifacts' => true, 'name' => 'test2', 'optional' => false, 'partition_id' => build.partition_id }
         )
       end
     end

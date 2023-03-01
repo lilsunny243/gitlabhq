@@ -46,7 +46,8 @@ class IssuableFinder
 
   requires_cross_project_access unless: -> { params.project? }
 
-  FULL_TEXT_SEARCH_TERM_REGEX = /\A[\p{ASCII}|\p{Latin}]+\z/.freeze
+  FULL_TEXT_SEARCH_TERM_PATTERN = '[\u0000-\u02FF\u1E00-\u1EFF\u2070-\u218F]*'
+  FULL_TEXT_SEARCH_TERM_REGEX = /\A#{FULL_TEXT_SEARCH_TERM_PATTERN}\z/.freeze
   NEGATABLE_PARAMS_HELPER_KEYS = %i[project_id scope status include_subgroups].freeze
 
   attr_accessor :current_user, :params
@@ -58,19 +59,19 @@ class IssuableFinder
   class << self
     def scalar_params
       @scalar_params ||= %i[
-      assignee_id
-      assignee_username
-      author_id
-      author_username
-      crm_contact_id
-      crm_organization_id
-      label_name
-      milestone_title
-      release_tag
-      my_reaction_emoji
-      search
-      in
-    ]
+        assignee_id
+        assignee_username
+        author_id
+        author_username
+        crm_contact_id
+        crm_organization_id
+        label_name
+        milestone_title
+        release_tag
+        my_reaction_emoji
+        search
+        in
+      ]
     end
 
     def array_params
@@ -247,7 +248,10 @@ class IssuableFinder
   end
 
   def init_collection
-    klass.all
+    return klass.all if params.user_can_see_all_issuables?
+
+    # Only admins and auditors can see hidden issuables, for other users we filter out hidden issuables
+    klass.without_hidden
   end
 
   def default_or_simple_sort?
@@ -333,9 +337,8 @@ class IssuableFinder
   def by_search(items)
     return items unless search
     return items if items.is_a?(ActiveRecord::NullRelation)
-    return items if Feature.enabled?(:disable_anonymous_search, type: :ops) && current_user.nil?
 
-    return items.pg_full_text_search(search) if use_full_text_search?
+    return filter_by_full_text_search(items) if use_full_text_search?
 
     if use_cte_for_search?
       cte = Gitlab::SQL::CTE.new(klass.table_name, items)
@@ -348,10 +351,13 @@ class IssuableFinder
   # rubocop: enable CodeReuse/ActiveRecord
 
   def use_full_text_search?
-    params[:in].blank? &&
-      klass.try(:pg_full_text_searchable_columns).present? &&
+    klass.try(:pg_full_text_searchable_columns).present? &&
       params[:search] =~ FULL_TEXT_SEARCH_TERM_REGEX &&
       Feature.enabled?(:issues_full_text_search, params.project || params.group)
+  end
+
+  def filter_by_full_text_search(items)
+    items.pg_full_text_search(search, matched_columns: params[:in].to_s.split(','))
   end
 
   # rubocop: disable CodeReuse/ActiveRecord
@@ -403,7 +409,8 @@ class IssuableFinder
       Issuables::LabelFilter.new(
         params: original_params,
         project: params.project,
-        group: params.group
+        group: params.group,
+        or_filters_enabled: or_filters_enabled?
       )
     end
   end

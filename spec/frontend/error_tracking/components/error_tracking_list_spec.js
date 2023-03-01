@@ -164,19 +164,19 @@ describe('ErrorTrackingList', () => {
         expect(findSortDropdown().exists()).toBe(true);
       });
 
-      it('it searches by query', () => {
+      it('searches by query', () => {
         findSearchBox().vm.$emit('input', 'search');
         findSearchBox().trigger('keyup.enter');
         expect(actions.searchByQuery.mock.calls[0][1]).toBe('search');
       });
 
-      it('it sorts by fields', () => {
+      it('sorts by fields', () => {
         const findSortItem = () => findSortDropdown().find('.dropdown-item');
         findSortItem().trigger('click');
         expect(actions.sortByField).toHaveBeenCalled();
       });
 
-      it('it filters by status', () => {
+      it('filters by status', () => {
         const findStatusFilter = () => findStatusFilterDropdown().find('.dropdown-item');
         findStatusFilter().trigger('click');
         expect(actions.filterByStatus).toHaveBeenCalled();
@@ -314,6 +314,43 @@ describe('ErrorTrackingList', () => {
     });
   });
 
+  describe('when the resolve button is clicked with non numberic error id', () => {
+    beforeEach(() => {
+      store.state.list.loading = false;
+      store.state.list.errors = [
+        {
+          id: 'abc',
+          title: 'PG::ConnectionBad: FATAL',
+          type: 'error',
+          userCount: 0,
+          count: '53',
+          firstSeen: '2019-05-30T07:21:46Z',
+          lastSeen: '2019-11-06T03:21:39Z',
+          status: 'unresolved',
+        },
+      ];
+
+      mountComponent({
+        stubs: {
+          GlTable: false,
+          GlLink: false,
+        },
+      });
+    });
+
+    it('should show about:blank link', () => {
+      findErrorActions().vm.$emit('update-issue-status', {
+        errorId: 'abc',
+        status: 'resolved',
+      });
+
+      expect(actions.updateStatus).toHaveBeenCalledWith(expect.anything(), {
+        endpoint: 'about:blank',
+        status: 'resolved',
+      });
+    });
+  });
+
   describe('When error tracking is disabled and user is not allowed to enable it', () => {
     beforeEach(() => {
       mountComponent({
@@ -327,7 +364,23 @@ describe('ErrorTrackingList', () => {
     });
 
     it('shows empty state', () => {
-      expect(wrapper.findComponent(GlEmptyState).isVisible()).toBe(true);
+      const emptyStateComponent = wrapper.findComponent(GlEmptyState);
+      const emptyStatePrimaryDescription = emptyStateComponent.find('span', {
+        exactText: 'Monitor your errors directly in GitLab.',
+      });
+      const emptyStateSecondaryDescription = emptyStateComponent.find('span', {
+        exactText: 'Error tracking is currently in',
+      });
+      const emptyStateLinks = emptyStateComponent.findAll('a');
+      expect(emptyStateComponent.isVisible()).toBe(true);
+      expect(emptyStatePrimaryDescription.exists()).toBe(true);
+      expect(emptyStateSecondaryDescription.exists()).toBe(true);
+      expect(emptyStateLinks.at(0).attributes('href')).toBe(
+        '/help/operations/error_tracking.html#integrated-error-tracking',
+      );
+      expect(emptyStateLinks.at(1).attributes('href')).toBe(
+        'https://about.gitlab.com/handbook/product/gitlab-the-product/#open-beta',
+      );
     });
   });
 

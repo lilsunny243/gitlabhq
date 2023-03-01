@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Pipeline Editor', :js do
+RSpec.describe 'Pipeline Editor', :js, feature_category: :pipeline_composition do
   include Spec::Support::Helpers::Features::SourceEditorSpecHelpers
 
   let(:project) { create(:project_empty_repo, :public) }
@@ -132,6 +132,19 @@ RSpec.describe 'Pipeline Editor', :js do
         expect(page).not_to have_content('Pipeline Editor')
         expect(page).to have_content('New merge request')
       end
+    end
+  end
+
+  describe 'Commit Form' do
+    it 'is preserved when changing tabs' do
+      find('#commit-message').set('message', clear: :backspace)
+      find('#source-branch-field').set('new_branch', clear: :backspace)
+
+      click_link 'Validate'
+      click_link 'Edit'
+
+      expect(find('#commit-message').value).to eq('message')
+      expect(find('#source-branch-field').value).to eq('new_branch')
     end
   end
 

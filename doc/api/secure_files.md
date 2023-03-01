@@ -1,17 +1,16 @@
 ---
 stage: Verify
-group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Security
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, api
 ---
 
 # Project-level Secure Files API **(FREE)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78227) in GitLab 14.8. [Deployed behind the `ci_secure_files` flag](../administration/feature_flags.md), disabled by default.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/78227) in GitLab 14.8. [Deployed behind the `ci_secure_files` flag](../administration/feature_flags.md), disabled by default.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/350748) in GitLab 15.7.
 
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available,
-ask an administrator to [enable the feature flag](../administration/feature_flags.md) named `ci_secure_files`. Limited to 100 secure files per project. Files must be smaller than 5 MB. The feature is not ready for production use.
+Limited to 100 secure files per project. Files must be smaller than 5 MB. Project-level Secure Files is an experimental feature developed by [GitLab Incubation Engineering](https://about.gitlab.com/handbook/engineering/incubation/).
 
 ## List project secure files
 
@@ -25,7 +24,7 @@ Supported attributes:
 
 | Attribute    | Type           | Required               | Description |
 |--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 
 Example request:
 
@@ -42,14 +41,34 @@ Example response:
         "name": "myfile.jks",
         "checksum": "16630b189ab34b2e3504f4758e1054d2e478deda510b2b08cc0ef38d12e80aac",
         "checksum_algorithm": "sha256",
-        "created_at": "2022-02-22T22:22:22.222Z"
+        "created_at": "2022-02-22T22:22:22.222Z",
+        "expires_at": null,
+        "metadata": null
     },
     {
         "id": 2,
-        "name": "myotherfile.jks",
+        "name": "myfile.cer",
         "checksum": "16630b189ab34b2e3504f4758e1054d2e478deda510b2b08cc0ef38d12e80aa2",
         "checksum_algorithm": "sha256",
-        "created_at": "2022-02-22T22:22:22.222Z"
+        "created_at": "2022-02-22T22:22:22.222Z",
+        "expires_at": "2022-09-21T14:56:00.000Z",
+        "metadata": {
+            "id":"75949910542696343243264405377658443914",
+            "issuer": {
+                "C":"US",
+                "O":"Apple Inc.",
+                "CN":"Apple Worldwide Developer Relations Certification Authority",
+                "OU":"G3"
+            },
+            "subject": {
+                "C":"US",
+                "O":"Organization Name",
+                "CN":"Apple Distribution: Organization Name (ABC123XYZ)",
+                "OU":"ABC123XYZ",
+                "UID":"ABC123XYZ"
+            },
+            "expires_at":"2022-09-21T14:56:00.000Z"
+        }
     }
 ]
 ```
@@ -66,7 +85,7 @@ Supported attributes:
 
 | Attribute    | Type           | Required               | Description |
 |--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `id`         | integer        | **{check-circle}** Yes | The `id` of a secure file. |
 
 Example request:
@@ -83,7 +102,9 @@ Example response:
     "name": "myfile.jks",
     "checksum": "16630b189ab34b2e3504f4758e1054d2e478deda510b2b08cc0ef38d12e80aac",
     "checksum_algorithm": "sha256",
-    "created_at": "2022-02-22T22:22:22.222Z"
+    "created_at": "2022-02-22T22:22:22.222Z",
+    "expires_at": null,
+    "metadata": null
 }
 ```
 
@@ -99,7 +120,7 @@ Supported attributes:
 
 | Attribute       | Type           | Required               | Description |
 |-----------------|----------------|------------------------|-------------|
-| `project_id`    | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `project_id`    | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `name`          | string         | **{check-circle}** Yes | The `name` of the file being uploaded. The filename must be unique within the project. |
 | `file`          | file           | **{check-circle}** Yes | The `file` being uploaded (5 MB limit). |
 
@@ -118,7 +139,9 @@ Example response:
     "name": "myfile.jks",
     "checksum": "16630b189ab34b2e3504f4758e1054d2e478deda510b2b08cc0ef38d12e80aac",
     "checksum_algorithm": "sha256",
-    "created_at": "2022-02-22T22:22:22.222Z"
+    "created_at": "2022-02-22T22:22:22.222Z",
+    "expires_at": null,
+    "metadata": null
 }
 ```
 
@@ -127,14 +150,14 @@ Example response:
 Download the contents of a project's secure file.
 
 ```plaintext
-GET /projects/:project_id/download/:id
+GET /projects/:project_id/secure_files/:id/download
 ```
 
 Supported attributes:
 
 | Attribute    | Type           | Required               | Description |
 |--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `id`         | integer        | **{check-circle}** Yes | The `id` of a secure file. |
 
 Example request:
@@ -155,7 +178,7 @@ Supported attributes:
 
 | Attribute    | Type           | Required               | Description |
 |--------------|----------------|------------------------|-------------|
-| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `project_id` | integer/string | **{check-circle}** Yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `id`         | integer        | **{check-circle}** Yes | The `id` of a secure file. |
 
 Example request:

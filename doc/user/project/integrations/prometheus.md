@@ -1,10 +1,10 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Prometheus integration **(FREE)**
+# Prometheus **(FREE)**
 
 GitLab offers powerful integration with [Prometheus](https://prometheus.io) for
 monitoring key metrics of your apps, directly in GitLab.
@@ -23,7 +23,7 @@ Once enabled, GitLab detects metrics from known services in the
 [add your own metrics](../../../operations/metrics/index.md#adding-custom-metrics) and create
 [custom dashboards](../../../operations/metrics/dashboards/index.md).
 
-## Enabling Prometheus Integration
+## Enabling the Prometheus integration
 
 ### Prometheus cluster integration
 
@@ -62,7 +62,7 @@ GitLab can use these to access the resource. More information about authenticati
 service account can be found at Google's documentation for
 [Authenticating from a service account](https://cloud.google.com/iap/docs/authentication-howto#authenticating_from_a_service_account).
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Prometheus**.
 1. For **API URL**, provide the domain name or IP address of your server, such as
@@ -83,7 +83,7 @@ You can configure [Thanos](https://thanos.io/) as a drop-in replacement for Prom
 with GitLab. Use the domain name or IP address of the Thanos server you'd like
 to integrate with.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Prometheus**.
 1. Provide the domain name or IP address of your server, for example
@@ -107,7 +107,7 @@ can use only one:
   [Cluster precedence](../../instance/clusters/index.md#cluster-precedence).
 - If you have managed Prometheus applications installed on multiple Kubernetes
   clusters at the **same** level, the Prometheus application of a cluster with a
-  matching [environment scope](../../../ci/environments/index.md#scope-environments-with-specs) is used.
+  matching [environment scope](../../../ci/environments/index.md#limit-the-environment-scope-of-a-cicd-variable) is used.
 
 ## Determining the performance impact of a merge
 

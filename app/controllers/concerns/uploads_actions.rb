@@ -5,11 +5,10 @@ module UploadsActions
   include Gitlab::Utils::StrongMemoize
   include SendFileUpload
 
-  UPLOAD_MOUNTS = %w(avatar attachment file logo header_logo favicon).freeze
+  UPLOAD_MOUNTS = %w[avatar attachment file logo pwa_icon header_logo favicon].freeze
 
   included do
     prepend_before_action :set_request_format_from_path_extension
-    skip_before_action :default_cache_headers, only: :show
     rescue_from FileUploader::InvalidSecret, with: :render_404
   end
 
@@ -73,11 +72,11 @@ module UploadsActions
   def set_request_format_from_path_extension
     path = request.headers['action_dispatch.original_path'] || request.headers['PATH_INFO']
 
-    if match = path&.match(/\.(\w+)\z/)
-      format = Mime[match.captures.first]
+    return unless match = path&.match(/\.(\w+)\z/)
 
-      request.format = format.symbol if format
-    end
+    format = Mime[match.captures.first]
+
+    request.format = format.symbol if format
   end
 
   def content_disposition
@@ -102,14 +101,13 @@ module UploadsActions
   end
 
   def uploader
-    strong_memoize(:uploader) do
-      if uploader_mounted?
-        model.public_send(upload_mount) # rubocop:disable GitlabSecurity/PublicSend
-      else
-        build_uploader_from_upload || build_uploader_from_params
-      end
+    if uploader_mounted?
+      model.public_send(upload_mount) # rubocop:disable GitlabSecurity/PublicSend
+    else
+      build_uploader_from_upload || build_uploader_from_params
     end
   end
+  strong_memoize_attr :uploader
 
   # rubocop: disable CodeReuse/ActiveRecord
   def build_uploader_from_upload
@@ -163,8 +161,9 @@ module UploadsActions
   end
 
   def model
-    strong_memoize(:model) { find_model }
+    find_model
   end
+  strong_memoize_attr :model
 
   def workhorse_authorize_request?
     action_name == 'authorize'

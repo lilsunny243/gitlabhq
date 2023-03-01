@@ -38,7 +38,6 @@ module MergeRequests
       handle_target_branch_change(merge_request)
       handle_milestone_change(merge_request)
       handle_draft_status_change(merge_request, changed_fields)
-      handle_label_changes(merge_request, old_labels)
 
       track_title_and_desc_edits(changed_fields)
       track_discussion_lock_toggle(merge_request, changed_fields)
@@ -71,7 +70,8 @@ module MergeRequests
       MergeRequests::CloseService
     end
 
-    def after_update(issuable)
+    def after_update(issuable, old_associations)
+      super
       issuable.cache_merge_request_closes_issues!(current_user)
     end
 
@@ -169,6 +169,8 @@ module MergeRequests
         merge_request.target_branch
       )
 
+      refresh_pipelines_on_merge_requests(merge_request, allow_duplicate: true)
+
       abort_auto_merge(merge_request, 'target branch was changed')
     end
 
@@ -179,18 +181,19 @@ module MergeRequests
       old_title_draft = MergeRequest.draft?(old_title)
       new_title_draft = MergeRequest.draft?(new_title)
 
+      if old_title_draft || new_title_draft
+        # notify the draft status changed. Added/removed message is handled in the
+        # email template itself, see `change_in_merge_request_draft_status_email` template.
+        notify_draft_status_changed(merge_request)
+        trigger_merge_request_status_updated(merge_request)
+      end
+
       if !old_title_draft && new_title_draft
         # Marked as Draft
-        #
-        merge_request_activity_counter
-          .track_marked_as_draft_action(user: current_user)
+        merge_request_activity_counter.track_marked_as_draft_action(user: current_user)
       elsif old_title_draft && !new_title_draft
         # Unmarked as Draft
-        #
-        notify_draft_status_changed(merge_request)
-
-        merge_request_activity_counter
-          .track_unmarked_as_draft_action(user: current_user)
+        merge_request_activity_counter.track_unmarked_as_draft_action(user: current_user)
       end
     end
 
@@ -212,9 +215,9 @@ module MergeRequests
       delete_milestone_total_merge_requests_counter_cache(previous_milestone)
 
       if merge_request.milestone.nil?
-        notification_service.async.removed_milestone_merge_request(merge_request, current_user)
+        notification_service.async.removed_milestone(merge_request, current_user)
       else
-        notification_service.async.changed_milestone_merge_request(merge_request, merge_request.milestone, current_user)
+        notification_service.async.changed_milestone(merge_request, merge_request.milestone, current_user)
 
         delete_milestone_total_merge_requests_counter_cache(merge_request.milestone)
       end
@@ -321,6 +324,10 @@ module MergeRequests
 
     def filter_sentinel_values(param)
       param.reject { _1 == 0 }
+    end
+
+    def trigger_merge_request_status_updated(merge_request)
+      GraphqlTriggers.merge_request_merge_status_updated(merge_request)
     end
   end
 end

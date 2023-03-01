@@ -51,6 +51,7 @@ export default {
   <gl-dropdown
     :text="dropdownText"
     :disabled="disabled"
+    size="small"
     boundary="window"
     right
     lazy
@@ -73,7 +74,7 @@ export default {
         @submit="onApply"
       />
       <gl-button
-        class="gl-w-auto! gl-mt-3 gl-text-center! gl-hover-text-white! gl-transition-medium! float-right"
+        class="gl-w-auto! gl-mt-3 gl-text-center! gl-transition-medium! float-right"
         category="primary"
         variant="confirm"
         data-qa-selector="commit_with_custom_message_button"

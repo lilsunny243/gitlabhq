@@ -24,13 +24,14 @@ RSpec.describe QA::Resource::User do
 
   describe '#password' do
     it 'generates a default password' do
-      expect(subject.password).to eq('password')
+      expect(subject.password).to match('Pa$$w0rd')
     end
 
     it 'is possible to set the password' do
-      subject.password = 'secret'
+      new_password = "21c7a808"
+      subject.password = new_password
 
-      expect(subject.password).to eq('secret')
+      expect(subject.password).to eq(new_password)
     end
   end
 
@@ -113,6 +114,56 @@ RSpec.describe QA::Resource::User do
       subject.password = 'secret'
 
       expect(subject).to be_credentials_given
+    end
+  end
+
+  describe '#has_user?' do
+    let(:index_mock) do
+      instance_double(QA::Page::Admin::Overview::Users::Index)
+    end
+
+    users = [
+      ['foo', true],
+      ['bar', false]
+    ]
+
+    users.each do |(username, found)|
+      it "returns #{found} when has_username returns #{found}" do
+        subject.username = username
+
+        allow(QA::Flow::Login).to receive(:while_signed_in_as_admin).and_yield
+        allow(QA::Page::Main::Menu).to receive(:perform)
+        allow(QA::Page::Admin::Menu).to receive(:perform)
+        allow(QA::Page::Admin::Overview::Users::Index).to receive(:perform).and_yield(index_mock)
+
+        expect(index_mock).to receive(:search_user).with(username)
+        expect(index_mock).to receive(:has_username?).with(username).and_return(found)
+
+        expect(subject.has_user?(subject)).to eq(found)
+      end
+    end
+  end
+
+  describe '#fabricate_or_use' do
+    # Signup Disabled, Personal Access Tokens disabled, method used, method that is not used
+    [
+      [true,  false, :fabricate_via_api!, :fabricate!],
+      [false, false, :fabricate!, :fabricate_via_api!],
+      [false, true,  :fabricate!, :fabricate_via_api!],
+      [true,  true,  :fabricate!, :fabricate_via_api!]
+    ].each do |signup_disabled, personal_access_tokens_disabled, method_used, method_not_used|
+      it "when signup_disabled is #{signup_disabled}, "\
+         "personal_access_tokens_disabled is #{personal_access_tokens_disabled}, "\
+         "calls #{method_used}, does not call #{method_not_used}" do
+        allow(QA::Runtime::Env).to receive(:signup_disabled?).and_return(signup_disabled)
+        allow(QA::Runtime::Env).to receive(:personal_access_tokens_disabled?)
+          .and_return(personal_access_tokens_disabled)
+
+        expect(described_class).to receive(method_used)
+        expect(described_class).not_to receive(method_not_used)
+
+        described_class.fabricate_or_use
+      end
     end
   end
 end

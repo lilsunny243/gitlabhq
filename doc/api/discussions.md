@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, api
 ---
 
@@ -24,7 +24,7 @@ Label notes are not part of this API, but recorded as separate events in
 
 By default, `GET` requests return 20 results at a time because the API results are paginated.
 
-Read more on [pagination](index.md#pagination).
+Read more on [pagination](rest/index.md#pagination).
 
 ## Issues
 
@@ -38,7 +38,7 @@ GET /projects/:id/issues/:issue_iid/discussions
 
 | Attribute           | Type             | Required   | Description  |
 | ------------------- | ---------------- | ---------- | ------------ |
-| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid`         | integer          | yes        | The IID of an issue |
 
 ```json
@@ -65,6 +65,7 @@ GET /projects/:id/issues/:issue_iid/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Issue",
+        "project_id": 5,
         "noteable_iid": null
       },
       {
@@ -85,6 +86,7 @@ GET /projects/:id/issues/:issue_iid/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Issue",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -112,6 +114,7 @@ GET /projects/:id/issues/:issue_iid/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Issue",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -137,7 +140,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid`     | integer        | yes      | The IID of an issue |
 | `discussion_id` | integer        | yes      | The ID of a discussion item |
 
@@ -158,7 +161,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid`     | integer        | yes      | The IID of an issue |
 | `body`          | string         | yes      | The content of the thread |
 | `created_at`    | string         | no       | Date time string, ISO 8601 formatted, such as `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
@@ -183,7 +186,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid`     | integer        | yes      | The IID of an issue |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -207,7 +210,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid`     | integer        | yes      | The IID of an issue |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -230,7 +233,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid`     | integer        | yes      | The IID of an issue |
 | `discussion_id` | integer        | yes      | The ID of a discussion |
 | `note_id`       | integer        | yes      | The ID of a discussion note |
@@ -252,7 +255,7 @@ GET /projects/:id/snippets/:snippet_id/discussions
 
 | Attribute           | Type             | Required   | Description |
 | ------------------- | ---------------- | ---------- | ------------|
-| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id`        | integer          | yes        | The ID of an snippet |
 
 ```json
@@ -279,6 +282,7 @@ GET /projects/:id/snippets/:snippet_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Snippet",
+        "project_id": 5,
         "noteable_iid": null
       },
       {
@@ -299,6 +303,7 @@ GET /projects/:id/snippets/:snippet_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Snippet",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -326,6 +331,7 @@ GET /projects/:id/snippets/:snippet_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Snippet",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -351,7 +357,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id`    | integer        | yes      | The ID of an snippet |
 | `discussion_id` | integer        | yes      | The ID of a discussion item |
 
@@ -373,7 +379,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id`    | integer        | yes      | The ID of an snippet |
 | `body`          | string         | yes      | The content of a discussion |
 | `created_at`    | string         | no       | Date time string, ISO 8601 formatted, such as `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
@@ -395,7 +401,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id`    | integer        | yes      | The ID of an snippet |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -419,7 +425,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id`    | integer        | yes      | The ID of an snippet |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -442,7 +448,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id`    | integer        | yes      | The ID of an snippet |
 | `discussion_id` | integer        | yes      | The ID of a discussion |
 | `note_id`       | integer        | yes      | The ID of a discussion note |
@@ -464,7 +470,7 @@ GET /groups/:id/epics/:epic_id/discussions
 
 | Attribute           | Type             | Required   | Description  |
 | ------------------- | ---------------- | ---------- | ------------ |
-| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`           | integer          | yes        | The ID of an epic |
 
 ```json
@@ -491,6 +497,7 @@ GET /groups/:id/epics/:epic_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Epic",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       },
@@ -512,6 +519,7 @@ GET /groups/:id/epics/:epic_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Epic",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -539,6 +547,7 @@ GET /groups/:id/epics/:epic_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Epic",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -564,7 +573,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`       | integer        | yes      | The ID of an epic |
 | `discussion_id` | integer        | yes      | The ID of a discussion item |
 
@@ -586,7 +595,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`       | integer        | yes      | The ID of an epic |
 | `body`          | string         | yes      | The content of the thread |
 | `created_at`    | string         | no       | Date time string, ISO 8601 formatted, such as `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
@@ -609,7 +618,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`       | integer        | yes      | The ID of an epic |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -633,7 +642,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`       | integer        | yes      | The ID of an epic |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -656,7 +665,7 @@ Parameters:
 
 | Attribute       | Type           | Required | Description |
 | --------------- | -------------- | -------- | ----------- |
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`       | integer        | yes      | The ID of an epic |
 | `discussion_id` | integer        | yes      | The ID of a thread |
 | `note_id`       | integer        | yes      | The ID of a thread note |
@@ -678,7 +687,7 @@ GET /projects/:id/merge_requests/:merge_request_iid/discussions
 
 | Attribute           | Type             | Required   | Description  |
 | ------------------- | ---------------- | ---------- | ------------ |
-| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer          | yes        | The IID of a merge request |
 
 ```json
@@ -705,6 +714,7 @@ GET /projects/:id/merge_requests/:merge_request_iid/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Merge request",
+        "project_id": 5,
         "noteable_iid": null,
         "resolved": false,
         "resolvable": true,
@@ -729,6 +739,7 @@ GET /projects/:id/merge_requests/:merge_request_iid/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Merge request",
+        "project_id": 5,
         "noteable_iid": null,
         "resolved": false,
         "resolvable": true,
@@ -758,6 +769,7 @@ GET /projects/:id/merge_requests/:merge_request_iid/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Merge request",
+        "project_id": 5,
         "noteable_iid": null,
         "resolved": false,
         "resolvable": true,
@@ -794,6 +806,7 @@ Diff comments also contain position:
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Merge request",
+        "project_id": 5,
         "noteable_iid": null,
         "commit_id": "4803c71e6b1833ca72b8b26ef2ecd5adc8a38031",
         "position": {
@@ -842,7 +855,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer        | yes      | The IID of a merge request |
 | `discussion_id`     | integer        | yes      | The ID of a discussion item |
 
@@ -856,7 +869,9 @@ curl --header "PRIVATE-TOKEN: <your_access_token>"\
 > The `commit id` entry was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/47130) in GitLab 13.7.
 
 Creates a new thread to a single project merge request. This is similar to creating
-a note but other comments (replies) can be added to it later.
+a note but other comments (replies) can be added to it later. For other approaches,
+see [Post comment to commit](commits.md#post-comment-to-commit) in the Commits API,
+and [Create new merge request note](notes.md#create-new-merge-request-note) in the Notes API.
 
 ```plaintext
 POST /projects/:id/merge_requests/:merge_request_iid/discussions
@@ -866,7 +881,7 @@ Parameters for all comments:
 
 | Attribute                                | Type           | Required | Description |
 | ---------------------------------------- | -------------- | -------- | ----------- |
-| `id`                                     | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                                     | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid`                      | integer        | yes      | The IID of a merge request |
 | `body`                                   | string         | yes      | The content of the thread |
 | `commit_id`                              | string         | no       | SHA referencing commit to start this thread on |
@@ -911,7 +926,7 @@ curl --request POST --header "PRIVATE-TOKEN: <your_access_token>"\
 
 To create a new thread:
 
-1. [Get the latest merge request version](merge_requests.md#get-mr-diff-versions):
+1. [Get the latest merge request version](merge_requests.md#get-merge-request-diff-versions):
 
    ```shell
    curl --header "PRIVATE-TOKEN: <your_access_token>"\
@@ -1008,7 +1023,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer        | yes      | The IID of a merge request |
 | `discussion_id`     | integer        | yes      | The ID of a thread |
 | `resolved`          | boolean        | yes      | Resolve/unresolve the discussion |
@@ -1031,7 +1046,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer        | yes      | The IID of a merge request |
 | `discussion_id`     | integer        | yes      | The ID of a thread |
 | `note_id`           | integer        | yes      | The ID of a thread note |
@@ -1055,7 +1070,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer        | yes      | The IID of a merge request |
 | `discussion_id`     | integer        | yes      | The ID of a thread |
 | `note_id`           | integer        | yes      | The ID of a thread note |
@@ -1086,7 +1101,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer        | yes      | The IID of a merge request |
 | `discussion_id`     | integer        | yes      | The ID of a thread |
 | `note_id`           | integer        | yes      | The ID of a thread note |
@@ -1108,8 +1123,8 @@ GET /projects/:id/repository/commits/:commit_id/discussions
 
 | Attribute           | Type             | Required   | Description  |
 | ------------------- | ---------------- | ---------- | ------------ |
-| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
-| `commit_id`         | integer          | yes        | The ID of a commit |
+| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `commit_id`         | string           | yes        | The SHA of a commit |
 
 ```json
 [
@@ -1135,6 +1150,7 @@ GET /projects/:id/repository/commits/:commit_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Commit",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       },
@@ -1156,6 +1172,7 @@ GET /projects/:id/repository/commits/:commit_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Commit",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -1183,6 +1200,7 @@ GET /projects/:id/repository/commits/:commit_id/discussions
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Commit",
+        "project_id": 5,
         "noteable_iid": null,
         "resolvable": false
       }
@@ -1217,6 +1235,7 @@ Diff comments contain also position:
         "system": false,
         "noteable_id": 3,
         "noteable_type": "Commit",
+        "project_id": 5,
         "noteable_iid": null,
         "position": {
           "base_sha": "b5d6e7b1613fca24d250fa8e5bc7bcc3dd6002ef",
@@ -1237,7 +1256,7 @@ Diff comments contain also position:
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions"
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions"
 ```
 
 ### Get single commit discussion item
@@ -1252,13 +1271,13 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
-| `commit_id`         | integer        | yes      | The ID of a commit |
-| `discussion_id`     | integer        | yes      | The ID of a discussion item |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `commit_id`         | string         | yes      | The SHA of a commit |
+| `discussion_id`     | string         | yes      | The ID of a discussion item |
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions/<discussion_id>"
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions/<discussion_id>"
 ```
 
 ### Create new commit thread
@@ -1274,7 +1293,7 @@ Parameters:
 
 | Attribute                 | Type           | Required | Description |
 | ------------------------- | -------------- | -------- | ----------- |
-| `id`                      | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                      | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `commit_id`               | string         | yes      | The SHA of a commit |
 | `body`                    | string         | yes      | The content of the thread |
 | `created_at`              | string         | no       | Date time string, ISO 8601 formatted, such as `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
@@ -1294,7 +1313,7 @@ Parameters:
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions?body=comment"
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions?body=comment"
 ```
 
 The rules for creating the API request are the same as when
@@ -1313,16 +1332,16 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
-| `commit_id`         | integer        | yes      | The ID of a commit |
-| `discussion_id`     | integer        | yes      | The ID of a thread |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `commit_id`         | string         | yes      | The SHA of a commit |
+| `discussion_id`     | string         | yes      | The ID of a thread |
 | `note_id`           | integer        | yes      | The ID of a thread note |
 | `body`              | string         | yes      | The content of the note/reply |
 | `created_at`        | string         | no       | Date time string, ISO 8601 formatted, such `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions/<discussion_id>/notes?body=comment
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions/<discussion_id>/notes?body=comment
 ```
 
 ### Modify an existing commit thread note
@@ -1337,22 +1356,22 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
-| `commit_id`         | integer        | yes      | The ID of a commit |
-| `discussion_id`     | integer        | yes      | The ID of a thread |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `commit_id`         | string         | yes      | The SHA of a commit |
+| `discussion_id`     | string         | yes      | The ID of a thread |
 | `note_id`           | integer        | yes      | The ID of a thread note |
 | `body`              | string         | no       | The content of a note |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions/<discussion_id>/notes/1108?body=comment"
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions/<discussion_id>/notes/1108?body=comment"
 ```
 
 Resolving a note:
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions/<discussion_id>/notes/1108?resolved=true"
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions/<discussion_id>/notes/1108?resolved=true"
 ```
 
 ### Delete a commit thread note
@@ -1367,12 +1386,12 @@ Parameters:
 
 | Attribute           | Type           | Required | Description |
 | ------------------- | -------------- | -------- | ----------- |
-| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
-| `commit_id`         | integer        | yes      | The ID of a commit |
-| `discussion_id`     | integer        | yes      | The ID of a thread |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
+| `commit_id`         | string         | yes      | The SHA of a commit |
+| `discussion_id`     | string         | yes      | The ID of a thread |
 | `note_id`           | integer        | yes      | The ID of a thread note |
 
 ```shell
 curl --request DELETE --header "PRIVATE-TOKEN: <your_access_token>"\
-  "https://gitlab.example.com/api/v4/projects/5/repository/commits/11/discussions/636"
+  "https://gitlab.example.com/api/v4/projects/5/repository/commits/<commit_id>/discussions/<discussion_id>/notes/636"
 ```

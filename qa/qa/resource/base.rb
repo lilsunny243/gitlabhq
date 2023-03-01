@@ -12,6 +12,8 @@ module QA
 
       NoValueError = Class.new(RuntimeError)
 
+      attr_reader :retrieved_from_cache
+
       class << self
         # Initialize new instance of class without fabrication
         #
@@ -20,8 +22,20 @@ module QA
           new.tap(&prepare_block)
         end
 
+        def fabricate_via_api_unless_fips!
+          if Runtime::Env.personal_access_tokens_disabled?
+            fabricate!
+          else
+            fabricate_via_api!
+          end
+        end
+
         def fabricate!(*args, &prepare_block)
-          fabricate_via_api!(*args, &prepare_block)
+          if Runtime::Env.personal_access_tokens_disabled?
+            fabricate_via_browser_ui!(*args, &prepare_block)
+          else
+            fabricate_via_api!(*args, &prepare_block)
+          end
         rescue NotImplementedError
           fabricate_via_browser_ui!(*args, &prepare_block)
         end
@@ -81,35 +95,35 @@ module QA
           Support::FabricationTracker.start_fabrication
           result = yield.tap do
             fabrication_time = Time.now - start
-            fabrication_http_method = if resource.api_fabrication_http_method == :get
-                                        if include?(Reusable)
-                                          "Retrieved for reuse"
-                                        else
-                                          "Retrieved"
-                                        end
+            fabrication_http_method = if resource.api_fabrication_http_method == :get || resource.retrieved_from_cache
+                                        "Retrieved"
                                       else
                                         "Built"
                                       end
 
             Support::FabricationTracker.save_fabrication(:"#{fabrication_method}_fabrication", fabrication_time)
-            Tools::TestResourceDataProcessor.collect(
-              resource: resource,
-              info: resource.identifier,
-              fabrication_method: fabrication_method,
-              fabrication_time: fabrication_time
-            )
+
+            unless resource.retrieved_from_cache || Runtime::Env.personal_access_tokens_disabled?
+              Tools::TestResourceDataProcessor.collect(
+                resource: resource,
+                info: resource.identifier,
+                fabrication_method: fabrication_method,
+                fabrication_time: fabrication_time
+              )
+            end
 
             Runtime::Logger.info do
               msg = ["==#{'=' * parents.size}>"]
               msg << "#{fabrication_http_method} a #{Rainbow(name).black.bg(:white)}"
               msg << resource.identifier
               msg << "as a dependency of #{parents.last}" if parents.any?
-              msg << "via #{fabrication_method}"
+              msg << "via #{resource.retrieved_from_cache ? 'cache' : fabrication_method}"
               msg << "in #{fabrication_time.round(2)} seconds"
 
               msg.compact.join(' ')
             end
           end
+
           Support::FabricationTracker.finish_fabrication
 
           result

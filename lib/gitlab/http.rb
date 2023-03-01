@@ -17,7 +17,8 @@ module Gitlab
     HTTP_ERRORS = HTTP_TIMEOUT_ERRORS + [
       EOFError, SocketError, OpenSSL::SSL::SSLError, OpenSSL::OpenSSLError,
       Errno::ECONNRESET, Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ENETUNREACH,
-      Gitlab::HTTP::BlockedUrlError, Gitlab::HTTP::RedirectionTooDeep
+      Gitlab::HTTP::BlockedUrlError, Gitlab::HTTP::RedirectionTooDeep,
+      Net::HTTPBadResponse
     ].freeze
 
     DEFAULT_TIMEOUT_OPTIONS = {
@@ -59,7 +60,7 @@ module Gitlab
           raise ReadTotalTimeout, "Request timed out after #{elapsed} seconds"
         end
 
-        block.call fragment if block
+        yield fragment if block
       end
     rescue HTTParty::RedirectionTooDeep
       raise RedirectionTooDeep

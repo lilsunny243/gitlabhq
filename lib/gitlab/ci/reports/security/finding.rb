@@ -83,8 +83,8 @@ module Gitlab
               message
               cve
               solution
-            ].each_with_object({}) do |key, hash|
-              hash[key] = public_send(key) # rubocop:disable GitlabSecurity/PublicSend
+            ].index_with do |key|
+              public_send(key) # rubocop:disable GitlabSecurity/PublicSend
             end
           end
 
@@ -98,7 +98,7 @@ module Gitlab
           end
 
           def unsafe?(severity_levels, report_types)
-            severity.to_s.in?(severity_levels) && (report_types.blank? || report_type.to_s.in?(report_types) )
+            severity.to_s.in?(severity_levels) && (report_types.blank? || report_type.to_s.in?(report_types))
           end
 
           def eql?(other)
@@ -156,6 +156,14 @@ module Gitlab
             signatures.present?
           end
 
+          def false_positive?
+            flags.any?(&:false_positive?)
+          end
+
+          def remediation_byte_offsets
+            remediations.map(&:byte_offsets).compact
+          end
+
           def raw_metadata
             @raw_metadata ||= original_data.to_json
           end
@@ -174,6 +182,10 @@ module Gitlab
 
           def location_data
             original_data['location']
+          end
+
+          def assets
+            original_data['assets'] || []
           end
 
           # Returns either the max priority signature hex

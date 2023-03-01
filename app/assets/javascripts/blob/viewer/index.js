@@ -1,6 +1,6 @@
 import $ from 'jquery';
-import '~/behaviors/markdown/render_gfm';
-import createFlash from '~/flash';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
+import { createAlert } from '~/flash';
 import { __ } from '~/locale';
 import {
   REPO_BLOB_LOAD_VIEWER_START,
@@ -69,7 +69,7 @@ export const handleBlobRichViewer = (viewer, type) => {
   loadRichBlobViewer(type)
     .then((module) => module?.default(viewer))
     .catch((error) => {
-      createFlash({
+      createAlert({
         message: __('Error loading file viewer.'),
       });
       throw error;
@@ -195,7 +195,7 @@ export class BlobViewer {
     this.toggleCopyButtonState();
     loadViewer(newViewer)
       .then((viewer) => {
-        $(viewer).renderGFM();
+        renderGFM(viewer);
         window.requestIdleCallback(() => {
           this.$fileHolder.trigger('highlight:line');
           handleLocationHash();
@@ -221,7 +221,7 @@ export class BlobViewer {
         });
       })
       .catch(() =>
-        createFlash({
+        createAlert({
           message: __('Error loading viewer'),
         }),
       );

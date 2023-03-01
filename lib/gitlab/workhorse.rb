@@ -12,7 +12,7 @@ module Gitlab
     VERSION_FILE = 'GITLAB_WORKHORSE_VERSION'
     INTERNAL_API_CONTENT_TYPE = 'application/vnd.gitlab-workhorse+json'
     INTERNAL_API_REQUEST_HEADER = 'Gitlab-Workhorse-Api-Request'
-    NOTIFICATION_CHANNEL = 'workhorse:notifications'
+    NOTIFICATION_PREFIX = 'workhorse:notifications:'
     ALLOWED_GIT_HTTP_ACTIONS = %w[git_receive_pack git_upload_pack info_refs].freeze
     DETECT_HEADER = 'Gitlab-Workhorse-Detect-Content-Type'
     ARCHIVE_FORMATS = %w(zip tar.gz tar.bz2 tar).freeze
@@ -33,7 +33,12 @@ module Gitlab
           GitalyServer: {
             address: Gitlab::GitalyClient.address(repository.storage),
             token: Gitlab::GitalyClient.token(repository.storage),
-            features: Feature::Gitaly.server_feature_flags(repository.project)
+            call_metadata: Feature::Gitaly.server_feature_flags(
+              user: ::Feature::Gitaly.user_actor(user),
+              repository: repository,
+              project: ::Feature::Gitaly.project_actor(repository.container),
+              group: ::Feature::Gitaly.group_actor(repository.container)
+            )
           }
         }
 
@@ -42,6 +47,12 @@ module Gitlab
         if receive_max_input_size > 0
           attrs[:GitConfigOptions] << "receive.maxInputSize=#{receive_max_input_size.megabytes}"
         end
+
+        attrs[:GitalyServer][:call_metadata].merge!(
+          'user_id' => attrs[:GL_ID].presence,
+          'username' => attrs[:GL_USERNAME].presence,
+          'remote_ip' => Gitlab::ApplicationContext.current_context_attribute(:remote_ip).presence
+        ).compact!
 
         attrs
       end
@@ -217,7 +228,8 @@ module Gitlab
         Gitlab::Redis::SharedState.with do |redis|
           result = redis.set(key, value, ex: expire, nx: !overwrite)
           if result
-            redis.publish(NOTIFICATION_CHANNEL, "#{key}=#{value}")
+            redis.publish(NOTIFICATION_PREFIX + key, value)
+
             value
           else
             redis.get(key)
@@ -251,7 +263,12 @@ module Gitlab
         {
           address: Gitlab::GitalyClient.address(repository.shard),
           token: Gitlab::GitalyClient.token(repository.shard),
-          features: Feature::Gitaly.server_feature_flags(repository.project)
+          call_metadata: Feature::Gitaly.server_feature_flags(
+            user: ::Feature::Gitaly.user_actor,
+            repository: repository,
+            project: ::Feature::Gitaly.project_actor(repository.container),
+            group: ::Feature::Gitaly.group_actor(repository.container)
+          )
         }
       end
 

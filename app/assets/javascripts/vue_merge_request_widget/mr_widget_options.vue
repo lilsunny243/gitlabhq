@@ -1,18 +1,23 @@
 <script>
-import { GlSafeHtmlDirective } from '@gitlab/ui';
 import { isEmpty } from 'lodash';
-import { registerExtension } from '~/vue_merge_request_widget/components/extensions';
+import {
+  registerExtension,
+  registeredExtensions,
+} from '~/vue_merge_request_widget/components/extensions';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import MrWidgetApprovals from 'ee_else_ce/vue_merge_request_widget/components/approvals/approvals.vue';
 import MRWidgetService from 'ee_else_ce/vue_merge_request_widget/services/mr_widget_service';
 import MRWidgetStore from 'ee_else_ce/vue_merge_request_widget/stores/mr_widget_store';
 import { stateToComponentMap as classState } from 'ee_else_ce/vue_merge_request_widget/stores/state_maps';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { secondsToMilliseconds } from '~/lib/utils/datetime_utility';
 import notify from '~/lib/utils/notify';
 import { sprintf, s__, __ } from '~/locale';
 import Project from '~/pages/projects/project';
 import SmartInterval from '~/smart_interval';
-import { setFaviconOverlay } from '../lib/utils/favicon';
+import { TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
+import { convertToGraphQLId } from '~/graphql_shared/utils';
+import { setFaviconOverlay } from '~/lib/utils/favicon';
 import Loading from './components/loading.vue';
 import MrWidgetAlertMessage from './components/mr_widget_alert_message.vue';
 import MrWidgetPipelineContainer from './components/mr_widget_pipeline_container.vue';
@@ -43,17 +48,20 @@ import { STATE_MACHINE, stateToComponentMap } from './constants';
 import eventHub from './event_hub';
 import mergeRequestQueryVariablesMixin from './mixins/merge_request_query_variables';
 import getStateQuery from './queries/get_state.query.graphql';
+import getStateSubscription from './queries/get_state.subscription.graphql';
 import terraformExtension from './extensions/terraform';
 import accessibilityExtension from './extensions/accessibility';
 import codeQualityExtension from './extensions/code_quality';
 import testReportExtension from './extensions/test_report';
+import ReportWidgetContainer from './components/report_widget_container.vue';
+import MrWidgetReadyToMerge from './components/states/new_ready_to_merge.vue';
 
 export default {
   // False positive i18n lint: https://gitlab.com/gitlab-org/frontend/eslint-plugin-i18n/issues/25
   // eslint-disable-next-line @gitlab/require-i18n-strings
   name: 'MRWidget',
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   components: {
     Loading,
@@ -72,7 +80,7 @@ export default {
     MrWidgetNothingToMerge: NothingToMergeState,
     MrWidgetNotAllowed: NotAllowedState,
     MrWidgetMissingBranch: MissingBranchState,
-    MrWidgetReadyToMerge: () => import('./components/states/new_ready_to_merge.vue'),
+    MrWidgetReadyToMerge,
     ShaMismatch,
     MrWidgetChecking: CheckingState,
     MrWidgetUnresolvedDiscussions: UnresolvedDiscussionsState,
@@ -82,24 +90,18 @@ export default {
     MrWidgetAutoMergeFailed: AutoMergeFailed,
     MrWidgetRebase: RebaseState,
     SourceBranchRemovalStatus,
-    GroupedCodequalityReportsApp: () =>
-      import('../reports/codequality_report/grouped_codequality_reports_app.vue'),
-    GroupedTestReportsApp: () =>
-      import('../reports/grouped_test_report/grouped_test_reports_app.vue'),
-    TerraformPlan: () => import('./components/terraform/mr_widget_terraform_container.vue'),
-    GroupedAccessibilityReportsApp: () =>
-      import('../reports/accessibility_report/grouped_accessibility_reports_app.vue'),
     MrWidgetApprovals,
     SecurityReportsApp: () => import('~/vue_shared/security_reports/security_reports_app.vue'),
     MergeChecksFailed: () => import('./components/states/merge_checks_failed.vue'),
     ReadyToMerge: ReadyToMergeState,
+    ReportWidgetContainer,
   },
   apollo: {
     state: {
       query: getStateQuery,
       manual: true,
       skip() {
-        return !this.mr || !window.gon?.features?.mergeRequestWidgetGraphql;
+        return !this.mr;
       },
       variables() {
         return this.mergeRequestQueryVariables;
@@ -109,6 +111,31 @@ export default {
           this.mr.setGraphqlData(project);
           this.loading = false;
         }
+      },
+      subscribeToMore: {
+        document() {
+          return getStateSubscription;
+        },
+        skip() {
+          return !this.mr?.id || this.loading || !window.gon?.features?.realtimeMrStatusChange;
+        },
+        variables() {
+          return {
+            issuableId: convertToGraphQLId(TYPENAME_MERGE_REQUEST, this.mr?.id),
+          };
+        },
+        updateQuery(
+          _,
+          {
+            subscriptionData: {
+              data: { mergeRequestMergeStatusUpdated },
+            },
+          },
+        ) {
+          if (mergeRequestMergeStatusUpdated) {
+            this.mr.setGraphqlSubscriptionData(mergeRequestMergeStatusUpdated);
+          }
+        },
       },
     },
   },
@@ -130,16 +157,10 @@ export default {
       machineState: store?.machineValue || STATE_MACHINE.definition.initial,
       loading: true,
       recomputeComponentName: 0,
+      issuableId: false,
     };
   },
   computed: {
-    isLoaded() {
-      if (window.gon?.features?.mergeRequestWidgetGraphql) {
-        return !this.loading;
-      }
-
-      return this.mr;
-    },
     shouldRenderApprovals() {
       return this.mr.state !== 'nothingToMerge';
     },
@@ -188,9 +209,6 @@ export default {
     shouldRenderTestReport() {
       return Boolean(this.mr?.testResultsPath);
     },
-    shouldRenderRefactoredTestReport() {
-      return window.gon?.features?.refactorMrWidgetTestSummary;
-    },
     mergeError() {
       let { mergeError } = this.mr;
 
@@ -218,22 +236,16 @@ export default {
     hasAlerts() {
       return this.hasMergeError || this.showMergePipelineForkWarning;
     },
-    shouldShowExtension() {
-      return (
-        window.gon?.features?.refactorMrWidgetsExtensions ||
-        window.gon?.features?.refactorMrWidgetsExtensionsUser
-      );
-    },
     shouldShowSecurityExtension() {
       return window.gon?.features?.refactorSecurityExtension;
-    },
-    shouldShowCodeQualityExtension() {
-      return window.gon?.features?.refactorCodeQualityExtension;
     },
     shouldShowMergeDetails() {
       if (this.mr.state === 'readyToMerge') return true;
 
       return !this.mr.mergeDetailsCollapsed;
+    },
+    hasExtensions() {
+      return registeredExtensions.extensions.length;
     },
   },
   watch: {
@@ -276,7 +288,7 @@ export default {
         this.initWidget(data);
       })
       .catch(() =>
-        createFlash({
+        createAlert({
           message: __('Unable to load the merge request widget. Try reloading the page.'),
         }),
       );
@@ -352,9 +364,7 @@ export default {
       return new MRWidgetService(this.getServiceEndpoints(store));
     },
     checkStatus(cb, isRebased) {
-      if (window.gon?.features?.mergeRequestWidgetGraphql) {
-        this.$apollo.queries.state.refetch();
-      }
+      this.$apollo.queries.state.refetch();
 
       return this.service
         .checkStatus()
@@ -368,7 +378,7 @@ export default {
           }
         })
         .catch(() =>
-          createFlash({
+          createAlert({
             message: __('Something went wrong. Please try again.'),
           }),
         );
@@ -427,7 +437,7 @@ export default {
         .catch(() => this.throwDeploymentsError());
     },
     throwDeploymentsError() {
-      createFlash({
+      createAlert({
         message: __(
           'Something went wrong while fetching the environments for this merge request. Please try again.',
         ),
@@ -447,7 +457,7 @@ export default {
           }
         })
         .catch(() =>
-          createFlash({
+          createAlert({
             message: __('Something went wrong. Please try again.'),
           }),
         );
@@ -506,27 +516,34 @@ export default {
       eventHub.$on('DisablePolling', () => {
         this.stopPolling();
       });
+
+      eventHub.$on('FetchDeployments', () => {
+        this.fetchPreMergeDeployments();
+        if (this.shouldRenderMergedPipeline) {
+          this.fetchPostMergeDeployments();
+        }
+      });
     },
     dismissSuggestPipelines() {
       this.mr.isDismissedSuggestPipeline = true;
     },
     registerTerraformPlans() {
-      if (this.shouldRenderTerraformPlans && this.shouldShowExtension) {
+      if (this.shouldRenderTerraformPlans) {
         registerExtension(terraformExtension);
       }
     },
     registerAccessibilityExtension() {
-      if (this.shouldShowAccessibilityReport && this.shouldShowExtension) {
+      if (this.shouldShowAccessibilityReport) {
         registerExtension(accessibilityExtension);
       }
     },
     registerCodeQualityExtension() {
-      if (this.shouldRenderCodeQuality && this.shouldShowCodeQualityExtension) {
+      if (this.shouldRenderCodeQuality) {
         registerExtension(codeQualityExtension);
       }
     },
     registerTestReportExtension() {
-      if (this.shouldRenderTestReport && this.shouldRenderRefactoredTestReport) {
+      if (this.shouldRenderTestReport) {
         registerExtension(testReportExtension);
       }
     },
@@ -534,7 +551,7 @@ export default {
 };
 </script>
 <template>
-  <div v-if="isLoaded" class="mr-state-widget gl-mt-3">
+  <div v-if="!loading" class="mr-state-widget gl-mt-3">
     <header
       v-if="shouldRenderCollaborationStatus"
       class="gl-rounded-base gl-border-solid gl-border-1 gl-border-gray-100 gl-overflow-hidden mr-widget-workflow gl-mt-0!"
@@ -554,17 +571,20 @@ export default {
       :user-callout-feature-id="mr.suggestPipelineFeatureId"
       @dismiss="dismissSuggestPipelines"
     />
-    <mr-widget-pipeline-container
-      v-if="shouldRenderPipelines"
-      class="mr-widget-workflow"
-      :mr="mr"
-    />
-    <mr-widget-approvals
-      v-if="shouldRenderApprovals"
-      class="mr-widget-workflow"
-      :mr="mr"
-      :service="service"
-    />
+    <mr-widget-pipeline-container v-if="shouldRenderPipelines" :mr="mr" />
+    <mr-widget-approvals v-if="shouldRenderApprovals" :mr="mr" :service="service" />
+    <report-widget-container>
+      <extensions-container v-if="hasExtensions" :mr="mr" />
+      <widget-container v-if="mr && shouldShowSecurityExtension" :mr="mr" />
+      <security-reports-app
+        v-if="shouldRenderSecurityReport && !shouldShowSecurityExtension"
+        :pipeline-id="mr.pipeline.id"
+        :project-id="mr.sourceProjectId"
+        :security-reports-docs-path="mr.securityReportsDocsPath"
+        :target-project-full-path="mr.targetProjectFullPath"
+        :mr-iid="mr.iid"
+      />
+    </report-widget-container>
     <div class="mr-section-container mr-widget-workflow">
       <div v-if="hasAlerts" class="gl-overflow-hidden mr-widget-alert-container">
         <mr-widget-alert-message
@@ -590,45 +610,6 @@ export default {
           </template>
         </mr-widget-alert-message>
       </div>
-
-      <extensions-container :mr="mr" />
-
-      <widget-container v-if="mr" :mr="mr" />
-
-      <grouped-codequality-reports-app
-        v-if="shouldRenderCodeQuality && !shouldShowCodeQualityExtension"
-        :head-blob-path="mr.headBlobPath"
-        :base-blob-path="mr.baseBlobPath"
-        :codequality-reports-path="mr.codequalityReportsPath"
-        :codequality-help-path="mr.codequalityHelpPath"
-      />
-
-      <security-reports-app
-        v-if="shouldRenderSecurityReport && !shouldShowSecurityExtension"
-        :pipeline-id="mr.pipeline.id"
-        :project-id="mr.sourceProjectId"
-        :security-reports-docs-path="mr.securityReportsDocsPath"
-        :target-project-full-path="mr.targetProjectFullPath"
-        :mr-iid="mr.iid"
-      />
-
-      <grouped-test-reports-app
-        v-if="shouldRenderTestReport && !shouldRenderRefactoredTestReport"
-        class="js-reports-container"
-        :endpoint="mr.testResultsPath"
-        :head-blob-path="mr.headBlobPath"
-        :pipeline-path="mr.pipeline.path"
-      />
-
-      <terraform-plan
-        v-if="mr.terraformReportsPath && !shouldShowExtension"
-        :endpoint="mr.terraformReportsPath"
-      />
-
-      <grouped-accessibility-reports-app
-        v-if="shouldShowAccessibilityReport && !shouldShowExtension"
-        :endpoint="mr.accessibilityReportPath"
-      />
 
       <div class="mr-widget-section" data-qa-selector="mr_widget_content">
         <component :is="componentName" :mr="mr" :service="service" />

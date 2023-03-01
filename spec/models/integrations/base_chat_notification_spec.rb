@@ -2,16 +2,40 @@
 
 require 'spec_helper'
 
-RSpec.describe Integrations::BaseChatNotification do
+RSpec.describe Integrations::BaseChatNotification, feature_category: :integrations do
+  describe 'default values' do
+    it { expect(subject.category).to eq(:chat) }
+  end
+
   describe 'validations' do
     before do
-      allow(subject).to receive(:activated?).and_return(true)
+      subject.active = active
+
       allow(subject).to receive(:default_channel_placeholder).and_return('placeholder')
-      allow(subject).to receive(:webhook_placeholder).and_return('placeholder')
+      allow(subject).to receive(:webhook_help).and_return('help')
     end
 
-    it { is_expected.to validate_presence_of :webhook }
-    it { is_expected.to validate_inclusion_of(:labels_to_be_notified_behavior).in_array(%w[match_any match_all]).allow_blank }
+    def build_channel_list(count)
+      (1..count).map { |i| "##{i}" }.join(',')
+    end
+
+    context 'when active' do
+      let(:active) { true }
+
+      it { is_expected.to validate_presence_of :webhook }
+      it { is_expected.to validate_inclusion_of(:labels_to_be_notified_behavior).in_array(%w[match_any match_all]).allow_blank }
+      it { is_expected.to allow_value(build_channel_list(10)).for(:push_channel) }
+      it { is_expected.not_to allow_value(build_channel_list(11)).for(:push_channel) }
+    end
+
+    context 'when inactive' do
+      let(:active) { false }
+
+      it { is_expected.not_to validate_presence_of :webhook }
+      it { is_expected.not_to validate_inclusion_of(:labels_to_be_notified_behavior).in_array(%w[match_any match_all]).allow_blank }
+      it { is_expected.to allow_value(build_channel_list(10)).for(:push_channel) }
+      it { is_expected.to allow_value(build_channel_list(11)).for(:push_channel) }
+    end
   end
 
   describe '#execute' do
@@ -19,7 +43,7 @@ RSpec.describe Integrations::BaseChatNotification do
 
     let_it_be(:project) { create(:project, :repository) }
 
-    let(:user) { create(:user) }
+    let(:user) { build_stubbed(:user) }
     let(:webhook_url) { 'https://example.gitlab.com/' }
     let(:data) { Gitlab::DataBuilder::Push.build_sample(subject.project, user) }
 
@@ -30,7 +54,7 @@ RSpec.describe Integrations::BaseChatNotification do
         webhook: webhook_url
       )
 
-      WebMock.stub_request(:post, webhook_url)
+      WebMock.stub_request(:post, webhook_url) if webhook_url.present?
 
       subject.active = true
     end
@@ -44,10 +68,37 @@ RSpec.describe Integrations::BaseChatNotification do
 
     context 'with an empty repository' do
       it 'returns true' do
-        subject.project = create(:project, :empty_repo)
+        subject.project = build_stubbed(:project, :empty_repo)
 
         expect(chat_integration).to receive(:notify).and_return(true)
         expect(chat_integration.execute(data)).to be true
+      end
+    end
+
+    context 'when webhook is blank' do
+      let(:webhook_url) { '' }
+
+      it 'returns false' do
+        expect(chat_integration).not_to receive(:notify)
+        expect(chat_integration.execute(data)).to be false
+      end
+
+      context 'when webhook is not required' do
+        it 'returns true' do
+          allow(chat_integration).to receive(:requires_webhook?).and_return(false)
+
+          expect(chat_integration).to receive(:notify).and_return(true)
+          expect(chat_integration.execute(data)).to be true
+        end
+      end
+    end
+
+    context 'when event is not supported' do
+      it 'returns false' do
+        allow(chat_integration).to receive(:supported_events).and_return(['foo'])
+
+        expect(chat_integration).not_to receive(:notify)
+        expect(chat_integration.execute(data)).to be false
       end
     end
 
@@ -61,9 +112,9 @@ RSpec.describe Integrations::BaseChatNotification do
     end
 
     context 'when the data object has a label' do
-      let_it_be(:label) { create(:label, name: 'Bug') }
-      let_it_be(:label_2) { create(:label, name: 'Community contribution') }
-      let_it_be(:label_3) { create(:label, name: 'Backend') }
+      let_it_be(:label) { create(:label, project: project, name: 'Bug') }
+      let_it_be(:label_2) { create(:label, project: project, name: 'Community contribution') }
+      let_it_be(:label_3) { create(:label, project: project, name: 'Backend') }
       let_it_be(:issue) { create(:labeled_issue, project: project, labels: [label, label_2, label_3]) }
       let_it_be(:note) { create(:note, noteable: issue, project: project) }
 
@@ -93,13 +144,19 @@ RSpec.describe Integrations::BaseChatNotification do
         it_behaves_like 'notifies the chat integration'
 
         context 'MergeRequest events' do
-          let(:data) { create(:merge_request, labels: [label]).to_hook_data(user) }
+          let(:data) { build_stubbed(:merge_request, source_project: project, labels: [label]).to_hook_data(user) }
 
           it_behaves_like 'notifies the chat integration'
         end
 
         context 'Issue events' do
           let(:data) { issue.to_hook_data(user) }
+
+          it_behaves_like 'notifies the chat integration'
+        end
+
+        context 'Incident events' do
+          let(:data) { issue.to_hook_data(user).merge!({ object_kind: 'incident' }) }
 
           it_behaves_like 'notifies the chat integration'
         end
@@ -272,6 +329,10 @@ RSpec.describe Integrations::BaseChatNotification do
     context 'with multiple channel names with spaces specified' do
       it_behaves_like 'with channel specified', 'slack-integration, #slack-test, @UDLP91W0A', ['slack-integration', '#slack-test', '@UDLP91W0A']
     end
+
+    context 'with duplicate channel names' do
+      it_behaves_like 'with channel specified', '#slack-test,#slack-test,#slack-test-2', ['#slack-test', '#slack-test-2']
+    end
   end
 
   describe '#default_channel_placeholder' do
@@ -280,9 +341,9 @@ RSpec.describe Integrations::BaseChatNotification do
     end
   end
 
-  describe '#webhook_placeholder' do
+  describe '#webhook_help' do
     it 'raises an error' do
-      expect { subject.webhook_placeholder }.to raise_error(NotImplementedError)
+      expect { subject.webhook_help }.to raise_error(NotImplementedError)
     end
   end
 

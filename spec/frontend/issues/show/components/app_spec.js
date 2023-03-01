@@ -5,8 +5,15 @@ import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import '~/behaviors/markdown/render_gfm';
-import { IssuableStatus, IssuableStatusText, IssuableType } from '~/issues/constants';
+import { createAlert } from '~/flash';
+import {
+  IssuableStatusText,
+  STATUS_CLOSED,
+  STATUS_OPEN,
+  STATUS_REOPENED,
+  TYPE_EPIC,
+  TYPE_ISSUE,
+} from '~/issues/constants';
 import IssuableApp from '~/issues/show/components/app.vue';
 import DescriptionComponent from '~/issues/show/components/description.vue';
 import EditedComponent from '~/issues/show/components/edited.vue';
@@ -17,6 +24,7 @@ import PinnedLinks from '~/issues/show/components/pinned_links.vue';
 import { POLLING_DELAY } from '~/issues/show/constants';
 import eventHub from '~/issues/show/event_hub';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { visitUrl } from '~/lib/utils/url_utility';
 import {
   appProps,
@@ -26,8 +34,10 @@ import {
   zoomMeetingUrl,
 } from '../mock_data/mock_data';
 
-jest.mock('~/lib/utils/url_utility');
+jest.mock('~/flash');
 jest.mock('~/issues/show/event_hub');
+jest.mock('~/lib/utils/url_utility');
+jest.mock('~/behaviors/markdown/render_gfm');
 
 const REALTIME_REQUEST_STACK = [initialRequest, secondRequest];
 
@@ -50,12 +60,11 @@ describe('Issuable output', () => {
   const mountComponent = (props = {}, options = {}, data = {}) => {
     wrapper = shallowMountExtended(IssuableApp, {
       directives: {
-        GlTooltip: createMockDirective(),
+        GlTooltip: createMockDirective('gl-tooltip'),
       },
       propsData: { ...appProps, ...props },
       provide: {
         fullPath: 'gitlab-org/incidents',
-        iid: '19',
         uploadMetricsFeatureAvailable: false,
       },
       stubs: {
@@ -92,7 +101,7 @@ describe('Issuable output', () => {
     mock
       .onGet('/gitlab-org/gitlab-shell/-/issues/9/realtime_changes/realtime_changes')
       .reply(() => {
-        const res = Promise.resolve([200, REALTIME_REQUEST_STACK[realtimeRequestCount]]);
+        const res = Promise.resolve([HTTP_STATUS_OK, REALTIME_REQUEST_STACK[realtimeRequestCount]]);
         realtimeRequestCount += 1;
         return res;
       });
@@ -270,9 +279,7 @@ describe('Issuable output', () => {
 
         await wrapper.vm.updateIssuable();
         expect(eventHub.$emit).not.toHaveBeenCalledWith('close.form');
-        expect(document.querySelector('.flash-container .flash-text').innerText.trim()).toBe(
-          `Error updating issue`,
-        );
+        expect(createAlert).toHaveBeenCalledWith({ message: `Error updating issue` });
       });
 
       it('returns the correct error message for issuableType', async () => {
@@ -282,9 +289,7 @@ describe('Issuable output', () => {
         await nextTick();
         await wrapper.vm.updateIssuable();
         expect(eventHub.$emit).not.toHaveBeenCalledWith('close.form');
-        expect(document.querySelector('.flash-container .flash-text').innerText.trim()).toBe(
-          `Error updating merge request`,
-        );
+        expect(createAlert).toHaveBeenCalledWith({ message: `Error updating merge request` });
       });
 
       it('shows error message from backend if exists', async () => {
@@ -294,9 +299,9 @@ describe('Issuable output', () => {
           .mockRejectedValue({ response: { data: { errors: [msg] } } });
 
         await wrapper.vm.updateIssuable();
-        expect(document.querySelector('.flash-container .flash-text').innerText.trim()).toBe(
-          `${wrapper.vm.defaultErrorMessage}. ${msg}`,
-        );
+        expect(createAlert).toHaveBeenCalledWith({
+          message: `${wrapper.vm.defaultErrorMessage}. ${msg}`,
+        });
       });
     });
   });
@@ -332,7 +337,9 @@ describe('Issuable output', () => {
       const mockData = {
         test: [{ name: 'test', id: 'test', project_path: '/', namespace_path: '/' }],
       };
-      mock.onGet('/issuable-templates-path').reply(() => Promise.resolve([200, mockData]));
+      mock
+        .onGet('/issuable-templates-path')
+        .reply(() => Promise.resolve([HTTP_STATUS_OK, mockData]));
 
       return wrapper.vm.requestTemplatesAndShowForm().then(() => {
         expect(formSpy).toHaveBeenCalledWith(mockData);
@@ -341,7 +348,9 @@ describe('Issuable output', () => {
 
     it('shows the form if template names as array request is successful', () => {
       const mockData = [{ name: 'test', id: 'test', project_path: '/', namespace_path: '/' }];
-      mock.onGet('/issuable-templates-path').reply(() => Promise.resolve([200, mockData]));
+      mock
+        .onGet('/issuable-templates-path')
+        .reply(() => Promise.resolve([HTTP_STATUS_OK, mockData]));
 
       return wrapper.vm.requestTemplatesAndShowForm().then(() => {
         expect(formSpy).toHaveBeenCalledWith(mockData);
@@ -354,9 +363,7 @@ describe('Issuable output', () => {
         .reply(() => Promise.reject(new Error('something went wrong')));
 
       return wrapper.vm.requestTemplatesAndShowForm().then(() => {
-        expect(document.querySelector('.flash-container .flash-text').textContent).toContain(
-          'Error updating issue',
-        );
+        expect(createAlert).toHaveBeenCalledWith({ message: 'Error updating issue' });
 
         expect(formSpy).toHaveBeenCalledWith();
       });
@@ -402,9 +409,9 @@ describe('Issuable output', () => {
       wrapper.setProps({ issuableType: 'merge request' });
 
       return wrapper.vm.updateStoreState().then(() => {
-        expect(document.querySelector('.flash-container .flash-text').innerText.trim()).toBe(
-          `Error updating ${wrapper.vm.issuableType}`,
-        );
+        expect(createAlert).toHaveBeenCalledWith({
+          message: `Error updating ${wrapper.vm.issuableType}`,
+        });
       });
     });
   });
@@ -461,7 +468,7 @@ describe('Issuable output', () => {
     describe('when title is not in view', () => {
       beforeEach(() => {
         wrapper.vm.state.titleText = 'Sticky header title';
-        wrapper.find(GlIntersectionObserver).vm.$emit('disappear');
+        wrapper.findComponent(GlIntersectionObserver).vm.$emit('disappear');
       });
 
       it('shows with title', () => {
@@ -477,11 +484,11 @@ describe('Issuable output', () => {
       });
 
       it.each`
-        issuableType          | issuableStatus           | statusIcon
-        ${IssuableType.Issue} | ${IssuableStatus.Open}   | ${'issues'}
-        ${IssuableType.Issue} | ${IssuableStatus.Closed} | ${'issue-closed'}
-        ${IssuableType.Epic}  | ${IssuableStatus.Open}   | ${'epic'}
-        ${IssuableType.Epic}  | ${IssuableStatus.Closed} | ${'epic-closed'}
+        issuableType  | issuableStatus   | statusIcon
+        ${TYPE_ISSUE} | ${STATUS_OPEN}   | ${'issues'}
+        ${TYPE_ISSUE} | ${STATUS_CLOSED} | ${'issue-closed'}
+        ${TYPE_EPIC}  | ${STATUS_OPEN}   | ${'epic'}
+        ${TYPE_EPIC}  | ${STATUS_CLOSED} | ${'epic-closed'}
       `(
         'shows with state icon "$statusIcon" for $issuableType when status is $issuableStatus',
         async ({ issuableType, issuableStatus, statusIcon }) => {
@@ -495,9 +502,9 @@ describe('Issuable output', () => {
 
       it.each`
         title                                        | state
-        ${'shows with Open when status is opened'}   | ${IssuableStatus.Open}
-        ${'shows with Closed when status is closed'} | ${IssuableStatus.Closed}
-        ${'shows with Open when status is reopened'} | ${IssuableStatus.Reopened}
+        ${'shows with Open when status is opened'}   | ${STATUS_OPEN}
+        ${'shows with Closed when status is closed'} | ${STATUS_CLOSED}
+        ${'shows with Open when status is reopened'} | ${STATUS_REOPENED}
       `('$title', async ({ state }) => {
         wrapper.setProps({ issuableStatus: state });
 
@@ -649,10 +656,10 @@ describe('Issuable output', () => {
     });
   });
 
-  describe('listItemReorder event', () => {
+  describe('saveDescription event', () => {
     it('makes request to update issue', async () => {
       const description = 'I have been updated!';
-      findDescription().vm.$emit('listItemReorder', description);
+      findDescription().vm.$emit('saveDescription', description);
       await waitForPromises();
 
       expect(mock.history.put[0].data).toContain(description);

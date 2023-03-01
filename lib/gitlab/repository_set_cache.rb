@@ -41,7 +41,7 @@ module Gitlab
       smembers, exists = with do |redis|
         redis.multi do |multi|
           multi.smembers(full_key)
-          multi.exists(full_key)
+          multi.exists?(full_key) # rubocop:disable CodeReuse/ActiveRecord
         end
       end
 
@@ -58,11 +58,21 @@ module Gitlab
       full_key = cache_key(key)
 
       with do |redis|
-        exists = redis.exists(full_key)
+        exists = redis.exists?(full_key) # rubocop:disable CodeReuse/ActiveRecord
         write(key, yield) unless exists
 
         redis.sscan_each(full_key, match: pattern)
       end
+    end
+
+    private
+
+    def cache
+      Gitlab::Redis::RepositoryCache
+    end
+
+    def with(&blk)
+      cache.with(&blk) # rubocop:disable CodeReuse/ActiveRecord
     end
   end
 end

@@ -6,7 +6,7 @@ module Members
       validate_access!(access_requester) unless skip_authorization
 
       access_requester.access_level = params[:access_level] if params[:access_level]
-      access_requester.accept_request
+      access_requester.accept_request(current_user)
 
       after_execute(member: access_requester, skip_log_audit_event: skip_log_audit_event)
 
@@ -15,8 +15,14 @@ module Members
 
     private
 
+    def after_execute(member:, skip_log_audit_event:)
+      super
+
+      resolve_access_request_todos(current_user, member)
+    end
+
     def validate_access!(access_requester)
-      raise Gitlab::Access::AccessDeniedError unless can_update_access_requester?(access_requester)
+      raise Gitlab::Access::AccessDeniedError unless can_approve_access_requester?(access_requester)
 
       if approving_member_with_owner_access_level?(access_requester) &&
         cannot_assign_owner_responsibilities_to_member_in_project?(access_requester)
@@ -24,8 +30,8 @@ module Members
       end
     end
 
-    def can_update_access_requester?(access_requester)
-      can?(current_user, update_member_permission(access_requester), access_requester)
+    def can_approve_access_requester?(access_requester)
+      can?(current_user, :admin_member_access_request, access_requester.source)
     end
 
     def approving_member_with_owner_access_level?(access_requester)

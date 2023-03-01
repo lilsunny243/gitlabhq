@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Geo **(PREMIUM SELF)**
@@ -120,17 +120,20 @@ The following are required to run Geo:
   - [CentOS](https://www.centos.org) 7.4 or later
   - [Ubuntu](https://ubuntu.com) 16.04 or later
 - PostgreSQL 12 or 13 with [Streaming Replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
-  - Note,[PostgreSQL 12 is deprecated](../../update/deprecations.md#postgresql-12-deprecated) and will be removed in GitLab 16.0.
+  - Note,[PostgreSQL 12 is deprecated](../../update/deprecations.md#postgresql-12-deprecated) and is removed in GitLab 16.0.
 - Git 2.9 or later
 - Git-lfs 2.4.2 or later on the user side when using LFS
 - All sites must run [the same GitLab and PostgreSQL versions](setup/database.md#postgresql-replication).
+  - If using different operating system versions between Geo sites,
+    [check OS locale data compatibility](replication/troubleshooting.md#check-os-locale-data-compatibility)
+    across Geo sites to avoid silent corruption of database indexes.
 
 Additionally, check the GitLab [minimum requirements](../../install/requirements.md),
-and we recommend you use the latest version of GitLab for a better experience.
+and use the latest version of GitLab for a better experience.
 
 ### Firewall rules
 
-The following table lists basic ports that must be open between the **primary** and **secondary** sites for Geo. To simplify failovers, we recommend opening ports in both directions.
+The following table lists basic ports that must be open between the **primary** and **secondary** sites for Geo. To simplify failovers, you should open ports in both directions.
 
 | Source site | Source port | Destination site | Destination port | Protocol    |
 |-------------|-------------|------------------|------------------|-------------|
@@ -158,18 +161,9 @@ public URL of the primary site is used.
 
 To update the internal URL of the primary Geo site:
 
-1. On the top bar, go to **Menu > Admin > Geo > Sites**.
+1. On the top bar, select **Main menu > Admin > Geo > Sites**.
 1. Select **Edit** on the primary site.
 1. Change the **Internal URL**, then select **Save changes**.
-
-### LDAP
-
-We recommend that if you use LDAP on your **primary** site, you also set up secondary LDAP servers on each **secondary** site. Otherwise, users are unable to perform Git operations over HTTP(s) on the **secondary** site using HTTP Basic Authentication. However, Git via SSH and personal access tokens still works.
-
-NOTE:
-It is possible for all **secondary** sites to share an LDAP server, but additional latency can be an issue. Also, consider what LDAP server is available in a [disaster recovery](disaster_recovery/index.md) scenario if a **secondary** site is promoted to be a **primary** site.
-
-Check for instructions on how to set up replication in your LDAP service. Instructions are different depending on the software or service used. For example, OpenLDAP provides [these instructions](https://www.openldap.org/doc/admin24/replication.html).
 
 ### Geo Tracking Database
 
@@ -204,6 +198,9 @@ This list of limitations only reflects the latest version of GitLab. If you are 
 - GitLab Runners cannot register with a **secondary** site. Support for this is [planned for the future](https://gitlab.com/gitlab-org/gitlab/-/issues/3294).
 - [Selective synchronization](replication/configuration.md#selective-synchronization) only limits what repositories and files are replicated. The entire PostgreSQL data is still replicated. Selective synchronization is not built to accommodate compliance / export control use cases.
 - [Pages access control](../../user/project/pages/pages_access_control.md) doesn't work on secondaries. See [GitLab issue #9336](https://gitlab.com/gitlab-org/gitlab/-/issues/9336) for details.
+- [GitLab chart with Geo](https://docs.gitlab.com/charts/advanced/geo/) does not support [Unified URLs](secondary_proxy/index.md#set-up-a-unified-url-for-geo-sites). See [GitLab issue #3522](https://gitlab.com/gitlab-org/charts/gitlab/-/issues/3522) for more details.
+- [Disaster recovery](disaster_recovery/index.md) for multi-secondary sites causes downtime due to the complete re-synchronization and re-configuration of all non-promoted secondaries.
+- For Git over SSH, secondary sites must use the same port as the primary. [GitLab issue #339262](https://gitlab.com/gitlab-org/gitlab/-/issues/339262) proposes to remove this limitation.
 
 ### Limitations on replication/verification
 
@@ -220,6 +217,10 @@ An [epic exists](https://gitlab.com/groups/gitlab-org/-/epics/4623) to fix this 
 
 The only way to view designs replication data for a particular secondary site is to visit that secondary site directly. For example, `https://<IP of your secondary site>/admin/geo/replication/designs`.
 An [epic exists](https://gitlab.com/groups/gitlab-org/-/epics/4624) to fix this limitation.
+
+Keep in mind that mentioned URLs don't work when [Admin Mode](../../user/admin_area/settings/sign_in_restrictions.md#admin-mode) is enabled.
+
+When using Unified URL, visiting the secondary site directly means you must route your requests to the secondary site. Exactly how this might be done depends on your networking configuration. If using DNS to route requests to the appropriate site, then you can, for example, edit your local machine's `/etc/hosts` file to route your requests to the desired secondary site. If the Geo sites are all behind a load balancer, then depending on the load balancer, you might be able to configure all requests from your IP to go to a particular secondary site.
 
 ## Setup instructions
 
@@ -289,6 +290,14 @@ For more information on how to replicate the Container Registry, see [Container 
 
 For more information on using Geo proxying on secondary sites, see [Geo proxying for secondary sites](secondary_proxy/index.md).
 
+### Single Sign On (SSO)
+
+For more information on configuring Single Sign-On (SSO), see [Geo with Single Sign-On (SSO)](replication/single_sign_on.md).
+
+#### LDAP
+
+For more information on configuring LDAP, see [Geo with Single Sign-On (SSO) > LDAP](replication/single_sign_on.md#ldap).
+
 ### Security Review
 
 For more information on Geo security, see [Geo security review](replication/security_review.md).
@@ -303,7 +312,7 @@ For an example of how to set up a location-aware Git remote URL with AWS Route53
 
 ### Backfill
 
-Once a **secondary** site is set up, it starts replicating missing data from
+When a **secondary** site is set up, it starts replicating missing data from
 the **primary** site in a process known as **backfill**. You can monitor the
 synchronization process on each Geo site from the **primary** site's **Geo Nodes**
 dashboard in your browser.

@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Labels **(FREE)**
@@ -28,9 +28,20 @@ You can use two types of labels in GitLab:
 
 ## Assign and unassign labels
 
-> Unassigning labels with the **X** button [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216881) in GitLab 13.5.
+> - Unassigning labels with the **X** button [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216881) in GitLab 13.5.
+> - Real-time updates in the sidebar [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/241538) in GitLab 14.10 with a [feature flag](../../administration/feature_flags.md) named `realtime_labels`, disabled by default.
+> - Real-time updates in the sidebar [enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/357370#note_991987201) in GitLab 15.1.
+> - Real-time updates in the sidebar [enabled by default](https://gitlab.com/gitlab-org/gitlab/-/issues/357370) in GitLab 15.5.
+> - Real-time updates in the sidebar [generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/103199) in GitLab 15.6. Feature flag `realtime_labels` removed.
 
 You can assign labels to any issue, merge request, or epic.
+
+Changed labels are immediately visible to other users, without refreshing the page, on the following:
+
+- Epics
+- Incidents
+- Issues
+- Merge requests
 
 To assign or unassign a label:
 
@@ -58,7 +69,7 @@ You can also assign and unassign labels with [quick actions](quick_actions.md):
 
 To view the **project's labels**:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 
 Or:
@@ -75,7 +86,7 @@ project or group path where it was created.
 
 To view the **group's labels**:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Group information > Labels**.
 
 Or:
@@ -97,7 +108,7 @@ Prerequisites:
 
 To create a project label:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 1. Select **New label**.
 1. In the **Title** field, enter a short, descriptive name for the label. You
@@ -131,7 +142,7 @@ To do so:
 
 To create a group label:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Group information > Labels**.
 1. Select **New label**.
 1. In the **Title** field, enter a short, descriptive name for the label. You
@@ -171,7 +182,7 @@ Prerequisites:
 
 To edit a **project** label:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 1. Next to the label you want to edit, select **Edit** (**{pencil}**).
 
@@ -179,7 +190,7 @@ To edit a **project** label:
 
 To edit a **group** label:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Group information > Labels**.
 1. Next to the label you want to edit, select **Edit** (**{pencil}**).
 
@@ -197,7 +208,7 @@ Prerequisites:
 
 To delete a **project** label:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 1. Either:
 
@@ -210,7 +221,7 @@ To delete a **project** label:
 
 To delete a **group** label:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Group information > Labels**.
 1. Either:
 
@@ -240,7 +251,7 @@ Prerequisites:
 
 To promote a project label to a group label:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 1. Next to the **Subscribe** button, select the three dots (**{ellipsis_v}**) and
    select **Promote to group label**.
@@ -291,7 +302,7 @@ Prerequisites:
 
 To add the default labels to the project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 1. Select **Generate a default set of labels**.
 
@@ -379,7 +390,7 @@ For a video explanation, see:
   See the video: <a href="https://www.youtube.com/watch?v=4BCBby6du3c">Use scoped labels for custom fields and custom workflows</a>.
 </div>
 <figure class="video-container">
-  <iframe src="https://www.youtube.com/embed/4BCBby6du3c" frameborder="0" allowfullscreen="true"> </iframe>
+  <iframe src="https://www.youtube-nocookie.com/embed/4BCBby6du3c" frameborder="0" allowfullscreen> </iframe>
 </figure>
 
 ### Nested scopes
@@ -410,7 +421,7 @@ To subscribe to a label:
 1. To the right of any label, select **Subscribe**.
 1. Optional. If you are subscribing to a group label from a project, select either:
    - **Subscribe at project level** to be notified about events in this project.
-   - **Subscribe at group level**: to be notified about events in the whole group.
+   - **Subscribe at group level** to be notified about events in the whole group.
 
 ## Set label priority
 
@@ -430,7 +441,7 @@ Prerequisites:
 
 To prioritize a label:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Project information > Labels**.
 1. Next to a label you want to prioritize, select the star (**{star-o}**).
 
@@ -443,23 +454,6 @@ The labels higher in the list get higher priority.
 
 To learn what happens when you sort by priority or label priority, see
 [Sorting and ordering issue lists](issues/sorting_issue_lists.md).
-
-## Real-time changes to labels
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/241538) in GitLab 14.10 with a [feature flag](../../administration/feature_flags.md) named `realtime_labels`, disabled by default.
-> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/357370#note_991987201) in GitLab 15.1.
-
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available, ask an
-administrator to [enable the feature flag](../../administration/feature_flags.md) named `realtime_labels`.
-On GitLab.com, this feature is available.
-
-Changed labels are immediately visible to other users, without refreshing the page, on the following:
-
-- Epics
-- Incidents
-- Issues
-- Merge requests
 
 ## Troubleshooting
 

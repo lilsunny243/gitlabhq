@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Integrate your server with GitLab.com **(FREE SELF)**
@@ -12,17 +12,18 @@ To enable the GitLab.com OmniAuth provider you must register your application wi
 GitLab.com generates an application ID and secret key for you to use.
 
 1. Sign in to GitLab.com.
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Applications**.
 1. Provide the required details for **Add new application**.
    - Name: This can be anything. Consider something like `<Organization>'s GitLab` or `<Your Name>'s GitLab` or something else descriptive.
    - Redirect URI:
 
-   ```plaintext
-   http://your-gitlab.example.com/import/gitlab/callback
-   http://your-gitlab.example.com/users/auth/gitlab/callback
-   ```
+     ```plaintext
+     # You can also use a non-SSL URL, but you should use SSL URLs.
+     https://your-gitlab.example.com/import/gitlab/callback
+     https://your-gitlab.example.com/users/auth/gitlab/callback
+     ```
 
    The first link is required for the importer and second for authentication.
 
@@ -50,7 +51,9 @@ GitLab.com generates an application ID and secret key for you to use.
    sudo -u git -H editor config/gitlab.yml
    ```
 
-1. See [Configure initial settings](omniauth.md#configure-initial-settings) for initial settings.
+1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+   to add `gitlab` as a single sign-on provider. This enables Just-In-Time
+   account provisioning for users who do not have an existing GitLab account.
 1. Add the provider configuration:
 
    For Omnibus installations authenticating against **GitLab.com**:
@@ -76,8 +79,8 @@ GitLab.com generates an application ID and secret key for you to use.
        label: "Provider name", # optional label for login button, defaults to "GitLab.com"
        app_id: "YOUR_APP_ID",
        app_secret: "YOUR_APP_SECRET",
-       args: { scope: "read_user" # optional: defaults to the scopes of the application
-             , client_options: { site: "https://gitlab.example.com" } }
+       args: { scope: "read_user", # optional: defaults to the scopes of the application
+               client_options: { site: "https://gitlab.example.com" } }
      }
    ]
    ```

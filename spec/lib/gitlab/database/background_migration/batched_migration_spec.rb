@@ -59,6 +59,92 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
     end
   end
 
+  describe '#pause!' do
+    context 'when an invalid transition is applied' do
+      %i[finished failed finalizing].each do |state|
+        it 'raises an exception' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect { batched_migration.pause! }.to raise_error(StateMachines::InvalidTransition, /Cannot transition status/)
+        end
+      end
+    end
+
+    context 'when a valid transition is applied' do
+      %i[active paused].each do |state|
+        it 'moves to pause' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect(batched_migration.pause!).to be_truthy
+        end
+      end
+    end
+  end
+
+  describe '#execute!' do
+    context 'when an invalid transition is applied' do
+      %i[finalizing finished].each do |state|
+        it 'raises an exception' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect { batched_migration.execute! }.to raise_error(StateMachines::InvalidTransition, /Cannot transition status/)
+        end
+      end
+    end
+
+    context 'when a valid transition is applied' do
+      %i[active paused failed].each do |state|
+        it 'moves to active' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect(batched_migration.execute!).to be_truthy
+        end
+      end
+    end
+  end
+
+  describe '#finish!' do
+    context 'when an invalid transition is applied' do
+      it 'raises an exception' do
+        batched_migration = create(:batched_background_migration, :failed)
+
+        expect { batched_migration.finish! }.to raise_error(StateMachines::InvalidTransition, /Cannot transition status/)
+      end
+    end
+
+    context 'when a valid transition is applied' do
+      %i[active paused finished finalizing].each do |state|
+        it 'moves to active' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect(batched_migration.finish!).to be_truthy
+        end
+      end
+    end
+  end
+
+  describe '#failure!' do
+    context 'when an invalid transition is applied' do
+      %i[paused finished].each do |state|
+        it 'raises an exception' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect { batched_migration.failure! }.to raise_error(StateMachines::InvalidTransition, /Cannot transition status/)
+        end
+      end
+    end
+
+    context 'when a valid transition is applied' do
+      %i[failed finalizing active].each do |state|
+        it 'moves to active' do
+          batched_migration = create(:batched_background_migration, state)
+
+          expect(batched_migration.failure!).to be_truthy
+        end
+      end
+    end
+  end
+
   describe '.valid_status' do
     valid_status = [:paused, :active, :finished, :failed, :finalizing]
 
@@ -124,6 +210,102 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
       it 'returns the first active migration that is available for the current connection' do
         expect(active_migration).to eq(migration3)
       end
+    end
+
+    context 'when there are no active migrations available' do
+      it 'returns nil' do
+        expect(active_migration).to eq(nil)
+      end
+    end
+  end
+
+  describe '.find_executable' do
+    let(:connection) { Gitlab::Database.database_base_models[:main].connection }
+    let(:migration_id) { migration.id }
+
+    subject(:executable_migration) { described_class.find_executable(migration_id, connection: connection) }
+
+    around do |example|
+      Gitlab::Database::SharedModel.using_connection(connection) do
+        example.run
+      end
+    end
+
+    context 'when the migration does not exist' do
+      let(:migration_id) { non_existing_record_id }
+
+      it 'returns nil' do
+        expect(executable_migration).to be_nil
+      end
+    end
+
+    context 'when the migration is not active' do
+      let!(:migration) { create(:batched_background_migration, :finished) }
+
+      it 'returns nil' do
+        expect(executable_migration).to be_nil
+      end
+    end
+
+    context 'when the migration is on hold' do
+      let!(:migration) { create(:batched_background_migration, :active, on_hold_until: 10.minutes.from_now) }
+
+      it 'returns nil' do
+        expect(executable_migration).to be_nil
+      end
+    end
+
+    context 'when the migration is not available for the current connection' do
+      let!(:migration) { create(:batched_background_migration, :active, gitlab_schema: :gitlab_not_existing) }
+
+      it 'returns nil' do
+        expect(executable_migration).to be_nil
+      end
+    end
+
+    context 'when ther migration exists and is executable' do
+      let!(:migration) { create(:batched_background_migration, :active, gitlab_schema: :gitlab_main) }
+
+      it 'returns the migration' do
+        expect(executable_migration).to eq(migration)
+      end
+    end
+  end
+
+  describe '.active_migrations_distinct_on_table' do
+    let(:connection) { Gitlab::Database.database_base_models[:main].connection }
+
+    around do |example|
+      Gitlab::Database::SharedModel.using_connection(connection) do
+        example.run
+      end
+    end
+
+    it 'returns one pending executable migration per table' do
+      # non-active migration
+      create(:batched_background_migration, :finished)
+      # migration put on hold
+      create(:batched_background_migration, :active, on_hold_until: 10.minutes.from_now)
+      # migration not availab for the current connection
+      create(:batched_background_migration, :active, gitlab_schema: :gitlab_not_existing)
+      # active migration that is no longer on hold
+      migration_1 = create(:batched_background_migration, :active, table_name: :users, on_hold_until: 10.minutes.ago)
+      # another active migration for the same table
+      create(:batched_background_migration, :active, table_name: :users)
+      # active migration for different table
+      migration_2 = create(:batched_background_migration, :active, table_name: :projects)
+      # active migration for third table
+      create(:batched_background_migration, :active, table_name: :namespaces)
+
+      actual = described_class.active_migrations_distinct_on_table(connection: connection, limit: 2)
+
+      expect(actual).to eq([migration_1, migration_2])
+    end
+
+    it 'returns epmty collection when there are no pending executable migrations' do
+      actual = described_class.active_migrations_distinct_on_table(connection: connection, limit: 2)
+
+      expect(actual).to be_empty
     end
   end
 
@@ -630,10 +812,22 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
   describe '#progress' do
     subject { migration.progress }
 
-    context 'when the migration is finished' do
+    context 'when the migration is completed' do
       let(:migration) do
         create(:batched_background_migration, :finished, total_tuple_count: 1).tap do |record|
           create(:batched_background_migration_job, :succeeded, batched_migration: record, batch_size: 1)
+        end
+      end
+
+      it 'returns 100' do
+        expect(subject).to be 100
+      end
+    end
+
+    context 'when the status is finished' do
+      let(:migration) do
+        create(:batched_background_migration, :finished, total_tuple_count: 100).tap do |record|
+          create(:batched_background_migration_job, :succeeded, batched_migration: record, batch_size: 5)
         end
       end
 
@@ -703,7 +897,7 @@ RSpec.describe Gitlab::Database::BackgroundMigration::BatchedMigration, type: :m
     end
 
     it 'doesn not filter by gitlab schemas available for the connection if the column is nor present' do
-      skip_if_multiple_databases_not_setup
+      skip_if_multiple_databases_not_setup(:ci)
 
       expect(described_class).to receive(:gitlab_schema_column_exists?).and_return(false)
 

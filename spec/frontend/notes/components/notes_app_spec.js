@@ -2,29 +2,34 @@ import { mount, shallowMount } from '@vue/test-utils';
 import AxiosMockAdapter from 'axios-mock-adapter';
 import $ from 'jquery';
 import { nextTick } from 'vue';
-import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import DraftNote from '~/batch_comments/components/draft_note.vue';
 import batchComments from '~/batch_comments/stores/modules/batch_comments';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
+import { getLocationHash } from '~/lib/utils/url_utility';
 import * as urlUtility from '~/lib/utils/url_utility';
 import CommentForm from '~/notes/components/comment_form.vue';
 import NotesApp from '~/notes/components/notes_app.vue';
+import NotesActivityHeader from '~/notes/components/notes_activity_header.vue';
 import * as constants from '~/notes/constants';
 import createStore from '~/notes/stores';
-import '~/behaviors/markdown/render_gfm';
-// TODO: use generated fixture (https://gitlab.com/gitlab-org/gitlab-foss/issues/62491)
 import OrderedLayout from '~/vue_shared/components/ordered_layout.vue';
+// TODO: use generated fixture (https://gitlab.com/gitlab-org/gitlab-foss/issues/62491)
 import * as mockData from '../mock_data';
+
+jest.mock('~/behaviors/markdown/render_gfm');
 
 const TYPE_COMMENT_FORM = 'comment-form';
 const TYPE_NOTES_LIST = 'notes-list';
+const TEST_NOTES_FILTER_VALUE = 1;
 
 const propsData = {
   noteableData: mockData.noteableDataMock,
   notesData: mockData.notesDataMock,
-  userData: mockData.userDataMock,
+  notesFilters: mockData.notesFilters,
+  notesFilterValue: TEST_NOTES_FILTER_VALUE,
 };
 
 describe('note_app', () => {
@@ -32,6 +37,19 @@ describe('note_app', () => {
   let mountComponent;
   let wrapper;
   let store;
+
+  const initStore = (notesData = propsData.notesData) => {
+    store.dispatch('setNotesData', notesData);
+    store.dispatch('setNoteableData', propsData.noteableData);
+    store.dispatch('setUserData', mockData.userDataMock);
+    store.dispatch('setTargetNoteHash', getLocationHash());
+    // call after mounted hook
+    queueMicrotask(() => {
+      queueMicrotask(() => {
+        store.dispatch('fetchNotes');
+      });
+    });
+  };
 
   const findCommentButton = () => wrapper.find('[data-testid="comment-button"]');
 
@@ -47,7 +65,9 @@ describe('note_app', () => {
     axiosMock = new AxiosMockAdapter(axios);
 
     store = createStore();
-    mountComponent = () => {
+
+    mountComponent = ({ props = {} } = {}) => {
+      initStore();
       return mount(
         {
           components: {
@@ -56,9 +76,13 @@ describe('note_app', () => {
           template: `<div class="js-vue-notes-event">
             <notes-app ref="notesApp" v-bind="$attrs" />
           </div>`,
+          inheritAttrs: false,
         },
         {
-          propsData,
+          propsData: {
+            ...propsData,
+            ...props,
+          },
           store,
         },
       );
@@ -70,51 +94,11 @@ describe('note_app', () => {
     axiosMock.restore();
   });
 
-  describe('set data', () => {
-    beforeEach(() => {
-      setHTMLFixture('<div class="js-discussions-count"></div>');
-
-      axiosMock.onAny().reply(200, []);
-      wrapper = mountComponent();
-      return waitForPromises();
-    });
-
-    afterEach(() => {
-      resetHTMLFixture();
-    });
-
-    it('should set notes data', () => {
-      expect(store.state.notesData).toEqual(mockData.notesDataMock);
-    });
-
-    it('should set issue data', () => {
-      expect(store.state.noteableData).toEqual(mockData.noteableDataMock);
-    });
-
-    it('should set user data', () => {
-      expect(store.state.userData).toEqual(mockData.userDataMock);
-    });
-
-    it('should fetch discussions', () => {
-      expect(store.state.discussions).toEqual([]);
-    });
-
-    it('updates discussions badge', () => {
-      expect(document.querySelector('.js-discussions-count').textContent).toEqual('0');
-    });
-  });
-
   describe('render', () => {
     beforeEach(() => {
-      setHTMLFixture('<div class="js-discussions-count"></div>');
-
       axiosMock.onAny().reply(mockData.getIndividualNoteResponse);
       wrapper = mountComponent();
       return waitForPromises();
-    });
-
-    afterEach(() => {
-      resetHTMLFixture();
     });
 
     it('should render list of notes', () => {
@@ -141,23 +125,27 @@ describe('note_app', () => {
       expect(findCommentButton().props('disabled')).toEqual(true);
     });
 
-    it('updates discussions badge', () => {
-      expect(document.querySelector('.js-discussions-count').textContent).toEqual('2');
+    it('should render notes activity header', () => {
+      expect(wrapper.findComponent(NotesActivityHeader).props()).toEqual({
+        notesFilterValue: TEST_NOTES_FILTER_VALUE,
+        notesFilters: mockData.notesFilters,
+      });
     });
   });
 
   describe('render with comments disabled', () => {
     beforeEach(() => {
-      setHTMLFixture('<div class="js-discussions-count"></div>');
-
       axiosMock.onAny().reply(mockData.getIndividualNoteResponse);
-      store.state.commentsDisabled = true;
-      wrapper = mountComponent();
-      return waitForPromises();
-    });
+      wrapper = mountComponent({
+        // why: In this integration test, previously we manually set store.state.commentsDisabled
+        //      This stopped working when we added `<discussion-filter>` into the component tree.
+        //      Let's lean into the integration scope and use a prop that "disables comments".
+        props: {
+          notesFilterValue: constants.HISTORY_ONLY_FILTER_VALUE,
+        },
+      });
 
-    afterEach(() => {
-      resetHTMLFixture();
+      return waitForPromises();
     });
 
     it('should not render form when commenting is disabled', () => {
@@ -171,18 +159,12 @@ describe('note_app', () => {
 
   describe('timeline view', () => {
     beforeEach(() => {
-      setHTMLFixture('<div class="js-discussions-count"></div>');
-
       axiosMock.onAny().reply(mockData.getIndividualNoteResponse);
       store.state.commentsDisabled = false;
       store.state.isTimelineEnabled = true;
 
       wrapper = mountComponent();
       return waitForPromises();
-    });
-
-    afterEach(() => {
-      resetHTMLFixture();
     });
 
     it('should not render comments form', () => {
@@ -192,12 +174,7 @@ describe('note_app', () => {
 
   describe('while fetching data', () => {
     beforeEach(async () => {
-      setHTMLFixture('<div class="js-discussions-count"></div>');
       wrapper = mountComponent();
-    });
-
-    afterEach(() => {
-      return waitForPromises().then(() => resetHTMLFixture());
     });
 
     it('renders skeleton notes', () => {
@@ -209,10 +186,6 @@ describe('note_app', () => {
       expect(wrapper.find('.js-main-target-form textarea').attributes('placeholder')).toEqual(
         'Write a comment or drag your files here…',
       );
-    });
-
-    it('should not update discussions badge (it should be blank)', () => {
-      expect(document.querySelector('.js-discussions-count').textContent).toEqual('');
     });
   });
 
@@ -314,7 +287,7 @@ describe('note_app', () => {
 
   describe('emoji awards', () => {
     beforeEach(() => {
-      axiosMock.onAny().reply(200, []);
+      axiosMock.onAny().reply(HTTP_STATUS_OK, []);
       wrapper = mountComponent();
       return waitForPromises();
     });
@@ -358,7 +331,7 @@ describe('note_app', () => {
     it('should listen hashchange event', () => {
       const notesApp = wrapper.findComponent(NotesApp);
       const hash = 'some dummy hash';
-      jest.spyOn(urlUtility, 'getLocationHash').mockReturnValueOnce(hash);
+      jest.spyOn(urlUtility, 'getLocationHash').mockReturnValue(hash);
       const setTargetNoteHash = jest.spyOn(notesApp.vm, 'setTargetNoteHash');
 
       window.dispatchEvent(new Event('hashchange'), hash);
@@ -447,7 +420,9 @@ describe('note_app', () => {
   describe('fetching discussions', () => {
     describe('when note anchor is not present', () => {
       it('does not include extra query params', async () => {
-        wrapper = shallowMount(NotesApp, { propsData, store: createStore() });
+        store = createStore();
+        initStore();
+        wrapper = shallowMount(NotesApp, { propsData, store });
         await waitForPromises();
 
         expect(axiosMock.history.get[0].params).toEqual({ per_page: 20 });
@@ -455,17 +430,16 @@ describe('note_app', () => {
     });
 
     describe('when note anchor is present', () => {
-      const mountWithNotesFilter = (notesFilter) =>
-        shallowMount(NotesApp, {
-          propsData: {
-            ...propsData,
-            notesData: {
-              ...propsData.notesData,
-              notesFilter,
-            },
-          },
+      const mountWithNotesFilter = (notesFilter) => {
+        initStore({
+          ...propsData.notesData,
+          notesFilter,
+        });
+        return shallowMount(NotesApp, {
+          propsData,
           store: createStore(),
         });
+      };
 
       beforeEach(() => {
         setWindowLocation('#note_1');

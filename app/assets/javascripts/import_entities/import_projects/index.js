@@ -1,10 +1,14 @@
 import Vue from 'vue';
+import VueApollo from 'vue-apollo';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import Translate from '~/vue_shared/translate';
+import createDefaultClient from '~/lib/graphql';
 import ImportProjectsTable from './components/import_projects_table.vue';
+
 import createStore from './store';
 
 Vue.use(Translate);
+Vue.use(VueApollo);
 
 export function initStoreFromElement(element) {
   const {
@@ -15,7 +19,7 @@ export function initStoreFromElement(element) {
     reposPath,
     jobsPath,
     importPath,
-    namespacesPath,
+    cancelPath,
     defaultTargetNamespace,
     paginatable,
   } = element.dataset;
@@ -31,7 +35,7 @@ export function initStoreFromElement(element) {
       reposPath,
       jobsPath,
       importPath,
-      namespacesPath,
+      cancelPath,
     },
     hasPagination: parseBoolean(paginatable),
   });
@@ -39,13 +43,25 @@ export function initStoreFromElement(element) {
 
 export function initPropsFromElement(element) {
   return {
-    providerTitle: element.dataset.provider,
+    providerTitle: element.dataset.providerTitle,
     filterable: parseBoolean(element.dataset.filterable),
     paginatable: parseBoolean(element.dataset.paginatable),
+    optionalStages: JSON.parse(element.dataset.optionalStages),
+    cancelable: Boolean(element.dataset.cancelPath),
   };
 }
 
-export default function mountImportProjectsTable(mountElement) {
+const defaultClient = createDefaultClient();
+
+const apolloProvider = new VueApollo({
+  defaultClient,
+});
+
+export default function mountImportProjectsTable({
+  mountElement,
+  Component = ImportProjectsTable,
+  extraProps = () => ({}),
+}) {
   if (!mountElement) return undefined;
 
   const store = initStoreFromElement(mountElement);
@@ -54,8 +70,9 @@ export default function mountImportProjectsTable(mountElement) {
   return new Vue({
     el: mountElement,
     store,
+    apolloProvider,
     render(createElement) {
-      return createElement(ImportProjectsTable, { props });
+      return createElement(Component, { props: { ...props, ...extraProps(mountElement.dataset) } });
     },
   });
 }

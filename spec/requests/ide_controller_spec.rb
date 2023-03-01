@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe IdeController do
+RSpec.describe IdeController, feature_category: :web_ide do
+  using RSpec::Parameterized::TableSyntax
+
   let_it_be(:reporter) { create(:user) }
 
   let_it_be(:project) do
@@ -14,10 +16,25 @@ RSpec.describe IdeController do
   let_it_be(:creator) { project.creator }
   let_it_be(:other_user) { create(:user) }
 
+  let_it_be(:top_nav_partial) { 'layouts/header/_default' }
+
   let(:user) { creator }
   let(:branch) { '' }
 
+  def find_csp_frame_src
+    csp = response.headers['Content-Security-Policy']
+
+    # Transform "frame-src foo bar; connect-src foo bar; script-src ..."
+    # into array of connect-src values
+    csp.split(';')
+      .map(&:strip)
+      .find { |entry| entry.starts_with?('frame-src') }
+      .split(' ')
+      .drop(1)
+  end
+
   before do
+    stub_feature_flags(vscode_web_ide: true)
     sign_in(user)
   end
 
@@ -113,9 +130,26 @@ RSpec.describe IdeController do
         expect(assigns(:path)).to be_nil
         expect(assigns(:merge_request)).to be_nil
         expect(assigns(:fork_info)).to be_nil
+        expect(assigns(:learn_gitlab_source)).to be_nil
       end
 
       it_behaves_like 'user access rights check'
+
+      context "/-/ide/project/:project?learn_gitlab_source=true" do
+        let(:route) { "/-/ide/project/#{project.full_path}?learn_gitlab_source=true" }
+
+        it 'instantiates project instance var and returns 200' do
+          subject
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(assigns(:project)).to eq project
+          expect(assigns(:branch)).to be_nil
+          expect(assigns(:path)).to be_nil
+          expect(assigns(:merge_request)).to be_nil
+          expect(assigns(:fork_info)).to be_nil
+          expect(assigns(:learn_gitlab_source)).to eq 'true'
+        end
+      end
 
       %w(edit blob tree).each do |action|
         context "/-/ide/project/:project/#{action}" do
@@ -130,6 +164,7 @@ RSpec.describe IdeController do
             expect(assigns(:path)).to be_nil
             expect(assigns(:merge_request)).to be_nil
             expect(assigns(:fork_info)).to be_nil
+            expect(assigns(:learn_gitlab_source)).to be_nil
           end
 
           it_behaves_like 'user access rights check'
@@ -147,6 +182,7 @@ RSpec.describe IdeController do
               expect(assigns(:path)).to be_nil
               expect(assigns(:merge_request)).to be_nil
               expect(assigns(:fork_info)).to be_nil
+              expect(assigns(:learn_gitlab_source)).to be_nil
             end
 
             it_behaves_like 'user access rights check'
@@ -164,6 +200,7 @@ RSpec.describe IdeController do
                 expect(assigns(:path)).to be_nil
                 expect(assigns(:merge_request)).to be_nil
                 expect(assigns(:fork_info)).to be_nil
+                expect(assigns(:learn_gitlab_source)).to be_nil
               end
 
               it_behaves_like 'user access rights check'
@@ -181,6 +218,7 @@ RSpec.describe IdeController do
                   expect(assigns(:path)).to eq 'foo/.bar'
                   expect(assigns(:merge_request)).to be_nil
                   expect(assigns(:fork_info)).to be_nil
+                  expect(assigns(:learn_gitlab_source)).to be_nil
                 end
 
                 it_behaves_like 'user access rights check'
@@ -204,6 +242,7 @@ RSpec.describe IdeController do
           expect(assigns(:path)).to be_nil
           expect(assigns(:merge_request)).to eq merge_request.id.to_s
           expect(assigns(:fork_info)).to be_nil
+          expect(assigns(:learn_gitlab_source)).to be_nil
         end
 
         it_behaves_like 'user access rights check'
@@ -220,18 +259,45 @@ RSpec.describe IdeController do
             user: user
           )
         end
+      end
 
-        context 'when route_hll_to_snowplow_phase2 FF is disabled' do
+      # This indirectly tests that `minimal: true` was passed to the fullscreen layout
+      describe 'layout' do
+        where(:ff_state, :use_legacy_web_ide, :expect_top_nav) do
+          false | false | true
+          false | true  | true
+          true  | true  | true
+          true  | false | false
+        end
+
+        with_them do
           before do
-            stub_feature_flags(route_hll_to_snowplow_phase2: false)
+            stub_feature_flags(vscode_web_ide: ff_state)
+            allow(user).to receive(:use_legacy_web_ide).and_return(use_legacy_web_ide)
+
+            subject
           end
 
-          it 'does not track Snowplow event' do
-            subject
-
-            expect_no_snowplow_event
+          it 'handles rendering top nav' do
+            if expect_top_nav
+              expect(response).to render_template(top_nav_partial)
+            else
+              expect(response).not_to render_template(top_nav_partial)
+            end
           end
         end
+      end
+    end
+
+    describe 'frame-src content security policy' do
+      let(:route) { '/-/ide' }
+
+      before do
+        subject
+      end
+
+      it 'adds https://*.vscode-cdn.net in frame-src CSP policy' do
+        expect(find_csp_frame_src).to include("https://*.vscode-cdn.net/")
       end
     end
   end

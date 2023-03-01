@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
@@ -41,7 +41,7 @@ Prerequisite:
 - If your mirror connects with `ssh://`, the host key must be detectable on the server,
   or you must have a local copy of the key.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Enter a **Git repository URL**. For security reasons, the URL to the original
@@ -55,7 +55,7 @@ Prerequisite:
    When mirroring the repository, GitLab confirms at least one of the stored host keys
    matches before connecting. This check can protect your mirror from malicious code injections,
    or your password from being stolen.
-1. Select an **Authentication method**. To learn more, read
+1. Select an **Authentication method**. For more information, see
    [Authentication methods for mirrors](#authentication-methods-for-mirrors).
 1. If you authenticate with SSH host keys, [verify the host key](#verify-a-host-key)
    to ensure it is correct.
@@ -65,7 +65,7 @@ Prerequisite:
 
 If you select `SSH public key` as your authentication method, GitLab generates a
 public key for your GitLab repository. You must provide this key to the non-GitLab server.
-To learn more, read [Get your SSH public key](#get-your-ssh-public-key).
+For more information, see [Get your SSH public key](#get-your-ssh-public-key).
 
 ## Update a mirror
 
@@ -89,7 +89,7 @@ Prerequisite:
 
 - You must have at least the Maintainer role for the project.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Scroll to **Mirrored repositories** and identify the mirror to update.
@@ -104,6 +104,20 @@ either from or to your remote repository. For [pull mirroring](pull.md),
 non-protected branches in the mirroring project are not mirrored and can diverge.
 
 To use this option, select **Only mirror protected branches** when you create a repository mirror.
+
+## Mirror specific branches
+
+> Mirroring branches matching a regex [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/102608) in GitLab 15.8 [with a flag](../../../../administration/feature_flags.md) named `mirror_only_branches_match_regex`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default the field `mirror_branch_regex` is not available.
+To make it available, ask an administrator to [enable the feature flag](../../../../administration/feature_flags.md)
+named `mirror_only_branches_match_regex`.
+On GitLab.com, this feature is not available.
+
+To mirror only branches with names matching an [re2 regular expression](https://github.com/google/re2/wiki/Syntax),
+enter a regular expression into the **Mirror specific branches** field. Branches with names that
+do not match the regular expression are not mirrored.
 
 ## Authentication methods for mirrors
 
@@ -141,7 +155,7 @@ When you mirror a repository and select the **SSH public key** as your
 authentication method, GitLab generates a public key for you. The non-GitLab server
 needs this key to establish trust with your GitLab repository. To copy your SSH public key:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. Scroll to **Mirrored repositories**.
@@ -249,7 +263,7 @@ If you receive this error after creating a new project using
 
 Check if the repository owner is specified in the URL of your mirrored repository:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Mirroring repositories**.
 1. If no repository owner is specified, delete and add the URL again in this format,
@@ -316,3 +330,41 @@ Mirroring does not support the short version of SSH clone URLs (`git@gitlab.com:
 and requires the full version including the protocol (`ssh://git@gitlab.com/gitlab-org/gitlab.git`).
 
 Make sure that host and project path are separated using `/` instead of `:`.
+
+### Transfer mirror users and tokens to a single service account in Rails console
+
+This requires access to the [GitLab Rails console](../../../../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+Use case: If you have multiple users using their own GitHub credentials to set up
+repository mirroring, mirroring breaks when people leave the company. Use this
+script to migrate disparate mirroring users and tokens into a single service account:
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+svc_user = User.find_by(username: 'ourServiceUser')
+token = 'githubAccessToken'
+
+Project.where(mirror: true).each do |project|
+  import_url = project.import_url
+
+  # The url we want is https://token@project/path.git
+  repo_url = if import_url.include?('@')
+               # Case 1: The url is something like https://23423432@project/path.git
+               import_url.split('@').last
+             elsif import_url.include?('//')
+               # Case 2: The url is something like https://project/path.git
+               import_url.split('//').last
+             end
+
+  next unless repo_url
+
+  final_url = "https://#{token}@#{repo_url}"
+
+  project.mirror_user = svc_user
+  project.import_url = final_url
+  project.username_only_import_url = final_url
+  project.save
+end
+```

@@ -325,7 +325,7 @@ RSpec.describe Ci::BuildRunnerPresenter do
       is_expected.to eq(presenter.variables.to_runner_variables)
     end
 
-    context 'when there are variables to expand' do
+    context 'when there is a file variable to expand' do
       before_all do
         create(:ci_variable, project: project,
                              key: 'regular_var',
@@ -349,22 +349,31 @@ RSpec.describe Ci::BuildRunnerPresenter do
             public: false, masked: false }
         )
       end
+    end
 
-      context 'when the FF ci_stop_expanding_file_vars_for_runners is disabled' do
-        before do
-          stub_feature_flags(ci_stop_expanding_file_vars_for_runners: false)
-        end
+    context 'when there is a raw variable to expand' do
+      before_all do
+        create(:ci_variable, project: project,
+                             key: 'regular_var',
+                             value: 'value 1')
+        create(:ci_variable, project: project,
+                             key: 'raw_var',
+                             value: 'value 2',
+                             raw: true)
+        create(:ci_variable, project: project,
+                             key: 'var_with_variables',
+                             value: 'value 3 and $regular_var and $raw_var and $undefined_var')
+      end
 
-        it 'returns variables with expanded' do
-          expect(runner_variables).to include(
-            { key: 'regular_var', value: 'value 1',
-              public: false, masked: false },
-            { key: 'file_var', value: 'value 2',
-              public: false, masked: false, file: true },
-            { key: 'var_with_variables', value: 'value 3 and value 1 and value 2 and $undefined_var',
-              public: false, masked: false }
-          )
-        end
+      it 'returns expanded variables without expanding raws' do
+        expect(runner_variables).to include(
+          { key: 'regular_var', value: 'value 1',
+            public: false, masked: false },
+          { key: 'raw_var', value: 'value 2',
+            public: false, masked: false, raw: true },
+          { key: 'var_with_variables', value: 'value 3 and value 1 and $raw_var and $undefined_var',
+            public: false, masked: false }
+        )
       end
     end
   end
@@ -383,10 +392,10 @@ RSpec.describe Ci::BuildRunnerPresenter do
 
       it 'returns expanded and sorted variables' do
         is_expected.to eq [
-                            { key: 'C', value: 'value', public: false, masked: false },
-                            { key: 'B', value: 'refB-value-$D', public: false, masked: false },
-                            { key: 'A', value: 'refA-refB-value-$D', public: false, masked: false }
-                          ]
+          { key: 'C', value: 'value', public: false, masked: false },
+          { key: 'B', value: 'refB-value-$D', public: false, masked: false },
+          { key: 'A', value: 'refA-refB-value-$D', public: false, masked: false }
+        ]
       end
     end
   end

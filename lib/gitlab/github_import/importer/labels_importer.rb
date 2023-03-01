@@ -13,7 +13,10 @@ module Gitlab
         # rubocop: enable CodeReuse/ActiveRecord
 
         def execute
-          bulk_insert(Label, build_labels)
+          rows, validation_errors = build_labels
+
+          bulk_insert(rows)
+          bulk_insert_failures(validation_errors) if validation_errors.any?
           build_labels_cache
         end
 
@@ -22,19 +25,19 @@ module Gitlab
         end
 
         def already_imported?(label)
-          existing_labels.include?(label.name)
+          existing_labels.include?(label[:name])
         end
 
         def build_labels_cache
           LabelFinder.new(project).build_cache
         end
 
-        def build(label)
+        def build_attributes(label)
           time = Time.zone.now
 
           {
-            title: label.name,
-            color: '#' + label.color,
+            title: label[:name],
+            color: '#' + label[:color],
             project_id: project.id,
             type: 'ProjectLabel',
             created_at: time,
@@ -48,6 +51,10 @@ module Gitlab
 
         def object_type
           :label
+        end
+
+        def model
+          Label
         end
       end
     end

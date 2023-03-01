@@ -1,6 +1,7 @@
 import MockAdapter from 'axios-mock-adapter';
 import { createMockClient } from 'helpers/mock_apollo_helper';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { resolveCommit, fetchLogsTree } from '~/repository/log_tree';
 import commitsQuery from '~/repository/queries/commits.query.graphql';
 import projectPathQuery from '~/repository/queries/project_path.query.graphql';
@@ -30,7 +31,7 @@ describe('resolveCommit', () => {
       { fileName: 'index.js', filePath: '/app/assets/index.js' },
     ];
 
-    resolveCommit(commits, '', resolver);
+    resolveCommit(commits, '/', resolver);
 
     expect(resolver.resolve).toHaveBeenCalledWith({
       fileName: 'index.js',
@@ -47,7 +48,7 @@ describe('fetchLogsTree', () => {
   beforeEach(() => {
     mock = new MockAdapter(axios);
 
-    mock.onGet(/(.*)/).reply(200, mockData, {});
+    mock.onGet(/(.*)/).reply(HTTP_STATUS_OK, mockData, {});
 
     jest.spyOn(axios, 'get');
 
@@ -107,14 +108,14 @@ describe('fetchLogsTree', () => {
     }));
 
   it('calls entry resolver', () =>
-    fetchLogsTree(client, '', '0', resolver).then(() => {
+    fetchLogsTree(client, 'test', '0', resolver).then(() => {
       expect(resolver.resolve).toHaveBeenCalledWith(
         expect.objectContaining({
           __typename: 'LogTreeCommit',
           commitPath: 'https://test.com',
           committedDate: '2019-01-01',
           fileName: 'index.js',
-          filePath: '/index.js',
+          filePath: 'test/index.js',
           message: 'testing message',
           sha: '123',
         }),
@@ -122,7 +123,7 @@ describe('fetchLogsTree', () => {
     }));
 
   it('writes query to client', async () => {
-    await fetchLogsTree(client, '', '0', resolver);
+    await fetchLogsTree(client, '/', '0', resolver);
     expect(client.readQuery({ query: commitsQuery })).toEqual({
       commits: [
         expect.objectContaining({

@@ -6,7 +6,7 @@ module Gitlab
       extend ActiveSupport::Concern
 
       MIN_CHARS_FOR_PARTIAL_MATCHING = 3
-      REGEX_QUOTED_WORD = /(?<=\A| )"[^"]+"(?= |\z)/.freeze
+      REGEX_QUOTED_TERM = /(?<=\A| )"[^"]+"(?= |\z)/.freeze
 
       class_methods do
         def fuzzy_search(query, columns, use_minimum_char_limit: true)
@@ -40,42 +40,47 @@ module Gitlab
         # lower_exact_match - When set to `true` we'll fall back to using
         #                     `LOWER(column) = query` instead of using `ILIKE`.
         def fuzzy_arel_match(column, query, lower_exact_match: false, use_minimum_char_limit: true)
+          return unless query.is_a?(String)
+
           query = query.squish
           return unless query.present?
 
           arel_column = column.is_a?(Arel::Attributes::Attribute) ? column : arel_table[column]
 
-          words = select_fuzzy_words(query, use_minimum_char_limit: use_minimum_char_limit)
+          words = select_fuzzy_terms(query, use_minimum_char_limit: use_minimum_char_limit)
 
           if words.any?
             words.map { |word| arel_column.matches(to_pattern(word, use_minimum_char_limit: use_minimum_char_limit)) }.reduce(:and)
-          else
+          elsif lower_exact_match
             # No words of at least 3 chars, but we can search for an exact
             # case insensitive match with the query as a whole
-            if lower_exact_match
-              Arel::Nodes::NamedFunction
+            Arel::Nodes::NamedFunction
                 .new('LOWER', [arel_column])
                 .eq(query)
-            else
-              arel_column.matches(sanitize_sql_like(query))
-            end
+          else
+            arel_column.matches(sanitize_sql_like(query))
           end
         end
 
-        def select_fuzzy_words(query, use_minimum_char_limit: true)
-          quoted_words = query.scan(REGEX_QUOTED_WORD)
-
-          query = quoted_words.reduce(query) { |q, quoted_word| q.sub(quoted_word, '') }
-
-          words = query.split
-
-          quoted_words.map! { |quoted_word| quoted_word[1..-2] }
-
-          words.concat(quoted_words)
-
-          words.select { |word| partial_matching?(word, use_minimum_char_limit: use_minimum_char_limit) }
+        def select_fuzzy_terms(query, use_minimum_char_limit: true)
+          terms = Gitlab::SQL::Pattern.split_query_to_search_terms(query)
+          terms.select { |term| partial_matching?(term, use_minimum_char_limit: use_minimum_char_limit) }
         end
+      end
+
+      def self.split_query_to_search_terms(query)
+        quoted_terms = []
+
+        query = query.gsub(REGEX_QUOTED_TERM) do |quoted_term|
+          quoted_terms << quoted_term
+          ""
+        end
+
+        query.split + quoted_terms.map { |quoted_term| quoted_term[1..-2] }
       end
     end
   end
 end
+
+Gitlab::SQL::Pattern.prepend_mod
+Gitlab::SQL::Pattern::ClassMethods.prepend_mod_with('Gitlab::SQL::Pattern::ClassMethods')

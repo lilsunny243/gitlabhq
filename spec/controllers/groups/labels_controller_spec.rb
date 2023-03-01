@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::LabelsController do
+RSpec.describe Groups::LabelsController, feature_category: :team_planning do
   let_it_be(:group) { create(:group) }
   let_it_be(:user)  { create(:user) }
   let_it_be(:project) { create(:project, namespace: group) }
@@ -54,7 +54,7 @@ RSpec.describe Groups::LabelsController do
         get :index, params: { group_id: group.to_param }
       end
 
-      it 'avoids N+1 queries' do
+      it 'avoids N+1 queries', :use_clean_rails_redis_caching do
         control = ActiveRecord::QueryRecorder.new(skip_cached: false) { get :index, params: { group_id: group.to_param } }
 
         create_list(:group_label, 3, group: group)

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
+RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache, feature_category: :pipeline_composition do
   include Ci::TemplateHelpers
   let_it_be(:group) { create(:group) }
   let_it_be(:project) { create(:project, :repository, namespace: group) }
@@ -10,9 +10,11 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
   let_it_be(:user) { create(:user) }
   let_it_be_with_reload(:job) do
     create(:ci_build,
+      name: 'rspec:test 1',
       pipeline: pipeline,
       user: user,
-      yaml_variables: [{ key: 'YAML_VARIABLE', value: 'value' }]
+      yaml_variables: [{ key: 'YAML_VARIABLE', value: 'value' }],
+      environment: 'test'
     )
   end
 
@@ -24,13 +26,17 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
     let(:predefined_variables) do
       [
         { key: 'CI_JOB_NAME',
-          value: job.name },
+          value: 'rspec:test 1' },
+        { key: 'CI_JOB_NAME_SLUG',
+          value: 'rspec-test-1' },
         { key: 'CI_JOB_STAGE',
           value: job.stage_name },
         { key: 'CI_NODE_TOTAL',
           value: '1' },
+        { key: 'CI_ENVIRONMENT_NAME',
+          value: 'test' },
         { key: 'CI_BUILD_NAME',
-          value: job.name },
+          value: 'rspec:test 1' },
         { key: 'CI_BUILD_STAGE',
           value: job.stage_name },
         { key: 'CI',
@@ -73,6 +79,8 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
           value: project.full_path_slug },
         { key: 'CI_PROJECT_NAMESPACE',
           value: project.namespace.full_path },
+        { key: 'CI_PROJECT_NAMESPACE_ID',
+          value: project.namespace.id.to_s },
         { key: 'CI_PROJECT_ROOT_NAMESPACE',
           value: project.namespace.root_ancestor.path },
         { key: 'CI_PROJECT_URL',
@@ -138,11 +146,11 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
         { key: 'GITLAB_USER_ID',
           value: user.id.to_s },
         { key: 'GITLAB_USER_EMAIL',
-         value: user.email },
+          value: user.email },
         { key: 'GITLAB_USER_LOGIN',
-         value: user.username },
+          value: user.username },
         { key: 'GITLAB_USER_NAME',
-         value: user.name }
+          value: user.name }
       ].map { |var| var.merge(public: true, masked: false) }
     end
 
@@ -158,8 +166,14 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
       end
 
       before do
+        pipeline_variables_builder = double(
+          ::Gitlab::Ci::Variables::Builder::Pipeline,
+          predefined_variables: [var('C', 3), var('D', 3)]
+        )
+
         allow(builder).to receive(:predefined_variables) { [var('A', 1), var('B', 1)] }
         allow(pipeline.project).to receive(:predefined_variables) { [var('B', 2), var('C', 2)] }
+        allow(builder).to receive(:pipeline_variables_builder) { pipeline_variables_builder }
         allow(pipeline).to receive(:predefined_variables) { [var('C', 3), var('D', 3)] }
         allow(job).to receive(:runner) { double(predefined_variables: [var('D', 4), var('E', 4)]) }
         allow(builder).to receive(:kubernetes_variables) { [var('E', 5), var('F', 5)] }
@@ -171,6 +185,7 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
         allow(builder).to receive(:secret_project_variables) { [var('L', 12), var('M', 12)] }
         allow(pipeline).to receive(:variables) { [var('M', 13), var('N', 13)] }
         allow(pipeline).to receive(:pipeline_schedule) { double(job_variables: [var('N', 14), var('O', 14)]) }
+        allow(builder).to receive(:release_variables) { [var('P', 15), var('Q', 15)] }
       end
 
       it 'returns variables in order depending on resource hierarchy' do
@@ -187,7 +202,8 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
            var('K', 11), var('L', 11),
            var('L', 12), var('M', 12),
            var('M', 13), var('N', 13),
-           var('N', 14), var('O', 14)])
+           var('N', 14), var('O', 14),
+           var('P', 15), var('Q', 15)])
       end
 
       it 'overrides duplicate keys depending on resource hierarchy' do
@@ -199,7 +215,8 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
           'I' => '9', 'J' => '10',
           'K' => '11', 'L' => '12',
           'M' => '13', 'N' => '14',
-          'O' => '14')
+          'O' => '14', 'P' => '15',
+          'Q' => '15')
       end
     end
 
@@ -214,6 +231,27 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
       it 'includes schedule variables' do
         expect(subject.to_runner_variables)
           .to include(a_hash_including(key: schedule_variable.key, value: schedule_variable.value))
+      end
+    end
+
+    context 'with release variables' do
+      let(:release_description_key) { 'CI_RELEASE_DESCRIPTION' }
+
+      let_it_be(:tag) { project.repository.tags.first }
+      let_it_be(:pipeline) { create(:ci_pipeline, project: project, tag: true, ref: tag.name) }
+      let_it_be(:release) { create(:release, tag: tag.name, project: project) }
+
+      it 'includes release variables' do
+        expect(subject.to_hash).to include(release_description_key => release.description)
+      end
+
+      context 'when there is no release' do
+        let_it_be(:pipeline) { create(:ci_pipeline, project: project, tag: false, ref: 'master') }
+        let(:release) { nil }
+
+        it 'does not include release variables' do
+          expect(subject.to_hash).not_to have_key(release_description_key)
+        end
       end
     end
   end
@@ -249,10 +287,16 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
     subject { builder.kubernetes_variables(environment: nil, job: job) }
 
     before do
-      allow(Ci::GenerateKubeconfigService).to receive(:new).with(job.pipeline, token: job.token).and_return(service)
+      allow(Ci::GenerateKubeconfigService).to receive(:new).with(job.pipeline, token: job.token, environment: anything).and_return(service)
     end
 
     it { is_expected.to include(key: 'KUBECONFIG', value: 'example-kubeconfig', public: false, file: true) }
+
+    it 'calls the GenerateKubeconfigService with the correct arguments' do
+      expect(Ci::GenerateKubeconfigService).to receive(:new).with(job.pipeline, token: job.token, environment: nil)
+
+      subject
+    end
 
     context 'generated config is invalid' do
       let(:template_valid) { false }
@@ -261,13 +305,24 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
     end
 
     it 'includes #deployment_variables and merges the KUBECONFIG values', :aggregate_failures do
-      expect(builder).to receive(:deployment_variables).and_return([
-        { key: 'KUBECONFIG', value: 'deployment-kubeconfig' },
-        { key: 'OTHER', value: 'some value' }
-      ])
+      expect(builder).to receive(:deployment_variables).and_return(
+        [
+          { key: 'KUBECONFIG', value: 'deployment-kubeconfig' },
+          { key: 'OTHER', value: 'some value' }
+        ])
       expect(template).to receive(:merge_yaml).with('deployment-kubeconfig')
       expect(subject['KUBECONFIG'].value).to eq('example-kubeconfig')
       expect(subject['OTHER'].value).to eq('some value')
+    end
+
+    context 'when environment is not nil' do
+      subject { builder.kubernetes_variables(environment: 'production', job: job) }
+
+      it 'passes the environment when generating the KUBECONFIG' do
+        expect(Ci::GenerateKubeconfigService).to receive(:new).with(job.pipeline, token: job.token, environment: 'production')
+
+        subject
+      end
     end
   end
 
@@ -586,8 +641,13 @@ RSpec.describe Gitlab::Ci::Variables::Builder, :clean_gitlab_redis_cache do
       end
 
       before do
+        pipeline_variables_builder = double(
+          ::Gitlab::Ci::Variables::Builder::Pipeline,
+          predefined_variables: [var('B', 2), var('C', 2)]
+        )
+
         allow(pipeline.project).to receive(:predefined_variables) { [var('A', 1), var('B', 1)] }
-        allow(pipeline).to receive(:predefined_variables) { [var('B', 2), var('C', 2)] }
+        allow(builder).to receive(:pipeline_variables_builder) { pipeline_variables_builder }
         allow(builder).to receive(:secret_instance_variables) { [var('C', 3), var('D', 3)] }
         allow(builder).to receive(:secret_group_variables) { [var('D', 4), var('E', 4)] }
         allow(builder).to receive(:secret_project_variables) { [var('E', 5), var('F', 5)] }

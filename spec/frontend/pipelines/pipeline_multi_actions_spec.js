@@ -1,12 +1,15 @@
-import { GlAlert, GlDropdown, GlSprintf, GlLoadingIcon } from '@gitlab/ui';
+import { GlAlert, GlDropdown, GlSprintf, GlLoadingIcon, GlSearchBoxByType } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
+import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import PipelineMultiActions, {
   i18n,
 } from '~/pipelines/components/pipelines_list/pipeline_multi_actions.vue';
+import { TRACKING_CATEGORIES } from '~/pipelines/constants';
 
 describe('Pipeline Multi Actions Dropdown', () => {
   let wrapper;
@@ -44,6 +47,7 @@ describe('Pipeline Multi Actions Dropdown', () => {
         },
         stubs: {
           GlSprintf,
+          GlDropdown,
         },
       }),
     );
@@ -54,6 +58,7 @@ describe('Pipeline Multi Actions Dropdown', () => {
   const findLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const findAllArtifactItems = () => wrapper.findAllByTestId(artifactItemTestId);
   const findFirstArtifactItem = () => wrapper.findByTestId(artifactItemTestId);
+  const findSearchBox = () => wrapper.findComponent(GlSearchBoxByType);
   const findEmptyMessage = () => wrapper.findByTestId('artifacts-empty-message');
 
   beforeEach(() => {
@@ -73,15 +78,25 @@ describe('Pipeline Multi Actions Dropdown', () => {
   });
 
   describe('Artifacts', () => {
-    it('should fetch artifacts on dropdown click', async () => {
+    it('should fetch artifacts and show search box on dropdown click', async () => {
       const endpoint = artifactsEndpoint.replace(artifactsEndpointPlaceholder, pipelineId);
-      mockAxios.onGet(endpoint).replyOnce(200, { artifacts });
+      mockAxios.onGet(endpoint).replyOnce(HTTP_STATUS_OK, { artifacts });
       createComponent();
       findDropdown().vm.$emit('show');
       await waitForPromises();
 
       expect(mockAxios.history.get).toHaveLength(1);
       expect(wrapper.vm.artifacts).toEqual(artifacts);
+      expect(findSearchBox().exists()).toBe(true);
+    });
+
+    it('should focus the search box when opened with artifacts', () => {
+      createComponent({ mockData: { artifacts } });
+      wrapper.vm.$refs.searchInput.focusInput = jest.fn();
+
+      findDropdown().vm.$emit('shown');
+
+      expect(wrapper.vm.$refs.searchInput.focusInput).toHaveBeenCalled();
     });
 
     it('should render all the provided artifacts when search query is empty', () => {
@@ -107,10 +122,11 @@ describe('Pipeline Multi Actions Dropdown', () => {
       expect(findFirstArtifactItem().text()).toBe(artifacts[0].name);
     });
 
-    it('should render empty message when no artifacts are found', () => {
+    it('should render empty message and no search box when no artifacts are found', () => {
       createComponent({ mockData: { artifacts: [] } });
 
       expect(findEmptyMessage().exists()).toBe(true);
+      expect(findSearchBox().exists()).toBe(false);
     });
 
     describe('while loading artifacts', () => {
@@ -125,7 +141,7 @@ describe('Pipeline Multi Actions Dropdown', () => {
     describe('with a failing request', () => {
       it('should render an error message', async () => {
         const endpoint = artifactsEndpoint.replace(artifactsEndpointPlaceholder, pipelineId);
-        mockAxios.onGet(endpoint).replyOnce(500);
+        mockAxios.onGet(endpoint).replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         createComponent();
         findDropdown().vm.$emit('show');
         await waitForPromises();
@@ -133,6 +149,24 @@ describe('Pipeline Multi Actions Dropdown', () => {
         const error = findAlert();
         expect(error.exists()).toBe(true);
         expect(error.text()).toBe(i18n.artifactsFetchErrorMessage);
+      });
+    });
+  });
+
+  describe('tracking', () => {
+    afterEach(() => {
+      unmockTracking();
+    });
+
+    it('tracks artifacts dropdown click', () => {
+      const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+
+      createComponent();
+
+      findDropdown().vm.$emit('show');
+
+      expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_artifacts_dropdown', {
+        label: TRACKING_CATEGORIES.table,
       });
     });
   });

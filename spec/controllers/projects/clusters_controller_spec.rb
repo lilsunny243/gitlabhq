@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::ClustersController do
+RSpec.describe Projects::ClustersController, feature_category: :kubernetes_management do
   include AccessMatchersForController
   include GoogleApi::CloudPlatformHelpers
   include KubernetesHelpers
@@ -181,8 +181,6 @@ RSpec.describe Projects::ClustersController do
     describe 'functionality' do
       context 'when creates a cluster' do
         it 'creates a new cluster' do
-          expect(ClusterProvisionWorker).to receive(:perform_async)
-
           expect { go }.to change { Clusters::Cluster.count }
             .and change { Clusters::Platforms::Kubernetes.count }
 
@@ -210,8 +208,6 @@ RSpec.describe Projects::ClustersController do
         end
 
         it 'creates a new cluster' do
-          expect(ClusterProvisionWorker).to receive(:perform_async)
-
           expect { go }.to change { Clusters::Cluster.count }
             .and change { Clusters::Platforms::Kubernetes.count }
 
@@ -424,11 +420,12 @@ RSpec.describe Projects::ClustersController do
 
   describe 'PUT update' do
     def go(format: :html)
-      put :update, params: params.merge(namespace_id: project.namespace.to_param,
-                                        project_id: project.to_param,
-                                        id: cluster,
-                                        format: format
-                                       )
+      put :update, params: params.merge(
+        namespace_id: project.namespace.to_param,
+        project_id: project.to_param,
+        id: cluster,
+        format: format
+      )
     end
 
     before do

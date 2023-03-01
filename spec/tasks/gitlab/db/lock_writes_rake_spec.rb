@@ -2,8 +2,7 @@
 
 require 'rake_helper'
 
-RSpec.describe 'gitlab:db:lock_writes', :silence_stdout, :reestablished_active_record_base,
-               :suppress_gitlab_schemas_validate_connection do
+RSpec.describe 'gitlab:db:lock_writes', :reestablished_active_record_base, feature_category: :pods do
   before :all do
     Rake.application.rake_require 'active_record/railties/databases'
     Rake.application.rake_require 'tasks/seed_fu'
@@ -14,114 +13,126 @@ RSpec.describe 'gitlab:db:lock_writes', :silence_stdout, :reestablished_active_r
     Rake::Task.define_task :environment
   end
 
-  let!(:project) { create(:project) }
-  let!(:ci_build) { create(:ci_build) }
-  let(:main_connection) { ApplicationRecord.connection }
-  let(:ci_connection) { Ci::ApplicationRecord.connection }
+  let(:table_locker) { instance_double(Gitlab::Database::TablesLocker) }
+  let(:logger) { instance_double(Logger, level: nil) }
+  let(:dry_run) { false }
+  let(:verbose) { false }
 
-  context 'single database' do
-    before do
-      skip_if_multiple_databases_are_setup
-    end
+  before do
+    allow(Logger).to receive(:new).with($stdout).and_return(logger)
+    allow(Gitlab::Database::TablesLocker).to receive(:new).with(
+      logger: logger, dry_run: dry_run
+    ).and_return(table_locker)
+  end
 
-    context 'when locking writes' do
-      it 'does not add any triggers to the main schema tables' do
-        expect do
-          run_rake_task('gitlab:db:lock_writes')
-        end.to change {
-          number_of_triggers(main_connection)
-        }.by(0)
-      end
+  shared_examples "call table locker" do |method|
+    let(:log_level) { verbose ? Logger::INFO : Logger::WARN }
 
-      it 'will be still able to modify tables that belong to the main two schemas' do
-        run_rake_task('gitlab:db:lock_writes')
-        expect do
-          Project.last.touch
-          Ci::Build.last.touch
-        end.not_to raise_error
-      end
+    it "creates TablesLocker with dry run set and calls #{method}" do
+      expect(logger).to receive(:level=).with(log_level)
+      expect(table_locker).to receive(method)
+
+      run_rake_task("gitlab:db:#{method}")
     end
   end
 
-  context 'multiple databases' do
-    before do
-      skip_if_multiple_databases_not_setup
-    end
+  describe 'lock_writes' do
+    context 'when environment sets DRY_RUN to true' do
+      let(:dry_run) { true }
 
-    context 'when locking writes' do
-      it 'still allows writes on the tables with the correct connections' do
-        Project.update_all(updated_at: Time.now)
-        Ci::Build.update_all(updated_at: Time.now)
-      end
-
-      it 'still allows writing to gitlab_shared schema on any connection' do
-        connections = [main_connection, ci_connection]
-        connections.each do |connection|
-          Gitlab::Database::SharedModel.using_connection(connection) do
-            LooseForeignKeys::DeletedRecord.create!(
-              fully_qualified_table_name: "public.projects",
-              primary_key_value: 1,
-              cleanup_attempts: 0
-            )
-          end
-        end
-      end
-
-      it 'prevents writes on the main tables on the ci database' do
-        run_rake_task('gitlab:db:lock_writes')
-        expect do
-          ci_connection.execute("delete from projects")
-        end.to raise_error(ActiveRecord::StatementInvalid, /Table: "projects" is write protected/)
-      end
-
-      it 'prevents writes on the ci tables on the main database' do
-        run_rake_task('gitlab:db:lock_writes')
-        expect do
-          main_connection.execute("delete from ci_builds")
-        end.to raise_error(ActiveRecord::StatementInvalid, /Table: "ci_builds" is write protected/)
-      end
-
-      it 'prevents truncating a ci table on the main database' do
-        run_rake_task('gitlab:db:lock_writes')
-        expect do
-          main_connection.execute("truncate ci_build_needs")
-        end.to raise_error(ActiveRecord::StatementInvalid, /Table: "ci_build_needs" is write protected/)
-      end
-    end
-
-    context 'multiple shared databases' do
       before do
-        allow(::Gitlab::Database).to receive(:db_config_share_with).and_return(nil)
-        ci_db_config = Ci::ApplicationRecord.connection_db_config
-        allow(::Gitlab::Database).to receive(:db_config_share_with).with(ci_db_config).and_return('main')
+        stub_env('DRY_RUN', 'true')
       end
 
-      it 'does not lock any tables if the ci database is shared with main database' do
-        run_rake_task('gitlab:db:lock_writes')
-
-        expect do
-          ApplicationRecord.connection.execute("delete from ci_builds")
-          Ci::ApplicationRecord.connection.execute("delete from users")
-        end.not_to raise_error
-      end
+      include_examples "call table locker", :lock_writes
     end
 
-    context 'when unlocking writes' do
+    context 'when environment sets DRY_RUN to false' do
+      let(:dry_run) { false }
+
       before do
-        run_rake_task('gitlab:db:lock_writes')
+        stub_env('DRY_RUN', 'false')
       end
 
-      it 'allows writes again on the gitlab_ci tables on the main database' do
-        run_rake_task('gitlab:db:unlock_writes')
+      include_examples "call table locker", :lock_writes
+    end
 
-        expect do
-          main_connection.execute("delete from ci_builds")
-        end.not_to raise_error
+    context 'when environment does not define DRY_RUN' do
+      let(:dry_run) { false }
+
+      include_examples "call table locker", :lock_writes
+    end
+
+    context 'when environment sets VERBOSE to true' do
+      let(:verbose) { true }
+
+      before do
+        stub_env('VERBOSE', 'true')
       end
+
+      include_examples "call table locker", :lock_writes
+    end
+
+    context 'when environment sets VERBOSE to false' do
+      let(:verbose) { false }
+
+      before do
+        stub_env('VERBOSE', 'false')
+      end
+
+      include_examples "call table locker", :lock_writes
+    end
+
+    context 'when environment does not define VERBOSE' do
+      include_examples "call table locker", :lock_writes
     end
   end
 
-  def number_of_triggers(connection)
-    connection.select_value("SELECT count(*) FROM information_schema.triggers")
+  describe 'unlock_writes' do
+    context 'when environment sets DRY_RUN to true' do
+      let(:dry_run) { true }
+
+      before do
+        stub_env('DRY_RUN', 'true')
+      end
+
+      include_examples "call table locker", :unlock_writes
+    end
+
+    context 'when environment sets DRY_RUN to false' do
+      before do
+        stub_env('DRY_RUN', 'false')
+      end
+
+      include_examples "call table locker", :unlock_writes
+    end
+
+    context 'when environment does not define DRY_RUN' do
+      include_examples "call table locker", :unlock_writes
+    end
+
+    context 'when environment sets VERBOSE to true' do
+      let(:verbose) { true }
+
+      before do
+        stub_env('VERBOSE', 'true')
+      end
+
+      include_examples "call table locker", :lock_writes
+    end
+
+    context 'when environment sets VERBOSE to false' do
+      let(:verbose) { false }
+
+      before do
+        stub_env('VERBOSE', 'false')
+      end
+
+      include_examples "call table locker", :lock_writes
+    end
+
+    context 'when environment does not define VERBOSE' do
+      include_examples "call table locker", :lock_writes
+    end
   end
 end

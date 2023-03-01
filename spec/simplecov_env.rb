@@ -21,12 +21,14 @@ module SimpleCovEnv
   def configure_formatter
     SimpleCov::Formatter::LcovFormatter.config.report_with_single_file = true
 
-    SimpleCov.formatters = SimpleCov::Formatter::MultiFormatter.new([
-      SimpleCov::Formatter::SimpleFormatter,
-      SimpleCov::Formatter::HTMLFormatter,
-      SimpleCov::Formatter::CoberturaFormatter,
-      SimpleCov::Formatter::LcovFormatter
-    ])
+    SimpleCov.formatters = SimpleCov::Formatter::MultiFormatter.new(
+      [
+        SimpleCov::Formatter::SimpleFormatter,
+        SimpleCov::Formatter::HTMLFormatter,
+        SimpleCov::Formatter::CoberturaFormatter,
+        SimpleCov::Formatter::LcovFormatter
+      ]
+    )
   end
 
   def configure_job
@@ -55,6 +57,7 @@ module SimpleCovEnv
       add_filter '/vendor/ruby/'
       add_filter '/bin/'
       add_filter 'db/fixtures/development/' # Matches EE files as well
+      add_filter %r|db/migrate/\d{14}_init_schema\.rb\z|
 
       add_group 'Channels',     'app/channels' # Matches EE files as well
       add_group 'Controllers',  'app/controllers' # Matches EE files as well

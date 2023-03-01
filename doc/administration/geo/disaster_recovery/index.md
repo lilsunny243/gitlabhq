@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Disaster Recovery (Geo) **(PREMIUM SELF)**
@@ -10,8 +10,6 @@ Geo replicates your database, your Git repositories, and few other assets,
 but there are some [limitations](../index.md#limitations).
 
 WARNING:
-Disaster recovery for multi-secondary configurations is in [**Alpha**](../../../policy/alpha-beta-support.md#alpha-features).
-For the latest updates, check the [Disaster Recovery epic for complete maturity](https://gitlab.com/groups/gitlab-org/-/epics/3574).
 Multi-secondary configurations require the complete re-synchronization and re-configuration of all non-promoted secondaries and
 causes downtime.
 
@@ -176,7 +174,7 @@ Use `gitlab-ctl geo promote` instead.
 
 #### Promoting a **secondary** site with multiple nodes running GitLab 14.5 and later
 
-1. SSH to every Sidekiq, PostgresSQL, and Gitaly node in the **secondary** site and run one of the following commands:
+1. SSH to every Sidekiq, PostgreSQL, and Gitaly node in the **secondary** site and run one of the following commands:
 
    - To promote the node on the secondary site to primary:
 
@@ -254,7 +252,7 @@ do this manually.
 
 #### Promoting a **secondary** site with a Patroni standby cluster running GitLab 14.5 and later
 
-1. SSH to every Sidekiq, PostgresSQL, and Gitaly node in the **secondary** site and run one of the following commands:
+1. SSH to every Sidekiq, PostgreSQL, and Gitaly node in the **secondary** site and run one of the following commands:
 
    - To promote the secondary site to primary:
 
@@ -342,7 +340,7 @@ with the **secondary** site:
 1. Promote the replica database associated with the **secondary** site. This
    sets the database to read-write. The instructions vary depending on where your database is hosted:
    - [Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html#USER_ReadRepl.Promote)
-   - [Azure PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/single-server/how-to-read-replicas-portal#stop-replication)
+   - [Azure PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/single-server/how-to-read-replicas-portal#stop-replication)
    - [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql/replication/manage-replicas#promote-replica)
    - For other external PostgreSQL databases, save the following script in your
      secondary site, for example `/tmp/geo_promote.sh`, and modify the connection
@@ -366,7 +364,7 @@ with the **secondary** site:
      sudo -u $PG_SUPERUSER $PG_CTL_BINARY -D $PG_DATA_DIRECTORY promote
      ```
 
-1. SSH to every Sidekiq, PostgresSQL, and Gitaly node in the **secondary** site and run one of the following commands:
+1. SSH to every Sidekiq, PostgreSQL, and Gitaly node in the **secondary** site and run one of the following commands:
 
    - To promote the secondary site to primary:
 
@@ -413,7 +411,7 @@ required:
 1. Promote the replica database associated with the **secondary** site. This
    sets the database to read-write. The instructions vary depending on where your database is hosted:
    - [Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html#USER_ReadRepl.Promote)
-   - [Azure PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/single-server/how-to-read-replicas-portal#stop-replication)
+   - [Azure PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/single-server/how-to-read-replicas-portal#stop-replication)
    - [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql/replication/manage-replicas#promote-replica)
    - For other external PostgreSQL databases, save the following script in your
      secondary site, for example `/tmp/geo_promote.sh`, and modify the connection
@@ -462,9 +460,9 @@ required:
 
 ### Step 4. (Optional) Updating the primary domain DNS record
 
-Updating the DNS records for the primary domain to point to the **secondary** site
-to prevent the need to update all references to the primary domain to the
-secondary domain, like changing Git remotes and API URLs.
+Update DNS records for the primary domain to point to the **secondary** site.
+This removes the need to update all references to the primary domain, for example
+changing Git remotes and API URLs.
 
 1. SSH into the **secondary** site and login as root:
 
@@ -484,6 +482,20 @@ secondary domain, like changing Git remotes and API URLs.
    NOTE:
    Changing `external_url` does not prevent access via the old secondary URL, as
    long as the secondary DNS records are still intact.
+
+1. Update the **secondary**'s SSL certificate:
+
+   - If you use the [Let's Encrypt integration](https://docs.gitlab.com/omnibus/settings/ssl/index.html#enable-the-lets-encrypt-integration),
+     the certificate updates automatically.
+   - If you had [manually set up](https://docs.gitlab.com/omnibus/settings/ssl/index.html#configure-https-manually),
+     the **secondary**'s certificate, copy the certificate from the **primary** to the **secondary**.
+     If you don't have access to the **primary**, issue a new certificate and make sure it contains
+     both the **primary** and **secondary** URLs in the subject alternative names. You can check with:
+
+     ```shell
+     /opt/gitlab/embedded/bin/openssl x509 -noout -dates -subject -issuer \
+         -nameopt multiline -ext subjectAltName -in /etc/gitlab/ssl/new-gitlab.new-example.com.crt
+     ```
 
 1. Reconfigure the **secondary** site for the change to take effect:
 
@@ -617,9 +629,9 @@ Now we need to make each **secondary** site listen to changes on the new **prima
 to [initiate the replication process](../setup/database.md#step-3-initiate-the-replication-process) again but this time
 for another **primary** site. All the old replication settings are overwritten.
 
-## Promoting a secondary Geo cluster in GitLab Cloud Native Helm Charts
+## Promoting a secondary Geo cluster in the GitLab Helm chart
 
-When updating a Cloud Native Geo deployment, the process for updating any node that is external to the secondary Kubernetes cluster does not differ from the non Cloud Native approach. As such, you can always defer to [Promoting a secondary Geo site in single-secondary configurations](#promoting-a-secondary-geo-site-in-single-secondary-configurations) for more information.
+When updating a cloud-native Geo deployment, the process for updating any node that is external to the secondary Kubernetes cluster does not differ from the non cloud-native approach. As such, you can always defer to [Promoting a secondary Geo site in single-secondary configurations](#promoting-a-secondary-geo-site-in-single-secondary-configurations) for more information.
 
 The following sections assume you are using the `gitlab` namespace. If you used a different namespace when setting up your cluster, you should also replace `--namespace gitlab` with your namespace.
 
@@ -760,7 +772,7 @@ If you are running GitLab 14.4 and earlier:
 
    To promote the **secondary** cluster to a **primary** cluster, update `role: secondary` to `role: primary`.
 
-   If the cluster remains as a primary site, you can remove the entire `psql` section; it refers to the tracking database and is ignored whilst the cluster is acting as a primary site.
+   If the cluster remains as a primary site, you can remove the entire `psql` section; it refers to the tracking database and is ignored while the cluster is acting as a primary site.
 
    Update the cluster with the new configuration:
 

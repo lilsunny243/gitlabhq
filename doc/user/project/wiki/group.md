@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Group wikis **(PREMIUM)**
@@ -16,8 +16,6 @@ Group wikis are similar to [project wikis](index.md), with a few limitations:
 - [Git LFS](../../../topics/git/lfs/index.md) is not supported.
 - Group wikis are not included in [global search](../../search/advanced_search.md).
 - Changes to group wikis don't show up in the [group's activity feed](../../group/manage.md#group-activity-analytics).
-- Group wikis are enabled by default for GitLab Premium and higher tiers.
-  You [can't turn them off from the GitLab user interface](https://gitlab.com/gitlab-org/gitlab/-/issues/208413).
 
 For updates, follow [the epic that tracks feature parity with project wikis](https://gitlab.com/groups/gitlab-org/-/epics/2782).
 
@@ -29,7 +27,7 @@ and higher can edit group wikis. Group wiki repositories can be moved using the
 
 To access a group wiki:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. To display the wiki, either:
    - On the left sidebar, select **Wiki**.
    - On any page in the project, use the <kbd>g</kbd> + <kbd>w</kbd>
@@ -69,7 +67,7 @@ can enable or disable a group wiki through the group settings.
 
 To open group settings:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Permissions and group features**.
 1. Scroll to **Wiki** and select one of these options:

@@ -25,38 +25,35 @@ module Gitlab
             { name: @attributes.fetch(:name),
               position: @attributes.fetch(:index),
               pipeline: @pipeline,
-              project: @pipeline.project }
+              project: @pipeline.project,
+              partition_id: @pipeline.partition_id }
           end
 
           def seeds
-            strong_memoize(:seeds) do
-              @builds.select(&:included?)
-            end
+            @builds.select(&:included?)
           end
+          strong_memoize_attr :seeds
 
           def errors
-            strong_memoize(:errors) do
-              @builds.flat_map(&:errors).compact
-            end
+            @builds.flat_map(&:errors).compact
           end
+          strong_memoize_attr :errors
 
           def seeds_names
-            strong_memoize(:seeds_names) do
-              seeds.map(&:name).to_set
-            end
+            seeds.map(&:name).to_set
           end
+          strong_memoize_attr :seeds_names
 
           def included?
             seeds.any?
           end
 
           def to_resource
-            strong_memoize(:stage) do
-              ::Ci::Stage.new(attributes).tap do |stage|
-                stage.statuses = seeds.map(&:to_resource)
-              end
+            ::Ci::Stage.new(attributes).tap do |stage|
+              stage.statuses = seeds.map(&:to_resource)
             end
           end
+          strong_memoize_attr :to_resource
         end
       end
     end

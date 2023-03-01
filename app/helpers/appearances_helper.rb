@@ -4,17 +4,53 @@ module AppearancesHelper
   include MarkupHelper
   include Gitlab::Utils::StrongMemoize
 
+  def appearance_pwa_icon_path_scaled(width)
+    return unless Appearance::ALLOWED_PWA_ICON_SCALER_WIDTHS.include?(width)
+
+    append_root_path((current_appearance&.pwa_icon_path_scaled(width) || "/-/pwa-icons/logo-#{width}.png"))
+  end
+
+  def appearance_maskable_logo
+    append_root_path('/-/pwa-icons/maskable-logo.png')
+  end
+
+  def append_root_path(path)
+    Gitlab::Utils.append_path(Gitlab.config.gitlab.relative_url_root, path)
+  end
+
   def brand_title
     current_appearance&.title.presence || default_brand_title
   end
 
+  def appearance_pwa_name
+    current_appearance&.pwa_name.presence || _('GitLab')
+  end
+
+  def appearance_pwa_short_name
+    current_appearance&.pwa_short_name.presence || _('GitLab')
+  end
+
+  def appearance_pwa_description
+    current_appearance&.pwa_description.presence ||
+      _("The complete DevOps platform. " \
+        "One application with endless possibilities. " \
+        "Organizations rely on GitLab’s source code management, " \
+        "CI/CD, security, and more to deliver software rapidly.")
+  end
+
   def default_brand_title
     # This resides in a separate method so that EE can easily redefine it.
-    'GitLab Community Edition'
+    _('GitLab Community Edition')
   end
 
   def brand_image
-    image_tag(current_appearance.logo_path) if current_appearance&.logo?
+    image_tag(brand_image_path, alt: brand_title, class: 'gl-w-10')
+  end
+
+  def brand_image_path
+    return current_appearance.logo_path if current_appearance&.logo?
+
+    image_path('logo.svg')
   end
 
   def brand_text

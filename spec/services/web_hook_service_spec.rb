@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state do
+RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state, feature_category: :integrations do
   include StubRequests
 
   let(:ellipsis) { '…' }
@@ -75,7 +75,8 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
         'Content-Type' => 'application/json',
         'User-Agent' => "GitLab/#{Gitlab::VERSION}",
         'X-Gitlab-Event' => 'Push Hook',
-        'X-Gitlab-Event-UUID' => uuid
+        'X-Gitlab-Event-UUID' => uuid,
+        'X-Gitlab-Instance' => Gitlab.config.gitlab.base_url
       }
     end
 
@@ -128,7 +129,10 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
 
       context 'there is userinfo' do
         before do
-          project_hook.update!(url: 'http://{one}:{two}@example.com')
+          project_hook.update!(
+            url: 'http://{one}:{two}@example.com',
+            url_variables: { 'one' => 'a', 'two' => 'b' }
+          )
           stub_full_request('http://example.com', method: :post)
         end
 
@@ -164,7 +168,7 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
       end
     end
 
-    it 'POSTs the data as JSON' do
+    it 'POSTs the data as JSON and returns expected headers' do
       stub_full_request(project_hook.url, method: :post)
 
       service_instance.execute
@@ -228,7 +232,7 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
     it 'does not execute disabled hooks' do
       allow(service_instance).to receive(:disabled?).and_return(true)
 
-      expect(service_instance.execute).to eq({ status: :error, message: 'Hook disabled' })
+      expect(service_instance.execute).to have_attributes(status: :error, message: 'Hook disabled')
     end
 
     it 'executes and registers the hook with the recursion detection', :aggregate_failures do
@@ -300,7 +304,8 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
         project_hook.enable!
 
         stub_full_request(project_hook.url, method: :post).to_raise(exception)
-        expect(service_instance.execute).to eq({ status: :error, message: exception.to_s })
+
+        expect(service_instance.execute).to have_attributes(status: :error, message: exception.to_s)
         expect { service_instance.execute }.not_to raise_error
       end
     end
@@ -309,7 +314,10 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
       let_it_be(:project_hook) { create(:project_hook, url: 'http://server.com/my path/') }
 
       it 'handles exceptions' do
-        expect(service_instance.execute).to eq(status: :error, message: 'bad URI(is not URI?): "http://server.com/my path/"')
+        expect(service_instance.execute).to have_attributes(
+          status: :error,
+          message: 'bad URI(is not URI?): "http://server.com/my path/"'
+        )
         expect { service_instance.execute }.not_to raise_error
       end
     end
@@ -318,20 +326,31 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
       it 'does not perform the request' do
         stub_const("#{described_class}::REQUEST_BODY_SIZE_LIMIT", 10.bytes)
 
-        expect(service_instance.execute).to eq({ status: :error, message: "Gitlab::Json::LimitedEncoder::LimitExceeded" })
+        expect(service_instance.execute).to have_attributes(
+          status: :error,
+          message: 'Gitlab::Json::LimitedEncoder::LimitExceeded'
+        )
       end
     end
 
     it 'handles 200 status code' do
       stub_full_request(project_hook.url, method: :post).to_return(status: 200, body: 'Success')
 
-      expect(service_instance.execute).to include({ status: :success, http_status: 200, message: 'Success' })
+      expect(service_instance.execute).to have_attributes(
+        status: :success,
+        payload: { http_status: 200 },
+        message: 'Success'
+      )
     end
 
     it 'handles 2xx status codes' do
       stub_full_request(project_hook.url, method: :post).to_return(status: 201, body: 'Success')
 
-      expect(service_instance.execute).to include({ status: :success, http_status: 201, message: 'Success' })
+      expect(service_instance.execute).to have_attributes(
+        status: :success,
+        payload: { http_status: 201 },
+        message: 'Success'
+      )
     end
 
     context 'execution logging' do
@@ -339,6 +358,7 @@ RSpec.describe WebHookService, :request_store, :clean_gitlab_redis_shared_state 
         {
           trigger: 'push_hooks',
           url: project_hook.url,
+          interpolated_url: project_hook.interpolated_url,
           request_headers: headers,
           request_data: data,
           response_body: 'Success',

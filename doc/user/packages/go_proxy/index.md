@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Go proxy for GitLab **(FREE)**
@@ -107,8 +107,8 @@ Open your [`~/.netrc`](https://everything.curl.dev/usingcurl/netrc) file
 and add the following text. Replace the variables in `< >` with your values.
 
 WARNING:
-If you use an environment variable called `NETRC`, Go will use its value
-as a filename and ignore `~/.netrc`. If you intend to use `~/.netrc` in
+If you use an environment variable called `NETRC`, Go uses its value
+as a filename and ignores `~/.netrc`. If you intend to use `~/.netrc` in
 the GitLab CI **do not use `NETRC` as an environment variable name**.
 
 ```plaintext

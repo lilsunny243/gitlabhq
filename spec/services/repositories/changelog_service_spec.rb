@@ -67,10 +67,11 @@ RSpec.describe Repositories::ChangelogService do
       allow(MergeRequestDiffCommit)
         .to receive(:oldest_merge_request_id_per_commit)
         .with(project.id, [commit2.id, commit1.id])
-        .and_return([
-          { sha: sha2, merge_request_id: mr1.id },
-          { sha: sha3, merge_request_id: mr2.id }
-        ])
+        .and_return(
+          [
+            { sha: sha2, merge_request_id: mr1.id },
+            { sha: sha3, merge_request_id: mr2.id }
+          ])
 
       service = described_class
         .new(project, creator, version: '1.0.0', from: sha1, to: sha3)
@@ -78,7 +79,7 @@ RSpec.describe Repositories::ChangelogService do
       recorder = ActiveRecord::QueryRecorder.new { service.execute(commit_to_changelog: commit_to_changelog) }
       changelog = project.repository.blob_at('master', 'CHANGELOG.md')&.data
 
-      expect(recorder.count).to eq(10)
+      expect(recorder.count).to eq(12)
       expect(changelog).to include('Title 1', 'Title 2')
     end
 
@@ -135,10 +136,11 @@ RSpec.describe Repositories::ChangelogService do
         allow(MergeRequestDiffCommit)
           .to receive(:oldest_merge_request_id_per_commit)
           .with(project.id, [commit2.id, commit1.id])
-          .and_return([
-            { sha: sha2, merge_request_id: mr1.id },
-            { sha: sha3, merge_request_id: mr2.id }
-          ])
+          .and_return(
+            [
+              { sha: sha2, merge_request_id: mr1.id },
+              { sha: sha3, merge_request_id: mr2.id }
+            ])
 
         service = described_class
           .new(project, creator, version: '1.0.0', from: sha1, to: sha3)

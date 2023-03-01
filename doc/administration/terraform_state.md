@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Terraform state administration **(FREE)**
@@ -135,10 +135,11 @@ For GitLab 13.8 and earlier versions, you can use a workaround for the Rake task
    end
    ```
 
-You can optionally track progress and verify that all packages migrated successfully using the
+You can optionally track progress and verify that all Terraform state files migrated successfully using the
 [PostgreSQL console](https://docs.gitlab.com/omnibus/settings/database.html#connecting-to-the-bundled-postgresql-database):
 
-- `sudo gitlab-rails dbconsole` for Omnibus GitLab instances.
+- `sudo gitlab-rails dbconsole` for Omnibus GitLab 14.1 and earlier.
+- `sudo gitlab-rails dbconsole --database main` for Omnibus GitLab 14.2 and later.
 - `sudo -u git -H psql -d gitlabhq_production` for source-installed instances.
 
 Verify `objectstg` below (where `file_store=2`) has count of all states:
@@ -158,6 +159,10 @@ sudo find /var/opt/gitlab/gitlab-rails/shared/terraform_state -type f | grep -v 
 ```
 
 ### S3-compatible connection settings
+
+In GitLab 13.2 and later, you should use the
+[consolidated object storage settings](object_storage.md#consolidated-object-storage-configuration).
+This section describes the earlier configuration format.
 
 See [the available connection settings for different providers](object_storage.md#connection-settings).
 

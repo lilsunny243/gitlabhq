@@ -4,7 +4,7 @@
 # This class is not meant to be used directly, but only to inherrit from.
 module Integrations
   class BaseSlashCommands < Integration
-    default_value_for :category, 'chat'
+    attribute :category, default: 'chat'
 
     prop_accessor :token
 
@@ -60,13 +60,13 @@ module Integrations
 
     # rubocop: disable CodeReuse/ServiceClass
     def find_chat_user(params)
-      ChatNames::FindUserService.new(self, params).execute
+      ChatNames::FindUserService.new(params[:team_id], params[:user_id]).execute
     end
     # rubocop: enable CodeReuse/ServiceClass
 
     # rubocop: disable CodeReuse/ServiceClass
     def authorize_chat_name_url(params)
-      ChatNames::AuthorizeUserService.new(self, params).execute
+      ChatNames::AuthorizeUserService.new(params).execute
     end
     # rubocop: enable CodeReuse/ServiceClass
   end

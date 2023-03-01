@@ -1,13 +1,13 @@
 <script>
 import { GlEmptyState } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { n__ } from '~/locale';
 import { joinPaths } from '~/lib/utils/url_utility';
 import RegistryList from '~/packages_and_registries/shared/components/registry_list.vue';
 
 import PersistedSearch from '~/packages_and_registries/shared/components/persisted_search.vue';
-import { FILTERED_SEARCH_TERM } from '~/packages_and_registries/shared/constants';
 import TagsLoader from '~/packages_and_registries/shared/components/tags_loader.vue';
+import { FILTERED_SEARCH_TERM } from '~/vue_shared/components/filtered_search_bar/constants';
 import {
   REMOVE_TAGS_BUTTON_TITLE,
   TAGS_LIST_TITLE,
@@ -69,7 +69,7 @@ export default {
         return this.queryVariables;
       },
       error() {
-        createFlash({ message: FETCH_IMAGES_LIST_ERROR_MESSAGE });
+        createAlert({ message: FETCH_IMAGES_LIST_ERROR_MESSAGE });
       },
     },
   },

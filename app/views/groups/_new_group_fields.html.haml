@@ -3,16 +3,16 @@
 = form_errors(@group)
 = render 'shared/groups/group_name_and_path_fields', f: f, autofocus: true, new_subgroup: !!parent
 
-- unless parent
-  .row
-    .form-group.gl-form-group.col-sm-12
-      %label.label-bold
-        = _('Visibility level')
-      %p
-        = _('Who will be able to see this group?')
-        = link_to _('View the documentation'), help_page_path("user/public_access"), target: '_blank', rel: 'noopener noreferrer'
-      = render 'shared/visibility_level', f: f, visibility_level: default_group_visibility, can_change_visibility_level: true, form_model: @group, with_label: false
+.row
+  .form-group.gl-form-group.col-sm-12
+    %label.label-bold
+      = _('Visibility level')
+    %p
+      = _('Who will be able to see this group?')
+      = link_to _('View the documentation'), help_page_path("user/public_access"), target: '_blank', rel: 'noopener noreferrer'
+    = render 'shared/visibility_level', f: f, visibility_level: default_group_visibility, can_change_visibility_level: true, form_model: @group, with_label: false
 
+- unless parent
   - if Gitlab.config.mattermost.enabled
     .row
       = render 'create_chat_team', f: f
@@ -30,5 +30,6 @@
         = recaptcha_tags nonce: content_security_policy_nonce
 .row
   .col-sm-12
-    = f.submit submit_label, class: "btn gl-button btn-confirm", data: { qa_selector: 'create_group_button' }
-    = link_to _('Cancel'), dashboard_groups_path, class: 'btn gl-button btn-default btn-cancel'
+    = f.submit submit_label, pajamas_button: true, data: { qa_selector: 'create_group_button' }
+    = render Pajamas::ButtonComponent.new(href: @parent_group || dashboard_groups_path) do
+      = _('Cancel')

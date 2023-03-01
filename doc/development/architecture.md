@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab architecture overview
@@ -18,7 +18,7 @@ GitLab is available under [different subscriptions](https://about.gitlab.com/pri
 New versions of GitLab are released from stable branches, and the `main` branch is used for
 bleeding-edge development.
 
-For more information, visit the [GitLab Release Process](https://about.gitlab.com/handbook/engineering/releases/).
+For more information, see the [GitLab release process](https://about.gitlab.com/handbook/engineering/releases/).
 
 Both distributions require additional components. These components are described in the
 [Component details](#components) section, and all have their own repositories.
@@ -34,8 +34,8 @@ Kubernetes platform. The largest known GitLab instance is on GitLab.com, which i
 [official GitLab Helm chart](https://docs.gitlab.com/charts/) and the [official Linux package](https://about.gitlab.com/install/).
 
 A typical installation uses NGINX or Apache as a web server to proxy through
-[GitLab Workhorse](https://gitlab.com/gitlab-org/gitlab-workhorse) and into the [Puma](https://puma.io)
-application server. GitLab serves web pages and the [GitLab API](../api/index.md) using the Puma
+[GitLab Workhorse](https://gitlab.com/gitlab-org/gitlab/tree/master/workhorse) and into the [Puma](https://puma.io)
+application server. GitLab serves web pages and the [GitLab API](../api/rest/index.md) using the Puma
 application server. It uses Sidekiq as a job queue which, in turn, uses Redis as a non-persistent
 database backend for job information, metadata, and incoming jobs.
 
@@ -378,6 +378,7 @@ Component statuses are linked to configuration documentation for each component.
 | [Runner](#gitlab-runner)                              | Executes GitLab CI/CD jobs                                           |       ⤓        |       ⤓        |      ✅       |        ⚙         |     ✅      |   ⚙    |  ⚙  | CE & EE |
 | [Sentry integration](#sentry)                         | Error tracking for deployed apps                                     |       ⤓        |       ⤓        |      ⤓       |        ⤓         |     ⤓      |   ⤓    |  ⤓  | CE & EE |
 | [Sidekiq](#sidekiq)                                   | Background jobs processor                                            |       ✅       |       ✅        |      ✅       |        ✅         |     ✅      |   ✅    |  ✅  | CE & EE |
+| [Token Revocation API](sec/token_revocation_api.md)   | Receives and revokes leaked secrets                                  |       ❌       |       ❌        |      ❌       |        ❌         |     ✅      |   ❌    |  ❌  | EE Only |
 
 ### Component details
 
@@ -543,7 +544,8 @@ GitLab CI/CD is the open-source continuous integration service included with Git
 
 #### GitLab Shell
 
-- [Project page](https://gitlab.com/gitlab-org/gitlab-shell/-/blob/main/README.md)
+- [Project page](https://gitlab.com/gitlab-org/gitlab-shell/)
+- [Documentation](gitlab_shell/index.md)
 - Configuration:
   - [Omnibus](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/files/gitlab-config-template/gitlab.rb.template)
   - [Charts](https://docs.gitlab.com/charts/charts/gitlab/gitlab-shell/)
@@ -552,7 +554,7 @@ GitLab CI/CD is the open-source continuous integration service included with Git
 - Layer: Core Service (Processor)
 - GitLab.com: [Service Architecture](https://about.gitlab.com/handbook/engineering/infrastructure/production/architecture/#service-architecture)
 
-[GitLab Shell](https://gitlab.com/gitlab-org/gitlab-shell) is a program designed at GitLab to handle SSH-based `git` sessions, and modifies the list of authorized keys. GitLab Shell is not a Unix shell nor a replacement for Bash or Zsh.
+[GitLab Shell](gitlab_shell/index.md) is a program designed at GitLab to handle SSH-based `git` sessions, and modifies the list of authorized keys. GitLab Shell is not a Unix shell nor a replacement for Bash or Zsh.
 
 #### GitLab Workhorse
 
@@ -592,8 +594,6 @@ Grafana is an open source, feature rich metrics dashboard and graph editor for G
 Jaeger, inspired by Dapper and OpenZipkin, is a distributed tracing system.
 It can be used for monitoring microservices-based distributed systems.
 
-For monitoring deployed apps, see [Jaeger tracing documentation](../operations/tracing.md)
-
 #### Logrotate
 
 - [Project page](https://github.com/logrotate/logrotate/blob/master/README.md)
@@ -626,7 +626,7 @@ Mattermost is an open source, private cloud, Slack-alternative from <https://mat
 - Layer: Core Service (Data)
 - GitLab.com: [Storage Architecture](https://about.gitlab.com/handbook/engineering/infrastructure/production/architecture/#storage-architecture)
 
-MinIO is an object storage server released under Apache License v2.0. It is compatible with Amazon S3 cloud storage service. It is best suited for storing unstructured data such as photos, videos, log files, backups, and container / VM images. Size of an object can range from a few KBs to a maximum of 5TB.
+MinIO is an object storage server released under the GNU AGPL v3.0. It is compatible with Amazon S3 cloud storage service. It is best suited for storing unstructured data such as photos, videos, log files, backups, and container / VM images. Size of an object can range from a few KB to a maximum of 5 TB.
 
 #### NGINX
 
@@ -763,7 +763,7 @@ See our [Redis guidelines](redis.md) for more information about how GitLab uses 
   - [Source](../administration/packages/container_registry.md#enable-the-container-registry)
   - [GDK](https://gitlab.com/gitlab-org/gitlab-development-kit/blob/main/doc/howto/registry.md)
 - Layer: Core Service (Processor)
-- GitLab.com: [GitLab Container Registry](../user/packages/container_registry/index.md#build-and-push-by-using-gitlab-cicd)
+- GitLab.com: [GitLab Container Registry](../user/packages/container_registry/build_and_push_images.md#use-gitlab-cicd)
 
 The registry is what users use to store their own Docker images. The bundled
 registry uses NGINX as a load balancer and GitLab as an authentication manager.
@@ -771,7 +771,8 @@ Whenever a client requests to pull or push an image from the registry, it
 returns a `401` response along with a header detailing where to get an
 authentication token, in this case the GitLab instance. The client then
 requests a pull or push auth token from GitLab and retries the original request
-to the registry. Learn more about [token authentication](https://docs.docker.com/registry/spec/auth/token/).
+to the registry. For more information, see
+[token authentication](https://docs.docker.com/registry/spec/auth/token/).
 
 An external registry can also be configured to use GitLab as an auth endpoint.
 
@@ -1100,11 +1101,28 @@ PostgreSQL:
 GitLab has configuration files located in `/home/git/gitlab/config/*`. Commonly referenced
 configuration files include:
 
-- `gitlab.yml`: GitLab configuration
+- `gitlab.yml`: GitLab Rails configuration
 - `puma.rb`: Puma web server settings
 - `database.yml`: Database connection settings
 
 GitLab Shell has a configuration file at `/home/git/gitlab-shell/config.yml`.
+
+#### Adding a new setting in GitLab Rails
+
+Settings which belong in `gitlab.yml` include those related to:
+
+- How the application is wired together across multiple services. For example, Gitaly addresses, Redis addresses, Postgres addresses, and Consul addresses.
+- Distributed Tracing configuration, and some observability configurations. For example, histogram bucket boundaries.
+- Anything that needs to be configured during Rails initialization, possibly before the Postgres connection has been established.
+
+Many other settings are better placed in the app itself, in `ApplicationSetting`. Managing settings in UI is usually a better user experience compared to managing configuration files. With respect to development cost, modifying `gitlab.yml` often seems like a faster iteration, but when you consider all the deployment methods below, it may be a poor tradeoff.
+
+When adding a setting to `gitlab.yml`:
+
+1. Ensure that it is also
+  [added to Omnibus](https://docs.gitlab.com/omnibus/settings/gitlab.yml#adding-a-new-setting-to-gitlabyml).
+1. Ensure that it is also [added to Charts](https://docs.gitlab.com/charts/development/style_guide.html), if needed.
+1. Ensure that it is also [added to GDK](https://gitlab.com/gitlab-org/gitlab-development-kit/-/blob/main/support/templates/gitlab/config/gitlab.yml.erb).
 
 ### Maintenance tasks
 

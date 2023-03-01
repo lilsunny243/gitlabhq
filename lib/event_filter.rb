@@ -38,7 +38,7 @@ class EventFilter
     when TEAM
       events.where(action: Event::TEAM_ACTIONS)
     when ISSUE
-      events.where(action: Event::ISSUE_ACTIONS, target_type: 'Issue')
+      events.where(action: Event::ISSUE_ACTIONS).for_issue
     when WIKI
       wiki_events(events)
     when DESIGNS
@@ -97,7 +97,7 @@ class EventFilter
     when ISSUE
       in_operator_params(
         array_data: array_data,
-        scope: Event.where(target_type: Issue.name),
+        scope: Event.for_issue,
         in_column: :action,
         in_values: Event.actions.values_at(*Event::ISSUE_ACTIONS)
       )
@@ -131,18 +131,19 @@ class EventFilter
     finder_query = -> (id_expression) { Event.where(Event.arel_table[:id].eq(id_expression)) }
 
     if order_hint_column.present?
-      order = Gitlab::Pagination::Keyset::Order.build([
-        Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-          attribute_name: order_hint_column,
-          order_expression: Event.arel_table[order_hint_column].desc,
-          nullable: :nulls_last,
-          distinct: false
-        ),
-        Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-          attribute_name: :id,
-          order_expression: Event.arel_table[:id].desc
-        )
-      ])
+      order = Gitlab::Pagination::Keyset::Order.build(
+        [
+          Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+            attribute_name: order_hint_column,
+            order_expression: Event.arel_table[order_hint_column].desc,
+            nullable: :nulls_last,
+            distinct: false
+          ),
+          Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+            attribute_name: :id,
+            order_expression: Event.arel_table[:id].desc
+          )
+        ])
 
       finder_query = -> (_order_hint, id_expression) { Event.where(Event.arel_table[:id].eq(id_expression)) }
     end

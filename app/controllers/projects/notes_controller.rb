@@ -12,7 +12,8 @@ class Projects::NotesController < Projects::ApplicationController
   before_action :authorize_resolve_note!, only: [:resolve, :unresolve]
 
   feature_category :team_planning
-  urgency :low
+  urgency :medium, [:index]
+  urgency :low, [:create, :update, :destroy, :resolve, :unresolve, :toggle_award_emoji, :outdated_line_change]
 
   def delete_attachment
     note.remove_attachment!
@@ -58,7 +59,7 @@ class Projects::NotesController < Projects::ApplicationController
 
   def outdated_line_change
     diff_lines = Rails.cache.fetch(['note', note.id, 'oudated_line_change'], expires_in: 7.days) do
-      ::MergeRequests::OutdatedDiscussionDiffLinesService.new(project: note.noteable.source_project, note: note).execute.to_json
+      Gitlab::Json.dump(::MergeRequests::OutdatedDiscussionDiffLinesService.new(project: note.noteable.source_project, note: note).execute)
     end
 
     render json: diff_lines

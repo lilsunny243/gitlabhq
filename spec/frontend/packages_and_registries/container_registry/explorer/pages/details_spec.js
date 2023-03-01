@@ -18,7 +18,6 @@ import {
   UNFINISHED_STATUS,
   DELETE_SCHEDULED,
   ALERT_DANGER_IMAGE,
-  ALERT_DANGER_IMPORTING,
   MISSING_OR_DELETED_IMAGE_BREADCRUMB,
   MISSING_OR_DELETED_IMAGE_TITLE,
   MISSING_OR_DELETED_IMAGE_MESSAGE,
@@ -26,6 +25,7 @@ import {
 import deleteContainerRepositoryTagsMutation from '~/packages_and_registries/container_registry/explorer/graphql/mutations/delete_container_repository_tags.mutation.graphql';
 import getContainerRepositoryDetailsQuery from '~/packages_and_registries/container_registry/explorer/graphql/queries/get_container_repository_details.query.graphql';
 import getContainerRepositoryTagsQuery from '~/packages_and_registries/container_registry/explorer/graphql/queries/get_container_repository_tags.query.graphql';
+import getContainerRepositoriesDetails from '~/packages_and_registries/container_registry/explorer/graphql/queries/get_container_repositories_details.query.graphql';
 
 import component from '~/packages_and_registries/container_registry/explorer/pages/details.vue';
 import Tracking from '~/tracking';
@@ -33,7 +33,7 @@ import Tracking from '~/tracking';
 import {
   graphQLImageDetailsMock,
   graphQLDeleteImageRepositoryTagsMock,
-  graphQLDeleteImageRepositoryTagImportingErrorMock,
+  graphQLProjectImageRepositoriesDetailsMock,
   containerRepositoryMock,
   graphQLEmptyImageDetailsMock,
   tagsMock,
@@ -45,16 +45,16 @@ describe('Details Page', () => {
   let wrapper;
   let apolloProvider;
 
-  const findDeleteModal = () => wrapper.find(DeleteModal);
-  const findPagination = () => wrapper.find(GlKeysetPagination);
-  const findTagsLoader = () => wrapper.find(TagsLoader);
-  const findTagsList = () => wrapper.find(TagsList);
-  const findDeleteAlert = () => wrapper.find(DeleteAlert);
-  const findDetailsHeader = () => wrapper.find(DetailsHeader);
-  const findEmptyState = () => wrapper.find(GlEmptyState);
-  const findPartialCleanupAlert = () => wrapper.find(PartialCleanupAlert);
-  const findStatusAlert = () => wrapper.find(StatusAlert);
-  const findDeleteImage = () => wrapper.find(DeleteImage);
+  const findDeleteModal = () => wrapper.findComponent(DeleteModal);
+  const findPagination = () => wrapper.findComponent(GlKeysetPagination);
+  const findTagsLoader = () => wrapper.findComponent(TagsLoader);
+  const findTagsList = () => wrapper.findComponent(TagsList);
+  const findDeleteAlert = () => wrapper.findComponent(DeleteAlert);
+  const findDetailsHeader = () => wrapper.findComponent(DetailsHeader);
+  const findEmptyState = () => wrapper.findComponent(GlEmptyState);
+  const findPartialCleanupAlert = () => wrapper.findComponent(PartialCleanupAlert);
+  const findStatusAlert = () => wrapper.findComponent(StatusAlert);
+  const findDeleteImage = () => wrapper.findComponent(DeleteImage);
 
   const routeId = 1;
 
@@ -64,6 +64,9 @@ describe('Details Page', () => {
 
   const defaultConfig = {
     noContainersImage: 'noContainersImage',
+    projectListUrl: 'projectListUrl',
+    groupListUrl: 'groupListUrl',
+    isGroupPage: false,
   };
 
   const cleanTags = tagsMock.map((t) => {
@@ -81,7 +84,8 @@ describe('Details Page', () => {
   const mountComponent = ({
     resolver = jest.fn().mockResolvedValue(graphQLImageDetailsMock()),
     mutationResolver = jest.fn().mockResolvedValue(graphQLDeleteImageRepositoryTagsMock),
-    tagsResolver = jest.fn().mockResolvedValue(graphQLImageDetailsMock(imageTagsMock)),
+    tagsResolver = jest.fn().mockResolvedValue(graphQLImageDetailsMock(imageTagsMock())),
+    detailsResolver = jest.fn().mockResolvedValue(graphQLProjectImageRepositoriesDetailsMock),
     options,
     config = defaultConfig,
   } = {}) => {
@@ -91,6 +95,7 @@ describe('Details Page', () => {
       [getContainerRepositoryDetailsQuery, resolver],
       [deleteContainerRepositoryTagsMutation, mutationResolver],
       [getContainerRepositoryTagsQuery, tagsResolver],
+      [getContainerRepositoriesDetails, detailsResolver],
     ];
 
     apolloProvider = createMockApollo(requestHandlers);
@@ -256,11 +261,13 @@ describe('Details Page', () => {
     describe('confirmDelete event', () => {
       let mutationResolver;
       let tagsResolver;
+      let detailsResolver;
 
       beforeEach(() => {
         mutationResolver = jest.fn().mockResolvedValue(graphQLDeleteImageRepositoryTagsMock);
-        tagsResolver = jest.fn().mockResolvedValue(graphQLImageDetailsMock(imageTagsMock));
-        mountComponent({ mutationResolver, tagsResolver });
+        tagsResolver = jest.fn().mockResolvedValue(graphQLImageDetailsMock(imageTagsMock()));
+        detailsResolver = jest.fn().mockResolvedValue(graphQLProjectImageRepositoriesDetailsMock);
+        mountComponent({ mutationResolver, tagsResolver, detailsResolver });
 
         return waitForApolloRequestRender();
       });
@@ -280,6 +287,7 @@ describe('Details Page', () => {
           await waitForPromises();
 
           expect(tagsResolver).toHaveBeenCalled();
+          expect(detailsResolver).toHaveBeenCalled();
         });
       });
 
@@ -298,6 +306,7 @@ describe('Details Page', () => {
           await waitForPromises();
 
           expect(tagsResolver).toHaveBeenCalled();
+          expect(detailsResolver).toHaveBeenCalled();
         });
       });
     });
@@ -330,7 +339,6 @@ describe('Details Page', () => {
     const config = {
       isAdmin: true,
       garbageCollectionHelpPagePath: 'baz',
-      containerRegistryImportingHelpPagePath: 'https://foobar',
     };
     const deleteAlertType = 'success_tag';
 
@@ -354,35 +362,6 @@ describe('Details Page', () => {
       await waitForApolloRequestRender();
 
       expect(findDeleteAlert().props()).toEqual({ ...config, deleteAlertType });
-    });
-
-    describe('importing repository error', () => {
-      let mutationResolver;
-      let tagsResolver;
-
-      beforeEach(async () => {
-        mutationResolver = jest
-          .fn()
-          .mockResolvedValue(graphQLDeleteImageRepositoryTagImportingErrorMock);
-        tagsResolver = jest.fn().mockResolvedValue(graphQLImageDetailsMock(imageTagsMock));
-
-        mountComponent({ mutationResolver, tagsResolver });
-        await waitForApolloRequestRender();
-      });
-
-      it('displays the proper alert', async () => {
-        findTagsList().vm.$emit('delete', [cleanTags[0]]);
-        await nextTick();
-
-        findDeleteModal().vm.$emit('confirmDelete');
-        await waitForPromises();
-
-        expect(tagsResolver).toHaveBeenCalled();
-
-        const deleteAlert = findDeleteAlert();
-        expect(deleteAlert.exists()).toBe(true);
-        expect(deleteAlert.props('deleteAlertType')).toBe(ALERT_DANGER_IMPORTING);
-      });
     });
   });
 

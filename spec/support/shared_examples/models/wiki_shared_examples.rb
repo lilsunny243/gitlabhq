@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 RSpec.shared_examples 'wiki model' do
+  using RSpec::Parameterized::TableSyntax
+
   let_it_be(:user) { create(:user, :commit_email) }
 
   let(:wiki_container) { raise NotImplementedError }
@@ -124,36 +126,6 @@ RSpec.shared_examples 'wiki model' do
     end
   end
 
-  describe '#wiki' do
-    it 'contains a Gitlab::Git::Wiki instance' do
-      expect(subject.wiki).to be_a Gitlab::Git::Wiki
-    end
-
-    it 'creates a new wiki repo if one does not yet exist' do
-      expect(subject.create_page('index', 'test content')).to be_truthy
-    end
-
-    it 'creates a new wiki repo with a default commit message' do
-      expect(subject.create_page('index', 'test content', :markdown, '')).to be_truthy
-
-      page = subject.find_page('index')
-
-      expect(page.last_version.message).to eq("#{user.username} created page: index")
-    end
-
-    context 'when the repository cannot be created' do
-      let(:wiki_container) { wiki_container_without_repo }
-
-      before do
-        expect(subject.repository).to receive(:create_if_not_exists) { false }
-      end
-
-      it 'raises CouldNotCreateWikiError' do
-        expect { subject.wiki }.to raise_exception(Wiki::CouldNotCreateWikiError)
-      end
-    end
-  end
-
   describe '#empty?' do
     context 'when the wiki repository is empty' do
       it 'returns true' do
@@ -180,71 +152,97 @@ RSpec.shared_examples 'wiki model' do
         it 'returns false' do
           expect(subject.empty?).to be(false)
         end
-
-        it 'only instantiates a Wiki page once' do
-          expect(WikiPage).to receive(:new).once.and_call_original
-
-          subject.empty?
-        end
       end
     end
   end
 
   describe '#list_pages' do
-    let(:wiki_pages) { subject.list_pages }
+    shared_examples 'wiki model #list_pages' do
+      let(:wiki_pages) { subject.list_pages }
 
-    before do
-      subject.create_page('index', 'This is an index')
-      subject.create_page('index2', 'This is an index2')
-      subject.create_page('an index3', 'This is an index3')
-    end
+      before do
+        # The order is intentional
+        subject.create_page('index2', 'This is an index2')
+        subject.create_page('index', 'This is an index')
+        subject.create_page('index3', 'This is an index3')
+      end
 
-    it 'returns an array of WikiPage instances' do
-      expect(wiki_pages).to be_present
-      expect(wiki_pages).to all(be_a(WikiPage))
-    end
+      it 'returns an array of WikiPage instances' do
+        expect(wiki_pages).to be_present
+        expect(wiki_pages).to all(be_a(WikiPage))
+      end
 
-    it 'does not load WikiPage content by default' do
-      wiki_pages.each do |page|
-        expect(page.content).to be_empty
+      it 'does not load WikiPage content by default' do
+        wiki_pages.each do |page|
+          expect(page.content).to be_empty
+        end
+      end
+
+      it 'returns all pages by default' do
+        expect(wiki_pages.count).to eq(3)
+      end
+
+      context 'with limit option' do
+        it 'returns limited set of pages' do
+          expect(
+            subject.list_pages(limit: 1).map(&:title)
+          ).to eql(%w[index])
+        end
+
+        it 'returns all set of pages if limit is more than the total pages' do
+          expect(subject.list_pages(limit: 4).count).to eq(3)
+        end
+
+        it 'returns all set of pages if limit is 0' do
+          expect(subject.list_pages(limit: 0).count).to eq(3)
+        end
+      end
+
+      context 'with offset option' do
+        it 'returns offset-ed set of pages' do
+          expect(
+            subject.list_pages(offset: 1).map(&:title)
+          ).to eq(%w[index2 index3])
+
+          expect(
+            subject.list_pages(offset: 2).map(&:title)
+          ).to eq(["index3"])
+          expect(subject.list_pages(offset: 3).count).to eq(0)
+          expect(subject.list_pages(offset: 4).count).to eq(0)
+        end
+
+        it 'returns all set of pages if offset is 0' do
+          expect(subject.list_pages(offset: 0).count).to eq(3)
+        end
+
+        it 'can combines with limit' do
+          expect(
+            subject.list_pages(offset: 1, limit: 1).map(&:title)
+          ).to eq(["index2"])
+        end
+      end
+
+      context 'with sorting options' do
+        it 'returns pages sorted by title by default' do
+          pages = %w[index index2 index3]
+
+          expect(subject.list_pages.map(&:title)).to eq(pages)
+          expect(subject.list_pages(direction: 'desc').map(&:title)).to eq(pages.reverse)
+        end
+      end
+
+      context 'with load_content option' do
+        let(:pages) { subject.list_pages(load_content: true) }
+
+        it 'loads WikiPage content' do
+          expect(pages.first.content).to eq('This is an index')
+          expect(pages.second.content).to eq('This is an index2')
+          expect(pages.third.content).to eq('This is an index3')
+        end
       end
     end
 
-    it 'returns all pages by default' do
-      expect(wiki_pages.count).to eq(3)
-    end
-
-    context 'with limit option' do
-      it 'returns limited set of pages' do
-        expect(subject.list_pages(limit: 1).count).to eq(1)
-      end
-    end
-
-    context 'with sorting options' do
-      it 'returns pages sorted by title by default' do
-        pages = ['an index3', 'index', 'index2']
-
-        expect(subject.list_pages.map(&:title)).to eq(pages)
-        expect(subject.list_pages(direction: 'desc').map(&:title)).to eq(pages.reverse)
-      end
-
-      it 'returns pages sorted by created_at' do
-        pages = ['index', 'index2', 'an index3']
-
-        expect(subject.list_pages(sort: 'created_at').map(&:title)).to eq(pages)
-        expect(subject.list_pages(sort: 'created_at', direction: 'desc').map(&:title)).to eq(pages.reverse)
-      end
-    end
-
-    context 'with load_content option' do
-      let(:pages) { subject.list_pages(load_content: true) }
-
-      it 'loads WikiPage content' do
-        expect(pages.first.content).to eq('This is an index3')
-        expect(pages.second.content).to eq('This is an index')
-        expect(pages.third.content).to eq('This is an index2')
-      end
-    end
+    it_behaves_like 'wiki model #list_pages'
   end
 
   describe '#sidebar_entries' do
@@ -286,67 +284,186 @@ RSpec.shared_examples 'wiki model' do
   end
 
   describe '#find_page' do
-    before do
-      subject.create_page('index page', 'This is an awesome Gollum Wiki')
-    end
-
-    it 'returns the latest version of the page if it exists' do
-      page = subject.find_page('index page')
-
-      expect(page.title).to eq('index page')
-    end
-
-    it 'returns nil if the page or version does not exist' do
-      expect(subject.find_page('non-existent')).to be_nil
-      expect(subject.find_page('index page', 'non-existent')).to be_nil
-    end
-
-    it 'can find a page by slug' do
-      page = subject.find_page('index-page')
-
-      expect(page.title).to eq('index page')
-    end
-
-    it 'returns a WikiPage instance' do
-      page = subject.find_page('index page')
-
-      expect(page).to be_a WikiPage
-    end
-
-    context 'pages with multibyte-character title' do
+    shared_examples 'wiki model #find_page' do
       before do
-        subject.create_page('autre pagé', "C'est un génial Gollum Wiki")
+        subject.create_page('index page', 'This is an awesome Gollum Wiki')
+      end
+
+      it 'returns the latest version of the page if it exists' do
+        page = subject.find_page('index page')
+
+        expect(page.title).to eq('index page')
+      end
+
+      it 'returns nil if the page or version does not exist' do
+        expect(subject.find_page('non-existent')).to be_nil
+        expect(subject.find_page('index page', 'non-existent')).to be_nil
       end
 
       it 'can find a page by slug' do
-        page = subject.find_page('autre pagé')
+        page = subject.find_page('index-page')
 
-        expect(page.title).to eq('autre pagé')
+        expect(page.title).to eq('index page')
+      end
+
+      it 'returns a WikiPage instance' do
+        page = subject.find_page('index page')
+
+        expect(page).to be_a WikiPage
+      end
+
+      context 'pages with multibyte-character title' do
+        before do
+          subject.create_page('autre pagé', "C'est un génial Gollum Wiki")
+        end
+
+        it 'can find a page by slug' do
+          page = subject.find_page('autre pagé')
+
+          expect(page.title).to eq('autre pagé')
+        end
+      end
+
+      context 'pages with invalidly-encoded content' do
+        before do
+          subject.create_page('encoding is fun', "f\xFCr".b)
+        end
+
+        it 'can find the page' do
+          page = subject.find_page('encoding is fun')
+
+          expect(page.content).to eq('fr')
+        end
+      end
+
+      context "wiki repository's default branch is updated" do
+        before do
+          old_default_branch = wiki.default_branch
+          subject.create_page('page in updated default branch', 'content')
+          subject.repository.add_branch(user, 'another_branch', old_default_branch)
+          subject.repository.rm_branch(user, old_default_branch)
+          subject.repository.expire_status_cache
+        end
+
+        it 'returns the page in the updated default branch' do
+          wiki = described_class.new(wiki_container, user)
+          page = wiki.find_page('page in updated default branch')
+
+          expect(wiki.default_branch).to eql('another_branch')
+          expect(page.title).to eq('page in updated default branch')
+        end
+      end
+
+      context "wiki repository's HEAD is updated" do
+        before do
+          subject.create_page('page in updated HEAD', 'content')
+          subject.repository.add_branch(user, 'another_branch', subject.default_branch)
+          subject.repository.change_head('another_branch')
+          subject.repository.expire_status_cache
+        end
+
+        it 'returns the page in the new HEAD' do
+          wiki = described_class.new(wiki_container, user)
+          page = subject.find_page('page in updated HEAD')
+
+          expect(wiki.default_branch).to eql('another_branch')
+          expect(page.title).to eq('page in updated HEAD')
+        end
+      end
+
+      context 'pages with relative paths' do
+        where(:path, :title) do
+          [
+            ['~hello.md', '~Hello'],
+            ['hello~world.md', 'Hello~World'],
+            ['~~~hello.md', '~~~Hello'],
+            ['~/hello.md', '~/Hello'],
+            ['hello.md', '/Hello'],
+            ['hello.md', '../Hello'],
+            ['hello.md', './Hello'],
+            ['dir/hello.md', '/dir/Hello']
+          ]
+        end
+
+        with_them do
+          before do
+            wiki.repository.create_file(
+              user, path, "content of wiki file",
+              branch_name: wiki.default_branch,
+              message: "created page #{path}",
+              author_email: user.email,
+              author_name: user.name
+            )
+          end
+
+          it "can find page with `#{params[:title]}` title" do
+            page = subject.find_page(title)
+
+            expect(page.content).to eq("content of wiki file")
+          end
+        end
+      end
+
+      context 'pages with different file extensions' do
+        where(:extension, :path, :title) do
+          [
+            [:md, "wiki-markdown.md", "wiki markdown"],
+            [:markdown, "wiki-markdown-2.md", "wiki markdown 2"],
+            [:rdoc, "wiki-rdoc.rdoc", "wiki rdoc"],
+            [:asciidoc, "wiki-asciidoc.asciidoc", "wiki asciidoc"],
+            [:adoc, "wiki-asciidoc-2.adoc", "wiki asciidoc 2"],
+            [:org, "wiki-org.org", "wiki org"],
+            [:textile, "wiki-textile.textile", "wiki textile"],
+            [:creole, "wiki-creole.creole", "wiki creole"],
+            [:rest, "wiki-rest.rest", "wiki rest"],
+            [:rst, "wiki-rest-2.rst", "wiki rest 2"],
+            [:mediawiki, "wiki-mediawiki.mediawiki", "wiki mediawiki"],
+            [:wiki, "wiki-mediawiki-2.wiki", "wiki mediawiki 2"],
+            [:pod, "wiki-pod.pod", "wiki pod"],
+            [:text, "wiki-text.txt", "wiki text"]
+          ]
+        end
+
+        with_them do
+          before do
+            wiki.repository.create_file(
+              user, path, "content of wiki file",
+              branch_name: wiki.default_branch,
+              message: "created page #{path}",
+              author_email: user.email,
+              author_name: user.name
+            )
+          end
+
+          it "can find page with #{params[:extension]} extension" do
+            page = subject.find_page(title)
+
+            expect(page.content).to eq("content of wiki file")
+          end
+        end
       end
     end
 
-    context 'pages with invalidly-encoded content' do
-      before do
-        subject.create_page('encoding is fun', "f\xFCr".b)
-      end
-
-      it 'can find the page' do
-        page = subject.find_page('encoding is fun')
-
-        expect(page.content).to eq('fr')
-      end
+    context 'find page with normal repository RPCs' do
+      it_behaves_like 'wiki model #find_page'
     end
   end
 
   describe '#find_sidebar' do
-    before do
-      subject.create_page(described_class::SIDEBAR, 'This is an awesome Sidebar')
+    shared_examples 'wiki model #find_sidebar' do
+      before do
+        subject.create_page(described_class::SIDEBAR, 'This is an awesome Sidebar')
+      end
+
+      it 'finds the page defined as _sidebar' do
+        page = subject.find_sidebar
+
+        expect(page.content).to eq('This is an awesome Sidebar')
+      end
     end
 
-    it 'finds the page defined as _sidebar' do
-      page = subject.find_sidebar
-
-      expect(page.content).to eq('This is an awesome Sidebar')
+    context 'find sidebar with normal repository RPCs' do
+      it_behaves_like 'wiki model #find_sidebar'
     end
   end
 
@@ -354,7 +471,7 @@ RSpec.shared_examples 'wiki model' do
     let(:image) { File.open(Rails.root.join('spec', 'fixtures', 'big-image.png')) }
 
     before do
-      subject.wiki # Make sure the wiki repo exists
+      subject.create_wiki_repository # Make sure the wiki repo exists
 
       subject.repository.create_file(user, 'image.png', image, branch_name: subject.default_branch, message: 'add image')
     end
@@ -389,6 +506,22 @@ RSpec.shared_examples 'wiki model' do
         expect(file.raw_data).to be_empty
       end
     end
+
+    context "wiki repository's default branch is updated" do
+      before do
+        old_default_branch = wiki.default_branch
+        subject.repository.add_branch(user, 'another_branch', old_default_branch)
+        subject.repository.rm_branch(user, old_default_branch)
+        subject.repository.expire_status_cache
+      end
+
+      it 'returns the page in the updated default branch' do
+        wiki = described_class.new(wiki_container, user)
+        file = wiki.find_file('image.png')
+
+        expect(file.mime_type).to eq('image/png')
+      end
+    end
   end
 
   describe '#create_page' do
@@ -413,7 +546,7 @@ RSpec.shared_examples 'wiki model' do
       it 'sets the correct commit message' do
         subject.create_page('test page', 'some content', :markdown, 'commit message')
 
-        expect(subject.list_pages.first.page.version.message).to eq('commit message')
+        expect(subject.list_pages.first.version.message).to eq('commit message')
       end
 
       it 'sets the correct commit email' do
@@ -450,9 +583,7 @@ RSpec.shared_examples 'wiki model' do
 
         expect(subject.error_message).to match(/Duplicate page:/)
       end
-    end
 
-    it_behaves_like 'create_page tests' do
       it 'returns false if a page exists already in the repository', :aggregate_failures do
         subject.create_page('test page', 'content')
 
@@ -512,6 +643,8 @@ RSpec.shared_examples 'wiki model' do
         'foo'                       | :org        | ['foo.md']          | false
         'foo'                       | :markdown   | ['dir/foo.md']      | true
         '/foo'                      | :markdown   | ['foo.md']          | false
+        '~foo'                      | :markdown   | []                  | true
+        '~~~foo'                    | :markdown   | []                  | true
         './foo'                     | :markdown   | ['foo.md']          | false
         '../foo'                    | :markdown   | ['foo.md']          | false
         '../../foo'                 | :markdown   | ['foo.md']          | false
@@ -540,6 +673,8 @@ RSpec.shared_examples 'wiki model' do
         end
       end
     end
+
+    it_behaves_like 'create_page tests'
   end
 
   describe '#update_page' do
@@ -612,6 +747,8 @@ RSpec.shared_examples 'wiki model' do
       using RSpec::Parameterized::TableSyntax
 
       where(:original_title, :original_format, :updated_title, :updated_format, :expected_title, :expected_path) do
+        'test page'          | :markdown | '~new test page'             | :asciidoc | '~new test page'        | '~new-test-page.asciidoc'
+        'test page'          | :markdown | '~~~new test page'           | :asciidoc | '~~~new test page'      | '~~~new-test-page.asciidoc'
         'test page'          | :markdown | 'new test page'              | :asciidoc | 'new test page'         | 'new-test-page.asciidoc'
         'test page'          | :markdown | 'new dir/new test page'      | :asciidoc | 'new dir/new test page' | 'new-dir/new-test-page.asciidoc'
         'test dir/test page' | :markdown | 'new dir/new test page'      | :asciidoc | 'new dir/new test page' | 'new-dir/new-test-page.asciidoc'
@@ -621,13 +758,13 @@ RSpec.shared_examples 'wiki model' do
         'test dir/test page' | :markdown | nil                          | :markdown | 'test dir/test page'    | 'test-dir/test-page.md'
         'test page'          | :markdown | ''                           | :markdown | 'test page'             | 'test-page.md'
         'test.page'          | :markdown | ''                           | :markdown | 'test.page'             | 'test.page.md'
-        'testpage'           | :markdown | '../testpage'                 | :markdown | 'testpage'              | 'testpage.md'
-        'dir/testpage'       | :markdown | 'dir/../testpage'             | :markdown | 'testpage'              | 'testpage.md'
-        'dir/testpage'       | :markdown | './dir/testpage'              | :markdown | 'dir/testpage'          | 'dir/testpage.md'
-        'dir/testpage'       | :markdown | '../dir/testpage'             | :markdown | 'dir/testpage'          | 'dir/testpage.md'
-        'dir/testpage'       | :markdown | '../dir/../testpage'          | :markdown | 'testpage'              | 'testpage.md'
-        'dir/testpage'       | :markdown | '../dir/../dir/testpage'      | :markdown | 'dir/testpage'          | 'dir/testpage.md'
-        'dir/testpage'       | :markdown | '../dir/../another/testpage'  | :markdown | 'another/testpage'      | 'another/testpage.md'
+        'testpage'           | :markdown | '../testpage'                | :markdown | 'testpage'              | 'testpage.md'
+        'dir/testpage'       | :markdown | 'dir/../testpage'            | :markdown | 'testpage'              | 'testpage.md'
+        'dir/testpage'       | :markdown | './dir/testpage'             | :markdown | 'dir/testpage'          | 'dir/testpage.md'
+        'dir/testpage'       | :markdown | '../dir/testpage'            | :markdown | 'dir/testpage'          | 'dir/testpage.md'
+        'dir/testpage'       | :markdown | '../dir/../testpage'         | :markdown | 'testpage'              | 'testpage.md'
+        'dir/testpage'       | :markdown | '../dir/../dir/testpage'     | :markdown | 'dir/testpage'          | 'dir/testpage.md'
+        'dir/testpage'       | :markdown | '../dir/../another/testpage' | :markdown | 'another/testpage'      | 'another/testpage.md'
       end
     end
 
@@ -709,29 +846,6 @@ RSpec.shared_examples 'wiki model' do
     end
   end
 
-  describe '#ensure_repository' do
-    context 'if the repository exists' do
-      it 'does not create the repository' do
-        expect(subject.repository.exists?).to eq(true)
-        expect(subject.repository.raw).not_to receive(:create_repository)
-
-        subject.ensure_repository
-      end
-    end
-
-    context 'if the repository does not exist' do
-      let(:wiki_container) { wiki_container_without_repo }
-
-      it 'creates the repository' do
-        expect(subject.repository.exists?).to eq(false)
-
-        subject.ensure_repository
-
-        expect(subject.repository.exists?).to eq(true)
-      end
-    end
-  end
-
   describe '#hook_attrs' do
     it 'returns a hash with values' do
       expect(subject.hook_attrs).to be_a Hash
@@ -776,7 +890,7 @@ RSpec.shared_examples 'wiki model' do
   end
 
   describe '#create_wiki_repository' do
-    let(:head_path) { Rails.root.join(TestEnv.repos_path, "#{wiki.disk_path}.git", 'HEAD') }
+    let(:head_path) { Gitlab::GitalyClient::StorageSettings.allow_disk_access { Rails.root.join(TestEnv.repos_path, "#{wiki.disk_path}.git", 'HEAD') } }
     let(:default_branch) { 'foo' }
 
     before do
@@ -806,6 +920,42 @@ RSpec.shared_examples 'wiki model' do
         subject
 
         expect(File.read(head_path).squish).to eq "ref: refs/heads/#{default_branch}"
+      end
+    end
+  end
+
+  describe '#preview_slug' do
+    where(:title, :file_extension, :format, :expected_slug) do
+      'The Best Thing'       | :md  | :markdown  | 'The-Best-Thing'
+      'The Best Thing'       | :txt | :plaintext | 'The-Best-Thing'
+      'A Subject/Title Here' | :txt | :plaintext | 'A-Subject/Title-Here'
+      'A subject'            | :txt | :plaintext | 'A-subject'
+      'A 1/B 2/C 3'          | :txt | :plaintext | 'A-1/B-2/C-3'
+      'subject/title'        | :txt | :plaintext | 'subject/title'
+      'subject/title.md'     | :txt | :plaintext | 'subject/title.md'
+      'foo%2Fbar'            | :txt | :plaintext | 'foo%2Fbar'
+      ''                     | :md  | :markdown  | '.md'
+      ''                     | :txt | :plaintext | '.txt'
+    end
+
+    with_them do
+      before do
+        subject.repository.create_file(
+          user, "#{title}.#{file_extension}", 'content',
+          branch_name: subject.default_branch,
+          message: "Add #{title}"
+        )
+      end
+
+      it do
+        expect(described_class.preview_slug(title, file_extension)).to eq(expected_slug)
+      end
+
+      it 'matches the slug generated by gitaly' do
+        skip('Gitaly cannot generate a slug for an empty title') unless title.present?
+
+        gitaly_slug = subject.list_pages.first.slug
+        expect(described_class.preview_slug(title, file_extension)).to eq(gitaly_slug)
       end
     end
   end

@@ -152,7 +152,7 @@ RSpec.describe Emails::Profile do
       end
 
       it 'includes the email reason' do
-        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost<\/a>}
+        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
       end
     end
   end
@@ -188,7 +188,7 @@ RSpec.describe Emails::Profile do
     end
 
     it 'includes the email reason' do
-      is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost<\/a>}
+      is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
     end
 
     context 'with User does not exist' do
@@ -198,9 +198,10 @@ RSpec.describe Emails::Profile do
 
   describe 'user personal access token has expired' do
     let_it_be(:user) { create(:user) }
+    let_it_be(:pat) { create(:personal_access_token, user: user) }
 
     context 'when valid' do
-      subject { Notify.access_token_expired_email(user) }
+      subject { Notify.access_token_expired_email(user, [pat.name]) }
 
       it_behaves_like 'an email sent from GitLab'
       it_behaves_like 'it should not have Gmail Actions links'
@@ -211,11 +212,12 @@ RSpec.describe Emails::Profile do
       end
 
       it 'has the correct subject' do
-        is_expected.to have_subject /Your personal access token has expired/
+        is_expected.to have_subject /Your personal access tokens have expired/
       end
 
       it 'mentions the access token has expired' do
-        is_expected.to have_body_text /One or more of your personal access tokens has expired/
+        is_expected.to have_body_text /The following personal access tokens have expired:/
+        is_expected.to have_body_text /#{pat.name}/
       end
 
       it 'includes a link to personal access tokens page' do
@@ -223,7 +225,7 @@ RSpec.describe Emails::Profile do
       end
 
       it 'includes the email reason' do
-        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost<\/a>}
+        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
       end
     end
 
@@ -242,6 +244,67 @@ RSpec.describe Emails::Profile do
         it do
           expect { Notify.access_token_expired_email(user) }.not_to change { ActionMailer::Base.deliveries.count }
         end
+      end
+    end
+  end
+
+  describe 'user personal access token has been revoked' do
+    let_it_be(:user) { create(:user) }
+    let_it_be(:token) { create(:personal_access_token, user: user) }
+
+    context 'when valid' do
+      subject { Notify.access_token_revoked_email(user, token.name) }
+
+      it_behaves_like 'an email sent from GitLab'
+      it_behaves_like 'it should not have Gmail Actions links'
+      it_behaves_like 'a user cannot unsubscribe through footer link'
+
+      it 'is sent to the user' do
+        is_expected.to deliver_to user.email
+      end
+
+      it 'has the correct subject' do
+        is_expected.to have_subject /^A personal access token has been revoked$/i
+      end
+
+      it 'provides the names of the token' do
+        is_expected.to have_body_text /#{token.name}/
+      end
+
+      it 'wont include the revocation reason' do
+        is_expected.not_to have_body_text %r{We found your token in a public project and have automatically revoked it to protect your account.$}
+      end
+
+      it 'includes the email reason' do
+        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
+      end
+    end
+
+    context 'when source is provided' do
+      subject { Notify.access_token_revoked_email(user, token.name, :secret_detection) }
+
+      it_behaves_like 'an email sent from GitLab'
+      it_behaves_like 'it should not have Gmail Actions links'
+      it_behaves_like 'a user cannot unsubscribe through footer link'
+
+      it 'is sent to the user' do
+        is_expected.to deliver_to user.email
+      end
+
+      it 'has the correct subject' do
+        is_expected.to have_subject /^A personal access token has been revoked$/i
+      end
+
+      it 'provides the names of the token' do
+        is_expected.to have_body_text /#{token.name}/
+      end
+
+      it 'includes the revocation reason' do
+        is_expected.to have_body_text %r{We found your token in a public project and have automatically revoked it to protect your account.$}
+      end
+
+      it 'includes the email reason' do
+        is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>}
       end
     end
   end
@@ -267,7 +330,7 @@ RSpec.describe Emails::Profile do
     end
 
     shared_examples 'includes the email reason' do
-      it { is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost<\/a>} }
+      it { is_expected.to have_body_text %r{You're receiving this email because of your account on <a .*>localhost</a>} }
     end
 
     shared_examples 'valid use case' do
@@ -375,7 +438,7 @@ RSpec.describe Emails::Profile do
     end
 
     it 'includes a link to the change password documentation' do
-      is_expected.to have_body_text 'https://docs.gitlab.com/ee/user/profile/#changing-your-password'
+      is_expected.to have_body_text help_page_url('user/profile/user_passwords', anchor: 'change-your-password')
     end
 
     it 'mentions two factor authentication when two factor is not enabled' do
@@ -383,7 +446,7 @@ RSpec.describe Emails::Profile do
     end
 
     it 'includes a link to two-factor authentication documentation' do
-      is_expected.to have_body_text 'https://docs.gitlab.com/ee/user/profile/account/two_factor_authentication.html'
+      is_expected.to have_body_text help_page_url('user/profile/account/two_factor_authentication')
     end
 
     context 'when two factor authentication is enabled' do
@@ -393,6 +456,39 @@ RSpec.describe Emails::Profile do
         expect( Notify.unknown_sign_in_email(user, ip, current_time) )
           .not_to have_body_text /two-factor authentication/
       end
+    end
+  end
+
+  describe 'user attempted sign in with wrong 2FA OTP email' do
+    let_it_be(:user) { create(:user) }
+    let_it_be(:ip) { '169.0.0.1' }
+    let_it_be(:current_time) { Time.current }
+    let_it_be(:email) { Notify.two_factor_otp_attempt_failed_email(user, ip, current_time) }
+
+    subject { email }
+
+    it_behaves_like 'an email sent from GitLab'
+    it_behaves_like 'it should not have Gmail Actions links'
+    it_behaves_like 'a user cannot unsubscribe through footer link'
+
+    it 'is sent to the user' do
+      is_expected.to deliver_to user.email
+    end
+
+    it 'has the correct subject' do
+      is_expected.to have_subject "Attempted sign in to #{Gitlab.config.gitlab.host} using an incorrect verification code"
+    end
+
+    it 'mentions the IP address' do
+      is_expected.to have_body_text ip
+    end
+
+    it 'mentioned the time' do
+      is_expected.to have_body_text current_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+    end
+
+    it 'includes a link to the change password documentation' do
+      is_expected.to have_body_text help_page_url('user/profile/user_passwords', anchor: 'change-your-password')
     end
   end
 

@@ -4,13 +4,17 @@ import { editor as monacoEditor, Range } from 'monaco-editor';
 import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
 import { shallowMount } from '@vue/test-utils';
-import '~/behaviors/markdown/render_gfm';
 import waitForPromises from 'helpers/wait_for_promises';
 import { stubPerformanceWebAPI } from 'helpers/performance';
 import { exampleConfigs, exampleFiles } from 'jest/ide/lib/editorconfig/mock_data';
-import { EDITOR_CODE_INSTANCE_FN, EDITOR_DIFF_INSTANCE_FN } from '~/editor/constants';
+import {
+  EDITOR_CODE_INSTANCE_FN,
+  EDITOR_DIFF_INSTANCE_FN,
+  EXTENSION_CI_SCHEMA_FILE_NAME_MATCH,
+} from '~/editor/constants';
 import { EditorMarkdownExtension } from '~/editor/extensions/source_editor_markdown_ext';
 import { EditorMarkdownPreviewExtension } from '~/editor/extensions/source_editor_markdown_livepreview_ext';
+import { CiSchemaExtension } from '~/editor/extensions/source_editor_ci_schema_ext';
 import SourceEditor from '~/editor/source_editor';
 import RepoEditor from '~/ide/components/repo_editor.vue';
 import { leftSidebarViews, FILE_VIEW_MODE_PREVIEW, viewerTypes } from '~/ide/constants';
@@ -18,9 +22,13 @@ import ModelManager from '~/ide/lib/common/model_manager';
 import service from '~/ide/services';
 import { createStoreOptions } from '~/ide/stores';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import ContentViewer from '~/vue_shared/components/content_viewer/content_viewer.vue';
 import SourceEditorInstance from '~/editor/source_editor_instance';
 import { file } from '../helpers';
+
+jest.mock('~/behaviors/markdown/render_gfm');
+jest.mock('~/editor/extensions/source_editor_ci_schema_ext');
 
 const PREVIEW_MARKDOWN_PATH = '/foo/bar/preview_markdown';
 const CURRENT_PROJECT_ID = 'gitlab-org/gitlab';
@@ -43,6 +51,12 @@ const dummyFile = {
   binary: {
     ...file('file.dat'),
     content: '🐱', // non-ascii binary content,
+    tempFile: true,
+    active: true,
+  },
+  ciConfig: {
+    ...file(EXTENSION_CI_SCHEMA_FILE_NAME_MATCH),
+    content: '',
     tempFile: true,
     active: true,
   },
@@ -101,6 +115,7 @@ describe('RepoEditor', () => {
   let createDiffInstanceSpy;
   let createModelSpy;
   let applyExtensionSpy;
+  let removeExtensionSpy;
   let extensionsStore;
 
   const waitForEditorSetup = () =>
@@ -137,6 +152,7 @@ describe('RepoEditor', () => {
     createDiffInstanceSpy = jest.spyOn(SourceEditor.prototype, EDITOR_DIFF_INSTANCE_FN);
     createModelSpy = jest.spyOn(monacoEditor, 'createModel');
     applyExtensionSpy = jest.spyOn(SourceEditorInstance.prototype, 'use');
+    removeExtensionSpy = jest.spyOn(SourceEditorInstance.prototype, 'unuse');
     jest.spyOn(service, 'getFileData').mockResolvedValue();
     jest.spyOn(service, 'getRawFileData').mockResolvedValue();
   });
@@ -177,6 +193,70 @@ describe('RepoEditor', () => {
     });
   });
 
+  describe('schema registration for .gitlab-ci.yml', () => {
+    const setup = async (activeFile) => {
+      await createComponent();
+      vm.editor.registerCiSchema = jest.fn();
+      if (activeFile) {
+        wrapper.setProps({ file: activeFile });
+      }
+      await waitForPromises();
+      await nextTick();
+    };
+    it.each`
+      activeFile            | shouldUseExtension | desc
+      ${dummyFile.markdown} | ${false}           | ${`file is not CI config; should NOT`}
+      ${dummyFile.ciConfig} | ${true}            | ${`file is CI config; should`}
+    `(
+      'when the activeFile is "$activeFile", $desc use extension',
+      async ({ activeFile, shouldUseExtension }) => {
+        await setup(activeFile);
+
+        if (shouldUseExtension) {
+          expect(applyExtensionSpy).toHaveBeenCalledWith({
+            definition: CiSchemaExtension,
+          });
+        } else {
+          expect(applyExtensionSpy).not.toHaveBeenCalledWith({
+            definition: CiSchemaExtension,
+          });
+        }
+      },
+    );
+    it('stores the fetched extension and does not double-fetch the schema', async () => {
+      await setup();
+      expect(CiSchemaExtension).toHaveBeenCalledTimes(0);
+
+      wrapper.setProps({ file: dummyFile.ciConfig });
+      await waitForPromises();
+      await nextTick();
+      expect(CiSchemaExtension).toHaveBeenCalledTimes(1);
+      expect(vm.CiSchemaExtension).toEqual(CiSchemaExtension);
+      expect(vm.editor.registerCiSchema).toHaveBeenCalledTimes(1);
+
+      wrapper.setProps({ file: dummyFile.markdown });
+      await waitForPromises();
+      await nextTick();
+      expect(CiSchemaExtension).toHaveBeenCalledTimes(1);
+      expect(vm.editor.registerCiSchema).toHaveBeenCalledTimes(1);
+
+      wrapper.setProps({ file: dummyFile.ciConfig });
+      await waitForPromises();
+      await nextTick();
+      expect(CiSchemaExtension).toHaveBeenCalledTimes(1);
+      expect(vm.editor.registerCiSchema).toHaveBeenCalledTimes(2);
+    });
+    it('unuses the existing CI extension if the new model is not CI config', async () => {
+      await setup(dummyFile.ciConfig);
+
+      expect(removeExtensionSpy).not.toHaveBeenCalled();
+      wrapper.setProps({ file: dummyFile.markdown });
+      await waitForPromises();
+      await nextTick();
+      expect(removeExtensionSpy).toHaveBeenCalledWith(CiSchemaExtension);
+    });
+  });
+
   describe('when file is markdown', () => {
     let mock;
     let activeFile;
@@ -186,7 +266,7 @@ describe('RepoEditor', () => {
 
       mock = new MockAdapter(axios);
 
-      mock.onPost(/(.*)\/preview_markdown/).reply(200, {
+      mock.onPost(/(.*)\/preview_markdown/).reply(HTTP_STATUS_OK, {
         body: `<p>${dummyFile.text.content}</p>`,
       });
     });

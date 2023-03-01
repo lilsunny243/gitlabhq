@@ -10,6 +10,7 @@ FactoryBot.define do
     pipeline factory: :ci_pipeline
     started_at { 'Tue, 26 Jan 2016 08:21:42 +0100' }
     finished_at { 'Tue, 26 Jan 2016 08:23:42 +0100' }
+    partition_id { pipeline&.partition_id }
 
     trait :success do
       status { 'success' }
@@ -56,7 +57,7 @@ FactoryBot.define do
     end
 
     after(:build) do |build, evaluator|
-      build.project = build.pipeline.project
+      build.project ||= build.pipeline.project
     end
   end
 end

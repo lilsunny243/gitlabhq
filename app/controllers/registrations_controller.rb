@@ -1,44 +1,49 @@
 # frozen_string_literal: true
 
 class RegistrationsController < Devise::RegistrationsController
-  include Recaptcha::Verify
+  include Recaptcha::Adapters::ControllerMethods
   include AcceptsPendingInvitations
   include RecaptchaHelper
   include InvisibleCaptchaOnSignup
   include OneTrustCSP
   include BizibleCSP
   include GoogleAnalyticsCSP
+  include PreferredLanguageSwitcher
+  include RegistrationsTracking
+  include Gitlab::Tracking::Helpers::WeakPasswordErrorEvent
 
   layout 'devise'
 
   prepend_before_action :check_captcha, only: :create
+  before_action :ensure_first_name_and_last_name_not_empty, only: :create
   before_action :ensure_destroy_prerequisites_met, only: [:destroy]
+  before_action :init_preferred_language, only: :new
   before_action :load_recaptcha, only: :new
-  before_action :set_invite_params, only: :new
   before_action only: [:create] do
     check_rate_limit!(:user_sign_up, scope: request.ip)
   end
 
   before_action only: [:new] do
     push_frontend_feature_flag(:gitlab_gtm_datalayer, type: :ops)
-    push_frontend_feature_flag(:trial_email_validation, type: :development)
   end
 
   feature_category :authentication_and_authorization
 
   def new
     @resource = build_resource
+    set_invite_params
   end
 
   def create
-    set_user_state
+    set_resource_fields
 
     super do |new_user|
       accept_pending_invitations if new_user.persisted?
 
       persist_accepted_terms_if_required(new_user)
       set_role_required(new_user)
-      track_experiment_event(new_user)
+      send_custom_confirmation_instructions
+      track_weak_password_error(new_user, self.class.name, 'create')
 
       if pending_approval?
         NotificationService.new.new_instance_access_request(new_user)
@@ -105,24 +110,48 @@ class RegistrationsController < Devise::RegistrationsController
     super
   end
 
+  # overridden by EE module
   def after_request_hook(user)
-    # overridden by EE module
+    return unless user.persisted?
+
+    track_creation user: user
+    Gitlab::Tracking.event(self.class.name, 'successfully_submitted_form', user: user)
   end
 
   def after_sign_up_path_for(user)
     Gitlab::AppLogger.info(user_created_message(confirmed: user.confirmed?))
 
-    users_sign_up_welcome_path
+    after_sign_up_path
   end
 
   def after_inactive_sign_up_path_for(resource)
     Gitlab::AppLogger.info(user_created_message)
     return new_user_session_path(anchor: 'login-pane') if resource.blocked_pending_approval?
+    return dashboard_projects_path if Feature.enabled?(:soft_email_confirmation)
 
-    Feature.enabled?(:soft_email_confirmation) ? dashboard_projects_path : users_almost_there_path(email: resource.email)
+    # when email confirmation is enabled, path to redirect is saved
+    # after user confirms and comes back, he will be redirected
+    store_location_for(:redirect, after_sign_up_path)
+
+    if custom_confirmation_enabled?
+      session[:verification_user_id] = resource.id # This is needed to find the user on the identity verification page
+      return identity_verification_redirect_path
+    end
+
+    Gitlab::Tracking.event(self.class.name, 'render', user: resource)
+    users_almost_there_path(email: resource.email)
   end
 
   private
+
+  def after_sign_up_path
+    users_sign_up_welcome_path(glm_tracking_params)
+  end
+
+  def track_creation(user:)
+    label = user_invited? ? 'invited' : 'signup'
+    Gitlab::Tracking.event(self.class.name, 'create_user', label: label, user: user)
+  end
 
   def ensure_destroy_prerequisites_met
     if current_user.solo_owned_groups.present?
@@ -159,6 +188,21 @@ class RegistrationsController < Devise::RegistrationsController
     render action: 'new'
   end
 
+  def ensure_first_name_and_last_name_not_empty
+    # The key here will be affected by feature flag 'arkose_labs_signup_challenge'
+    # When flag is disabled, the key will be 'user' because #check_captcha will remove 'new_' prefix
+    # When flag is enabled, #check_captcha will be skipped, so the key will have 'new_' prefix
+    first_name = params.dig(resource_name, :first_name) || params.dig("new_#{resource_name}", :first_name)
+    last_name = params.dig(resource_name, :last_name) || params.dig("new_#{resource_name}", :last_name)
+
+    return if first_name.present? && last_name.present?
+
+    resource.errors.add(_('First name'), _("cannot be blank")) if first_name.blank?
+    resource.errors.add(_('Last name'), _("cannot be blank")) if last_name.blank?
+
+    render action: 'new'
+  end
+
   def pending_approval?
     return false unless Gitlab::CurrentSettings.require_admin_approval_after_user_signup
 
@@ -179,7 +223,8 @@ class RegistrationsController < Devise::RegistrationsController
 
   def resource
     @resource ||= Users::RegistrationsBuildService
-                    .new(current_user, sign_up_params.merge({ skip_confirmation: skip_email_confirmation? }))
+                    .new(current_user, sign_up_params.merge({ skip_confirmation: skip_confirmation?,
+                                                              preferred_language: preferred_language }))
                     .execute
   end
 
@@ -187,7 +232,11 @@ class RegistrationsController < Devise::RegistrationsController
     @devise_mapping ||= Devise.mappings[:user]
   end
 
-  def skip_email_confirmation?
+  def skip_confirmation?
+    registered_with_invite_email?
+  end
+
+  def registered_with_invite_email?
     invite_email = session.delete(:invite_email)
 
     sign_up_params[:email] == invite_email
@@ -197,23 +246,33 @@ class RegistrationsController < Devise::RegistrationsController
     Gitlab::Recaptcha.load_configurations!
   end
 
-  def set_user_state
+  # overridden by EE module
+  def set_resource_fields
     return unless set_blocked_pending_approval?
 
     resource.state = User::BLOCKED_PENDING_APPROVAL_STATE
   end
 
+  # overridden by EE module
   def set_blocked_pending_approval?
     Gitlab::CurrentSettings.require_admin_approval_after_user_signup
   end
 
   def set_invite_params
-    @invite_email = ActionController::Base.helpers.sanitize(params[:invite_email])
+    if resource.email.blank? && params[:invite_email].present?
+      resource.email = @invite_email = ActionController::Base.helpers.sanitize(params[:invite_email])
+    end
+  end
+
+  def user_invited?
+    !!member_id
+  end
+
+  def member_id
+    @member_id ||= session.delete(:originating_member_id)
   end
 
   def after_pending_invitations_hook
-    member_id = session.delete(:originating_member_id)
-
     return unless member_id
 
     # if invited multiple times to different projects, only the email clicked will be counted as accepted
@@ -229,12 +288,16 @@ class RegistrationsController < Devise::RegistrationsController
     current_user
   end
 
-  def track_experiment_event(new_user)
-    # Track signed up event to relate it with click "Sign up" button events from
-    # the experimental logged out header with marketing links. This allows us to
-    # have a funnel of visitors clicking on the header and those visitors
-    # signing up and becoming users
-    experiment(:logged_out_marketing_header, actor: new_user).track(:signed_up) if new_user.persisted?
+  def identity_verification_redirect_path
+    # overridden by EE module
+  end
+
+  def custom_confirmation_enabled?
+    # overridden by EE module
+  end
+
+  def send_custom_confirmation_instructions
+    # overridden by EE module
   end
 end
 

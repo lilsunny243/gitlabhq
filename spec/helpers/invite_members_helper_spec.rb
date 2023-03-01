@@ -11,10 +11,6 @@ RSpec.describe InviteMembersHelper do
 
   let(:owner) { project.owner }
 
-  before do
-    helper.extend(Gitlab::Experimentation::ControllerConcern)
-  end
-
   describe '#common_invite_group_modal_data' do
     it 'has expected common attributes' do
       attributes = {
@@ -25,7 +21,8 @@ RSpec.describe InviteMembersHelper do
         invalid_groups: project.related_group_ids,
         help_link: help_page_url('user/permissions'),
         is_project: 'true',
-        access_levels: ProjectMember.access_level_roles.to_json
+        access_levels: ProjectMember.access_level_roles.to_json,
+        full_path: project.full_path
       }
 
       expect(helper.common_invite_group_modal_data(project, ProjectMember, 'true')).to include(attributes)
@@ -39,7 +36,8 @@ RSpec.describe InviteMembersHelper do
       end
 
       it 'provides the correct attributes' do
-        expect(helper.common_invite_group_modal_data(group, GroupMember, 'false')).to include({ groups_filter: 'descendant_groups', parent_id: group.id })
+        expect(helper.common_invite_group_modal_data(group, GroupMember, 'false'))
+          .to include({ groups_filter: 'descendant_groups', parent_id: group.id })
       end
     end
 
@@ -49,7 +47,8 @@ RSpec.describe InviteMembersHelper do
       end
 
       it 'does not return filter attributes' do
-        expect(helper.common_invite_group_modal_data(project.group, ProjectMember, 'true').keys).not_to include(:groups_filter, :parent_id)
+        expect(helper.common_invite_group_modal_data(project.group, ProjectMember, 'true').keys)
+          .not_to include(:groups_filter, :parent_id)
       end
     end
   end
@@ -60,13 +59,14 @@ RSpec.describe InviteMembersHelper do
         id: project.id,
         root_id: project.root_ancestor.id,
         name: project.name,
-        default_access_level: Gitlab::Access::GUEST
+        default_access_level: Gitlab::Access::GUEST,
+        full_path: project.full_path
       }
 
       expect(helper.common_invite_modal_dataset(project)).to include(attributes)
     end
 
-    context 'tasks_to_be_done' do
+    context 'with tasks_to_be_done' do
       using RSpec::Parameterized::TableSyntax
 
       subject(:output) { helper.common_invite_modal_dataset(source) }
@@ -81,9 +81,7 @@ RSpec.describe InviteMembersHelper do
                 { value: :issues, text: 'Create/import issues (tickets) to collaborate on ideas and plan work' }
               ].to_json
             )
-            expect(output[:projects]).to eq(
-              [{ id: project.id, title: project.title }].to_json
-            )
+            expect(output[:projects]).to eq([{ id: project.id, title: project.title }].to_json)
             expect(output[:new_project_path]).to eq(
               source.is_a?(Project) ? '' : new_project_path(namespace_id: group.id)
             )
@@ -95,8 +93,8 @@ RSpec.describe InviteMembersHelper do
         end
       end
 
-      context 'inviting members for tasks' do
-        where(:open_modal_param_present?, :logged_in?, :expected?) do
+      context 'when inviting members for tasks' do
+        where(:open_modal_param?, :logged_in?, :expected?) do
           true  | true  | true
           true  | false | false
           false | true  | false
@@ -106,7 +104,7 @@ RSpec.describe InviteMembersHelper do
         with_them do
           before do
             allow(helper).to receive(:current_user).and_return(developer) if logged_in?
-            allow(helper).to receive(:params).and_return({ open_modal: 'invite_members_for_task' }) if open_modal_param_present?
+            allow(helper).to receive(:params).and_return({ open_modal: 'invite_members_for_task' }) if open_modal_param?
           end
 
           context 'when the source is a project' do
@@ -117,36 +115,6 @@ RSpec.describe InviteMembersHelper do
 
           context 'when the source is a group' do
             let_it_be(:source) { group }
-
-            it_behaves_like 'including the tasks to be done attributes'
-          end
-        end
-      end
-
-      context 'the invite_for_help_continuous_onboarding experiment' do
-        where(:invite_for_help_continuous_onboarding?, :logged_in?, :expected?) do
-          true  | true  | true
-          true  | false | false
-          false | true  | false
-          false | false | false
-        end
-
-        with_them do
-          before do
-            allow(helper).to receive(:current_user).and_return(developer) if logged_in?
-            stub_experiments(invite_for_help_continuous_onboarding: :candidate) if invite_for_help_continuous_onboarding?
-          end
-
-          context 'when the source is a project' do
-            let_it_be(:source) { project }
-
-            it_behaves_like 'including the tasks to be done attributes'
-          end
-
-          context 'when the source is a group' do
-            let_it_be(:source) { group }
-
-            let(:expected?) { false }
 
             it_behaves_like 'including the tasks to be done attributes'
           end
@@ -174,11 +142,9 @@ RSpec.describe InviteMembersHelper do
       end
 
       context 'when the user can not manage project members' do
-        before do
-          expect(helper).to receive(:can?).with(owner, :admin_project_member, project).and_return(false)
-        end
-
         it 'returns false' do
+          expect(helper).to receive(:can?).with(owner, :admin_project_member, project).and_return(false)
+
           expect(helper.can_invite_members_for_project?(project)).to eq false
         end
       end

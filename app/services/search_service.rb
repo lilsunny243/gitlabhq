@@ -45,9 +45,9 @@ class SearchService
   end
 
   def show_snippets?
-    return @show_snippets if defined?(@show_snippets)
-
-    @show_snippets = params[:snippets] == 'true'
+    strong_memoize(:show_snippets) do
+      params[:snippets] == 'true'
+    end
   end
 
   delegate :scope, to: :search_service
@@ -100,6 +100,35 @@ class SearchService
       else
         'global'
       end
+  end
+
+  def show_elasticsearch_tabs?
+    # overridden in EE
+    false
+  end
+
+  def show_epics?
+    # overridden in EE
+    false
+  end
+
+  def global_search_enabled_for_scope?
+    case params[:scope]
+    when 'blobs'
+      Feature.enabled?(:global_search_code_tab, current_user, type: :ops)
+    when 'commits'
+      Feature.enabled?(:global_search_commits_tab, current_user, type: :ops)
+    when 'issues'
+      Feature.enabled?(:global_search_issues_tab, current_user, type: :ops)
+    when 'merge_requests'
+      Feature.enabled?(:global_search_merge_requests_tab, current_user, type: :ops)
+    when 'wiki_blobs'
+      Feature.enabled?(:global_search_wiki_tab, current_user, type: :ops)
+    when 'users'
+      Feature.enabled?(:global_search_users_tab, current_user, type: :ops)
+    else
+      true
+    end
   end
 
   private
@@ -158,7 +187,7 @@ class SearchService
   def search_service
     @search_service ||=
       if project
-        Search::ProjectService.new(project, current_user, params)
+        Search::ProjectService.new(current_user, project, params)
       elsif show_snippets?
         Search::SnippetService.new(current_user, params)
       elsif group

@@ -12,10 +12,10 @@ import {
 import RecentSearchesStorageKeys from 'ee_else_ce/filtered_search/recent_searches_storage_keys';
 import RecentSearchesService from '~/filtered_search/services/recent_searches_service';
 import RecentSearchesStore from '~/filtered_search/stores/recent_searches_store';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { __ } from '~/locale';
 
-import { SortDirection } from './constants';
+import { SORT_DIRECTION } from './constants';
 import { filterEmptySearchTerm, stripQuotes, uniqueTokens } from './filtered_search_utils';
 
 export default {
@@ -89,6 +89,11 @@ export default {
       required: false,
       default: () => ({}),
     },
+    showFriendlyText: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     syncFilterAndSort: {
       type: Boolean,
       required: false,
@@ -102,7 +107,7 @@ export default {
       recentSearches: [],
       filterValue: this.initialFilterValue,
       selectedSortOption: this.sortOptions[0],
-      selectedSortDirection: SortDirection.descending,
+      selectedSortDirection: SORT_DIRECTION.descending,
     };
   },
   computed: {
@@ -125,12 +130,12 @@ export default {
       );
     },
     sortDirectionIcon() {
-      return this.selectedSortDirection === SortDirection.ascending
+      return this.selectedSortDirection === SORT_DIRECTION.ascending
         ? 'sort-lowest'
         : 'sort-highest';
     },
     sortDirectionTooltip() {
-      return this.selectedSortDirection === SortDirection.ascending
+      return this.selectedSortDirection === SORT_DIRECTION.ascending
         ? __('Sort direction: Ascending')
         : __('Sort direction: Descending');
     },
@@ -197,7 +202,7 @@ export default {
         .catch((error) => {
           if (error.name === 'RecentSearchesServiceError') return undefined;
 
-          createFlash({
+          createAlert({
             message: __('An error occurred while parsing recent searches'),
           });
 
@@ -262,9 +267,9 @@ export default {
     },
     handleSortDirectionClick() {
       this.selectedSortDirection =
-        this.selectedSortDirection === SortDirection.ascending
-          ? SortDirection.descending
-          : SortDirection.ascending;
+        this.selectedSortDirection === SORT_DIRECTION.ascending
+          ? SORT_DIRECTION.descending
+          : SORT_DIRECTION.ascending;
       this.$emit('onSort', this.selectedSortOption.sortDirection[this.selectedSortDirection]);
     },
     handleHistoryItemSelected(filters) {
@@ -319,7 +324,7 @@ export default {
         (sortBy) =>
           sortBy.sortDirection.ascending === sort || sortBy.sortDirection.descending === sort,
       );
-      this.selectedSortDirection = Object.keys(this.selectedSortOption.sortDirection).find(
+      this.selectedSortDirection = Object.keys(this.selectedSortOption?.sortDirection || {}).find(
         (key) => this.selectedSortOption.sortDirection[key] === sort,
       );
     },
@@ -346,6 +351,12 @@ export default {
       :suggestions-list-class="suggestionsListClass"
       :search-button-attributes="searchButtonAttributes"
       :search-input-attributes="searchInputAttributes"
+      :recent-searches-header="__('Recent searches')"
+      :clear-button-title="__('Clear')"
+      :close-button-title="__('Close')"
+      :clear-recent-searches-text="__('Clear recent searches')"
+      :no-recent-searches-text="__(`You don't have any recent searches`)"
+      :show-friendly-text="showFriendlyText"
       class="flex-grow-1"
       @history-item-selected="handleHistoryItemSelected"
       @clear="onClear"

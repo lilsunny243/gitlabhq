@@ -1,7 +1,9 @@
 import Vue from 'vue';
+import NewNavToggle from '~/nav/components/new_nav_toggle.vue';
 import { highCountTrim } from '~/lib/utils/text_utility';
 import Tracking from '~/tracking';
 import Translate from '~/vue_shared/translate';
+import { parseBoolean } from '~/lib/utils/common_utils';
 
 /**
  * Updates todo counter when todos are toggled.
@@ -26,11 +28,18 @@ export default function initTodoToggle() {
   });
 }
 
-function initStatusTriggers() {
+export function initStatusTriggers() {
   const setStatusModalTriggerEl = document.querySelector('.js-set-status-modal-trigger');
 
   if (setStatusModalTriggerEl) {
     setStatusModalTriggerEl.addEventListener('click', () => {
+      const topNavbar = document.querySelector('.navbar-gitlab');
+      const buttonWithinTopNav = topNavbar && topNavbar.contains(setStatusModalTriggerEl);
+      Tracking.event(undefined, 'click_button', {
+        label: 'user_edit_status',
+        property: buttonWithinTopNav ? 'navigation_top' : undefined,
+      });
+
       import(
         /* webpackChunkName: 'statusModalBundle' */ './set_status_modal/set_status_modal_wrapper.vue'
       )
@@ -84,6 +93,8 @@ function initStatusTriggers() {
         })
         .catch(() => {});
     });
+
+    setStatusModalTriggerEl.classList.add('ready');
   }
 }
 
@@ -97,6 +108,7 @@ function trackShowUserDropdownLink(trackEvent, elToTrack, el) {
     });
   });
 }
+
 export function initNavUserDropdownTracking() {
   const el = document.querySelector('.js-nav-user-dropdown');
   const buyEl = document.querySelector('.js-buy-pipeline-minutes-link');
@@ -106,5 +118,23 @@ export function initNavUserDropdownTracking() {
   }
 }
 
+function initNewNavToggle() {
+  const el = document.querySelector('.js-new-nav-toggle');
+  if (!el) return false;
+
+  return new Vue({
+    el,
+    render(h) {
+      return h(NewNavToggle, {
+        props: {
+          enabled: parseBoolean(el.dataset.enabled),
+          endpoint: el.dataset.endpoint,
+        },
+      });
+    },
+  });
+}
+
 requestIdleCallback(initStatusTriggers);
 requestIdleCallback(initNavUserDropdownTracking);
+requestIdleCallback(initNewNavToggle);

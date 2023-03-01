@@ -10,6 +10,7 @@ import waitForPromises from 'helpers/wait_for_promises';
 import getPipelineDetails from 'shared_queries/pipelines/get_pipeline_details.query.graphql';
 import getUserCallouts from '~/graphql_shared/queries/get_user_callouts.query.graphql';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import {
   PIPELINES_DETAIL_LINK_DURATION,
   PIPELINES_DETAIL_LINKS_TOTAL,
@@ -51,11 +52,11 @@ describe('Pipeline graph wrapper', () => {
   const getDependenciesToggle = () => wrapper.find('[data-testid="show-links-toggle"]');
   const getLoadingIcon = () => wrapper.findComponent(GlLoadingIcon);
   const getLinksLayer = () => wrapper.findComponent(LinksLayer);
-  const getGraph = () => wrapper.find(PipelineGraph);
+  const getGraph = () => wrapper.findComponent(PipelineGraph);
   const getStageColumnTitle = () => wrapper.find('[data-testid="stage-column-title"]');
   const getAllStageColumnGroupsInColumn = () =>
-    wrapper.find(StageColumnComponent).findAll('[data-testid="stage-column-group"]');
-  const getViewSelector = () => wrapper.find(GraphViewSelector);
+    wrapper.findComponent(StageColumnComponent).findAll('[data-testid="stage-column-group"]');
+  const getViewSelector = () => wrapper.findComponent(GraphViewSelector);
   const getViewSelectorTrip = () => getViewSelector().findComponent(GlAlert);
   const getLocalStorageSync = () => wrapper.findComponent(LocalStorageSync);
 
@@ -199,6 +200,22 @@ describe('Pipeline graph wrapper', () => {
     });
   });
 
+  describe('events', () => {
+    beforeEach(async () => {
+      createComponentWithApollo();
+      await waitForPromises();
+    });
+    describe('when receiving `setSkipRetryModal` event', () => {
+      it('passes down `skipRetryModal` value as true', async () => {
+        expect(getGraph().props('skipRetryModal')).toBe(false);
+
+        await getGraph().vm.$emit('setSkipRetryModal');
+
+        expect(getGraph().props('skipRetryModal')).toBe(true);
+      });
+    });
+  });
+
   describe('when there is an error with an action in the graph', () => {
     beforeEach(async () => {
       createComponentWithApollo();
@@ -299,7 +316,7 @@ describe('Pipeline graph wrapper', () => {
         const groupsInFirstColumn =
           mockPipelineResponse.data.project.pipeline.stages.nodes[0].groups.nodes.length;
         expect(getAllStageColumnGroupsInColumn()).toHaveLength(groupsInFirstColumn);
-        expect(getStageColumnTitle().text()).toBe('Build');
+        expect(getStageColumnTitle().text()).toBe('build');
         await getViewSelector().vm.$emit('updateViewType', LAYER_VIEW);
         expect(getAllStageColumnGroupsInColumn()).toHaveLength(groupsInFirstColumn + 1);
         expect(getStageColumnTitle().text()).toBe('');
@@ -408,7 +425,7 @@ describe('Pipeline graph wrapper', () => {
 
       it('reads the view type from localStorage when available', () => {
         const viewSelectorNeedsSegment = wrapper
-          .find(GlButtonGroup)
+          .findComponent(GlButtonGroup)
           .findAllComponents(GlButton)
           .at(1);
         expect(viewSelectorNeedsSegment.classes()).toContain('selected');
@@ -530,7 +547,7 @@ describe('Pipeline graph wrapper', () => {
       describe('with duration and no error', () => {
         beforeEach(async () => {
           mock = new MockAdapter(axios);
-          mock.onPost(metricsPath).reply(200, {});
+          mock.onPost(metricsPath).reply(HTTP_STATUS_OK, {});
 
           jest.spyOn(window.performance, 'getEntriesByName').mockImplementation(() => {
             return [{ duration }];
@@ -554,7 +571,7 @@ describe('Pipeline graph wrapper', () => {
           mock.restore();
         });
 
-        it('it calls reportPerformance with expected arguments', () => {
+        it('calls reportPerformance with expected arguments', () => {
           expect(markAndMeasure).toHaveBeenCalled();
           expect(reportPerformance).toHaveBeenCalled();
           expect(reportPerformance).toHaveBeenCalledWith(metricsPath, metricsData);

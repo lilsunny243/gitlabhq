@@ -1,39 +1,41 @@
-import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
+import { GlDisclosureDropdown } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue from 'vue';
 import Vuex from 'vuex';
 import PreviewDropdown from '~/batch_comments/components/preview_dropdown.vue';
 import { createStore } from '~/mr_notes/stores';
-import '~/behaviors/markdown/render_gfm';
 import { createDraft } from '../mock_data';
+
+jest.mock('~/behaviors/markdown/render_gfm');
 
 Vue.use(Vuex);
 
 describe('Batch comments publish dropdown component', () => {
   let wrapper;
+  const draft = createDraft();
 
   function createComponent() {
     const store = createStore();
-    store.state.batchComments.drafts.push(createDraft(), { ...createDraft(), id: 2 });
+    store.state.batchComments.drafts.push(draft, { ...draft, id: 2 });
 
     wrapper = shallowMount(PreviewDropdown, {
       store,
+      stubs: { GlDisclosureDropdown },
     });
   }
-
-  afterEach(() => {
-    wrapper.destroy();
-  });
 
   it('renders list of drafts', () => {
     createComponent();
 
-    expect(wrapper.findAll(GlDropdownItem).length).toBe(2);
+    expect(wrapper.findComponent(GlDisclosureDropdown).props('items')).toMatchObject([
+      draft,
+      { ...draft, id: 2 },
+    ]);
   });
 
   it('renders draft count in dropdown title', () => {
     createComponent();
 
-    expect(wrapper.find(GlDropdown).props('headerText')).toEqual('2 pending comments');
+    expect(wrapper.findComponent(GlDisclosureDropdown).text()).toEqual('2 pending comments');
   });
 });

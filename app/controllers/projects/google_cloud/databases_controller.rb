@@ -17,9 +17,10 @@ module Projects
           cloudsqlInstances: ::GoogleCloud::GetCloudsqlInstancesService.new(project).execute,
           emptyIllustrationUrl: ActionController::Base.helpers.image_path('illustrations/pipelines_empty.svg')
         }
-        @js_data = js_data.to_json
 
-        track_event('databases#index', 'success', nil)
+        @js_data = Gitlab::Json.dump(js_data)
+
+        track_event(:render_page)
       end
 
       def new
@@ -27,7 +28,7 @@ module Projects
 
         @title = title(product)
 
-        @js_data = {
+        js_data = {
           gcpProjects: gcp_projects,
           refs: refs,
           cancelPath: project_google_cloud_databases_path(project),
@@ -35,8 +36,11 @@ module Projects
           formDescription: description(product),
           databaseVersions: Projects::GoogleCloud::CloudsqlHelper::VERSIONS[product],
           tiers: Projects::GoogleCloud::CloudsqlHelper::TIERS
-        }.to_json
+        }
 
+        @js_data = Gitlab::Json.dump(js_data)
+
+        track_event(:render_form)
         render template: 'projects/google_cloud/databases/cloudsql_form', formats: :html
       end
 
@@ -46,19 +50,18 @@ module Projects
                             .execute
 
         if enable_response[:status] == :error
-          track_event('databases#cloudsql_create', 'error_enable_cloudsql_service', enable_response)
-          flash[:error] = error_message(enable_response[:message])
+          track_event(:error_enable_cloudsql_services)
+          flash[:alert] = error_message(enable_response[:message])
         else
-          permitted_params = params.permit(:gcp_project, :ref, :database_version, :tier)
           create_response = ::GoogleCloud::CreateCloudsqlInstanceService
-                              .new(project, current_user, create_service_params(permitted_params))
+                              .new(project, current_user, create_service_params)
                               .execute
 
           if create_response[:status] == :error
-            track_event('databases#cloudsql_create', 'error_create_cloudsql_instance', create_response)
+            track_event(:error_create_cloudsql_instance)
             flash[:warning] = error_message(create_response[:message])
           else
-            track_event('databases#cloudsql_create', 'success', nil)
+            track_event(:create_cloudsql_instance, permitted_params_create.to_s)
             flash[:notice] = success_message
           end
         end
@@ -68,17 +71,25 @@ module Projects
 
       private
 
-      def enable_service_params
-        { google_oauth2_token: token_in_session }
+      def permitted_params_create
+        params.permit(:gcp_project, :ref, :database_version, :tier)
       end
 
-      def create_service_params(permitted_params)
+      def enable_service_params
         {
           google_oauth2_token: token_in_session,
-          gcp_project_id: permitted_params[:gcp_project],
-          environment_name: permitted_params[:ref],
-          database_version: permitted_params[:database_version],
-          tier: permitted_params[:tier]
+          gcp_project_id: permitted_params_create[:gcp_project],
+          environment_name: permitted_params_create[:ref]
+        }
+      end
+
+      def create_service_params
+        {
+          google_oauth2_token: token_in_session,
+          gcp_project_id: permitted_params_create[:gcp_project],
+          environment_name: permitted_params_create[:ref],
+          database_version: permitted_params_create[:database_version],
+          tier: permitted_params_create[:tier]
         }
       end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::PipelinesController do
+RSpec.describe Projects::PipelinesController, feature_category: :continuous_integration do
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
@@ -17,6 +17,32 @@ RSpec.describe Projects::PipelinesController do
 
   before do
     login_as(user)
+  end
+
+  describe "GET index.json" do
+    it 'does not execute N+1 queries' do
+      get_pipelines_index
+
+      control_count = ActiveRecord::QueryRecorder.new do
+        get_pipelines_index
+      end.count
+
+      %w[pending running success failed canceled].each do |status|
+        create(:ci_pipeline, project: project, status: status)
+      end
+
+      # There appears to be one extra query for Pipelines#has_warnings? for some reason
+      expect { get_pipelines_index }.not_to exceed_query_limit(control_count + 1)
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(json_response['pipelines'].count).to eq 6
+    end
+
+    def get_pipelines_index
+      get namespace_project_pipelines_path(
+        namespace_id: project.namespace.to_param,
+        project_id: project.to_param,
+        format: :json)
+    end
   end
 
   describe "GET stages.json" do

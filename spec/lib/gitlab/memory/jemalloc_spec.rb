@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
 require 'fast_spec_helper'
-require 'tmpdir'
+require 'tempfile'
 
 RSpec.describe Gitlab::Memory::Jemalloc do
-  let(:outdir) { Dir.mktmpdir }
+  let(:outfile) { Tempfile.new }
 
   after do
-    FileUtils.rm_f(outdir)
+    outfile.close
+    outfile.unlink
   end
 
   context 'when jemalloc is loaded' do
@@ -29,12 +30,11 @@ RSpec.describe Gitlab::Memory::Jemalloc do
 
       describe '.dump_stats' do
         it 'writes stats JSON file' do
-          file_path = described_class.dump_stats(path: outdir, format: format)
+          described_class.dump_stats(outfile, format: format)
 
-          file = Dir.entries(outdir).find { |e| e.match(/jemalloc_stats\.#{$$}\.\d+\.json$/) }
-          expect(file).not_to be_nil
-          expect(file_path).to eq(File.join(outdir, file))
-          expect(File.read(file_path)).to eq(output)
+          outfile.rewind
+
+          expect(outfile.read).to eq(output)
         end
       end
     end
@@ -54,22 +54,12 @@ RSpec.describe Gitlab::Memory::Jemalloc do
       end
 
       describe '.dump_stats' do
-        shared_examples 'writes stats text file' do |filename_label, filename_pattern|
-          it do
-            described_class.dump_stats(path: outdir, format: format, filename_label: filename_label)
+        it 'writes stats text file' do
+          described_class.dump_stats(outfile, format: format)
 
-            file = Dir.entries(outdir).find { |e| e.match(filename_pattern) }
-            expect(file).not_to be_nil
-            expect(File.read(File.join(outdir, file))).to eq(output)
-          end
-        end
+          outfile.rewind
 
-        context 'when custom filename label is passed' do
-          include_examples 'writes stats text file', 'puma_0', /jemalloc_stats\.#{$$}\.puma_0\.\d+\.txt$/
-        end
-
-        context 'when custom filename label is not passed' do
-          include_examples 'writes stats text file', nil, /jemalloc_stats\.#{$$}\.\d+\.txt$/
+          expect(outfile.read).to eq(output)
         end
       end
     end
@@ -88,7 +78,7 @@ RSpec.describe Gitlab::Memory::Jemalloc do
       describe '.dump_stats' do
         it 'raises an error' do
           expect do
-            described_class.dump_stats(path: outdir, format: format)
+            described_class.dump_stats(outfile, format: format)
           end.to raise_error(/format must be one of/)
         end
       end
@@ -101,18 +91,18 @@ RSpec.describe Gitlab::Memory::Jemalloc do
     end
 
     describe '.stats' do
-      it 'returns nil' do
-        expect(described_class.stats).to be_nil
+      it 'returns empty string' do
+        expect(described_class.stats).to be_empty
       end
     end
 
     describe '.dump_stats' do
       it 'does nothing' do
-        stub_env('LD_PRELOAD', nil)
+        described_class.dump_stats(outfile)
 
-        described_class.dump_stats(path: outdir)
+        outfile.rewind
 
-        expect(Dir.empty?(outdir)).to be(true)
+        expect(outfile.read).to be_empty
       end
     end
   end

@@ -1,57 +1,66 @@
-import { s__, sprintf } from '~/locale';
+import { invert } from 'lodash';
+import { s__, __, sprintf } from '~/locale';
 import updateIssueLabelsMutation from '~/boards/graphql/issue_set_labels.mutation.graphql';
 import userSearchQuery from '~/graphql_shared/queries/users_search.query.graphql';
 import userSearchWithMRPermissionsQuery from '~/graphql_shared/queries/users_search_with_mr_permissions.graphql';
-import { IssuableType, WorkspaceType } from '~/issues/constants';
-import epicConfidentialQuery from '~/sidebar/queries/epic_confidential.query.graphql';
-import epicDueDateQuery from '~/sidebar/queries/epic_due_date.query.graphql';
-import epicParticipantsQuery from '~/sidebar/queries/epic_participants.query.graphql';
-import epicReferenceQuery from '~/sidebar/queries/epic_reference.query.graphql';
-import epicStartDateQuery from '~/sidebar/queries/epic_start_date.query.graphql';
-import epicSubscribedQuery from '~/sidebar/queries/epic_subscribed.query.graphql';
-import epicTodoQuery from '~/sidebar/queries/epic_todo.query.graphql';
-import issuableAssigneesSubscription from '~/sidebar/queries/issuable_assignees.subscription.graphql';
-import issueConfidentialQuery from '~/sidebar/queries/issue_confidential.query.graphql';
-import issueDueDateQuery from '~/sidebar/queries/issue_due_date.query.graphql';
-import issueReferenceQuery from '~/sidebar/queries/issue_reference.query.graphql';
-import issueSubscribedQuery from '~/sidebar/queries/issue_subscribed.query.graphql';
-import issueTimeTrackingQuery from '~/sidebar/queries/issue_time_tracking.query.graphql';
-import issueTodoQuery from '~/sidebar/queries/issue_todo.query.graphql';
-import mergeRequestMilestone from '~/sidebar/queries/merge_request_milestone.query.graphql';
-import mergeRequestReferenceQuery from '~/sidebar/queries/merge_request_reference.query.graphql';
-import mergeRequestSubscribed from '~/sidebar/queries/merge_request_subscribed.query.graphql';
-import mergeRequestTimeTrackingQuery from '~/sidebar/queries/merge_request_time_tracking.query.graphql';
-import mergeRequestTodoQuery from '~/sidebar/queries/merge_request_todo.query.graphql';
-import todoCreateMutation from '~/sidebar/queries/todo_create.mutation.graphql';
-import todoMarkDoneMutation from '~/sidebar/queries/todo_mark_done.mutation.graphql';
-import updateEpicConfidentialMutation from '~/sidebar/queries/update_epic_confidential.mutation.graphql';
-import updateEpicDueDateMutation from '~/sidebar/queries/update_epic_due_date.mutation.graphql';
-import updateEpicStartDateMutation from '~/sidebar/queries/update_epic_start_date.mutation.graphql';
-import updateEpicSubscriptionMutation from '~/sidebar/queries/update_epic_subscription.mutation.graphql';
-import updateIssueConfidentialMutation from '~/sidebar/queries/update_issue_confidential.mutation.graphql';
-import updateIssueDueDateMutation from '~/sidebar/queries/update_issue_due_date.mutation.graphql';
-import updateIssueSubscriptionMutation from '~/sidebar/queries/update_issue_subscription.mutation.graphql';
-import mergeRequestMilestoneMutation from '~/sidebar/queries/update_merge_request_milestone.mutation.graphql';
-import updateMergeRequestLabelsMutation from '~/sidebar/queries/update_merge_request_labels.mutation.graphql';
-import updateMergeRequestSubscriptionMutation from '~/sidebar/queries/update_merge_request_subscription.mutation.graphql';
+import {
+  IssuableType,
+  TYPE_EPIC,
+  TYPE_ISSUE,
+  WORKSPACE_GROUP,
+  WORKSPACE_PROJECT,
+} from '~/issues/constants';
 import updateAlertAssigneesMutation from '~/vue_shared/alert_details/graphql/mutations/alert_set_assignees.mutation.graphql';
-import epicLabelsQuery from '~/vue_shared/components/sidebar/labels_select_widget/graphql/epic_labels.query.graphql';
-import updateEpicLabelsMutation from '~/vue_shared/components/sidebar/labels_select_widget/graphql/epic_update_labels.mutation.graphql';
-import groupLabelsQuery from '~/vue_shared/components/sidebar/labels_select_widget/graphql/group_labels.query.graphql';
-import issueLabelsQuery from '~/vue_shared/components/sidebar/labels_select_widget/graphql/issue_labels.query.graphql';
-import mergeRequestLabelsQuery from '~/vue_shared/components/sidebar/labels_select_widget/graphql/merge_request_labels.query.graphql';
-import projectLabelsQuery from '~/vue_shared/components/sidebar/labels_select_widget/graphql/project_labels.query.graphql';
-import getAlertAssignees from '~/vue_shared/components/sidebar/queries/get_alert_assignees.query.graphql';
-import getIssueAssignees from '~/vue_shared/components/sidebar/queries/get_issue_assignees.query.graphql';
-import issueParticipantsQuery from '~/vue_shared/components/sidebar/queries/get_issue_participants.query.graphql';
-import getIssueTimelogsQuery from '~/vue_shared/components/sidebar/queries/get_issue_timelogs.query.graphql';
-import getMergeRequestAssignees from '~/vue_shared/components/sidebar/queries/get_mr_assignees.query.graphql';
-import getMergeRequestParticipants from '~/vue_shared/components/sidebar/queries/get_mr_participants.query.graphql';
-import getMrTimelogsQuery from '~/vue_shared/components/sidebar/queries/get_mr_timelogs.query.graphql';
-import updateIssueAssigneesMutation from '~/vue_shared/components/sidebar/queries/update_issue_assignees.mutation.graphql';
-import updateMergeRequestAssigneesMutation from '~/vue_shared/components/sidebar/queries/update_mr_assignees.mutation.graphql';
-import getEscalationStatusQuery from '~/sidebar/queries/escalation_status.query.graphql';
-import updateEscalationStatusMutation from '~/sidebar/queries/update_escalation_status.mutation.graphql';
+import updateTestCaseLabelsMutation from './components/labels/labels_select_widget/graphql/update_test_case_labels.mutation.graphql';
+import epicLabelsQuery from './components/labels/labels_select_widget/graphql/epic_labels.query.graphql';
+import updateEpicLabelsMutation from './components/labels/labels_select_widget/graphql/epic_update_labels.mutation.graphql';
+import groupLabelsQuery from './components/labels/labels_select_widget/graphql/group_labels.query.graphql';
+import issueLabelsQuery from './components/labels/labels_select_widget/graphql/issue_labels.query.graphql';
+import mergeRequestLabelsQuery from './components/labels/labels_select_widget/graphql/merge_request_labels.query.graphql';
+import projectLabelsQuery from './components/labels/labels_select_widget/graphql/project_labels.query.graphql';
+import epicConfidentialQuery from './queries/epic_confidential.query.graphql';
+import epicDueDateQuery from './queries/epic_due_date.query.graphql';
+import epicParticipantsQuery from './queries/epic_participants.query.graphql';
+import epicReferenceQuery from './queries/epic_reference.query.graphql';
+import epicStartDateQuery from './queries/epic_start_date.query.graphql';
+import epicSubscribedQuery from './queries/epic_subscribed.query.graphql';
+import epicTodoQuery from './queries/epic_todo.query.graphql';
+import issuableAssigneesSubscription from './queries/issuable_assignees.subscription.graphql';
+import issueConfidentialQuery from './queries/issue_confidential.query.graphql';
+import issueDueDateQuery from './queries/issue_due_date.query.graphql';
+import issueReferenceQuery from './queries/issue_reference.query.graphql';
+import issueSubscribedQuery from './queries/issue_subscribed.query.graphql';
+import issueTimeTrackingQuery from './queries/issue_time_tracking.query.graphql';
+import issueTodoQuery from './queries/issue_todo.query.graphql';
+import mergeRequestMilestone from './queries/merge_request_milestone.query.graphql';
+import mergeRequestReferenceQuery from './queries/merge_request_reference.query.graphql';
+import mergeRequestSubscribed from './queries/merge_request_subscribed.query.graphql';
+import mergeRequestTimeTrackingQuery from './queries/merge_request_time_tracking.query.graphql';
+import mergeRequestTodoQuery from './queries/merge_request_todo.query.graphql';
+import todoCreateMutation from './queries/todo_create.mutation.graphql';
+import todoMarkDoneMutation from './queries/todo_mark_done.mutation.graphql';
+import updateEpicConfidentialMutation from './queries/update_epic_confidential.mutation.graphql';
+import updateEpicDueDateMutation from './queries/update_epic_due_date.mutation.graphql';
+import updateEpicStartDateMutation from './queries/update_epic_start_date.mutation.graphql';
+import updateEpicSubscriptionMutation from './queries/update_epic_subscription.mutation.graphql';
+import updateIssueConfidentialMutation from './queries/update_issue_confidential.mutation.graphql';
+import updateIssueDueDateMutation from './queries/update_issue_due_date.mutation.graphql';
+import updateIssueSubscriptionMutation from './queries/update_issue_subscription.mutation.graphql';
+import mergeRequestMilestoneMutation from './queries/update_merge_request_milestone.mutation.graphql';
+import updateMergeRequestLabelsMutation from './queries/update_merge_request_labels.mutation.graphql';
+import updateMergeRequestSubscriptionMutation from './queries/update_merge_request_subscription.mutation.graphql';
+import getAlertAssignees from './queries/get_alert_assignees.query.graphql';
+import getIssueAssignees from './queries/get_issue_assignees.query.graphql';
+import issueParticipantsQuery from './queries/get_issue_participants.query.graphql';
+import getIssueTimelogsQuery from './queries/get_issue_timelogs.query.graphql';
+import getMergeRequestAssignees from './queries/get_mr_assignees.query.graphql';
+import getMergeRequestParticipants from './queries/get_mr_participants.query.graphql';
+import getMrTimelogsQuery from './queries/get_mr_timelogs.query.graphql';
+import updateIssueAssigneesMutation from './queries/update_issue_assignees.mutation.graphql';
+import updateMergeRequestAssigneesMutation from './queries/update_mr_assignees.mutation.graphql';
+import getEscalationStatusQuery from './queries/escalation_status.query.graphql';
+import updateEscalationStatusMutation from './queries/update_escalation_status.mutation.graphql';
+import groupMilestonesQuery from './queries/group_milestones.query.graphql';
 import projectIssueMilestoneMutation from './queries/project_issue_milestone.mutation.graphql';
 import projectIssueMilestoneQuery from './queries/project_issue_milestone.query.graphql';
 import projectMilestonesQuery from './queries/project_milestones.query.graphql';
@@ -61,7 +70,7 @@ export const defaultEpicSort = 'TITLE_ASC';
 export const epicIidPattern = /^&(?<iid>\d+)$/;
 
 export const assigneesQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: getIssueAssignees,
     subscription: issuableAssigneesSubscription,
     mutation: updateIssueAssigneesMutation,
@@ -77,13 +86,13 @@ export const assigneesQueries = {
 };
 
 export const participantsQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueParticipantsQuery,
   },
   [IssuableType.MergeRequest]: {
     query: getMergeRequestParticipants,
   },
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicParticipantsQuery,
   },
   [IssuableType.Alert]: {
@@ -93,7 +102,7 @@ export const participantsQueries = {
 };
 
 export const userSearchQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: userSearchQuery,
   },
   [IssuableType.MergeRequest]: {
@@ -102,39 +111,39 @@ export const userSearchQueries = {
 };
 
 export const confidentialityQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueConfidentialQuery,
     mutation: updateIssueConfidentialMutation,
   },
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicConfidentialQuery,
     mutation: updateEpicConfidentialMutation,
   },
 };
 
 export const referenceQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueReferenceQuery,
   },
   [IssuableType.MergeRequest]: {
     query: mergeRequestReferenceQuery,
   },
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicReferenceQuery,
   },
 };
 
 export const workspaceLabelsQueries = {
-  [WorkspaceType.project]: {
+  [WORKSPACE_PROJECT]: {
     query: projectLabelsQuery,
   },
-  [WorkspaceType.group]: {
+  [WORKSPACE_GROUP]: {
     query: groupLabelsQuery,
   },
 };
 
 export const issuableLabelsQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     issuableQuery: issueLabelsQuery,
     mutation: updateIssueLabelsMutation,
     mutationName: 'updateIssue',
@@ -144,10 +153,15 @@ export const issuableLabelsQueries = {
     mutation: updateMergeRequestLabelsMutation,
     mutationName: 'mergeRequestSetLabels',
   },
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     issuableQuery: epicLabelsQuery,
     mutation: updateEpicLabelsMutation,
     mutationName: 'updateEpic',
+  },
+  [IssuableType.TestCase]: {
+    issuableQuery: issueLabelsQuery,
+    mutation: updateTestCaseLabelsMutation,
+    mutationName: 'updateTestCaseLabels',
   },
 };
 
@@ -170,11 +184,11 @@ export const dateFields = {
 };
 
 export const subscribedQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueSubscribedQuery,
     mutation: updateIssueSubscriptionMutation,
   },
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicSubscribedQuery,
     mutation: updateEpicSubscriptionMutation,
   },
@@ -190,7 +204,7 @@ export const Tracking = {
 };
 
 export const timeTrackingQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueTimeTrackingQuery,
   },
   [IssuableType.MergeRequest]: {
@@ -199,25 +213,25 @@ export const timeTrackingQueries = {
 };
 
 export const dueDateQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueDueDateQuery,
     mutation: updateIssueDueDateMutation,
   },
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicDueDateQuery,
     mutation: updateEpicDueDateMutation,
   },
 };
 
 export const startDateQueries = {
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicStartDateQuery,
     mutation: updateEpicStartDateMutation,
   },
 };
 
 export const timelogQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: getIssueTimelogsQuery,
   },
   [IssuableType.MergeRequest]: {
@@ -228,7 +242,7 @@ export const timelogQueries = {
 export const noAttributeId = null;
 
 export const issuableMilestoneQueries = {
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: projectIssueMilestoneQuery,
     mutation: projectIssueMilestoneMutation,
   },
@@ -239,17 +253,29 @@ export const issuableMilestoneQueries = {
 };
 
 export const milestonesQueries = {
-  [IssuableType.Issue]: {
-    query: projectMilestonesQuery,
+  [TYPE_ISSUE]: {
+    query: {
+      [WORKSPACE_GROUP]: groupMilestonesQuery,
+      [WORKSPACE_PROJECT]: projectMilestonesQuery,
+    },
   },
   [IssuableType.MergeRequest]: {
-    query: projectMilestonesQuery,
+    query: {
+      [WORKSPACE_GROUP]: groupMilestonesQuery,
+      [WORKSPACE_PROJECT]: projectMilestonesQuery,
+    },
   },
 };
 
 export const IssuableAttributeType = {
   Milestone: 'milestone',
 };
+
+export const LocalizedIssuableAttributeType = {
+  Milestone: s__('Issuable|milestone'),
+};
+
+export const IssuableAttributeTypeKeyMap = invert(IssuableAttributeType);
 
 export const IssuableAttributeState = {
   [IssuableAttributeType.Milestone]: 'active',
@@ -263,10 +289,10 @@ export const issuableAttributesQueries = {
 };
 
 export const todoQueries = {
-  [IssuableType.Epic]: {
+  [TYPE_EPIC]: {
     query: epicTodoQuery,
   },
-  [IssuableType.Issue]: {
+  [TYPE_ISSUE]: {
     query: issueTodoQuery,
   },
   [IssuableType.MergeRequest]: {
@@ -313,8 +339,113 @@ export function dropdowni18nText(issuableAttribute, issuableType) {
       ),
       { issuableAttribute, issuableType },
     ),
+    noPermissionToView: sprintf(
+      s__("DropdownWidget|You don't have permission to view this %{issuableAttribute}."),
+      { issuableAttribute },
+    ),
+    editConfirmation: sprintf(
+      s__(
+        'DropdownWidget|You do not have permission to view the currently assigned %{issuableAttribute} and will not be able to choose it again if you reassign it.',
+      ),
+      {
+        issuableAttribute,
+      },
+    ),
+    editConfirmationCta: sprintf(s__('DropdownWidget|Edit %{issuableAttribute}'), {
+      issuableAttribute,
+    }),
+    editConfirmationCancel: s__('DropdownWidget|Cancel'),
   };
 }
 
 export const escalationStatusQuery = getEscalationStatusQuery;
 export const escalationStatusMutation = updateEscalationStatusMutation;
+
+export const HOW_TO_TRACK_TIME = __('How to track time');
+
+export const statusDropdownOptions = [
+  {
+    text: __('Open'),
+    value: 'reopen',
+  },
+  {
+    text: __('Closed'),
+    value: 'close',
+  },
+];
+
+export const subscriptionsDropdownOptions = [
+  {
+    text: __('Subscribe'),
+    value: 'subscribe',
+  },
+  {
+    text: __('Unsubscribe'),
+    value: 'unsubscribe',
+  },
+];
+
+export const INCIDENT_SEVERITY = {
+  CRITICAL: {
+    value: 'CRITICAL',
+    icon: 'critical',
+    label: s__('IncidentManagement|Critical - S1'),
+  },
+  HIGH: {
+    value: 'HIGH',
+    icon: 'high',
+    label: s__('IncidentManagement|High - S2'),
+  },
+  MEDIUM: {
+    value: 'MEDIUM',
+    icon: 'medium',
+    label: s__('IncidentManagement|Medium - S3'),
+  },
+  LOW: {
+    value: 'LOW',
+    icon: 'low',
+    label: s__('IncidentManagement|Low - S4'),
+  },
+  UNKNOWN: {
+    value: 'UNKNOWN',
+    icon: 'unknown',
+    label: s__('IncidentManagement|Unknown'),
+  },
+};
+
+export const MILESTONE_STATE = {
+  ACTIVE: 'active',
+  CLOSED: 'closed',
+};
+
+export const SEVERITY_I18N = {
+  UPDATE_SEVERITY_ERROR: s__('SeverityWidget|There was an error while updating severity.'),
+  TRY_AGAIN: __('Please try again'),
+  EDIT: __('Edit'),
+  SEVERITY: s__('SeverityWidget|Severity'),
+  SEVERITY_VALUE: s__('SeverityWidget|Severity: %{severity}'),
+};
+
+export const STATUS_TRIGGERED = 'TRIGGERED';
+export const STATUS_ACKNOWLEDGED = 'ACKNOWLEDGED';
+export const STATUS_RESOLVED = 'RESOLVED';
+
+export const STATUS_TRIGGERED_LABEL = s__('IncidentManagement|Triggered');
+export const STATUS_ACKNOWLEDGED_LABEL = s__('IncidentManagement|Acknowledged');
+export const STATUS_RESOLVED_LABEL = s__('IncidentManagement|Resolved');
+
+export const STATUS_LABELS = {
+  [STATUS_TRIGGERED]: STATUS_TRIGGERED_LABEL,
+  [STATUS_ACKNOWLEDGED]: STATUS_ACKNOWLEDGED_LABEL,
+  [STATUS_RESOLVED]: STATUS_RESOLVED_LABEL,
+};
+
+export const INCIDENTS_I18N = {
+  fetchError: s__(
+    'IncidentManagement|An error occurred while fetching the incident status. Please reload the page.',
+  ),
+  title: s__('IncidentManagement|Status'),
+  updateError: s__(
+    'IncidentManagement|An error occurred while updating the incident status. Please reload the page and try again.',
+  ),
+};

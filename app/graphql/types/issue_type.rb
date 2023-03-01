@@ -43,8 +43,10 @@ module Types
     field :updated_by, Types::UserType, null: true,
                                         description: 'User that last updated the issue.'
 
-    field :labels, Types::LabelType.connection_type, null: true,
-                                                     description: 'Labels of the issue.'
+    field :labels, Types::LabelType.connection_type,
+          null: true,
+          description: 'Labels of the issue.',
+          resolver: Resolvers::BulkLabelsResolver
     field :milestone, Types::MilestoneType, null: true,
                                             description: 'Milestone of the issue.'
 
@@ -52,21 +54,31 @@ module Types
                                                   description: 'Indicates the issue is confidential.'
     field :discussion_locked, GraphQL::Types::Boolean, null: false,
                                                        description: 'Indicates discussion is locked on the issue.'
+    field :downvotes, GraphQL::Types::Int,
+          null: false,
+          description: 'Number of downvotes the issue has received.',
+          resolver: Resolvers::DownVotesCountResolver
     field :due_date, Types::TimeType, null: true,
                                       description: 'Due date of the issue.'
-    field :hidden, GraphQL::Types::Boolean, null: true, resolver_method: :hidden?,
-                                            description: 'Indicates the issue is hidden because the author has been banned. ' \
-          'Will always return `null` if `ban_user_feature_flag` feature flag is disabled.'
-
-    field :downvotes, GraphQL::Types::Int, null: false,
-                                           description: 'Number of downvotes the issue has received.'
+    field :hidden, GraphQL::Types::Boolean, null: true,
+                                            description: 'Indicates the issue is hidden because the author has been banned.', method: :hidden?
     field :merge_requests_count, GraphQL::Types::Int, null: false,
                                                       description: 'Number of merge requests that close the issue on merge.',
                                                       resolver: Resolvers::MergeRequestsCountResolver
+
+    field :related_merge_requests, Types::MergeRequestType.connection_type,
+                                   null: true,
+                                   description: 'Merge requests related to the issue. This field can only be resolved for one issue in any single request.' do
+      extension ::Gitlab::Graphql::Limit::FieldCallCount, limit: 1
+    end
+
     field :relative_position, GraphQL::Types::Int, null: true,
                                                    description: 'Relative position of the issue (used for positioning in epic tree and issue boards).'
-    field :upvotes, GraphQL::Types::Int, null: false,
-                                         description: 'Number of upvotes the issue has received.'
+    field :upvotes, GraphQL::Types::Int,
+          null: false,
+          description: 'Number of upvotes the issue has received.',
+          resolver: Resolvers::UpVotesCountResolver
+
     field :user_discussions_count, GraphQL::Types::Int, null: false,
                                                         description: 'Number of user discussions in the issue.',
                                                         resolver: Resolvers::UserDiscussionsCountResolver
@@ -110,13 +122,20 @@ module Types
                                                                              description: 'Collection of design images associated with this issue.'
 
     field :type, Types::IssueTypeEnum, null: true,
-                                       method: :issue_type,
                                        description: 'Type of the issue.'
 
     field :alert_management_alert,
           Types::AlertManagement::AlertType,
           null: true,
-          description: 'Alert associated to this issue.'
+          description: 'Alert associated to this issue.',
+          deprecated: { reason: 'Use `alert_management_alerts`', milestone: '15.6' }
+
+    field :alert_management_alerts,
+          Types::AlertManagement::AlertType.connection_type,
+          null: true,
+          description: 'Alert Management alerts associated to this issue.',
+          extras: [:lookahead],
+          resolver: Resolvers::AlertManagement::AlertResolver
 
     field :severity, Types::IssuableSeverityEnum, null: true,
                                                   description: 'Severity level of the incident.'
@@ -168,6 +187,17 @@ module Types
       Gitlab::Graphql::Loaders::BatchModelLoader.new(Issue, object.duplicated_to_id).find
     end
 
+    def related_merge_requests
+      # rubocop: disable CodeReuse/ActiveRecord
+      MergeRequest.where(
+        id: ::Issues::ReferencedMergeRequestsService.new(container: object.project, current_user: current_user)
+        .execute(object)
+        .first
+        .map(&:id)
+      )
+      # rubocop: enable CodeReuse/ActiveRecord
+    end
+
     def discussion_locked
       !!object.discussion_locked
     end
@@ -176,12 +206,16 @@ module Types
       object.creatable_note_email_address(context[:current_user])
     end
 
-    def hidden?
-      object.hidden? if Feature.enabled?(:ban_user_feature_flag)
-    end
-
     def escalation_status
       object.supports_escalation? ? object.escalation_status&.status_name : nil
+    end
+
+    def type
+      if Feature.enabled?(:issue_type_uses_work_item_types_table)
+        object.work_item_type.base_type
+      else
+        object.issue_type
+      end
     end
   end
 end

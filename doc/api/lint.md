@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # CI Lint API **(FREE)**
@@ -210,7 +210,7 @@ Example responses:
 
 Checks if a project's latest (`HEAD` of the project's default branch)
 `.gitlab-ci.yml` configuration is valid. This endpoint uses all namespace
-specific data available, including variables, local includes, and so on.
+specific data available, including variables and local includes.
 
 ```plaintext
 GET /projects/:id/ci/lint

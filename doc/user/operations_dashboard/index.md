@@ -1,7 +1,7 @@
 ---
-stage: none
-group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Release
+group: Release
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Operations Dashboard **(PREMIUM)**
@@ -9,14 +9,9 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 The Operations Dashboard provides a summary of each project's operational health,
 including pipeline and alert status.
 
-To access the dashboard, on the top bar, select **Menu > Operations**.
+To access the dashboard, on the top bar, select **Main menu > Operations**.
 
 ## Adding a project to the dashboard
-
-NOTE:
-For GitLab.com, you can add your project to the Operations Dashboard for free if
-your project is public. If your project is private, the group it belongs to must
-have a [GitLab Premium](https://about.gitlab.com/pricing/) plan.
 
 To add a project to the dashboard:
 
@@ -41,4 +36,4 @@ You can drag project cards to change their order. The card order is currently on
 ## Making it the default dashboard when you sign in
 
 The Operations Dashboard can also be made the default GitLab dashboard shown when
-you sign in. To make it the default, visit your [profile preferences](../profile/preferences.md).
+you sign in. To make it the default, see [Profile preferences](../profile/preferences.md).

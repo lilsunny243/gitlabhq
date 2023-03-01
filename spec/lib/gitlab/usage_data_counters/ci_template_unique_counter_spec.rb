@@ -12,6 +12,10 @@ RSpec.describe Gitlab::UsageDataCounters::CiTemplateUniqueCounter do
 
     shared_examples 'tracks template' do
       let(:subject) { described_class.track_unique_project_event(project: project, template: template_path, config_source: config_source, user: user) }
+      let(:template_name) do
+        expanded_template_name = described_class.expand_template_name(template_path)
+        described_class.ci_template_event_name(expanded_template_name, config_source)
+      end
 
       it "has an event defined for template" do
         expect do
@@ -20,33 +24,17 @@ RSpec.describe Gitlab::UsageDataCounters::CiTemplateUniqueCounter do
       end
 
       it "tracks template" do
-        expanded_template_name = described_class.expand_template_name(template_path)
-        expected_template_event_name = described_class.ci_template_event_name(expanded_template_name, config_source)
-        expect(Gitlab::UsageDataCounters::HLLRedisCounter).to(receive(:track_event)).with(expected_template_event_name, values: project.id)
+        expect(Gitlab::UsageDataCounters::HLLRedisCounter).to(receive(:track_event)).with(template_name, values: project.id)
 
         subject
       end
 
-      context 'Snowplow' do
-        it 'event is not tracked if FF is disabled' do
-          stub_feature_flags(route_hll_to_snowplow: false)
-
-          subject
-
-          expect_no_snowplow_event
-        end
-
-        it 'tracks event' do
-          subject
-
-          expect_snowplow_event(
-            category: described_class.to_s,
-            action: 'ci_templates_unique',
-            namespace: project.namespace,
-            user: user,
-            project: project
-          )
-        end
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        let(:category) { described_class.to_s }
+        let(:action) { 'ci_templates_unique' }
+        let(:namespace) { project.namespace }
+        let(:label) { 'redis_hll_counters.ci_templates.ci_templates_total_unique_counts_monthly' }
+        let(:context) { [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: template_name).to_context] }
       end
     end
 
@@ -65,17 +53,11 @@ RSpec.describe Gitlab::UsageDataCounters::CiTemplateUniqueCounter do
     context 'with implicit includes', :snowplow do
       let(:config_source) { :auto_devops_source }
 
-      [
-        ['', ['Auto-DevOps.gitlab-ci.yml']],
-        ['Jobs', described_class.ci_templates('lib/gitlab/ci/templates/Jobs')],
-        ['Security', described_class.ci_templates('lib/gitlab/ci/templates/Security')]
-      ].each do |directory, templates|
-        templates.each do |template|
-          context "for #{template}" do
-            let(:template_path) { File.join(directory, template) }
+      described_class.all_included_templates('Auto-DevOps.gitlab-ci.yml').each do |template_name|
+        context "for #{template_name}" do
+          let(:template_path) { Gitlab::Template::GitlabCiYmlTemplate.find(template_name.delete_suffix('.gitlab-ci.yml')).full_name }
 
-            include_examples 'tracks template'
-          end
+          include_examples 'tracks template'
         end
       end
     end

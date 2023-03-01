@@ -2,12 +2,12 @@
 
 module Types
   class BaseArgument < GraphQL::Schema::Argument
-    include GitlabStyleDeprecations
+    include Gitlab::Graphql::Deprecations
 
-    attr_reader :deprecation, :doc_reference
+    attr_reader :doc_reference
 
     def initialize(*args, **kwargs, &block)
-      @deprecation = gitlab_deprecation(kwargs)
+      init_gitlab_deprecation(kwargs)
       @doc_reference = kwargs.delete(:see)
 
       # our custom addition `nullable` which allows us to declare

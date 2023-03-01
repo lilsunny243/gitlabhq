@@ -1,10 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Verify', :runner, feature_flag: {
-    name: 'ci_stop_expanding_file_vars_for_runners',
-    scope: :project
-  } do
+  RSpec.describe 'Verify', :runner, product_group: :pipeline_authoring do
     describe 'Pipeline with project file variables' do
       let(:executor) { "qa-runner-#{Faker::Alphanumeric.alphanumeric(number: 8)}" }
 
@@ -14,8 +11,8 @@ module QA
         end
       end
 
-      let(:runner) do
-        Resource::Runner.fabricate! do |runner|
+      let!(:runner) do
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.project = project
           runner.name = executor
           runner.tags = [executor]
@@ -31,19 +28,26 @@ module QA
               {
                 file_path: '.gitlab-ci.yml',
                 content: <<~YAML
+                  default:
+                    tags: [#{executor}]
+
                   variables:
                     EXTRA_ARGS: "-f $TEST_FILE"
                     DOCKER_REMOTE_ARGS: --tlscacert="$DOCKER_CA_CERT"
                     EXTRACTED_CRT_FILE: ${DOCKER_CA_CERT}.crt
                     MY_FILE_VAR: $TEST_FILE
 
-                  test:
-                    tags: [#{executor}]
+                  job_echo:
                     script:
                       - echo "run something $EXTRA_ARGS"
                       - echo "docker run $DOCKER_REMOTE_ARGS"
                       - echo "run --output=$EXTRACTED_CRT_FILE"
                       - echo "Will read private key from $MY_FILE_VAR"
+
+                  job_cat:
+                    script:
+                      - cat "$MY_FILE_VAR"
+                      - cat "$DOCKER_CA_CERT"
                 YAML
               }
             ]
@@ -53,66 +57,56 @@ module QA
 
       let(:add_file_variables) do
         {
-          'TEST_FILE' => 'hello, this is test',
-          'DOCKER_CA_CERT' => 'This is secret'
+          'TEST_FILE' => "hello, this is test\n",
+          'DOCKER_CA_CERT' => "This is secret\n"
         }.each do |file_name, content|
           add_file_variable_to_project(file_name, content)
         end
+      end
+
+      before do
+        add_file_variables
+        add_ci_file
+        trigger_pipeline
+        wait_for_pipeline
       end
 
       after do
         runner.remove_via_api!
       end
 
-      shared_examples 'variables are read correctly' do
-        it 'shows in job log accordingly' do
-          job = Resource::Job.fabricate_via_api! do |job|
-            job.project = project
-            job.id = project.job_by_name('test')[:id]
-          end
+      it(
+        'does not expose file variable content with echo',
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/370791'
+      ) do
+        job = Resource::Job.fabricate_via_api! do |job|
+          job.project = project
+          job.id = project.job_by_name('job_echo')[:id]
+        end
 
-          aggregate_failures do
-            trace = job.trace
-            expect(trace).to have_content('run something -f hello, this is test')
-            expect(trace).to have_content('docker run --tlscacert="This is secret"')
-            expect(trace).to have_content('run --output=This is secret.crt')
-            expect(trace).to have_content('Will read private key from hello, this is test')
-          end
+        aggregate_failures do
+          trace = job.trace
+          expect(trace).to include('run something -f', "#{project.name}.tmp/TEST_FILE")
+          expect(trace).to include('docker run --tlscacert=', "#{project.name}.tmp/DOCKER_CA_CERT")
+          expect(trace).to include('run --output=', "#{project.name}.tmp/DOCKER_CA_CERT.crt")
+          expect(trace).to include('Will read private key from', "#{project.name}.tmp/TEST_FILE")
         end
       end
 
-      # FF does not change current behavior
-      # https://gitlab.com/gitlab-org/gitlab/-/merge_requests/94198#note_1057609893
-      #
-      # TODO: Remove when FF is removed
-      # TODO: Archive testcase issue when FF is removed
-      # Rollout issue: https://gitlab.com/gitlab-org/gitlab/-/issues/369907
-      context 'when FF is on', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/370787' do
-        before do
-          Runtime::Feature.enable(:ci_stop_expanding_file_vars_for_runners, project: project)
-
-          runner
-          add_file_variables
-          add_ci_file
-          trigger_pipeline
-          wait_for_pipeline
+      it(
+        'can read file variable content with cat',
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/386409'
+      ) do
+        job = Resource::Job.fabricate_via_api! do |job|
+          job.project = project
+          job.id = project.job_by_name('job_cat')[:id]
         end
 
-        it_behaves_like 'variables are read correctly'
-      end
-
-      # TODO: Refactor when FF is removed
-      # TODO: Update testcase issue title and description to not refer to FF status
-      context 'when FF is off', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/370791' do
-        before do
-          runner
-          add_file_variables
-          add_ci_file
-          trigger_pipeline
-          wait_for_pipeline
+        aggregate_failures do
+          trace = job.trace
+          expect(trace).to have_content('hello, this is test')
+          expect(trace).to have_content('This is secret')
         end
-
-        it_behaves_like 'variables are read correctly'
       end
 
       private

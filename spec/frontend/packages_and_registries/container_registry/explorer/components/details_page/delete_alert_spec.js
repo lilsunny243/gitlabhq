@@ -6,15 +6,14 @@ import {
   DELETE_TAG_ERROR_MESSAGE,
   DELETE_TAGS_SUCCESS_MESSAGE,
   DELETE_TAGS_ERROR_MESSAGE,
-  DETAILS_IMPORTING_ERROR_MESSAGE,
   ADMIN_GARBAGE_COLLECTION_TIP,
 } from '~/packages_and_registries/container_registry/explorer/constants';
 
 describe('Delete alert', () => {
   let wrapper;
 
-  const findAlert = () => wrapper.find(GlAlert);
-  const findLink = () => wrapper.find(GlLink);
+  const findAlert = () => wrapper.findComponent(GlAlert);
+  const findLink = () => wrapper.findComponent(GlLink);
 
   const mountComponent = (propsData) => {
     wrapper = shallowMount(component, { stubs: { GlSprintf }, propsData });
@@ -77,7 +76,6 @@ describe('Delete alert', () => {
         });
       });
     });
-
     describe('error states', () => {
       describe.each`
         deleteAlertType  | message
@@ -104,25 +102,6 @@ describe('Delete alert', () => {
             expect(findAlert().text()).toBe(message);
           });
         });
-      });
-    });
-
-    describe('importing repository error state', () => {
-      beforeEach(() => {
-        mountComponent({
-          deleteAlertType: 'danger_importing',
-          containerRegistryImportingHelpPagePath: 'https://foobar',
-        });
-      });
-
-      it('alert exist and text is appropriate', () => {
-        expect(findAlert().text()).toMatchInterpolatedText(DETAILS_IMPORTING_ERROR_MESSAGE);
-      });
-
-      it('alert body contains link', () => {
-        const alertLink = findLink();
-        expect(alertLink.exists()).toBe(true);
-        expect(alertLink.attributes('href')).toBe('https://foobar');
       });
     });
 

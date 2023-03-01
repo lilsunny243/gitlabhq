@@ -30,13 +30,13 @@ describe('Multi-file store mutations', () => {
         entry,
       });
 
-      expect(entry.loading).toBeTruthy();
+      expect(entry.loading).toBe(true);
 
       mutations.TOGGLE_LOADING(localState, {
         entry,
       });
 
-      expect(entry.loading).toBeFalsy();
+      expect(entry.loading).toBe(false);
     });
 
     it('toggles loading of entry and sets specific value', () => {
@@ -44,14 +44,14 @@ describe('Multi-file store mutations', () => {
         entry,
       });
 
-      expect(entry.loading).toBeTruthy();
+      expect(entry.loading).toBe(true);
 
       mutations.TOGGLE_LOADING(localState, {
         entry,
         forceValue: true,
       });
 
-      expect(entry.loading).toBeTruthy();
+      expect(entry.loading).toBe(true);
     });
   });
 
@@ -87,11 +87,13 @@ describe('Multi-file store mutations', () => {
         emptyStateSvgPath: 'emptyState',
         noChangesStateSvgPath: 'noChanges',
         committedStateSvgPath: 'committed',
+        switchEditorSvgPath: 'switchEditorSvg',
       });
 
       expect(localState.emptyStateSvgPath).toBe('emptyState');
       expect(localState.noChangesStateSvgPath).toBe('noChanges');
       expect(localState.committedStateSvgPath).toBe('committed');
+      expect(localState.switchEditorSvgPath).toBe('switchEditorSvg');
     });
   });
 

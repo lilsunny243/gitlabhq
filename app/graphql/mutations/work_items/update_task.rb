@@ -4,8 +4,7 @@ module Mutations
   module WorkItems
     class UpdateTask < BaseMutation
       graphql_name 'WorkItemUpdateTask'
-      description "Updates a work item's task by Global ID." \
-                  " Available only when feature flag `work_items` is enabled."
+      description "Updates a work item's task by Global ID."
 
       include Mutations::SpamProtection
 
@@ -30,14 +29,10 @@ module Mutations
         work_item = authorized_find!(id: id)
         task = authorized_find_task!(task_data_hash[:id])
 
-        unless work_item.project.work_items_feature_flag_enabled?
-          return { errors: ['`work_items` feature flag disabled for this project'] }
-        end
-
         spam_params = ::Spam::SpamParams.new_from_request(request: context[:request])
 
         ::WorkItems::UpdateService.new(
-          project: task.project,
+          container: task.project,
           current_user: current_user,
           params: task_data_hash.except(:id),
           spam_params: spam_params

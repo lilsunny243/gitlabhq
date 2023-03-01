@@ -33,13 +33,15 @@ module SearchHelpers
   end
 
   def select_search_scope(scope)
-    page.within '.search-filter' do
+    page.within '[data-testid="search-filter"]' do
       click_link scope
+
+      wait_for_all_requests
     end
   end
 
   def has_search_scope?(scope)
-    page.within '.search-filter' do
+    page.within '[data-testid="search-filter"]' do
       has_link?(scope)
     end
   end

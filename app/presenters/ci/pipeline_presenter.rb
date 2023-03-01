@@ -49,11 +49,11 @@ module Ci
       {
         merge_train: s_('Pipeline|Merge train pipeline'),
         merged_result: s_('Pipeline|Merged result pipeline'),
-        detached: s_('Pipeline|Detached merge request pipeline')
+        detached: s_('Pipeline|Merge request pipeline')
       }.freeze
     end
 
-    def name
+    def event_type_name
       # Currently, `merge_request_event_type` is the only source to name pipelines
       # but this could be extended with the other types in the future.
       localized_names.fetch(pipeline.merge_request_event_type, s_('Pipeline|Pipeline'))
@@ -92,7 +92,7 @@ module Ci
       if all_related_merge_requests.none?
         _("No related merge requests found.")
       else
-        _("%{count} related %{pluralized_subject}: %{links}" % {
+        (_("%{count} related %{pluralized_subject}: %{links}") % {
           count: all_related_merge_requests.count,
           pluralized_subject: n_('merge request', 'merge requests', all_related_merge_requests.count),
           links: all_related_merge_request_links(limit: limit).join(', ')

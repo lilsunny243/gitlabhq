@@ -1,13 +1,13 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# irker IRC Gateway **(FREE)**
+# irker (IRC gateway) **(FREE)**
 
-GitLab provides a way to push update messages to an irker server. When
-configured, pushes to a project trigger the service to send data directly
+GitLab provides a way to push update messages to an irker server. After you configure
+the integration, each push to a project triggers the integration to send data directly
 to the irker server.
 
 See also the [irker integration API documentation](../../../api/integrations.md).
@@ -39,7 +39,7 @@ network. For more details, read
 
 ## Complete these steps in GitLab
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **irker (IRC gateway)**.
 1. Ensure that the **Active** toggle is enabled.

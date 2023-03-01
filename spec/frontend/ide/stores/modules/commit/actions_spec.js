@@ -1,6 +1,7 @@
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import testAction from 'helpers/vuex_action_helper';
+import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
 import { file } from 'jest/ide/helpers';
 import { commitActionTypes, PERMISSION_CREATE_MR } from '~/ide/constants';
 import eventHub from '~/ide/eventhub';
@@ -14,6 +15,7 @@ import {
   COMMIT_TO_NEW_BRANCH,
 } from '~/ide/stores/modules/commit/constants';
 import * as mutationTypes from '~/ide/stores/modules/commit/mutation_types';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { visitUrl } from '~/lib/utils/url_utility';
 
 jest.mock('~/lib/utils/url_utility', () => ({
@@ -38,20 +40,23 @@ describe('IDE commit module actions', () => {
   let mock;
   let store;
   let router;
+  let trackingSpy;
 
   beforeEach(() => {
     store = createStore();
     router = createRouter(store);
     gon.api_version = 'v1';
     mock = new MockAdapter(axios);
+    trackingSpy = mockTracking(undefined, undefined, jest.spyOn);
     jest.spyOn(router, 'push').mockImplementation();
 
     mock
       .onGet('/api/v1/projects/abcproject/repository/branches/main')
-      .reply(200, { commit: COMMIT_RESPONSE });
+      .reply(HTTP_STATUS_OK, { commit: COMMIT_RESPONSE });
   });
 
   afterEach(() => {
+    unmockTracking();
     delete gon.api_version;
     mock.restore();
   });
@@ -210,7 +215,7 @@ describe('IDE commit module actions', () => {
         branch,
       });
       store.state.openFiles.forEach((entry) => {
-        expect(entry.changed).toBeFalsy();
+        expect(entry.changed).toBe(false);
       });
     });
 
@@ -366,17 +371,38 @@ describe('IDE commit module actions', () => {
       });
 
       describe('merge request', () => {
-        it('redirects to new merge request page', async () => {
-          jest.spyOn(eventHub, '$on').mockImplementation();
+        it.each`
+          branchName   | targetBranchName | branchNameInURL | targetBranchInURL
+          ${'foo'}     | ${'main'}        | ${'foo'}        | ${'main'}
+          ${'foo#bar'} | ${'main'}        | ${'foo%23bar'}  | ${'main'}
+          ${'foo#bar'} | ${'not#so#main'} | ${'foo%23bar'}  | ${'not%23so%23main'}
+        `(
+          'redirects to the correct new MR page when new branch is "$branchName" and target branch is "$targetBranchName"',
+          async ({ branchName, targetBranchName, branchNameInURL, targetBranchInURL }) => {
+            Object.assign(store.state.projects.abcproject, {
+              branches: {
+                [targetBranchName]: {
+                  name: targetBranchName,
+                  workingReference: '1',
+                  commit: {
+                    id: TEST_COMMIT_SHA,
+                  },
+                  can_push: true,
+                },
+              },
+            });
+            store.state.currentBranchId = targetBranchName;
+            store.state.commit.newBranchName = branchName;
 
-          store.state.commit.commitAction = COMMIT_TO_NEW_BRANCH;
-          store.state.commit.shouldCreateMR = true;
+            store.state.commit.commitAction = COMMIT_TO_NEW_BRANCH;
+            store.state.commit.shouldCreateMR = true;
 
-          await store.dispatch('commit/commitChanges');
-          expect(visitUrl).toHaveBeenCalledWith(
-            `webUrl/-/merge_requests/new?merge_request[source_branch]=${store.getters['commit/placeholderBranchName']}&merge_request[target_branch]=main&nav_source=webide`,
-          );
-        });
+            await store.dispatch('commit/commitChanges');
+            expect(visitUrl).toHaveBeenCalledWith(
+              `webUrl/-/merge_requests/new?merge_request[source_branch]=${branchNameInURL}&merge_request[target_branch]=${targetBranchInURL}&nav_source=webide`,
+            );
+          },
+        );
 
         it('does not redirect to new merge request page when shouldCreateMR is not checked', async () => {
           jest.spyOn(eventHub, '$on').mockImplementation();
@@ -408,6 +434,28 @@ describe('IDE commit module actions', () => {
           });
         });
       });
+
+      describe('learnGitlabSource', () => {
+        describe('learnGitlabSource is true', () => {
+          it('tracks commit', async () => {
+            store.state.learnGitlabSource = true;
+
+            await store.dispatch('commit/commitChanges');
+
+            expect(trackingSpy).toHaveBeenCalledWith(undefined, 'commit', {
+              label: 'web_ide_learn_gitlab_source',
+            });
+          });
+        });
+
+        describe('learnGitlabSource is false', () => {
+          it('does not track commit', async () => {
+            await store.dispatch('commit/commitChanges');
+
+            expect(trackingSpy).not.toHaveBeenCalled();
+          });
+        });
+      });
     });
 
     describe('success response with failed message', () => {
@@ -424,6 +472,26 @@ describe('IDE commit module actions', () => {
         const alert = document.querySelector('.flash-container');
 
         expect(alert.textContent.trim()).toBe('failed message');
+      });
+
+      describe('learnGitlabSource', () => {
+        describe('learnGitlabSource is true', () => {
+          it('does not track commit', async () => {
+            store.state.learnGitlabSource = true;
+
+            await store.dispatch('commit/commitChanges');
+
+            expect(trackingSpy).not.toHaveBeenCalled();
+          });
+        });
+
+        describe('learnGitlabSource is false', () => {
+          it('does not track commit', async () => {
+            await store.dispatch('commit/commitChanges');
+
+            expect(trackingSpy).not.toHaveBeenCalled();
+          });
+        });
       });
     });
 
@@ -443,6 +511,26 @@ describe('IDE commit module actions', () => {
           ['commit/UPDATE_LOADING', false, undefined],
           ['commit/SET_ERROR', createUnexpectedCommitError(), undefined],
         ]);
+      });
+
+      describe('learnGitlabSource', () => {
+        describe('learnGitlabSource is true', () => {
+          it('does not track commit', async () => {
+            store.state.learnGitlabSource = true;
+
+            await store.dispatch('commit/commitChanges').catch(() => {});
+
+            expect(trackingSpy).not.toHaveBeenCalled();
+          });
+        });
+
+        describe('learnGitlabSource is false', () => {
+          it('does not track commit', async () => {
+            await store.dispatch('commit/commitChanges').catch(() => {});
+
+            expect(trackingSpy).not.toHaveBeenCalled();
+          });
+        });
       });
     });
 

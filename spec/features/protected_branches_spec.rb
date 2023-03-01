@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Protected Branches', :js do
+RSpec.describe 'Protected Branches', :js, feature_category: :source_code_management do
   include ProtectedBranchHelpers
 
   let(:user) { create(:user) }
@@ -117,7 +117,7 @@ RSpec.describe 'Protected Branches', :js do
         set_protected_branch_name('some-branch')
         click_on "Protect"
 
-        within(".protected-branches-list") { expect(page).to have_content('Branch was deleted') }
+        within(".protected-branches-list") { expect(page).to have_content('Branch does not exist') }
       end
     end
 
@@ -183,7 +183,7 @@ RSpec.describe 'Protected Branches', :js do
     end
 
     include_examples 'Deploy keys with protected branches' do
-      let(:all_dropdown_sections) { %w(Roles Deploy\ Keys) }
+      let(:all_dropdown_sections) { ['Roles', 'Deploy Keys'] }
     end
   end
 end

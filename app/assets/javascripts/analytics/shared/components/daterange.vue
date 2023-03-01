@@ -1,13 +1,10 @@
 <script>
-import { GlDaterangePicker, GlSprintf } from '@gitlab/ui';
-import { getDayDifference } from '~/lib/utils/datetime_utility';
-import { __, sprintf } from '~/locale';
-import { OFFSET_DATE_BY_ONE } from '../constants';
+import { GlDaterangePicker } from '@gitlab/ui';
+import { n__, __, sprintf } from '~/locale';
 
 export default {
   components: {
     GlDaterangePicker,
-    GlSprintf,
   },
   props: {
     show: {
@@ -52,7 +49,7 @@ export default {
     return {
       maxDateRangeTooltip: sprintf(
         __(
-          'Showing data for workflow items created in this date range. Date range limited to %{maxDateRange} days.',
+          'Showing data for workflow items completed in this date range. Date range limited to %{maxDateRange} days.',
         ),
         {
           maxDateRange: this.maxDateRange,
@@ -69,9 +66,10 @@ export default {
         this.$emit('change', { startDate, endDate });
       },
     },
-    numberOfDays() {
-      const dayDifference = getDayDifference(this.startDate, this.endDate);
-      return this.includeSelectedDate ? dayDifference + OFFSET_DATE_BY_ONE : dayDifference;
+  },
+  methods: {
+    numberOfDays(daysSelected) {
+      return n__('1 day selected', '%d days selected', daysSelected);
     },
   },
 };
@@ -83,7 +81,7 @@ export default {
   >
     <gl-daterange-picker
       v-model="dateRange"
-      class="d-flex flex-column flex-lg-row"
+      class="gl-display-flex gl-flex-direction-column gl-lg-flex-direction-row"
       :default-start-date="startDate"
       :default-end-date="endDate"
       :default-min-date="minDate"
@@ -91,14 +89,16 @@ export default {
       :default-max-date="maxDate"
       :same-day-selection="includeSelectedDate"
       :tooltip="maxDateRangeTooltip"
+      :from-label="__('From')"
+      :to-label="__('To')"
       theme="animate-picker"
       start-picker-class="js-daterange-picker-from gl-display-flex gl-flex-direction-column gl-lg-flex-direction-row gl-lg-align-items-center gl-lg-mr-3 gl-mb-2 gl-lg-mb-0"
-      end-picker-class="js-daterange-picker-to d-flex flex-column flex-lg-row align-items-lg-center gl-mb-2 gl-lg-mb-0"
+      end-picker-class="js-daterange-picker-to gl-display-flex gl-flex-direction-column gl-lg-flex-direction-row gl-lg-align-items-center gl-mb-2 gl-lg-mb-0"
       label-class="gl-mb-2 gl-lg-mb-0"
     >
-      <gl-sprintf :message="n__('1 day selected', '%d days selected', numberOfDays)">
-        <template #numberOfDays>{{ numberOfDays }}</template>
-      </gl-sprintf>
+      <template #default="{ daysSelected }">
+        {{ numberOfDays(daysSelected) }}
+      </template>
     </gl-daterange-picker>
   </div>
 </template>

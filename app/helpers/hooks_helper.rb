@@ -1,12 +1,19 @@
 # frozen_string_literal: true
 
 module HooksHelper
-  def link_to_test_hook(hook, trigger)
-    path = test_hook_path(hook, trigger)
-    trigger_human_name = trigger.to_s.tr('_', ' ').camelize
+  def webhook_form_data(hook)
+    {
+      url: hook.url,
+      url_variables: Gitlab::Json.dump(hook.url_variables.keys.map { { key: _1 } })
+    }
+  end
 
-    link_to path, rel: 'nofollow', method: :post do
-      content_tag(:span, trigger_human_name)
+  def webhook_test_items(hook, triggers)
+    triggers.map do |trigger|
+      {
+        href: test_hook_path(hook, trigger),
+        text: integration_webhook_event_human_name(trigger)
+      }
     end
   end
 

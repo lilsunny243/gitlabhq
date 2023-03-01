@@ -70,6 +70,12 @@ class GraphqlController < ApplicationController
     end
   end
 
+  rescue_from Gitlab::Auth::TooManyIps do |exception|
+    log_exception(exception)
+
+    render_error(exception.message, status: :forbidden)
+  end
+
   rescue_from Gitlab::Graphql::Variables::Invalid do |exception|
     render_error(exception.message, status: :unprocessable_entity)
   end
@@ -138,7 +144,8 @@ class GraphqlController < ApplicationController
   def set_user_last_activity
     return unless current_user
 
-    Users::ActivityService.new(current_user).execute
+    # TODO: add namespace & project - https://gitlab.com/gitlab-org/gitlab/-/issues/387951
+    Users::ActivityService.new(author: current_user).execute
   end
 
   def track_vs_code_usage
@@ -190,7 +197,8 @@ class GraphqlController < ApplicationController
       current_user: current_user,
       is_sessionless_user: api_user,
       request: request,
-      scope_validator: ::Gitlab::Auth::ScopeValidator.new(api_user, request_authenticator)
+      scope_validator: ::Gitlab::Auth::ScopeValidator.new(api_user, request_authenticator),
+      remove_deprecated: Gitlab::Utils.to_boolean(params[:remove_deprecated], default: false)
     }
   end
 

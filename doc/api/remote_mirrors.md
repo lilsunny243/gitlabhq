@@ -1,22 +1,27 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, api
 ---
 
 # Project remote mirrors API **(FREE)**
 
 [Push mirrors](../user/project/repository/mirror/push.md)
-defined on a project's repository settings are called "remote mirrors", and the
-state of these mirrors can be queried and modified via the remote mirror API
-outlined below.
+defined on a project's repository settings are called "remote mirrors". You
+can query and modify the state of these mirrors with the remote mirror API.
+
+For security reasons, the `url` attribute in the API response is always scrubbed of username
+and password information.
+
+NOTE:
+[Pull mirrors](../user/project/repository/mirror/pull.md) use
+[a different API endpoint](projects.md#configure-pull-mirroring-for-a-project) to
+display and update them.
 
 ## List a project's remote mirrors
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/38121) in GitLab 12.9.
-
-Returns an Array of remote mirrors and their statuses:
+Returns an array of remote mirrors and their statuses:
 
 ```plaintext
 GET /projects/:id/remote_mirrors
@@ -46,10 +51,6 @@ Example response:
   }
 ]
 ```
-
-NOTE:
-For security reasons, the `url` attribute is always scrubbed of username
-and password information.
 
 ## Get a single project's remote mirror
 
@@ -84,19 +85,22 @@ Example response:
 }
 ```
 
-NOTE:
-For security reasons, the `url` attribute is always scrubbed of username
-and password information.
-
 ## Create a pull mirror
 
 Learn how to [configure a pull mirror](projects.md#configure-pull-mirroring-for-a-project) using the Projects API.
 
 ## Create a push mirror
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24189) in GitLab 12.9.
+> Field `mirror_branch_regex` [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/102608) in GitLab 15.8 [with a flag](../administration/feature_flags.md) named `mirror_only_branches_match_regex`. Disabled by default.
 
-Push mirroring is disabled by default. You can enable it by including the optional parameter `enabled` when creating it:
+FLAG:
+On self-managed GitLab, by default the field `mirror_branch_regex` is not available.
+To make it available, ask an administrator to [enable the feature flag](../administration/feature_flags.md)
+named `mirror_only_branches_match_regex`.
+On GitLab.com, this feature is not available.
+
+Push mirroring is disabled by default. To enable it, include the optional parameter
+`enabled` when you create the mirror:
 
 ```plaintext
 POST /projects/:id/remote_mirrors
@@ -106,8 +110,9 @@ POST /projects/:id/remote_mirrors
 | :----------               | :-----  | :--------- | :------------                                       |
 | `url`                     | String  | yes        | The target URL to which the repository is mirrored. |
 | `enabled`                 | Boolean | no         | Determines if the mirror is enabled.                |
-| `only_protected_branches` | Boolean | no         | Determines if only protected branches are mirrored. |
 | `keep_divergent_refs`     | Boolean | no         | Determines if divergent refs are skipped.           |
+| `only_protected_branches` | Boolean | no         | Determines if only protected branches are mirrored. |
+| `mirror_branch_regex` **(PREMIUM)**     | String  | no         | Contains a regular expression. Only branches with names matching the regex are mirrored. Requires `only_protected_branches` to be disabled. |
 
 Example request:
 
@@ -135,7 +140,11 @@ Example response:
 
 ## Update a remote mirror's attributes
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/38121) in GitLab 12.9.
+FLAG:
+On self-managed GitLab, by default the field `mirror_branch_regex` is not available.
+To make it available, ask an administrator to [enable the feature flag](../administration/feature_flags.md)
+named `mirror_only_branches_match_regex`.
+On GitLab.com, this feature is not available.
 
 Toggle a remote mirror on or off, or change which types of branches are
 mirrored:
@@ -148,8 +157,9 @@ PUT /projects/:id/remote_mirrors/:mirror_id
 | :----------               | :-----  | :--------- | :------------                                       |
 | `mirror_id`               | Integer | yes        | The remote mirror ID.                               |
 | `enabled`                 | Boolean | no         | Determines if the mirror is enabled.                |
-| `only_protected_branches` | Boolean | no         | Determines if only protected branches are mirrored. |
 | `keep_divergent_refs`     | Boolean | no         | Determines if divergent refs are skipped.           |
+| `only_protected_branches` | Boolean | no         | Determines if only protected branches are mirrored. |
+| `mirror_branch_regex`**(PREMIUM)**     | String  | no         |  Determines if only the branch whose name matches the regex is mirrored. It does not work with `only_protected_branches` enabled. |
 
 Example request:
 

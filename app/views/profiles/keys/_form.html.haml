@@ -1,18 +1,22 @@
 - max_date = ::Gitlab::CurrentSettings.max_ssh_key_lifetime_from_now.to_date if ssh_key_expiration_policy_enabled?
 %div
-  = form_for [:profile, @key], html: { class: 'js-requires-input' } do |f|
+  = gitlab_ui_form_for [:profile, @key], html: { class: 'js-requires-input' } do |f|
     = form_errors(@key)
 
     .form-group
       = f.label :key, s_('Profiles|Key'), class: 'label-bold'
-      = f.text_area :key, class: "form-control gl-form-input js-add-ssh-key-validation-input qa-key-public-key-field", rows: 8, required: true, data: { supported_algorithms: Gitlab::SSHPublicKey.supported_algorithms }
+      = f.text_area :key, class: "form-control gl-form-input js-add-ssh-key-validation-input", rows: 8, required: true, data: { supported_algorithms: Gitlab::SSHPublicKey.supported_algorithms, qa_selector: 'key_public_key_field' }
       %p.form-text.text-muted= s_('Profiles|Begins with %{ssh_key_algorithms}.') % { ssh_key_algorithms: ssh_key_allowed_algorithms }
     .form-row
       .col.form-group
         = f.label :title, s_('Profiles|Title'), class: 'label-bold'
-        = f.text_field :title, class: "form-control gl-form-input input-lg qa-key-title-field", required: true, placeholder: s_('Profiles|Example: MacBook key')
+        = f.text_field :title, class: "form-control gl-form-input input-lg", required: true, placeholder: s_('Profiles|Example: MacBook key'), data: { qa_selector: 'key_title_field' }
         %p.form-text.text-muted= s_('Profiles|Key titles are publicly visible.')
-
+    .form-row
+      .col.form-group
+        = f.label :usage_type, s_('Profiles|Usage type')
+        .gl-md-form-input-lg
+          = f.select :usage_type, options_for_select(ssh_key_usage_types, :auth_and_signing), {}, { class: 'gl-form-select custom-select' }
     .form-row
       .col.form-group
         .js-access-tokens-expires-at{ data: {min_date: Date.tomorrow, max_date: max_date, default_date_offset: 365, description: ssh_key_expires_field_description } }
@@ -29,4 +33,4 @@
         button_options: { class: 'js-add-ssh-key-validation-confirm-submit' }) do
         = _("Yes, add it")
     .gl-mt-3
-      = f.submit s_('Profiles|Add key'), class: "gl-button btn btn-confirm js-add-ssh-key-validation-original-submit qa-add-key-button"
+      = f.submit s_('Profiles|Add key'), class: "js-add-ssh-key-validation-original-submit", pajamas_button: true, data: { qa_selector: 'add_key_button' }

@@ -13,4 +13,8 @@ class CodequalityDegradationEntity < Grape::Entity
   expose :line do |degradation|
     degradation.dig(:location, :lines, :begin) || degradation.dig(:location, :positions, :begin, :line)
   end
+
+  expose :web_url
+
+  expose :engine_name
 end

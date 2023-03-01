@@ -28,13 +28,13 @@ module Gitlab
     end
 
     def exist?(key)
-      with { |redis| redis.exists(cache_key(key)) }
+      with { |redis| redis.exists?(cache_key(key)) } # rubocop:disable CodeReuse/ActiveRecord
     end
 
     def write(key, value)
       with do |redis|
         redis.pipelined do |pipeline|
-          pipeline.sadd(cache_key(key), value)
+          pipeline.sadd?(cache_key(key), value)
 
           pipeline.expire(cache_key(key), expires_in)
         end
@@ -59,7 +59,7 @@ module Gitlab
       with do |redis|
         redis.multi do |multi|
           multi.sismember(full_key, value)
-          multi.exists(full_key)
+          multi.exists?(full_key) # rubocop:disable CodeReuse/ActiveRecord
         end
       end
     end

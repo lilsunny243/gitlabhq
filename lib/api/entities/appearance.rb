@@ -5,9 +5,16 @@ module API
     class Appearance < Grape::Entity
       expose :title
       expose :description
+      expose :pwa_name
+      expose :pwa_short_name
+      expose :pwa_description
 
       expose :logo do |appearance, options|
         appearance.logo.url
+      end
+
+      expose :pwa_icon do |appearance, options|
+        appearance.pwa_icon.url
       end
 
       expose :header_logo do |appearance, options|

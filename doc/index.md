@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 description: 'Learn how to use and administer GitLab, the most scalable Git-based fully integrated platform for software development.'
 ---
@@ -20,23 +20,16 @@ description: 'Learn how to use and administer GitLab, the most scalable Git-base
 
 # GitLab Docs
 
-Welcome to [GitLab](https://about.gitlab.com/) documentation.
+Welcome to the GitLab documentation!
 
-Here you can access the complete documentation for GitLab, the single application for the
-[entire DevOps lifecycle](#the-entire-devops-lifecycle).
-
-## Overview
-
-No matter how you use GitLab, we have documentation for you.
-
-| Essential documentation | Essential documentation |
+|                         |                         |
 |:------------------------|:------------------------|
-| [**User documentation**](user/index.md)<br>Discover features and concepts for GitLab users.                          | [**Administrator documentation**](administration/index.md)<br/>Everything GitLab self-managed administrators need to know. |
-| [**Contributing to GitLab**](#contributing-to-gitlab)<br/>At GitLab, everyone can contribute!                        | [**New to Git and GitLab?**](tutorials/index.md)<br/>We have the resources to get you started. |
-| [**Build an integration with GitLab**](#build-an-integration-with-gitlab)<br/>Consult our integration documentation. | [**Coming to GitLab from another platform?**](#coming-to-gitlab-from-another-platform)<br/>Consult our guides. |
-| [**Install GitLab**](https://about.gitlab.com/install/)<br/>Installation options for different platforms.            | [**Customers**](subscriptions/index.md)<br/>Information for new and existing customers. |
-| [**Update GitLab**](update/index.md)<br/>Update your GitLab self-managed instance to the latest version.            | [**Reference Architectures**](administration/reference_architectures/index.md)<br/>GitLab reference architectures. |
-| [**GitLab releases**](https://about.gitlab.com/releases/)<br/>What's new in GitLab.                                  |  |
+| [**Use GitLab**](user/index.md)<br>Get started with GitLab features and functionality. | [**Administer GitLab**](administration/index.md)<br/>Administer a self-managed GitLab instance. |
+| [**New to Git and GitLab?**](tutorials/index.md)<br/>Start learning about Git and GitLab. | [**Contribute to GitLab development**](#contributing-to-gitlab)<br/>Create new GitLab functionality and documentation. |
+| [**Coming to GitLab from another platform?**](#coming-to-gitlab-from-another-platform)<br/>Learn how to move to GitLab. | [**Build an integration with GitLab**](#build-an-integration-with-gitlab)<br/>Integrate with Jira and other common applications. |
+| [**Choose a subscription**](subscriptions/index.md)<br/>Determine which subscription tier makes sense for you. | [**Install GitLab**](https://about.gitlab.com/install/)<br/>Install GitLab on different platforms. |
+| [**Reference architectures**](administration/reference_architectures/index.md)<br/>View recommended deployments at scale. | [**Update GitLab**](update/index.md)<br/>Update your GitLab self-managed instance to the latest version. |
+| [**GitLab releases**](https://about.gitlab.com/releases/)<br/>See what's new in GitLab. |  |
 
 ## Popular topics
 
@@ -66,7 +59,7 @@ GitLab provides solutions for [each of the stages of the DevOps lifecycle](https
 
 ### User account
 
-Learn more about GitLab account management:
+For more information about GitLab account management, see:
 
 | Topic                                                      | Description |
 |:-----------------------------------------------------------|:------------|
@@ -90,7 +83,7 @@ There are many ways to integrate with GitLab, including:
 
 | Topic                                      | Description |
 |:-------------------------------------------|:------------|
-| [GitLab REST API](api/index.md)           | Integrate with GitLab using our REST API. |
+| [GitLab REST API](api/rest/index.md)           | Integrate with GitLab using our REST API. |
 | [GitLab GraphQL API](api/graphql/index.md) | Integrate with GitLab using our GraphQL API. |
 | [Integrations](integration/index.md)      | Integrations with third-party products. |
 

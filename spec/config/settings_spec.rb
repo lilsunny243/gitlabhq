@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Settings do
+RSpec.describe Settings, feature_category: :system_access do
+  using RSpec::Parameterized::TableSyntax
+
   describe 'omniauth' do
     it 'defaults to enabled' do
       expect(described_class.omniauth.enabled).to be true
@@ -12,6 +14,32 @@ RSpec.describe Settings do
   describe '.load_dynamic_cron_schedules!' do
     it 'generates a valid cron schedule' do
       expect(Fugit::Cron.parse(described_class.load_dynamic_cron_schedules!)).to be_a(Fugit::Cron)
+    end
+  end
+
+  describe '.build_ci_component_fqdn' do
+    subject(:fqdn) { described_class.build_ci_component_fqdn }
+
+    where(:host, :port, :relative_url, :result) do
+      'acme.com' | 9090 | '/gitlab' | 'acme.com:9090/gitlab/'
+      'acme.com' | 443  | '/gitlab' | 'acme.com/gitlab/'
+      'acme.com' | 443  | ''        | 'acme.com/'
+      'acme.com' | 9090 | ''        | 'acme.com:9090/'
+      'test'     | 9090 | ''        | 'test:9090/'
+    end
+
+    with_them do
+      before do
+        allow(Gitlab.config).to receive(:gitlab).and_return(
+          Settingslogic.new({
+            'host' => host,
+            'https' => true,
+            'port' => port,
+            'relative_url_root' => relative_url
+          }))
+      end
+
+      it { is_expected.to eq(result) }
     end
   end
 
@@ -148,6 +176,40 @@ RSpec.describe Settings do
     it 'returns empty encrypted config when a key has not been set' do
       allow(Gitlab::Application.secrets).to receive(:encrypted_settings_key_base).and_return(nil)
       expect(Settings.encrypted('tmp/tests/test.enc').read).to be_empty
+    end
+  end
+
+  describe '.microsoft_graph_mailer' do
+    it 'defaults' do
+      expect(described_class.microsoft_graph_mailer.enabled).to be false
+      expect(described_class.microsoft_graph_mailer.user_id).to be_nil
+      expect(described_class.microsoft_graph_mailer.tenant).to be_nil
+      expect(described_class.microsoft_graph_mailer.client_id).to be_nil
+      expect(described_class.microsoft_graph_mailer.client_secret).to be_nil
+      expect(described_class.microsoft_graph_mailer.azure_ad_endpoint).to eq('https://login.microsoftonline.com')
+      expect(described_class.microsoft_graph_mailer.graph_endpoint).to eq('https://graph.microsoft.com')
+    end
+  end
+
+  describe '.repositories' do
+    it 'sets up storage settings' do
+      described_class.repositories.storages.each do |_, storage|
+        expect(storage).to be_a Gitlab::GitalyClient::StorageSettings
+      end
+    end
+  end
+
+  describe '.build_sidekiq_routing_rules' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:input_rules, :result) do
+      nil                         | [['*', nil]]
+      []                          | [['*', nil]]
+      [['name=foobar', 'foobar']] | [['name=foobar', 'foobar']]
+    end
+
+    with_them do
+      it { expect(described_class.send(:build_sidekiq_routing_rules, input_rules)).to eq(result) }
     end
   end
 end

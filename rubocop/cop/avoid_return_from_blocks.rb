@@ -20,7 +20,7 @@ module RuboCop
     #     do_something_else
     #   end
     #
-    class AvoidReturnFromBlocks < RuboCop::Cop::Cop
+    class AvoidReturnFromBlocks < RuboCop::Cop::Base
       MSG = 'Do not return from a block, use next or break instead.'
       DEF_METHODS = %i[define_method lambda].freeze
       WHITELISTED_METHODS = %i[each each_filename times loop].freeze
@@ -32,7 +32,7 @@ module RuboCop
         return unless top_block?(node)
 
         block_body.each_node(:return) do |return_node|
-          next if parent_blocks(node, return_node).all?(&method(:whitelisted?))
+          next if parent_blocks(node, return_node).all? { |block_node| whitelisted?(block_node) }
 
           add_offense(return_node)
         end

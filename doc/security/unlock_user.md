@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -14,12 +14,10 @@ Users are locked after ten failed sign-in attempts. These users remain locked:
 
 ## Unlock a user from the Admin Area
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users**.
 1. Use the search bar to find the locked user.
-1. From the **User administration** dropdown select **Unlock**.
-
-![Unlock a user from the Admin Area](img/unlock_user_v14_7.png)
+1. From the **User administration** dropdown list, select **Unlock**.
 
 ## Unlock a user from the command line
 
@@ -56,7 +54,7 @@ To unlock a locked user:
 
 1. Exit the console with <kbd>Control</kbd>+<kbd>d</kbd>
 
-The user should now be able to log in.
+The user should now be able to sign in.
 
 <!-- ## Troubleshooting
 
@@ -66,6 +64,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

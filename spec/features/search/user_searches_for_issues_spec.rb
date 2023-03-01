@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User searches for issues', :js do
-  let(:user) { create(:user) }
-  let(:project) { create(:project, namespace: user.namespace) }
+RSpec.describe 'User searches for issues', :js, :clean_gitlab_redis_rate_limiting, feature_category: :global_search do
+  let_it_be(:user) { create(:user) }
+  let_it_be(:project) { create(:project, namespace: user.namespace) }
+
   let!(:issue1) { create(:issue, title: 'issue Foo', project: project, created_at: 1.hour.ago) }
   let!(:issue2) { create(:issue, :closed, :confidential, title: 'issue Bar', project: project) }
 
@@ -106,10 +107,11 @@ RSpec.describe 'User searches for issues', :js do
 
   context 'when signed out' do
     context 'when block_anonymous_global_searches is disabled' do
-      let(:project) { create(:project, :public) }
+      let_it_be(:project) { create(:project, :public) }
 
       before do
         stub_feature_flags(block_anonymous_global_searches: false)
+
         visit(search_path)
       end
 
@@ -126,11 +128,9 @@ RSpec.describe 'User searches for issues', :js do
     end
 
     context 'when block_anonymous_global_searches is enabled' do
-      before do
-        visit(search_path)
-      end
-
       it 'is redirected to login page' do
+        visit(search_path)
+
         expect(page).to have_content('You must be logged in to search across all of GitLab')
       end
     end

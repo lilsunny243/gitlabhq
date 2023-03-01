@@ -16,12 +16,14 @@ RSpec.describe Gitlab::Ci::Config::Entry::Cache do
       let(:policy) { nil }
       let(:key) { 'some key' }
       let(:when_config) { nil }
+      let(:unprotect) { false }
 
       let(:config) do
         {
           key: key,
           untracked: true,
-          paths: ['some/path/']
+          paths: ['some/path/'],
+          unprotect: unprotect
         }.tap do |config|
           config[:policy] = policy if policy
           config[:when] = when_config if when_config
@@ -31,7 +33,7 @@ RSpec.describe Gitlab::Ci::Config::Entry::Cache do
       describe '#value' do
         shared_examples 'hash key value' do
           it 'returns hash value' do
-            expect(entry.value).to eq(key: key, untracked: true, paths: ['some/path/'], policy: 'pull-push', when: 'on_success')
+            expect(entry.value).to eq(key: key, untracked: true, paths: ['some/path/'], policy: 'pull-push', when: 'on_success', unprotect: false)
           end
         end
 
@@ -54,6 +56,14 @@ RSpec.describe Gitlab::Ci::Config::Entry::Cache do
 
           it 'key is nil' do
             expect(entry.value).to match(a_hash_including(key: nil))
+          end
+        end
+
+        context 'with option `unprotect` specified' do
+          let(:unprotect) { true }
+
+          it 'returns true' do
+            expect(entry.value).to match(a_hash_including(unprotect: true))
           end
         end
 
@@ -163,22 +173,6 @@ RSpec.describe Gitlab::Ci::Config::Entry::Cache do
           end
         end
 
-        context 'when policy is unknown' do
-          let(:config) { { policy: 'unknown' } }
-
-          it 'reports error' do
-            is_expected.to include('cache policy should be pull-push, push, or pull')
-          end
-        end
-
-        context 'when `when` is unknown' do
-          let(:config) { { when: 'unknown' } }
-
-          it 'reports error' do
-            is_expected.to include('cache when should be on_success, on_failure or always')
-          end
-        end
-
         context 'when descendants are invalid' do
           context 'with invalid keys' do
             let(:config) { { key: 1 } }
@@ -226,6 +220,62 @@ RSpec.describe Gitlab::Ci::Config::Entry::Cache do
 
           it 'reports error with descendants' do
             is_expected.to include 'cache config contains unknown keys: invalid'
+          end
+        end
+
+        context 'when the `when` keyword is not a valid string' do
+          context 'when `when` is unknown' do
+            let(:config) { { when: 'unknown' } }
+
+            it 'returns error' do
+              is_expected.to include('cache when should be one of: on_success, on_failure, always')
+            end
+          end
+
+          context 'when it is an array' do
+            let(:config) { { when: ['always'] } }
+
+            it 'returns error' do
+              expect(entry).not_to be_valid
+              is_expected.to include('cache when should be a string')
+            end
+          end
+
+          context 'when it is a boolean' do
+            let(:config) { { when: true } }
+
+            it 'returns error' do
+              expect(entry).not_to be_valid
+              is_expected.to include('cache when should be a string')
+            end
+          end
+        end
+
+        context 'when the `policy` keyword is not a valid string' do
+          context 'when `policy` is unknown' do
+            let(:config) { { policy: 'unknown' } }
+
+            it 'returns error' do
+              is_expected.to include('cache policy should be one of: pull-push, push, pull')
+            end
+          end
+
+          context 'when it is an array' do
+            let(:config) { { policy: ['pull-push'] } }
+
+            it 'returns error' do
+              expect(entry).not_to be_valid
+              is_expected.to include('cache policy should be a string')
+            end
+          end
+
+          context 'when it is a boolean' do
+            let(:config) { { policy: true } }
+
+            it 'returns error' do
+              expect(entry).not_to be_valid
+              is_expected.to include('cache policy should be a string')
+            end
           end
         end
       end

@@ -2,8 +2,9 @@
 
 require "spec_helper"
 
-RSpec.describe "User browses files", :js do
+RSpec.describe "User browses files", :js, feature_category: :projects do
   include RepoHelpers
+  include ListboxHelpers
 
   let(:fork_message) do
     "You're not allowed to make changes to this project directly. "\
@@ -84,6 +85,15 @@ RSpec.describe "User browses files", :js do
     context "when browsing the root" do
       before do
         visit(project_tree_path(project, "markdown"))
+      end
+
+      it "redirects to the permalink URL" do
+        click_link(".gitignore")
+        click_link("Permalink")
+
+        permalink_path = project_blob_path(project, "#{project.repository.commit('markdown').sha}/.gitignore")
+
+        expect(page).to have_current_path(permalink_path, ignore_query: true)
       end
 
       it "shows correct files and links" do
@@ -262,6 +272,8 @@ RSpec.describe "User browses files", :js do
   context "when browsing a specific ref", :js do
     let(:ref) { project_tree_path(project, "6d39438") }
 
+    ref_selector = '.ref-selector'
+
     before do
       visit(ref)
     end
@@ -271,26 +283,28 @@ RSpec.describe "User browses files", :js do
       expect(page).to have_content(".gitignore").and have_content("LICENSE")
     end
 
-    it "shows files from a repository with apostroph in its name" do
-      first(".js-project-refs-dropdown").click
+    it "shows files from a repository with apostrophe in its name" do
+      ref_name = 'fix'
 
-      page.within(".project-refs-form") do
-        click_link("'test'")
-      end
+      find(ref_selector).click
+      wait_for_requests
 
-      expect(page).to have_selector(".dropdown-toggle-text", text: "'test'")
+      filter_by(ref_name)
 
-      visit(project_tree_path(project, "'test'"))
+      expect(find(ref_selector)).to have_text(ref_name)
+
+      visit(project_tree_path(project, ref_name))
 
       expect(page).not_to have_selector(".tree-commit .animation-container")
     end
 
     it "shows the code with a leading dot in the directory" do
-      first(".js-project-refs-dropdown").click
+      ref_name = 'fix'
 
-      page.within(".project-refs-form") do
-        click_link("fix")
-      end
+      find(ref_selector).click
+      wait_for_requests
+
+      filter_by(ref_name)
 
       visit(project_tree_path(project, "fix/.testdir"))
 
@@ -324,8 +338,8 @@ RSpec.describe "User browses files", :js do
                  .and have_content("Initial commit")
                  .and have_content("Ignore DS files")
 
-      previous_commit_anchor = "//a[@title='Ignore DS files']/parent::span/following-sibling::span/a"
-      find(:xpath, previous_commit_anchor).click
+      previous_commit_link = find('.tr', text: "Ignore DS files").find("[aria-label='View blame prior to this change']")
+      previous_commit_link.click
 
       expect(page).to have_content("*.rb")
                  .and have_content("Dmitriy Zaporozhets")
@@ -372,5 +386,13 @@ RSpec.describe "User browses files", :js do
         expect(page).to have_content("*.rbc")
       end
     end
+  end
+
+  def filter_by(filter_text)
+    send_keys filter_text
+
+    wait_for_requests
+
+    select_listbox_item filter_text
   end
 end

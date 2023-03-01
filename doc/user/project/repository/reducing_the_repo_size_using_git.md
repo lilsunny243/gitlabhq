@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Reduce repository size **(FREE)**
@@ -63,7 +63,7 @@ To purge files from a GitLab repository:
 1. Clone a fresh copy of the repository from the bundle using  `--bare` and `--mirror` options:
 
    ```shell
-   git clone --bare --mirror /path/to/project.bundle
+   git clone --bare /path/to/project.bundle
    ```
 
 1. Go to the `project.git` directory:
@@ -72,49 +72,56 @@ To purge files from a GitLab repository:
    cd project.git
    ```
 
+1. Because cloning from a bundle file sets the `origin` remote to the local bundle file, change it to the URL of your repository:
+
+   ```shell
+   git remote set-url origin https://gitlab.example.com/<namespace>/<project_name>.git
+   ```
+
 1. Using either `git filter-repo` or `git-sizer`, analyze your repository
    and review the results to determine which items you want to purge:
 
    ```shell
    # Using git filter-repo
    git filter-repo --analyze
-   head .git/filter-repo/analysis/*-{all,deleted}-sizes.txt
+   head filter-repo/analysis/*-{all,deleted}-sizes.txt
 
    # Using git-sizer
    git-sizer
    ```
 
-1. Proceed to purging any files from the history of your repository. Because we are
-   trying to remove internal refs, we rely on the `commit-map` produced by each run to tell us
-   which internal refs to remove.
+1. Purge the history of your repository using relevant `git filter-repo` options.
+   Two common options are:
 
-   NOTE:
-   `git filter-repo` creates a new `commit-map` file every run, and overwrites the `commit-map` from
-   the previous run. You need this file from **every** run. Do the next step every time you run
-   `git filter-repo`.
+   - `--path` and `--invert-paths` to purge specific files:
 
-   To purge specific files, the `--path` and `--invert-paths` options can be combined:
+     ```shell
+     git filter-repo --path path/to/file.ext --invert-paths
+     ```
 
-   ```shell
-   git filter-repo --path path/to/file.ext --invert-paths
-   ```
+   - `--strip-blobs-bigger-than` to purge all files larger than for example 10M:
 
-   To generally purge all files larger than 10M, the `--strip-blobs-bigger-than` option can be used:
-
-   ```shell
-   git filter-repo --strip-blobs-bigger-than 10M
-   ```
+     ```shell
+     git filter-repo --strip-blobs-bigger-than 10M
+     ```
 
    See the
    [`git filter-repo` documentation](https://htmlpreview.github.io/?https://github.com/newren/git-filter-repo/blob/docs/html/git-filter-repo.html#EXAMPLES)
    for more examples and the complete documentation.
 
-1. Because cloning from a bundle file sets the `origin` remote to the local bundle file, delete this `origin` remote, and set it to the URL to your repository:
+1. Because you are trying to remove internal refs,
+   you need the `commit-map` files produced by each run
+   to tell you which internal refs to remove.
+   Every `git filter-repo` run creates a new `commit-map`,
+   and overwrites the `commit-map` from the previous run.
+   You can use the following command to back up each `commit-map` file:
 
    ```shell
-   git remote remove origin
-   git remote add origin https://gitlab.example.com/<namespace>/<project_name>.git
+   cp filter-repo/commit-map ./_filter_repo_commit_map_$(date +%s)
    ```
+
+   Repeat this step and all following steps (including the [repository cleanup](#repository-cleanup) step)
+   every time you run any `git filter-repo` command.
 
 1. Force push your changes to overwrite all branches on GitLab:
 
@@ -167,7 +174,7 @@ To clean up a repository:
 1. Upload a list of objects. For example, a `commit-map` file created by `git filter-repo` which is located in the
    `filter-repo` directory.
 
-   If your `commit-map` file is larger than about 250KB or 3000 lines, the file can be split and uploaded piece by piece:
+   If your `commit-map` file is larger than about 250 KB or 3000 lines, the file can be split and uploaded piece by piece:
 
    ```shell
    split -l 3000 filter-repo/commit-map filter-repo/commit-map-
@@ -257,4 +264,28 @@ increased, your only option is to:
 ### Incorrect repository statistics shown in the GUI
 
 If the displayed size or commit number is different from the exported `.tar.gz` or local repository,
-you can ask a GitLab administrator to [force an update](../../../administration/troubleshooting/gitlab_rails_cheat_sheet.md#incorrect-repository-statistics-shown-in-the-gui).
+you can ask a GitLab administrator to force an update.
+
+Using [the rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session):
+
+```ruby
+p = Project.find_by_full_path('<namespace>/<project>')
+pp p.statistics
+p.statistics.refresh!
+pp p.statistics
+# compare with earlier values
+
+# An alternate method to clear project statistics
+p.repository.expire_all_method_caches
+UpdateProjectStatisticsWorker.perform_async(p.id, ["commit_count","repository_size","storage_size","lfs_objects_size"])
+
+# check the total artifact storage space separately
+builds_with_artifacts = p.builds.with_downloadable_artifacts.all
+
+artifact_storage = 0
+builds_with_artifacts.find_each do |build|
+  artifact_storage += build.artifacts_size
+end
+
+puts "#{artifact_storage} bytes"
+```

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'getting project information' do
+RSpec.describe 'getting project information', feature_category: :projects do
   include GraphqlHelpers
 
   let(:query) { graphql_query_for('metadata', {}, all_graphql_fields_for('Metadata')) }
@@ -17,7 +17,8 @@ RSpec.describe 'getting project information' do
             'enabled' => Gitlab::Kas.enabled?,
             'version' => expected_kas_version,
             'externalUrl' => expected_kas_external_url
-          }
+          },
+          'enterprise' => Gitlab.ee?
         }
       }
     end

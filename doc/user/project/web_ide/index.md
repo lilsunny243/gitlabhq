@@ -1,14 +1,18 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Web IDE **(FREE)**
 
-The Web Integrated Development Environment (IDE) editor streamlines the process
-to contribute changes to your projects, by providing an advanced editor with
-commit staging.
+The Web IDE is an advanced editor with commit staging.
+You can use the Web IDE to make changes to multiple files directly from the
+GitLab UI. For a more basic implementation, see [Web Editor](../repository/web_editor.md).
+
+NOTE:
+The Web IDE is being updated to use VS Code. For details,
+see [Web IDE Beta](../web_ide_beta/index.md).
 
 ## Open the Web IDE
 
@@ -18,7 +22,7 @@ and from merge requests:
 
 ### When viewing a file or the repository file list
 
-  1. In the upper right corner of the page, select **Open in Web IDE** if it is visible.
+  1. In the upper-right corner of the page, select **Open in Web IDE** if it is visible.
   1. If **Open in Web IDE** is not visible:
      1. Select the (**{chevron-lg-down}**) next to **Edit** or **Gitpod**, depending on your configuration.
      1. Select **Open in Web IDE** from the list to display it as the editing option.
@@ -27,7 +31,7 @@ and from merge requests:
 ### When viewing a merge request
 
   1. Go to your merge request.
-  1. In the upper right corner, select **Code > Open in Web IDE**.
+  1. In the upper-right corner, select **Code > Open in Web IDE**.
 
 ## File finder
 
@@ -80,28 +84,24 @@ If you are missing Syntax Highlighting support for any language, we prepared a s
 > - Full Solarized Dark Theme [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/219228) in GitLab 13.1.
 > - Full [Solarized Light](https://gitlab.com/gitlab-org/gitlab/-/issues/221035) and [Monokai](https://gitlab.com/gitlab-org/gitlab/-/issues/221034) Themes introduced in GitLab 13.6.
 
-All the themes GitLab supports for syntax highlighting are applied to the Web IDE's entire screen.
+All the themes GitLab supports for syntax highlighting are applied to the entire Web IDE screen.
 You can pick a theme from your [profile preferences](../../profile/preferences.md).
 
 | Solarized Dark Theme                                        | Dark Theme                              |
 |-------------------------------------------------------------|-----------------------------------------|
 | ![Solarized Dark Theme](img/solarized_dark_theme_v13_1.png) | ![Dark Theme](img/dark_theme_v13_0.png) |
 
-## Highlight lines
+## Link to specific lines
 
-The Web IDE is built with the [Web Editor](../repository/web_editor.md). This enables the Web IDE to share the
-same core features for highlighting and linking to particular lines in the edited files
-[described for the Web Editor](../repository/web_editor.md#highlight-lines).
+The Web IDE and the [Web Editor](../repository/web_editor.md) share the
+same core features. To link to specific lines in the Web IDE, see
+[Web Editor](../repository/web_editor.md#link-to-specific-lines).
 
 ## Schema based validation
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/218472) validation based on predefined schemas in GitLab 13.2 [with a flag](../../../administration/feature_flags.md) named `schema_linting`. Disabled by default.
-
-FLAG:
-On self-managed GitLab, by default this feature is not available. To make it available for your entire instance, ask an administrator to [enable the feature flag](../../../administration/feature_flags.md) named `schema_linting`.
-This feature cannot be enabled or disabled per-project.
-On GitLab.com, this feature is available.
-You should not use this feature for production environments.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/218472) validation based on predefined schemas in GitLab 13.2 [with a flag](../../../administration/feature_flags.md) named `schema_linting`.
+> - [Enabled by default](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104399) in GitLab 15.7.
+> - On self-managed GitLab [enabled by default](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/107488) in GitLab 15.8.
 
 The Web IDE provides validation support for certain JSON and YAML files using schemas
 based on the [JSON Schema Store](https://www.schemastore.org/json/).
@@ -134,10 +134,10 @@ schemas:
 
 Each schema entry supports two properties:
 
-- `uri`: please provide an absolute URL for the schema definition file here.
+- `uri`: Provide an absolute URL for the schema definition file here.
   The schema from this URL is loaded when a matching file is open.
-- `match`: a list of matching paths or glob expressions. If a schema matches a
-  particular path pattern, it is applied to that file. Please enclose the pattern
+- `match`: A list of matching paths or glob expressions. If a schema matches a
+  particular path pattern, it is applied to that file. Enclose the pattern
   in quotes if it begins with an asterisk (`*`), it's be applied to that file.
   If a pattern begins with an asterisk (`*`), enclose it in quotation marks.
   Otherwise, the configuration file is not valid YAML.
@@ -175,8 +175,8 @@ access to the selected branch, you see a warning, but can still create
 a new branch and start a merge request.
 
 To discard a change in a particular file, select **Discard changes** on that
-file in the changes tab. To discard all the changes, select the trash icon on the
-top-right corner of the changes sidebar.
+file in the changes tab. To discard all the changes, select the trash icon in the
+upper-right corner of the changes sidebar.
 
 ![Commit changes](img/commit_changes_v13_11.png)
 
@@ -193,7 +193,7 @@ shows you a preview of the merge request diff if you commit your changes.
 You can use the Web IDE to quickly fix failing tests by opening
 the branch or merge request in the Web IDE and opening the logs of the failed
 job. You can access the status of all jobs for the most recent pipeline and job
-traces for the current commit by clicking the **Pipelines** button in the top
+traces for the current commit by selecting the **Pipelines** button in the top
 right.
 
 The pipeline status is also shown at all times in the status bar in the bottom
@@ -202,12 +202,12 @@ left.
 ## Switching merge requests
 
 To switch between your authored and assigned merge requests, select the
-dropdown in the top of the sidebar to open a list of merge requests. You must commit or discard all your changes before switching to a different merge
+dropdown list in the top of the sidebar to open a list of merge requests. You must commit or discard all your changes before switching to a different merge
 request.
 
 ## Switching branches
 
-To switch between branches of the current project repository, select the dropdown
+To switch between branches of the current project repository, select the dropdown list
 in the top of the sidebar to open a list of branches.
 You must commit or discard all your changes before switching to a
 different branch.
@@ -238,7 +238,13 @@ There are two ways to preview Markdown content in the Web IDE:
 1. Right-click or use the keyboard shortcut `Command/Control + Shift + P` and
    select **Preview Markdown** to toggle a live Markdown preview panel.
 
-## Live Preview
+<!--- start_remove The following content will be removed on remove_date: '2023-02-01' -->
+
+## Live Preview (removed)
+
+WARNING:
+This feature was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/108627) in GitLab 15.8
+and is planned for removal in 15.9. This change is a breaking change.
 
 > [Renamed](https://gitlab.com/gitlab-org/gitlab/-/issues/213853) from _Client Side Evaluation_ to _Live Preview_ in GitLab 13.0.
 
@@ -260,7 +266,7 @@ a `main` entry point inside the Web IDE.
 Live Preview is enabled for all projects on GitLab.com. If you are an administrator
 of a self-managed GitLab instance, and you want to enable Live Preview:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Scroll to **Web IDE** and select **Expand**:
    ![Administrator Live Preview setting](img/admin_live_preview_v13_0.png)
@@ -282,6 +288,8 @@ An example `package.json`:
   }
 }
 ```
+
+<!--- end_remove -->
 
 ## Interactive Web Terminals for the Web IDE
 
@@ -375,7 +383,7 @@ may be disabled:
 - `.gitlab/.gitlab-webide.yml` does not exist or is set up incorrectly.
 - No active private runners are available for the project.
 
-If active, clicking the **Start Web Terminal** button loads the terminal view
+If active, selecting the **Start Web Terminal** button loads the terminal view
 and start connecting to the runner's terminal. At any time, the **Terminal** tab
 can be closed and reopened and the state of the terminal is not affected.
 
@@ -384,7 +392,7 @@ runner's shell prompt appears in the terminal. From here, you can enter
 commands executed in the runner's environment. This is similar
 to running commands in a local terminal or through SSH.
 
-While the terminal is running, it can be stopped by clicking **Stop Terminal**.
+While the terminal is running, it can be stopped by selecting **Stop Terminal**.
 This disconnects the terminal and stops the runner's terminal job. From here,
 select **Restart Terminal** to start a new terminal session.
 
@@ -442,20 +450,23 @@ when:
 - You select any area outside the file editor after editing a file.
 - A file or folder is created, deleted, or renamed.
 
-### Limitations
+### Known issues
 
 The Web IDE has a few limitations:
 
 - Interactive Terminals is in a beta phase and continues to be improved in upcoming releases. In the meantime, the user is limited to having only one
   active terminal at a time.
-
 - LFS files can be rendered and displayed but they cannot be updated and committed using the Web IDE. If an LFS file is modified and pushed to the repository, the LFS pointer in the repository is overwritten with the modified LFS file content.
 
 ### Troubleshooting
 
 - If the terminal's text is gray and unresponsive, then the terminal has stopped
-  and it can no longer be used. A stopped terminal can be restarted by clicking
+  and it can no longer be used. A stopped terminal can be restarted by selecting
   **Restart Terminal**.
 - If the terminal displays **Connection Failure**, then the terminal could not
-  connect to the runner. Please try to stop and restart the terminal. If the
+  connect to the runner. Try to stop and restart the terminal. If the
   problem persists, double check your runner configuration.
+
+## Related topics
+
+- [Web IDE Beta](../web_ide_beta/index.md)

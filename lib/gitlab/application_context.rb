@@ -11,6 +11,7 @@ module Gitlab
     LOG_KEY = Labkit::Context::LOG_KEY
     KNOWN_KEYS = [
       :user,
+      :user_id,
       :project,
       :root_namespace,
       :client_id,
@@ -21,6 +22,7 @@ module Gitlab
       :related_class,
       :feature_category,
       :artifact_size,
+      :artifact_used_cdn,
       :artifacts_dependencies_size,
       :artifacts_dependencies_count,
       :root_caller_id
@@ -38,6 +40,7 @@ module Gitlab
       Attribute.new(:related_class, String),
       Attribute.new(:feature_category, String),
       Attribute.new(:artifact, ::Ci::JobArtifact),
+      Attribute.new(:artifact_used_cdn, Object),
       Attribute.new(:artifacts_dependencies_size, Integer),
       Attribute.new(:artifacts_dependencies_count, Integer),
       Attribute.new(:root_caller_id, String)
@@ -91,10 +94,12 @@ module Gitlab
         assign_hash_if_value(hash, :remote_ip)
         assign_hash_if_value(hash, :related_class)
         assign_hash_if_value(hash, :feature_category)
+        assign_hash_if_value(hash, :artifact_used_cdn)
         assign_hash_if_value(hash, :artifacts_dependencies_size)
         assign_hash_if_value(hash, :artifacts_dependencies_count)
 
         hash[:user] = -> { username } if include_user?
+        hash[:user_id] = -> { user_id } if include_user?
         hash[:project] = -> { project_path } if include_project?
         hash[:root_namespace] = -> { root_namespace_path } if include_namespace?
         hash[:client_id] = -> { client } if include_client?
@@ -144,6 +149,11 @@ module Gitlab
       associated_user&.username
     end
 
+    def user_id
+      associated_user = user || job_user
+      associated_user&.id
+    end
+
     def root_namespace_path
       associated_routable = namespace || project || runner_project || runner_group || job_project
       associated_routable&.full_path_components&.first
@@ -154,7 +164,11 @@ module Gitlab
     end
 
     def include_client?
-      set_values.include?(:user) || set_values.include?(:runner) || set_values.include?(:remote_ip)
+      # Don't overwrite an existing more specific client id with an `ip/` one.
+      original_client_id = self.class.current_context_attribute(:client_id).to_s
+      return false if original_client_id.starts_with?('user/') || original_client_id.starts_with?('runner/')
+
+      include_user? || set_values.include?(:runner) || set_values.include?(:remote_ip)
     end
 
     def include_user?
@@ -168,8 +182,8 @@ module Gitlab
     def client
       if runner
         "runner/#{runner.id}"
-      elsif user
-        "user/#{user.id}"
+      elsif user_id
+        "user/#{user_id}"
       else
         "ip/#{remote_ip}"
       end

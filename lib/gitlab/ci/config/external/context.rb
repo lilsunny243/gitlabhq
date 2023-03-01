@@ -9,29 +9,30 @@ module Gitlab
 
           TimeoutError = Class.new(StandardError)
 
-          MAX_INCLUDES = 100
-          TRIAL_MAX_INCLUDES = 250
+          MAX_INCLUDES = 150
+          TEMP_MAX_INCLUDES = 100 # For logging; to be removed in https://gitlab.com/gitlab-org/gitlab/-/issues/367150
 
           include ::Gitlab::Utils::StrongMemoize
 
-          attr_reader :project, :sha, :user, :parent_pipeline, :variables
+          attr_reader :project, :sha, :user, :parent_pipeline, :variables, :pipeline_config
           attr_reader :expandset, :execution_deadline, :logger, :max_includes
 
           delegate :instrument, to: :logger
 
           def initialize(
             project: nil, sha: nil, user: nil, parent_pipeline: nil, variables: nil,
-            logger: nil
+            pipeline_config: nil, logger: nil
           )
             @project = project
             @sha = sha
             @user = user
             @parent_pipeline = parent_pipeline
             @variables = variables || Ci::Variables::Collection.new
-            @expandset = Set.new
+            @pipeline_config = pipeline_config
+            @expandset = []
             @execution_deadline = 0
             @logger = logger || Gitlab::Ci::Pipeline::Logger.new(project: project)
-            @max_includes = Feature.enabled?(:ci_increase_includes_to_250, project) ? TRIAL_MAX_INCLUDES : MAX_INCLUDES
+            @max_includes = MAX_INCLUDES
             yield self if block_given?
           end
 
@@ -89,6 +90,12 @@ module Gitlab
 
           def includes
             expandset.map(&:metadata)
+          end
+
+          # Some ProjectConfig sources inject an `include` into the config content. We use this
+          # method to exclude that `include` from the calculation of the total included files.
+          def contains_internal_include?
+            !!pipeline_config&.contains_internal_include?
           end
 
           protected

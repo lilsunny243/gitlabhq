@@ -2,10 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe "Admin::Projects" do
+RSpec.describe "Admin::Projects", feature_category: :projects do
   include Spec::Support::Helpers::Features::MembersHelpers
   include Spec::Support::Helpers::Features::InviteMembersModalHelper
   include Spec::Support::Helpers::ModalHelpers
+  include ListboxHelpers
 
   let_it_be_with_reload(:user) { create :user }
   let_it_be_with_reload(:project) { create(:project, :with_namespace_settings) }
@@ -117,8 +118,7 @@ RSpec.describe "Admin::Projects" do
     it 'transfers project to group web', :js do
       visit admin_project_path(project)
 
-      click_button 'Search for Namespace'
-      click_button 'group: web'
+      select_from_listbox 'group: web', from: 'Search for Namespace'
       click_button 'Transfer'
 
       expect(page).to have_content("Web / #{project.name}")
@@ -151,12 +151,11 @@ RSpec.describe "Admin::Projects" do
 
       expect(find_member_row(current_user)).to have_content('Developer')
 
-      page.within find_member_row(current_user) do
-        click_button 'Leave'
-      end
+      show_actions_for_username(current_user)
+      click_button _('Leave group')
 
       within_modal do
-        click_button('Leave')
+        click_button _('Leave')
       end
 
       expect(page).to have_current_path(dashboard_projects_path, ignore_query: true, url: false)

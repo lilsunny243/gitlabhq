@@ -1,31 +1,31 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Harbor container registry integration **(FREE)**
+# Harbor **(FREE)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80999) in GitLab 14.9.
 
-Use Harbor as the container registry for your GitLab project.
+You can use Harbor as the container registry for your GitLab project.
 
-[Harbor](https://goharbor.io/) is an open source registry that can help you manage artifacts across cloud native compute platforms, like Kubernetes and Docker.
+[Harbor](https://goharbor.io/) is an open-source registry that can help you manage artifacts across cloud-native compute platforms like Kubernetes and Docker.
 
-This integration can help you if you need GitLab CI/CD and a container image repository.
+The Harbor integration can help you if you need GitLab CI/CD and a container image repository.
 
 ## Prerequisites
 
 In the Harbor instance, ensure that:
 
 - The project to be integrated has been created.
-- The signed-in user has permission to pull, push, and edit images in the Harbor project.
+- The authenticated user has permission to pull, push, and edit images in the Harbor project.
 
 ## Configure GitLab
 
 GitLab supports integrating Harbor projects at the group or project level. Complete these steps in GitLab:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Harbor**.
 1. Turn on the **Active** toggle under **Enable Integration**.

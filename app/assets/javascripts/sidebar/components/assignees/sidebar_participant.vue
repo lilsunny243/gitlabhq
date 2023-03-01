@@ -1,6 +1,6 @@
 <script>
 import { GlAvatarLabeled, GlIcon } from '@gitlab/ui';
-import { IssuableType } from '~/issues/constants';
+import { IssuableType, TYPE_ISSUE } from '~/issues/constants';
 import { s__, sprintf } from '~/locale';
 
 const AVAILABILITY_STATUS = {
@@ -21,7 +21,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: IssuableType.Issue,
+      default: TYPE_ISSUE,
     },
   },
   computed: {
@@ -58,7 +58,7 @@ export default {
         v-if="hasCannotMergeIcon"
         name="warning-solid"
         aria-hidden="true"
-        class="merge-icon gl-left-6 gl-bottom-0"
+        class="merge-icon"
         :size="12"
       />
     </template>

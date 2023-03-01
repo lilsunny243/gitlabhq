@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -31,7 +31,7 @@ counted as web traffic.
 
 To enable the unauthenticated request rate limit:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**, and expand **User and IP rate limits**.
 1. Select **Enable unauthenticated API request rate limit**.
 
@@ -44,7 +44,7 @@ To enable the unauthenticated request rate limit:
 
 To enable the unauthenticated request rate limit:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**, and expand **User and IP rate limits**.
 1. Select **Enable unauthenticated web request rate limit**.
 
@@ -57,7 +57,7 @@ To enable the unauthenticated request rate limit:
 
 To enable the authenticated API request rate limit:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**, and expand **User and IP rate limits**.
 1. Select **Enable authenticated API request rate limit**.
 
@@ -70,7 +70,7 @@ To enable the authenticated API request rate limit:
 
 To enable the unauthenticated request rate limit:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**, and expand **User and IP rate limits**.
 1. Select **Enable authenticated web request rate limit**.
 
@@ -88,7 +88,7 @@ plain-text body, which by default is `Retry later`.
 
 To use a custom response:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**, and expand **User and IP rate limits**.
 1. In the **Plain-text response to send to clients that hit a rate limit** text box,
    add the plain-text response message.
@@ -109,7 +109,7 @@ attached into the response headers.
 | `RateLimit-Observed`  | `67`                            | Number of requests associated to the client in the time window.                                                                                                                                                  |
 | `RateLimit-Remaining` | `0`                             | Remaining quota in the time window. The result of `RateLimit-Limit` - `RateLimit-Observed`.                                                                                                                     |
 | `RateLimit-Reset`     | `1609844400`                    | [Unix time](https://en.wikipedia.org/wiki/Unix_time)-formatted time when the request quota is reset.                                                                                                             |
-| `RateLimit-ResetTime` | `Tue, 05 Jan 2021 11:00:00 GMT` | [RFC2616](https://tools.ietf.org/html/rfc2616#section-3.3.1)-formatted date and time when the request quota is reset.                                                                                            |
+| `RateLimit-ResetTime` | `Tue, 05 Jan 2021 11:00:00 GMT` | [RFC2616](https://www.rfc-editor.org/rfc/rfc2616#section-3.3.1)-formatted date and time when the request quota is reset.                                                                                            |
 | `Retry-After`         | `30`                            | Remaining duration **in seconds** until the quota is reset. This is a [standard HTTP header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After).                                             |
 
 ## Use an HTTP header to bypass rate limiting
@@ -140,7 +140,7 @@ It is important that your load balancer erases or overwrites the bypass
 header on all incoming traffic. Otherwise, you must trust your
 users to not set that header and bypass the GitLab rate limiter.
 
-Note that the bypass only works if the header is set to `1`.
+The bypass works only if the header is set to `1`.
 
 Requests that bypassed the rate limiter because of the bypass header
 are marked with `"throttle_safelist":"throttle_bypass_header"` in
@@ -209,7 +209,7 @@ To enable dry run mode for all throttles, the variable can be set to `*`.
 
 Setting a throttle to dry run mode logs a message to the
 [`auth.log`](../../../administration/logs/index.md#authlog) when it would hit the limit, while letting the
-request continue as normal. The log message contains an `env` field set to `track`. The `matched`
+request continue. The log message contains an `env` field set to `track`. The `matched`
 field contains the name of throttle that was hit.
 
 It is important to set the environment variable **before** enabling
@@ -225,6 +225,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

@@ -12,6 +12,7 @@ import DescriptionItem from '../extensions/description_item';
 import DescriptionList from '../extensions/description_list';
 import Details from '../extensions/details';
 import DetailsContent from '../extensions/details_content';
+import Comment from '../extensions/comment';
 import Diagram from '../extensions/diagram';
 import Emoji from '../extensions/emoji';
 import Figure from '../extensions/figure';
@@ -22,6 +23,7 @@ import Frontmatter from '../extensions/frontmatter';
 import HardBreak from '../extensions/hard_break';
 import Heading from '../extensions/heading';
 import HorizontalRule from '../extensions/horizontal_rule';
+import Highlight from '../extensions/highlight';
 import HTMLMarks from '../extensions/html_marks';
 import HTMLNodes from '../extensions/html_nodes';
 import Image from '../extensions/image';
@@ -33,6 +35,7 @@ import MathInline from '../extensions/math_inline';
 import OrderedList from '../extensions/ordered_list';
 import Paragraph from '../extensions/paragraph';
 import Reference from '../extensions/reference';
+import ReferenceLabel from '../extensions/reference_label';
 import ReferenceDefinition from '../extensions/reference_definition';
 import Strike from '../extensions/strike';
 import Subscript from '../extensions/subscript';
@@ -48,6 +51,7 @@ import Text from '../extensions/text';
 import Video from '../extensions/video';
 import WordBreak from '../extensions/word_break';
 import {
+  renderComment,
   renderCodeBlock,
   renderHardBreak,
   renderTable,
@@ -61,6 +65,7 @@ import {
   renderHTMLNode,
   renderContent,
   renderBulletList,
+  renderReference,
   preserveUnchanged,
   bold,
   italic,
@@ -76,6 +81,7 @@ const defaultSerializerConfig = {
     [Code.name]: code,
     [Subscript.name]: { open: '<sub>', close: '</sub>', mixable: true },
     [Superscript.name]: { open: '<sup>', close: '</sup>', mixable: true },
+    [Highlight.name]: { open: '<mark>', close: '</mark>', mixable: true },
     [InlineDiff.name]: {
       mixable: true,
       open(_, mark) {
@@ -126,6 +132,7 @@ const defaultSerializerConfig = {
     }),
     [BulletList.name]: preserveUnchanged(renderBulletList),
     [CodeBlockHighlight.name]: preserveUnchanged(renderCodeBlock),
+    [Comment.name]: renderComment,
     [Diagram.name]: preserveUnchanged(renderCodeBlock),
     [DescriptionList.name]: renderHTMLNode('dl', true),
     [DescriptionItem.name]: (state, node, parent, index) => {
@@ -184,9 +191,8 @@ const defaultSerializerConfig = {
     [ListItem.name]: preserveUnchanged(defaultMarkdownSerializer.nodes.list_item),
     [OrderedList.name]: preserveUnchanged(renderOrderedList),
     [Paragraph.name]: preserveUnchanged(defaultMarkdownSerializer.nodes.paragraph),
-    [Reference.name]: (state, node) => {
-      state.write(node.attrs.originalText || node.attrs.text);
-    },
+    [Reference.name]: renderReference,
+    [ReferenceLabel.name]: renderReference,
     [ReferenceDefinition.name]: preserveUnchanged({
       render: (state, node, parent, index, same, sourceMarkdown) => {
         const nextSibling = parent.maybeChild(index + 1);
@@ -206,10 +212,10 @@ const defaultSerializerConfig = {
       },
       overwriteSourcePreservationStrategy: true,
     }),
-    [TableOfContents.name]: (state, node) => {
+    [TableOfContents.name]: preserveUnchanged((state, node) => {
       state.write('[[_TOC_]]');
       state.closeBlock(node);
-    },
+    }),
     [Table.name]: preserveUnchanged(renderTable),
     [TableCell.name]: renderTableCell,
     [TableHeader.name]: renderTableCell,

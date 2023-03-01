@@ -3,17 +3,16 @@
 require 'rubocop_spec_helper'
 require_relative '../../../../rubocop/cop/lint/last_keyword_argument'
 
-RSpec.describe RuboCop::Cop::Lint::LastKeywordArgument do
-  subject(:cop) { described_class.new }
-
+RSpec.describe RuboCop::Cop::Lint::LastKeywordArgument, :ruby27, feature_category: :not_owned do
   before do
     described_class.instance_variable_set(:@keyword_warnings, nil)
+    allow(Dir).to receive(:glob).and_call_original
+    allow(File).to receive(:read).and_call_original
   end
 
   context 'deprecation files does not exist' do
     before do
-      allow(Dir).to receive(:glob).and_return([])
-      allow(File).to receive(:exist?).and_return(false)
+      allow(Dir).to receive(:glob).with(described_class::DEPRECATIONS_GLOB).and_return([])
     end
 
     it 'does not register an offense' do
@@ -58,7 +57,8 @@ RSpec.describe RuboCop::Cop::Lint::LastKeywordArgument do
 
     before do
       allow(Dir).to receive(:glob).and_return(['deprecations/service/create_spec.yml', 'deprecations/api/projects_spec.yml'])
-      allow(File).to receive(:read).and_return(create_spec_yaml, projects_spec_yaml)
+      allow(File).to receive(:read).with('deprecations/service/create_spec.yml').and_return(create_spec_yaml)
+      allow(File).to receive(:read).with('deprecations/api/projects_spec.yml').and_return(projects_spec_yaml)
     end
 
     it 'registers an offense for last keyword warning' do
@@ -155,6 +155,14 @@ RSpec.describe RuboCop::Cop::Lint::LastKeywordArgument do
       expect_no_offenses(<<~SOURCE, 'update_service.rb')
         users.call(params)
       SOURCE
+    end
+
+    context 'with Ruby 3.0', :ruby30 do
+      it 'does not register an offense with known warning' do
+        expect_no_offenses(<<~SOURCE, 'create_service.rb')
+          users.call(params)
+        SOURCE
+      end
     end
   end
 end

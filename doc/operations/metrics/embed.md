@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Embedding metric charts within GitLab Flavored Markdown **(FREE)**
@@ -48,9 +48,8 @@ GitLab unfurls the link as an embedded metrics panel:
 
 ![Embedded Metrics Rendered](img/embedded_metrics_rendered_v13_4.png)
 
-You can also embed a single chart. To get a link to a chart, select
-**{ellipsis_v}** **More actions** in the upper right corner of the chart,
-and select **Copy link to chart**, as shown in this example:
+You can also embed a single chart. To get a link to a chart, in the upper-right corner of the chart,
+select **More actions** (**{ellipsis_v}**), then select **Copy link to chart** as shown in this example.
 
 ![Copy Link To Chart](img/copy_link_to_chart_v12_10.png)
 

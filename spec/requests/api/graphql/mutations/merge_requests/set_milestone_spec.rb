@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Setting milestone of a merge request' do
+RSpec.describe 'Setting milestone of a merge request', feature_category: :code_review_workflow do
   include GraphqlHelpers
 
   let(:current_user) { create(:user) }
@@ -61,6 +61,22 @@ RSpec.describe 'Setting milestone of a merge request' do
 
       expect(response).to have_gitlab_http_status(:success)
       expect(mutation_response['mergeRequest']['milestone']).to be_nil
+    end
+  end
+
+  context 'when passing an invalid milestone_id' do
+    let(:input) { { milestone_id: GitlabSchema.id_from_object(create(:milestone)).to_s } }
+
+    it 'does not set the milestone' do
+      post_graphql_mutation(mutation, current_user: current_user)
+
+      expect(response).to have_gitlab_http_status(:success)
+      expect(graphql_errors).to include(
+        a_hash_including(
+          'message' => "The resource that you are attempting to access does not exist " \
+                       "or you don't have permission to perform this action"
+        )
+      )
     end
   end
 end

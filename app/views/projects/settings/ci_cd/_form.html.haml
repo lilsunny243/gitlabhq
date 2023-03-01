@@ -1,6 +1,6 @@
 - help_link_public_pipelines = link_to sprite_icon('question-o'), help_page_path('ci/pipelines/settings', anchor: 'change-which-users-can-view-your-pipelines'), target: '_blank', rel: 'noopener noreferrer'
 - help_link_auto_canceling = link_to sprite_icon('question-o'), help_page_path('ci/pipelines/settings', anchor: 'auto-cancel-redundant-pipelines'), target: '_blank', rel: 'noopener noreferrer'
-- help_link_skip_outdated = link_to sprite_icon('question-o'), help_page_path('ci/pipelines/settings', anchor: 'skip-outdated-deployment-jobs'), target: '_blank', rel: 'noopener noreferrer'
+- help_link_skip_outdated = link_to sprite_icon('question-o'), help_page_path('ci/pipelines/settings', anchor: 'prevent-outdated-deployment-jobs'), target: '_blank', rel: 'noopener noreferrer'
 - help_link_separated_caches = link_to sprite_icon('question-o'), help_page_path('ci/caching/index', anchor: 'cache-key-names'), target: '_blank', rel: 'noopener noreferrer'
 
 .row.gl-mt-3
@@ -18,12 +18,12 @@
             _("Auto-cancel redundant pipelines"),
             checked_value: 'enabled',
             unchecked_value: 'disabled',
-            help_text: (_('New pipelines cause older pending or running pipelines on the same branch to be cancelled.') + ' ' + help_link_auto_canceling).html_safe
+            help_text: (_('Pipelines for new changes cause older pending or running pipelines on the same branch to be cancelled.') + ' ' + help_link_auto_canceling).html_safe
 
         .form-group
           = f.fields_for :ci_cd_settings_attributes, @project.ci_cd_settings do |form|
-            = form.gitlab_ui_checkbox_component :forward_deployment_enabled, _("Skip outdated deployment jobs"),
-              help_text: (_('When a deployment job is successful, skip older deployment jobs that are still pending.') + ' ' + help_link_skip_outdated).html_safe
+            = form.gitlab_ui_checkbox_component :forward_deployment_enabled, _("Prevent outdated deployment jobs"),
+              help_text: (_('When a deployment job is successful, prevent older deployment jobs that are still pending.') + ' ' + help_link_skip_outdated).html_safe
 
         .form-group
           = f.gitlab_ui_checkbox_component :ci_separated_caches,
@@ -77,7 +77,7 @@
               = _("The maximum file size in megabytes for individual job artifacts.")
               = link_to sprite_icon('question-o'), help_page_path('user/admin_area/settings/continuous_integration', anchor: 'maximum-artifacts-size'), target: '_blank', rel: 'noopener noreferrer'
 
-        = f.submit _('Save changes'), class: "btn gl-button btn-confirm"
+        = f.submit _('Save changes'), pajamas_button: true
 
 %hr
 

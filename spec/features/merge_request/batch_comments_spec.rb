@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > Batch comments', :js do
+RSpec.describe 'Merge request > Batch comments', :js, feature_category: :code_review_workflow do
   include MergeRequestDiffHelpers
   include RepoHelpers
 
@@ -72,6 +72,24 @@ RSpec.describe 'Merge request > Batch comments', :js do
     write_comment(text: 'Testing update', button_text: 'Save comment')
 
     expect(page).to have_selector('.draft-note-component', text: 'Testing update')
+  end
+
+  context 'multiple times on the same diff line' do
+    it 'shows both drafts at once' do
+      write_diff_comment
+
+      # All of the Diff helpers like click_diff_line (or write_diff_comment)
+      #     fail very badly when run a second time.
+      # This recreates the relevant logic.
+      line = find_by_scrolling("[id='#{sample_compare.changes[0][:line_code]}']")
+      line.hover
+      line.find('.js-add-diff-note-button').click
+
+      write_comment(text: 'A second draft!', button_text: 'Add to review')
+
+      expect(page).to have_text('Line is wrong')
+      expect(page).to have_text('A second draft!')
+    end
   end
 
   context 'with image and file draft note' do
@@ -192,7 +210,8 @@ RSpec.describe 'Merge request > Batch comments', :js do
       page.find('.js-diff-comment-avatar').click
     end
 
-    it 'publishes comment right away and unresolves the thread' do
+    it 'publishes comment right away and unresolves the thread',
+      quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/337931' do
       expect(active_discussion.resolved?).to eq(true)
 
       write_reply_to_discussion(button_text: 'Add comment now', unresolve: true)
@@ -202,7 +221,8 @@ RSpec.describe 'Merge request > Batch comments', :js do
       end
     end
 
-    it 'publishes review and unresolves the thread' do
+    it 'publishes review and unresolves the thread',
+      quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/337931' do
       expect(active_discussion.resolved?).to eq(true)
 
       wait_for_requests
@@ -234,10 +254,10 @@ RSpec.describe 'Merge request > Batch comments', :js do
     wait_for_requests
   end
 
-  def write_diff_comment(**params)
+  def write_diff_comment(...)
     click_diff_line(find_by_scrolling("[id='#{sample_compare.changes[0][:line_code]}']"))
 
-    write_comment(**params)
+    write_comment(...)
   end
 
   def write_parallel_comment(line, **params)

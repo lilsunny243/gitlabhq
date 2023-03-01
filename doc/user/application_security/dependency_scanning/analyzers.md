@@ -2,21 +2,10 @@
 type: reference, howto
 stage: Secure
 group: Composition Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Dependency Scanning Analyzers **(ULTIMATE)**
-
-Dependency Scanning relies on underlying third-party tools that are wrapped into
-what we call "Analyzers". An analyzer is a
-[dedicated project](https://gitlab.com/gitlab-org/security-products/analyzers)
-that wraps a particular tool to:
-
-- Expose its detection logic.
-- Handle its execution.
-- Convert its output to the common format.
-
-This is achieved by implementing the [common API](https://gitlab.com/gitlab-org/security-products/analyzers/common).
 
 Dependency Scanning supports the following official analyzers:
 
@@ -26,8 +15,6 @@ Dependency Scanning supports the following official analyzers:
 
 The analyzers are published as Docker images, which Dependency Scanning uses
 to launch dedicated containers for each analysis.
-
-The Dependency Scanning analyzers' current major version number is 2.
 
 Dependency Scanning is pre-configured with a set of **default images** that are
 maintained by GitLab, but users can also integrate their own **custom images**.
@@ -113,7 +100,7 @@ The following table lists the data available for the Gemnasium analyzer.
 
 | Property \ Tool                       |      Gemnasium     |
 |---------------------------------------|:------------------:|
-| Severity                              | 𐄂                  |
+| Severity                              | ✓                  |
 | Title                                 | ✓                  |
 | File                                  | ✓                  |
 | Start line                            | 𐄂                  |

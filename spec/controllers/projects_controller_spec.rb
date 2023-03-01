@@ -2,7 +2,7 @@
 
 require('spec_helper')
 
-RSpec.describe ProjectsController do
+RSpec.describe ProjectsController, feature_category: :projects do
   include ExternalAuthorizationServiceHelpers
   include ProjectForksHelper
   using RSpec::Parameterized::TableSyntax
@@ -231,7 +231,7 @@ RSpec.describe ProjectsController do
     end
 
     context "project with broken repo" do
-      let_it_be(:empty_project) { create(:project_broken_repo, :public) }
+      let_it_be(:empty_project) { create(:project, :public) }
 
       before do
         sign_in(user)
@@ -246,8 +246,6 @@ RSpec.describe ProjectsController do
           end
 
           it "renders the empty project view" do
-            allow(Project).to receive(:repo).and_raise(Gitlab::Git::Repository::NoRepository)
-
             expect(response).to render_template('projects/no_repo')
           end
         end
@@ -299,14 +297,16 @@ RSpec.describe ProjectsController do
       end
 
       it "renders files even with invalid license" do
+        invalid_license = ::Gitlab::Git::DeclaredLicense.new(key: 'woozle', name: 'woozle wuzzle')
+
         controller.instance_variable_set(:@project, public_project)
-        expect(public_project.repository).to receive(:license_key).and_return('woozle wuzzle').at_least(:once)
+        expect(public_project.repository).to receive(:license).and_return(invalid_license).at_least(:once)
 
         get_show
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template('_files')
-        expect(response.body).to have_content('LICENSE') # would be 'MIT license' if stub not works
+        expect(response.body).to have_content('woozle wuzzle')
       end
 
       describe 'tracking events', :snowplow do
@@ -508,11 +508,7 @@ RSpec.describe ProjectsController do
     it 'allows an admin user to access the page', :enable_admin_mode do
       sign_in(create(:user, :admin))
 
-      get :edit,
-          params: {
-            namespace_id: project.namespace.path,
-            id: project.path
-          }
+      get :edit, params: { namespace_id: project.namespace.path, id: project.path }
 
       expect(response).to have_gitlab_http_status(:ok)
     end
@@ -521,11 +517,7 @@ RSpec.describe ProjectsController do
       sign_in(user)
       project.add_maintainer(user)
 
-      get :edit,
-          params: {
-            namespace_id: project.namespace.path,
-            id: project.path
-          }
+      get :edit, params: { namespace_id: project.namespace.path, id: project.path }
 
       expect(assigns(:badge_api_endpoint)).not_to be_nil
     end
@@ -543,10 +535,7 @@ RSpec.describe ProjectsController do
       before do
         group.add_owner(user)
 
-        post :archive, params: {
-          namespace_id: project.namespace.path,
-          id: project.path
-        }
+        post :archive, params: { namespace_id: project.namespace.path, id: project.path }
       end
 
       it 'archives the project' do
@@ -629,28 +618,65 @@ RSpec.describe ProjectsController do
 
   describe '#housekeeping' do
     let_it_be(:group) { create(:group) }
-    let_it_be(:project) { create(:project, group: group) }
+    let(:housekeeping_service_dbl) { instance_double(Repositories::HousekeepingService) }
+    let(:params) do
+      {
+        namespace_id: project.namespace.path,
+        id: project.path,
+        prune: prune
+      }
+    end
 
+    let(:prune) { nil }
+    let_it_be(:project) { create(:project, group: group) }
     let(:housekeeping) { Repositories::HousekeepingService.new(project) }
+
+    subject { post :housekeeping, params: params }
 
     context 'when authenticated as owner' do
       before do
         group.add_owner(user)
         sign_in(user)
 
-        allow(Repositories::HousekeepingService).to receive(:new).with(project, :gc).and_return(housekeeping)
+        allow(Repositories::HousekeepingService).to receive(:new).with(project, :eager).and_return(housekeeping)
       end
 
       it 'forces a full garbage collection' do
         expect(housekeeping).to receive(:execute).once
 
         post :housekeeping,
-             params: {
-               namespace_id: project.namespace.path,
-               id: project.path
-             }
+          params: {
+            namespace_id: project.namespace.path,
+            id: project.path
+          }
 
         expect(response).to have_gitlab_http_status(:found)
+      end
+
+      it 'logs an audit event' do
+        expect(housekeeping).to receive(:execute).once.and_yield
+
+        expect(::Gitlab::Audit::Auditor).to receive(:audit).with(a_hash_including(
+          name: 'manually_trigger_housekeeping',
+          author: user,
+          scope: project,
+          target: project,
+          message: "Housekeeping task: eager"
+        ))
+
+        subject
+      end
+
+      context 'and requesting prune' do
+        let(:prune) { true }
+
+        it 'enqueues pruning' do
+          allow(Repositories::HousekeepingService).to receive(:new).with(project, :prune).and_return(housekeeping_service_dbl)
+          expect(housekeeping_service_dbl).to receive(:execute)
+
+          subject
+          expect(response).to have_gitlab_http_status(:found)
+        end
       end
     end
 
@@ -665,10 +691,10 @@ RSpec.describe ProjectsController do
         expect(housekeeping).not_to receive(:execute)
 
         post :housekeeping,
-             params: {
-               namespace_id: project.namespace.path,
-               id: project.path
-             }
+          params: {
+            namespace_id: project.namespace.path,
+            id: project.path
+          }
 
         expect(response).to have_gitlab_http_status(:found)
       end
@@ -702,16 +728,12 @@ RSpec.describe ProjectsController do
           skip unless project.hashed_storage?(:repository)
 
           hashed_storage_path = ::Storage::Hashed.new(project).disk_path
-          original_repository_path = Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-            project.repository.path
-          end
+          original_repository_path = project.repository.relative_path
 
           expect { update_project path: 'renamed_path' }.to change { project.reload.path }
           expect(project.path).to include 'renamed_path'
 
-          assign_repository_path = Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-            assigns(:repository).path
-          end
+          assign_repository_path = assigns(:repository).relative_path
 
           expect(original_repository_path).to include(hashed_storage_path)
           expect(assign_repository_path).to include(hashed_storage_path)
@@ -721,16 +743,12 @@ RSpec.describe ProjectsController do
           skip if project.hashed_storage?(:repository)
 
           hashed_storage_path = Storage::Hashed.new(project).disk_path
-          original_repository_path = Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-            project.repository.path
-          end
+          original_repository_path = project.repository.relative_path
 
           expect { update_project path: 'renamed_path' }.to change { project.reload.path }
           expect(project.path).to include 'renamed_path'
 
-          assign_repository_path = Gitlab::GitalyClient::StorageSettings.allow_disk_access do
-            assigns(:repository).path
-          end
+          assign_repository_path = assigns(:repository).relative_path
 
           expect(original_repository_path).not_to include(hashed_storage_path)
           expect(assign_repository_path).to include(hashed_storage_path)
@@ -761,12 +779,7 @@ RSpec.describe ProjectsController do
           merge_method: :ff
         }
 
-        put :update,
-            params: {
-              namespace_id: project.namespace,
-              id: project.id,
-              project: params
-            }
+        put :update, params: { namespace_id: project.namespace, id: project.id, project: params }
 
         expect(response).to have_gitlab_http_status(:found)
         params.each do |param, value|
@@ -782,22 +795,12 @@ RSpec.describe ProjectsController do
         }
 
         expect do
-          put :update,
-            params: {
-              namespace_id: project.namespace,
-              id: project.id,
-              project: params
-            }
+          put :update, params: { namespace_id: project.namespace, id: project.id, project: params }
         end.not_to change { project.namespace.reload }
       end
 
       def update_project(**parameters)
-        put :update,
-            params: {
-              namespace_id: project.namespace.path,
-              id: project.path,
-              project: parameters
-            }
+        put :update, params: { namespace_id: project.namespace.path, id: project.path, project: parameters }
       end
     end
 
@@ -821,12 +824,9 @@ RSpec.describe ProjectsController do
 
       it_behaves_like 'unauthorized when external service denies access' do
         subject do
-          put :update,
-              params: {
-                namespace_id: project.namespace,
-                id: project,
-                project: { description: 'Hello world' }
-              }
+          put :update, params: {
+            namespace_id: project.namespace, id: project, project: { description: 'Hello world' }
+          }
           project.reload
         end
 
@@ -920,39 +920,13 @@ RSpec.describe ProjectsController do
           environments_access_level
           feature_flags_access_level
           releases_access_level
+          monitor_access_level
+          infrastructure_access_level
         ]
       end
 
       with_them do
         it_behaves_like 'feature update success'
-      end
-
-      context 'for feature_access_level operations_access_level' do
-        let(:feature_access_level) { :operations_access_level }
-
-        include_examples 'feature update failure'
-      end
-
-      context 'with feature flag split_operations_visibility_permissions disabled' do
-        before do
-          stub_feature_flags(split_operations_visibility_permissions: false)
-        end
-
-        context 'for feature_access_level operations_access_level' do
-          let(:feature_access_level) { :operations_access_level }
-
-          include_examples 'feature update success'
-        end
-
-        where(:feature_access_level) do
-          %i[
-            environments_access_level feature_flags_access_level
-          ]
-        end
-
-        with_them do
-          it_behaves_like 'feature update failure'
-        end
       end
     end
   end
@@ -972,13 +946,9 @@ RSpec.describe ProjectsController do
 
         old_namespace = project.namespace
 
-        put :transfer,
-            params: {
-              namespace_id: old_namespace.path,
-              new_namespace_id: new_namespace_id,
-              id: project.path
-            },
-            format: :js
+        put :transfer, params: {
+          namespace_id: old_namespace.path, new_namespace_id: new_namespace_id, id: project.path
+        }, format: :js
 
         project.reload
 
@@ -991,13 +961,9 @@ RSpec.describe ProjectsController do
     it 'updates namespace' do
       sign_in(admin)
 
-      put :transfer,
-          params: {
-            namespace_id: project.namespace.path,
-            new_namespace_id: new_namespace.id,
-            id: project.path
-          },
-          format: :js
+      put :transfer, params: {
+        namespace_id: project.namespace.path, new_namespace_id: new_namespace.id, id: project.path
+      }, format: :js
 
       project.reload
 
@@ -1117,32 +1083,19 @@ RSpec.describe ProjectsController do
     it "toggles star if user is signed in" do
       sign_in(user)
       expect(user.starred?(public_project)).to be_falsey
-      post(:toggle_star,
-           params: {
-             namespace_id: public_project.namespace,
-             id: public_project
-           })
+
+      post :toggle_star, params: { namespace_id: public_project.namespace, id: public_project }
       expect(user.starred?(public_project)).to be_truthy
-      post(:toggle_star,
-           params: {
-             namespace_id: public_project.namespace,
-             id: public_project
-           })
+
+      post :toggle_star, params: { namespace_id: public_project.namespace, id: public_project }
       expect(user.starred?(public_project)).to be_falsey
     end
 
     it "does nothing if user is not signed in" do
-      post(:toggle_star,
-           params: {
-             namespace_id: project.namespace,
-             id: public_project
-           })
+      post :toggle_star, params: { namespace_id: project.namespace, id: public_project }
       expect(user.starred?(public_project)).to be_falsey
-      post(:toggle_star,
-           params: {
-             namespace_id: project.namespace,
-             id: public_project
-           })
+
+      post :toggle_star, params: { namespace_id: project.namespace, id: public_project }
       expect(user.starred?(public_project)).to be_falsey
     end
   end
@@ -1157,12 +1110,9 @@ RSpec.describe ProjectsController do
         let(:forked_project) { fork_project(create(:project, :public), user) }
 
         it 'removes fork from project' do
-          delete(:remove_fork,
-              params: {
-                namespace_id: forked_project.namespace.to_param,
-                id: forked_project.to_param
-              },
-              format: :js)
+          delete :remove_fork, params: {
+            namespace_id: forked_project.namespace.to_param, id: forked_project.to_param
+          }, format: :js
 
           expect(forked_project.reload.forked?).to be_falsey
           expect(flash[:notice]).to eq(s_('The fork relationship has been removed.'))
@@ -1174,12 +1124,9 @@ RSpec.describe ProjectsController do
         let(:unforked_project) { create(:project, namespace: user.namespace) }
 
         it 'does nothing if project was not forked' do
-          delete(:remove_fork,
-              params: {
-                namespace_id: unforked_project.namespace,
-                id: unforked_project
-              },
-              format: :js)
+          delete :remove_fork, params: {
+            namespace_id: unforked_project.namespace, id: unforked_project
+          }, format: :js
 
           expect(flash[:notice]).to be_nil
           expect(response).to redirect_to(edit_project_path(unforked_project))
@@ -1188,12 +1135,10 @@ RSpec.describe ProjectsController do
     end
 
     it "does nothing if user is not signed in" do
-      delete(:remove_fork,
-          params: {
-            namespace_id: project.namespace,
-            id: project
-          },
-          format: :js)
+      delete :remove_fork, params: {
+        namespace_id: project.namespace, id: project
+      }, format: :js
+
       expect(response).to have_gitlab_http_status(:unauthorized)
     end
   end
@@ -1229,26 +1174,6 @@ RSpec.describe ProjectsController do
       end
 
       get :refs, params: { namespace_id: project.namespace, id: project, ref: "123456" }
-    end
-
-    context 'when use_gitaly_pagination_for_refs is disabled' do
-      before do
-        stub_feature_flags(use_gitaly_pagination_for_refs: false)
-      end
-
-      it 'does not use gitaly pagination' do
-        expected_params = ActionController::Parameters.new(ref: '123456', per_page: 100).permit!
-
-        expect_next_instance_of(BranchesFinder, project.repository, expected_params) do |finder|
-          expect(finder).to receive(:execute).with(gitaly_pagination: false).and_call_original
-        end
-
-        expect_next_instance_of(TagsFinder, project.repository, expected_params) do |finder|
-          expect(finder).to receive(:execute).with(gitaly_pagination: false).and_call_original
-        end
-
-        get :refs, params: { namespace_id: project.namespace, id: project, ref: "123456" }
-      end
     end
 
     context 'when gitaly is unavailable' do
@@ -1351,7 +1276,7 @@ RSpec.describe ProjectsController do
                                   text: merge_request.to_reference
                                 }
 
-        expect(json_response['body']).to match(/\!#{merge_request.iid} \(closed\)/)
+        expect(json_response['body']).to match(/!#{merge_request.iid} \(closed\)/)
       end
     end
 
@@ -1652,6 +1577,12 @@ RSpec.describe ProjectsController do
         context 'applies correct scope when throttling', :clean_gitlab_redis_rate_limiting do
           before do
             stub_application_setting(project_download_export_limit: 1)
+
+            travel_to Date.current.beginning_of_day
+          end
+
+          after do
+            travel_back
           end
 
           it 'applies throttle per namespace' do
@@ -1772,12 +1703,7 @@ RSpec.describe ProjectsController do
       service_desk_enabled: true
     }
 
-    put :update,
-        params: {
-          namespace_id: project.namespace,
-          id: project,
-          project: params
-        }
+    put :update, params: { namespace_id: project.namespace, id: project, project: params }
     project.reload
 
     expect(response).to have_gitlab_http_status(:found)

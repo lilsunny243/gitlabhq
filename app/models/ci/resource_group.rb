@@ -24,11 +24,24 @@ module Ci
     # NOTE: This is concurrency-safe method that the subquery in the `UPDATE`
     # works as explicit locking.
     def assign_resource_to(processable)
-      resources.free.limit(1).update_all(build_id: processable.id) > 0
+      attrs = {
+        build_id: processable.id,
+        partition_id: processable.partition_id
+      }
+
+      success = resources.free.limit(1).update_all(attrs) > 0
+      log_event(success: success, processable: processable, action: "assign resource to processable")
+
+      success
     end
 
     def release_resource_from(processable)
-      resources.retained_by(processable).update_all(build_id: nil) > 0
+      attrs = { build_id: nil, partition_id: nil }
+
+      success = resources.retained_by(processable).update_all(attrs) > 0
+      log_event(success: success, processable: processable, action: "release resource from processable")
+
+      success
     end
 
     def upcoming_processables
@@ -64,6 +77,15 @@ module Ci
       # maximum one build can be set to the resource group, thus builds
       # belong to the same resource group are executed once at time.
       self.resources.build if self.resources.empty?
+    end
+
+    def log_event(success:, processable:, action:)
+      Gitlab::Ci::ResourceGroups::Logger.build.info({
+        resource_group_id: self.id,
+        processable_id: processable.id,
+        message: "attempted to #{action}",
+        success: success
+      })
     end
   end
 end

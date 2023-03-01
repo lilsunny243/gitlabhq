@@ -14,15 +14,16 @@ RSpec.describe Gitlab::BackgroundMigration::BackfillImportedIssueSearchData,
     table(:projects)
     .create!(
       namespace_id: namespace.id,
-       creator_id: user.id,
-       name: 'projecty',
-       path: 'path',
-       project_namespace_id: namespace.id)
+      creator_id: user.id,
+      name: 'projecty',
+      path: 'path',
+      project_namespace_id: namespace.id)
   end
 
   let!(:issue) do
     table(:issues).create!(
       project_id: project.id,
+      namespace_id: project.project_namespace_id,
       title: 'Patterson',
       description: FFaker::HipsterIpsum.paragraph
     )
@@ -71,6 +72,7 @@ RSpec.describe Gitlab::BackgroundMigration::BackfillImportedIssueSearchData,
     let!(:issue2) do
       table(:issues).create!(
         project_id: project.id,
+        namespace_id: project.project_namespace_id,
         title: 'Chatterton',
         description: FFaker::HipsterIpsum.paragraph
       )

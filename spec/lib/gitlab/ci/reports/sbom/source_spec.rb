@@ -2,7 +2,7 @@
 
 require 'fast_spec_helper'
 
-RSpec.describe Gitlab::Ci::Reports::Sbom::Source do
+RSpec.describe Gitlab::Ci::Reports::Sbom::Source, feature_category: :dependency_management do
   let(:attributes) do
     {
       type: :dependency_scanning,
@@ -12,8 +12,7 @@ RSpec.describe Gitlab::Ci::Reports::Sbom::Source do
         'source_file' => { 'path' => 'package.json' },
         'package_manager' => { 'name' => 'npm' },
         'language' => { 'name' => 'JavaScript' }
-      },
-      fingerprint: '4dbcb747e6f0fb3ed4f48d96b777f1d64acdf43e459fdfefad404e55c004a188'
+      }
     }
   end
 
@@ -22,8 +21,7 @@ RSpec.describe Gitlab::Ci::Reports::Sbom::Source do
   it 'has correct attributes' do
     expect(subject).to have_attributes(
       source_type: attributes[:type],
-      data: attributes[:data],
-      fingerprint: attributes[:fingerprint]
+      data: attributes[:data]
     )
   end
 end

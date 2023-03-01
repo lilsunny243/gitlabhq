@@ -2,8 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin Groups' do
-  include Select2Helper
+RSpec.describe 'Admin Groups', feature_category: :subgroups do
   include Spec::Support::Helpers::Features::MembersHelpers
   include Spec::Support::Helpers::Features::InviteMembersModalHelper
   include Spec::Support::Helpers::ModalHelpers
@@ -204,34 +203,20 @@ RSpec.describe 'Admin Groups' do
 
       expect(page).to have_content(new_admin_note_text)
     end
+
+    it 'hides removed note' do
+      group = create(:group, :private)
+      group.create_admin_note(note: 'A note by an administrator')
+
+      visit admin_group_edit_path(group)
+      fill_in 'group_admin_note_attributes_note', with: ''
+      click_button 'Save changes'
+
+      expect(page).not_to have_content(s_('Admin|Admin notes'))
+    end
   end
 
   describe 'add user into a group', :js do
-    shared_examples 'adds user into a group' do
-      it do
-        visit admin_group_path(group)
-
-        select2(user_selector, from: '#user_id', multiple: true)
-        page.within '#new_project_member' do
-          select2(Gitlab::Access::REPORTER, from: '#access_level')
-        end
-        click_button "Add users to group"
-
-        page.within ".group-users-list" do
-          expect(page).to have_content(user.name)
-          expect(page).to have_content('Reporter')
-        end
-      end
-    end
-
-    it_behaves_like 'adds user into a group' do
-      let(:user_selector) { user.id }
-    end
-
-    it_behaves_like 'adds user into a group' do
-      let(:user_selector) { user.email }
-    end
-
     context 'when membership is set to expire' do
       it 'renders relative time' do
         expire_time = Time.current + 2.days
@@ -283,9 +268,12 @@ RSpec.describe 'Admin Groups' do
         expect(page).to have_content('Developer')
       end
 
-      find_member_row(current_user).click_button(title: 'Leave')
+      show_actions_for_username(current_user)
+      click_button _('Leave group')
 
-      accept_gl_confirm(button_text: 'Leave')
+      within_modal do
+        click_button _('Leave')
+      end
 
       wait_for_all_requests
 

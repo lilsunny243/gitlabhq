@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe DeployToken do
+RSpec.describe DeployToken, feature_category: :continuous_delivery do
   subject(:deploy_token) { create(:deploy_token) }
 
   it { is_expected.to have_many :project_deploy_tokens }
@@ -82,9 +82,7 @@ RSpec.describe DeployToken do
 
   describe '#ensure_at_least_one_scope' do
     context 'with at least one scope' do
-      it 'is valid' do
-        is_expected.to be_valid
-      end
+      it { is_expected.to be_valid }
     end
 
     context 'with no scopes' do
@@ -427,7 +425,7 @@ RSpec.describe DeployToken do
   end
 
   describe '.gitlab_deploy_token' do
-    let(:project) { create(:project ) }
+    let(:project) { create(:project) }
 
     subject { project.deploy_tokens.gitlab_deploy_token }
 

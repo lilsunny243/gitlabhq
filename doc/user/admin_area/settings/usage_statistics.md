@@ -1,7 +1,7 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Usage statistics **(FREE SELF)**
@@ -27,7 +27,7 @@ There are several other benefits to enabling Service Ping:
 
 - Analyze the users' activities over time of your GitLab installation.
 - A [DevOps Score](../analytics/dev_ops_reports.md#devops-score) to give you an overview of your entire instance's adoption of concurrent DevOps from planning to monitoring.
-- More proactive support (assuming that our TAMs and support organization used the data to deliver more value).
+- More proactive support (assuming that our [Customer Success Managers (CSMs)](https://about.gitlab.com/job-families/sales/customer-success-management/) and support organization used the data to deliver more value).
 - Insight and advice into how to get the most value out of your investment in GitLab.
 - Reports that show how you compare against other similar organizations (anonymized), with specific advice and recommendations on how to improve your DevOps processes.
 - Participation in our [Registration Features Program](#registration-features-program) to receive free paid features.
@@ -56,7 +56,7 @@ Registration is not yet required for participation, but may be added in a future
 ### Enable registration features
 
 1. Sign in as a user with administrator access.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Metrics and profiling**.
 1. Expand the **Usage statistics** section.
 1. If not enabled, select the **Enable Service Ping** checkbox.
@@ -67,7 +67,7 @@ Registration is not yet required for participation, but may be added in a future
 
 If enabled, version check informs you if a new version is available and the
 importance of it through a status. The status displays on the help pages (`/help`)
-for all signed-in users, and on the Admin Area pages. The statuses are:
+for all authenticated users, and on the Admin Area pages. The statuses are:
 
 - Green: You are running the latest version of GitLab.
 - Orange: An updated version of GitLab is available.
@@ -113,7 +113,7 @@ If your GitLab instance is behind a proxy, set the appropriate
 
 To enable or disable Service Ping and version check:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Metrics and profiling**.
 1. Expand **Usage statistics**.
 1. Select or clear the **Enable version check** and **Enable Service Ping** checkboxes.
@@ -165,7 +165,7 @@ the Admin Area:
 You can view the exact JSON payload sent to GitLab Inc. in the Admin Area. To view the payload:
 
 1. Sign in as a user with administrator access.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Metrics and profiling**.
 1. Expand the **Usage statistics** section.
 1. Select **Preview payload**.
@@ -183,7 +183,7 @@ or if the Service Ping [cron job](../../../development/service_ping/index.md#how
 To upload the payload manually:
 
 1. Sign in as a user with administrator access.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Service** usage data.
 1. Select **Download payload**.
 1. Save the JSON file.
@@ -202,6 +202,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

@@ -14,20 +14,17 @@ RSpec.describe Gitlab::Redis::SidekiqStatus do
   describe '#pool' do
     let(:config_new_format_host) { "spec/fixtures/config/redis_new_format_host.yml" }
     let(:config_new_format_socket) { "spec/fixtures/config/redis_new_format_socket.yml" }
+    let(:rails_root) { mktmpdir }
 
     subject { described_class.pool }
 
     before do
-      redis_clear_raw_config!(Gitlab::Redis::SharedState)
-      redis_clear_raw_config!(Gitlab::Redis::Queues)
+      # Override rails root to avoid having our fixtures overwritten by `redis.yml` if it exists
+      allow(Gitlab::Redis::SharedState).to receive(:rails_root).and_return(rails_root)
+      allow(Gitlab::Redis::Queues).to receive(:rails_root).and_return(rails_root)
 
       allow(Gitlab::Redis::SharedState).to receive(:config_file_name).and_return(config_new_format_host)
       allow(Gitlab::Redis::Queues).to receive(:config_file_name).and_return(config_new_format_socket)
-    end
-
-    after do
-      redis_clear_raw_config!(Gitlab::Redis::SharedState)
-      redis_clear_raw_config!(Gitlab::Redis::Queues)
     end
 
     around do |example|

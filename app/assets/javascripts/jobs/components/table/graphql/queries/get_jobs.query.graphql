@@ -2,7 +2,6 @@ query getJobs($fullPath: ID!, $after: String, $first: Int = 30, $statuses: [CiJo
   project(fullPath: $fullPath) {
     id
     jobs(after: $after, first: $first, statuses: $statuses) {
-      count
       pageInfo {
         endCursor
         hasNextPage
@@ -11,8 +10,8 @@ query getJobs($fullPath: ID!, $after: String, $first: Int = 30, $statuses: [CiJo
       }
       nodes {
         artifacts {
+          # eslint-disable-next-line @graphql-eslint/require-id-when-available
           nodes {
-            id
             downloadPath
             fileType
           }

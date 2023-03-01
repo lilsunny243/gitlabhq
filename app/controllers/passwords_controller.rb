@@ -2,6 +2,7 @@
 
 class PasswordsController < Devise::PasswordsController
   include GitlabRecaptcha
+  include Gitlab::Tracking::Helpers::WeakPasswordErrorEvent
 
   skip_before_action :require_no_authentication, only: [:edit, :update]
 
@@ -41,6 +42,8 @@ class PasswordsController < Devise::PasswordsController
         resource.password_automatically_set = false
         resource.password_expires_at = nil
         resource.save(validate: false) if resource.changed?
+      else
+        track_weak_password_error(@user, self.class.name, 'create')
       end
     end
   end
@@ -55,8 +58,8 @@ class PasswordsController < Devise::PasswordsController
   def check_password_authentication_available
     if resource
       return if resource.allow_password_authentication?
-    else
-      return if Gitlab::CurrentSettings.password_authentication_enabled?
+    elsif Gitlab::CurrentSettings.password_authentication_enabled?
+      return
     end
 
     redirect_to after_sending_reset_password_instructions_path_for(resource_name),

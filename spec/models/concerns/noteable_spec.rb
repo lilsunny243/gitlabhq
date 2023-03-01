@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Noteable do
+RSpec.describe Noteable, feature_category: :code_review_workflow do
   let!(:active_diff_note1) { create(:diff_note_on_merge_request) }
   let(:project) { active_diff_note1.project }
   subject { active_diff_note1.noteable }
@@ -47,20 +47,97 @@ RSpec.describe Noteable do
     let(:discussions) { subject.discussions }
 
     it 'includes discussions for diff notes, commit diff notes, commit notes, and regular notes' do
-      expect(discussions).to eq([
-        DiffDiscussion.new([active_diff_note1, active_diff_note2], subject),
-        DiffDiscussion.new([active_diff_note3], subject),
-        DiffDiscussion.new([outdated_diff_note1, outdated_diff_note2], subject),
-        Discussion.new([discussion_note1, discussion_note2], subject),
-        DiffDiscussion.new([commit_diff_note1, commit_diff_note2], subject),
-        OutOfContextDiscussion.new([commit_note1, commit_note2], subject),
-        Discussion.new([commit_discussion_note1, commit_discussion_note2], subject),
-        Discussion.new([commit_discussion_note3], subject),
-        IndividualNoteDiscussion.new([note1], subject),
-        IndividualNoteDiscussion.new([note2], subject)
-      ])
+      expect(discussions).to eq(
+        [
+          DiffDiscussion.new([active_diff_note1, active_diff_note2], subject),
+          DiffDiscussion.new([active_diff_note3], subject),
+          DiffDiscussion.new([outdated_diff_note1, outdated_diff_note2], subject),
+          Discussion.new([discussion_note1, discussion_note2], subject),
+          DiffDiscussion.new([commit_diff_note1, commit_diff_note2], subject),
+          OutOfContextDiscussion.new([commit_note1, commit_note2], subject),
+          Discussion.new([commit_discussion_note1, commit_discussion_note2], subject),
+          Discussion.new([commit_discussion_note3], subject),
+          IndividualNoteDiscussion.new([note1], subject),
+          IndividualNoteDiscussion.new([note2], subject)
+        ])
     end
   end
+
+  # rubocop:disable RSpec/MultipleMemoizedHelpers
+  describe '#commenters' do
+    shared_examples 'commenters' do
+      it 'does not automatically include the noteable author' do
+        expect(commenters).not_to include(noteable.author)
+      end
+
+      context 'with no user' do
+        it 'contains a distinct list of non-internal note authors' do
+          expect(commenters).to contain_exactly(commenter, another_commenter)
+        end
+      end
+
+      context 'with non project member' do
+        let(:current_user) { create(:user) }
+
+        it 'contains a distinct list of non-internal note authors' do
+          expect(commenters).to contain_exactly(commenter, another_commenter)
+        end
+
+        it 'does not include a commenter from another noteable' do
+          expect(commenters).not_to include(other_noteable_commenter)
+        end
+      end
+    end
+
+    let_it_be(:commenter) { create(:user) }
+    let_it_be(:another_commenter) { create(:user) }
+    let_it_be(:internal_commenter) { create(:user) }
+    let_it_be(:other_noteable_commenter) { create(:user) }
+
+    let(:current_user) {}
+    let(:commenters) { noteable.commenters(user: current_user) }
+
+    let!(:comments) { create_list(:note, 2, author: commenter, noteable: noteable, project: noteable.project) }
+    let!(:more_comments) { create_list(:note, 2, author: another_commenter, noteable: noteable, project: noteable.project) }
+
+    context 'when noteable is an issue' do
+      let(:noteable) { create(:issue) }
+
+      let!(:internal_comments) { create_list(:note, 2, author: internal_commenter, noteable: noteable, project: noteable.project, internal: true) }
+      let!(:other_noteable_comments) { create_list(:note, 2, author: other_noteable_commenter, noteable: create(:issue, project: noteable.project), project: noteable.project) }
+
+      it_behaves_like 'commenters'
+
+      context 'with reporter' do
+        let(:current_user) { create(:user) }
+
+        before do
+          noteable.project.add_reporter(current_user)
+        end
+
+        it 'contains a distinct list of non-internal note authors' do
+          expect(commenters).to contain_exactly(commenter, another_commenter, internal_commenter)
+        end
+
+        context 'with noteable author' do
+          let(:current_user) { noteable.author }
+
+          it 'contains a distinct list of non-internal note authors' do
+            expect(commenters).to contain_exactly(commenter, another_commenter, internal_commenter)
+          end
+        end
+      end
+    end
+
+    context 'when noteable is a merge request' do
+      let(:noteable) { create(:merge_request) }
+
+      let!(:other_noteable_comments) { create_list(:note, 2, author: other_noteable_commenter, noteable: create(:merge_request, source_project: noteable.project, source_branch: 'feat123'), project: noteable.project) }
+
+      it_behaves_like 'commenters'
+    end
+  end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
 
   describe '#discussion_ids_relation' do
     it 'returns ordered discussion_ids' do
@@ -78,66 +155,76 @@ RSpec.describe Noteable do
   end
 
   describe '#discussion_root_note_ids' do
-    let!(:label_event) { create(:resource_label_event, merge_request: subject) }
+    let!(:label_event) do
+      create(:resource_label_event, merge_request: subject).tap do |event|
+        # Create an extra label event that should get grouped with the above event so this one should not
+        # be included in the resulting root nodes
+        create(:resource_label_event, merge_request: subject, user: event.user, created_at: event.created_at)
+      end
+    end
+
     let!(:system_note) { create(:system_note, project: project, noteable: subject) }
     let!(:milestone_event) { create(:resource_milestone_event, merge_request: subject) }
     let!(:state_event) { create(:resource_state_event, merge_request: subject) }
 
     it 'returns ordered discussion_ids and synthetic note ids' do
       discussions = subject.discussion_root_note_ids(notes_filter: UserPreference::NOTES_FILTERS[:all_notes]).map do |n|
-        { table_name: n.table_name, discussion_id: n.discussion_id, id: n.id }
+        { table_name: n.table_name, id: n.id }
       end
 
-      expect(discussions).to match([
-        a_hash_including(table_name: 'notes', discussion_id: active_diff_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: active_diff_note3.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: outdated_diff_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: discussion_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_diff_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_note2.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_discussion_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_discussion_note3.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: note2.discussion_id),
-        a_hash_including(table_name: 'resource_label_events', id: label_event.id),
-        a_hash_including(table_name: 'notes', discussion_id: system_note.discussion_id),
-        a_hash_including(table_name: 'resource_milestone_events', id: milestone_event.id),
-        a_hash_including(table_name: 'resource_state_events', id: state_event.id)
-      ])
+      expect(discussions).to match(
+        [
+          a_hash_including(table_name: 'notes', id: active_diff_note1.id),
+          a_hash_including(table_name: 'notes', id: active_diff_note3.id),
+          a_hash_including(table_name: 'notes', id: outdated_diff_note1.id),
+          a_hash_including(table_name: 'notes', id: discussion_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_diff_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_note2.id),
+          a_hash_including(table_name: 'notes', id: commit_discussion_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_discussion_note3.id),
+          a_hash_including(table_name: 'notes', id: note1.id),
+          a_hash_including(table_name: 'notes', id: note2.id),
+          a_hash_including(table_name: 'resource_label_events', id: label_event.id),
+          a_hash_including(table_name: 'notes', id: system_note.id),
+          a_hash_including(table_name: 'resource_milestone_events', id: milestone_event.id),
+          a_hash_including(table_name: 'resource_state_events', id: state_event.id)
+        ])
     end
 
     it 'filters by comments only' do
       discussions = subject.discussion_root_note_ids(notes_filter: UserPreference::NOTES_FILTERS[:only_comments]).map do |n|
-        { table_name: n.table_name, discussion_id: n.discussion_id, id: n.id }
+        { table_name: n.table_name, id: n.id }
       end
 
-      expect(discussions).to match([
-        a_hash_including(table_name: 'notes', discussion_id: active_diff_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: active_diff_note3.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: outdated_diff_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: discussion_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_diff_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_note2.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_discussion_note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: commit_discussion_note3.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: note1.discussion_id),
-        a_hash_including(table_name: 'notes', discussion_id: note2.discussion_id)
-      ])
+      expect(discussions).to match(
+        [
+          a_hash_including(table_name: 'notes', id: active_diff_note1.id),
+          a_hash_including(table_name: 'notes', id: active_diff_note3.id),
+          a_hash_including(table_name: 'notes', id: outdated_diff_note1.id),
+          a_hash_including(table_name: 'notes', id: discussion_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_diff_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_note2.id),
+          a_hash_including(table_name: 'notes', id: commit_discussion_note1.id),
+          a_hash_including(table_name: 'notes', id: commit_discussion_note3.id),
+          a_hash_including(table_name: 'notes', id: note1.id),
+          a_hash_including(table_name: 'notes', id: note2.id)
+        ])
     end
 
     it 'filters by system notes only' do
       discussions = subject.discussion_root_note_ids(notes_filter: UserPreference::NOTES_FILTERS[:only_activity]).map do |n|
-        { table_name: n.table_name, discussion_id: n.discussion_id, id: n.id }
+        { table_name: n.table_name, id: n.id }
       end
 
-      expect(discussions).to match([
-        a_hash_including(table_name: 'resource_label_events', id: label_event.id),
-        a_hash_including(table_name: 'notes', discussion_id: system_note.discussion_id),
-        a_hash_including(table_name: 'resource_milestone_events', id: milestone_event.id),
-        a_hash_including(table_name: 'resource_state_events', id: state_event.id)
-      ])
+      expect(discussions).to match(
+        [
+          a_hash_including(table_name: 'resource_label_events', id: label_event.id),
+          a_hash_including(table_name: 'notes', id: system_note.id),
+          a_hash_including(table_name: 'resource_milestone_events', id: milestone_event.id),
+          a_hash_including(table_name: 'resource_state_events', id: state_event.id)
+        ])
     end
   end
 

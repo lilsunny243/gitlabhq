@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::GroupBoards do
+RSpec.describe API::GroupBoards, :with_license, feature_category: :team_planning do
   let_it_be(:user) { create(:user) }
   let_it_be(:non_member) { create(:user) }
   let_it_be(:guest) { create(:user) }
@@ -13,7 +13,7 @@ RSpec.describe API::GroupBoards do
     board_parent.add_owner(user)
   end
 
-  let_it_be(:project) { create(:project, :public, namespace: board_parent ) }
+  let_it_be(:project) { create(:project, :public, namespace: board_parent) }
 
   let_it_be(:dev_label) do
     create(:group_label, title: 'Development', color: '#FFAABB', group: board_parent)

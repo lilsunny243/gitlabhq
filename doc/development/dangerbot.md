@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Danger bot
@@ -13,7 +13,7 @@ Danger is a gem that runs in the CI environment, like any other analysis tool.
 What sets it apart from (for example, RuboCop) is that it's designed to allow you to
 easily write arbitrary code to test properties of your code or changes. To this
 end, it provides a set of common helpers and access to information about what
-has actually changed in your environment, then simply runs your code!
+has actually changed in your environment, then runs your code!
 
 If Danger is asking you to change something about your merge request, it's best
 just to make the change. If you want to learn how Danger works, or make changes
@@ -132,7 +132,7 @@ have had the chance to add to `helper.labels_to_add`.
 #### Shared rules and plugins
 
 If the rule or plugin you implement can be useful for other projects, think about
-upstreaming them to the [`gitlab-dangerfiles`](https://gitlab.com/gitlab-org/ruby/gems/gitlab-dangerfiles) project.
+adding them upstream to the [`gitlab-dangerfiles`](https://gitlab.com/gitlab-org/ruby/gems/gitlab-dangerfiles) project.
 
 #### Enable Danger on a project
 
@@ -190,9 +190,9 @@ Contributors can configure Danger for their forks with the following steps:
 
 1. Create a [personal API token](https://gitlab.com/-/profile/personal_access_tokens?name=GitLab+Dangerbot&scopes=api)
   that has the `api` scope set (don't forget to copy it to the clipboard).
-1. In your fork, add a [project CI/CD variable](../ci/variables/index.md#add-a-cicd-variable-to-a-project)
+1. In your fork, add a [project CI/CD variable](../ci/variables/index.md#for-a-project)
   called `DANGER_GITLAB_API_TOKEN` with the token copied in the previous step.
 1. Make the variable [masked](../ci/variables/index.md#mask-a-cicd-variable) so it
   doesn't show up in the job logs. The variable cannot be
-  [protected](../ci/variables/index.md#protected-cicd-variables), because it needs
+  [protected](../ci/variables/index.md#protect-a-cicd-variable), because it needs
   to be present for all branches.

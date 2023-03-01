@@ -10,7 +10,9 @@ module QA
       class << self
         # Force top level group creation via UI if test is executed on dot_com environment
         def fabricate!(*args, &prepare_block)
-          return fabricate_via_browser_ui!(*args, &prepare_block) if Specs::Helpers::ContextSelector.dot_com?
+          if Specs::Helpers::ContextSelector.dot_com? || Runtime::Env.personal_access_tokens_disabled?
+            return fabricate_via_browser_ui!(*args, &prepare_block)
+          end
 
           fabricate_via_api!(*args, &prepare_block)
         rescue NotImplementedError
@@ -20,6 +22,8 @@ module QA
 
       def initialize
         @path = Runtime::Namespace.sandbox_name
+        # Visibility should be public by default for backward compatibility
+        @visibility = 'public'
       end
 
       alias_method :full_path, :path
@@ -38,7 +42,7 @@ module QA
             Page::Group::New.perform do |group|
               group.click_create_group
               group.set_path(path)
-              group.set_visibility('Public')
+              group.set_visibility(@visibility)
               group.create
             end
 
@@ -68,7 +72,7 @@ module QA
         {
           path: path,
           name: path,
-          visibility: 'public',
+          visibility: @visibility.downcase,
           avatar: avatar
         }
       end

@@ -61,7 +61,7 @@ export default {
 <template>
   <li
     :class="liClasses"
-    class="gl-display-flex! gl-align-items-center gl-flex-wrap gl-bg-gray-10 gl-py-3 gl-px-5 gl-border-t"
+    class="toggle-replies-widget gl-display-flex! gl-align-items-center gl-flex-wrap gl-bg-gray-10 gl-py-3 gl-px-5 gl-border"
   >
     <gl-button
       ref="toggle"
@@ -75,11 +75,11 @@ export default {
       <user-avatar-link
         v-for="author in uniqueAuthors"
         :key="author.username"
-        class="gl-mr-3"
+        class="gl-mr-3 reply-author-avatar"
         :link-href="author.path"
         :img-alt="author.name"
         img-css-classes="gl-mr-0!"
-        :img-src="author.avatar_url"
+        :img-src="author.avatar_url || author.avatarUrl"
         :img-size="24"
         :tooltip-text="author.name"
         tooltip-placement="bottom"
@@ -102,7 +102,10 @@ export default {
           </gl-link>
         </template>
       </gl-sprintf>
-      <time-ago-tooltip :time="lastReply.created_at" tooltip-placement="bottom" />
+      <time-ago-tooltip
+        :time="lastReply.created_at || lastReply.createdAt"
+        tooltip-placement="bottom"
+      />
     </template>
     <gl-button
       v-else

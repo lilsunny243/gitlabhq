@@ -1,11 +1,12 @@
 import $ from 'jquery';
 import IssuableForm from 'ee_else_ce/issuable/issuable_form';
+import IssuableLabelSelector from '~/issuable/issuable_label_selector';
 import ShortcutsIssuable from '~/behaviors/shortcuts/shortcuts_issuable';
 import ShortcutsNavigation from '~/behaviors/shortcuts/shortcuts_navigation';
 import GLForm from '~/gl_form';
 import { initIssuableHeaderWarnings, initIssuableSidebar } from '~/issuable';
 import IssuableTemplateSelectors from '~/issuable/issuable_template_selectors';
-import { IssueType } from '~/issues/constants';
+import { TYPE_INCIDENT } from '~/issues/constants';
 import Issue from '~/issues/issue';
 import { initTitleSuggestions, initTypePopover } from '~/issues/new';
 import { initRelatedMergeRequests } from '~/issues/related_merge_requests';
@@ -18,9 +19,9 @@ import {
 } from '~/issues/show';
 import { parseIssuableData } from '~/issues/show/utils/parse_data';
 import LabelsSelect from '~/labels/labels_select';
-import MilestoneSelect from '~/milestones/milestone_select';
 import initNotesApp from '~/notes';
 import { store } from '~/notes/stores';
+import { mountMilestoneDropdown } from '~/sidebar/mount_sidebar';
 import ZenMode from '~/zen_mode';
 import initAwardsApp from '~/emoji/awards_app';
 import initLinkedResources from '~/linked_resources';
@@ -39,13 +40,14 @@ export function initFilteredSearchServiceDesk() {
 export function initForm() {
   new GLForm($('.issue-form')); // eslint-disable-line no-new
   new IssuableForm($('.issue-form')); // eslint-disable-line no-new
+  IssuableLabelSelector();
   new IssuableTemplateSelectors({ warnTemplateOverride: true }); // eslint-disable-line no-new
   new LabelsSelect(); // eslint-disable-line no-new
-  new MilestoneSelect(); // eslint-disable-line no-new
   new ShortcutsNavigation(); // eslint-disable-line no-new
 
   initTitleSuggestions();
   initTypePopover();
+  mountMilestoneDropdown();
 }
 
 export function initShow() {
@@ -57,11 +59,11 @@ export function initShow() {
 
   const { issueType, ...issuableData } = parseIssuableData(el);
 
-  if (issueType === IssueType.Incident) {
-    initIncidentApp({ ...issuableData, issuableId: el.dataset.issuableId });
-    initHeaderActions(store, IssueType.Incident);
+  if (issueType === TYPE_INCIDENT) {
+    initIncidentApp({ ...issuableData, issuableId: el.dataset.issuableId }, store);
+    initHeaderActions(store, TYPE_INCIDENT);
     initLinkedResources();
-    initRelatedIssues(IssueType.Incident);
+    initRelatedIssues(TYPE_INCIDENT);
   } else {
     initIssueApp(issuableData, store);
     initHeaderActions(store);

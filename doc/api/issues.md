@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Issues API **(FREE)**
@@ -16,7 +16,7 @@ request on that project results in a `404` status code.
 By default, `GET` requests return 20 results at a time because the API results
 are paginated.
 
-Read more on [pagination](index.md#pagination).
+Read more on [pagination](rest/index.md#pagination).
 
 WARNING:
 The `reference` attribute in responses is deprecated in favor of `references`.
@@ -54,37 +54,38 @@ GET /issues?state=closed
 GET /issues?state=opened
 ```
 
-| Attribute           | Type             | Required   | Description                                                                                                                                         |
-| ------------------- | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `assignee_id`       | integer          | no         | Return issues assigned to the given user `id`. Mutually exclusive with `assignee_username`. `None` returns unassigned issues. `Any` returns issues with an assignee. |
-| `assignee_username` | string array     | no         | Return issues assigned to the given `username`. Similar to `assignee_id` and mutually exclusive with `assignee_id`. In GitLab CE, the `assignee_username` array should only contain a single value. Otherwise, an invalid parameter error is returned. |
-| `author_id`         | integer          | no         | Return issues created by the given user `id`. Mutually exclusive with `author_username`. Combine with `scope=all` or `scope=assigned_to_me`. |
-| `author_username`   | string           | no         | Return issues created by the given `username`. Similar to `author_id` and mutually exclusive with `author_id`. |
-| `confidential`      | boolean          | no         | Filter confidential or public issues.                                                                                                               |
-| `created_after`     | datetime         | no         | Return issues created on or after the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
-| `created_before`    | datetime         | no         | Return issues created on or before the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
-| `due_date`          | string           | no         | Return issues that have no due date, are overdue, or whose due date is this week, this month, or between two weeks ago and next month. Accepts: `0` (no due date), `any`, `today`, `tomorrow`, `overdue`, `week`, `month`, `next_month_and_previous_two_weeks`. |
-| `epic_id` **(PREMIUM)** | integer      | no         | Return issues associated with the given epic ID. `None` returns issues that are not associated with an epic. `Any` returns issues that are associated with an epic. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/46887) in GitLab 13.6)_
-| `iids[]`            | integer array    | no         | Return only the issues having the given `iid`                                                                                                       |
-| `in`                | string           | no         | Modify the scope of the `search` attribute. `title`, `description`, or a string joining them with comma. Default is `title,description`             |
-| `issue_type`        | string           | no         | Filter to a given type of issue. One of `issue`, `incident`, or `test_case`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/260375) in GitLab 13.12)_ |
-| `iteration_id` **(PREMIUM)** | integer | no         | Return issues assigned to the given iteration ID. `None` returns issues that do not belong to an iteration. `Any` returns issues that belong to an iteration. Mutually exclusive with `iteration_title`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/118742) in GitLab 13.6)_ |
-| `iteration_title` **(PREMIUM)** | string | no       | Return issues assigned to the iteration with the given title. Similar to `iteration_id` and mutually exclusive with `iteration_id`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/118742) in GitLab 13.6)_ |
-| `labels`            | string           | no         | Comma-separated list of label names, issues must have all labels to be returned. `None` lists all issues with no labels. `Any` lists all issues with at least one label. `No+Label` (Deprecated) lists all issues with no labels. Predefined names are case-insensitive. |
-| `milestone`         | string           | no         | The milestone title. `None` lists all issues with no milestone. `Any` lists all issues that have an assigned milestone. Using `None` or `Any` will be [deprecated in the future](https://gitlab.com/gitlab-org/gitlab/-/issues/336044). Please use `milestone_id` attribute instead. `milestone` and `milestone_id` are mutually exclusive. |
-| `milestone_id`      | string           | no         | Returns issues assigned to milestones with a given timebox value (`None`, `Any`, `Upcoming`, and `Started`). `None` lists all issues with no milestone. `Any` lists all issues that have an assigned milestone. `Upcoming` lists all issues assigned to milestones due in the future. `Started` lists all issues assigned to open, started milestones. `milestone` and `milestone_id` are mutually exclusive. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/335939) in GitLab 14.3)_ |
-| `my_reaction_emoji` | string           | no         | Return issues reacted by the authenticated user by the given `emoji`. `None` returns issues not given a reaction. `Any` returns issues given at least one reaction. |
-| `non_archived`      | boolean          | no         | Return issues only from non-archived projects. If `false`, the response returns issues from both archived and non-archived projects. Default is `true`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/197170) in GitLab 13.0)_ |
-| `not`               | Hash             | no         | Return issues that do not match the parameters supplied. Accepts: `assignee_id`, `assignee_username`, `author_id`, `author_username`, `iids`, `iteration_id`, `iteration_title`, `labels`, `milestone`, `milestone_id` and `weight`. |
-| `order_by`          | string           | no         | Return issues ordered by `created_at`, `due_date`, `label_priority`, `milestone_due`, `popularity`, `priority`, `relative_position`, `title`, `updated_at`, or `weight` fields. Default is `created_at`. |
-| `scope`             | string           | no         | Return issues for the given scope: `created_by_me`, `assigned_to_me` or `all`. Defaults to `created_by_me`. |
-| `search`            | string           | no         | Search issues against their `title` and `description`                                                                                               |
-| `sort`              | string           | no         | Return issues sorted in `asc` or `desc` order. Default is `desc`                                                                                    |
-| `state`             | string           | no         | Return `all` issues or just those that are `opened` or `closed`                                                                                       |
-| `updated_after`     | datetime         | no         | Return issues updated on or after the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
-| `updated_before`    | datetime         | no         | Return issues updated on or before the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
-| `weight` **(PREMIUM)** | integer       | no         | Return issues with the specified `weight`. `None` returns issues with no weight assigned. `Any` returns issues with a weight assigned.              |
-| `with_labels_details` | boolean        | no         | If `true`, the response returns more details for each label in labels field: `:name`, `:color`, `:description`, `:description_html`, `:text_color`. Default is `false`. The `description_html` attribute was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/21413) in GitLab 12.7|
+| Attribute                       | Type          | Required   | Description                                                                                                                                         |
+|---------------------------------|---------------| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assignee_id`                   | integer       | no         | Return issues assigned to the given user `id`. Mutually exclusive with `assignee_username`. `None` returns unassigned issues. `Any` returns issues with an assignee. |
+| `assignee_username`             | string array  | no         | Return issues assigned to the given `username`. Similar to `assignee_id` and mutually exclusive with `assignee_id`. In GitLab CE, the `assignee_username` array should only contain a single value. Otherwise, an invalid parameter error is returned. |
+| `author_id`                     | integer       | no         | Return issues created by the given user `id`. Mutually exclusive with `author_username`. Combine with `scope=all` or `scope=assigned_to_me`. |
+| `author_username`               | string        | no         | Return issues created by the given `username`. Similar to `author_id` and mutually exclusive with `author_id`. |
+| `confidential`                  | boolean       | no         | Filter confidential or public issues.                                                                                                               |
+| `created_after`                 | datetime      | no         | Return issues created on or after the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
+| `created_before`                | datetime      | no         | Return issues created on or before the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
+| `due_date`                      | string        | no         | Return issues that have no due date, are overdue, or whose due date is this week, this month, or between two weeks ago and next month. Accepts: `0` (no due date), `any`, `today`, `tomorrow`, `overdue`, `week`, `month`, `next_month_and_previous_two_weeks`. |
+| `epic_id` **(PREMIUM)**         | integer       | no         | Return issues associated with the given epic ID. `None` returns issues that are not associated with an epic. `Any` returns issues that are associated with an epic. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/46887) in GitLab 13.6)_
+| `health_status` **(ULTIMATE)**  | string        | no         | Return issues with the specified `health_status`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/370721) in GitLab 15.4)._ In [GitLab 15.5 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/370721), `None` returns issues with no health status assigned, and `Any` returns issues with a health status assigned.
+| `iids[]`                        | integer array | no         | Return only the issues having the given `iid`                                                                                                       |
+| `in`                            | string        | no         | Modify the scope of the `search` attribute. `title`, `description`, or a string joining them with comma. Default is `title,description`             |
+| `issue_type`                    | string        | no         | Filter to a given type of issue. One of `issue`, `incident`, or `test_case`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/260375) in GitLab 13.12)_ |
+| `iteration_id` **(PREMIUM)**    | integer       | no         | Return issues assigned to the given iteration ID. `None` returns issues that do not belong to an iteration. `Any` returns issues that belong to an iteration. Mutually exclusive with `iteration_title`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/118742) in GitLab 13.6)_ |
+| `iteration_title` **(PREMIUM)** | string        | no       | Return issues assigned to the iteration with the given title. Similar to `iteration_id` and mutually exclusive with `iteration_id`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/118742) in GitLab 13.6)_ |
+| `labels`                        | string        | no         | Comma-separated list of label names, issues must have all labels to be returned. `None` lists all issues with no labels. `Any` lists all issues with at least one label. `No+Label` (Deprecated) lists all issues with no labels. Predefined names are case-insensitive. |
+| `milestone`                     | string        | no         | The milestone title. `None` lists all issues with no milestone. `Any` lists all issues that have an assigned milestone. Using `None` or `Any` will be [deprecated in the future](https://gitlab.com/gitlab-org/gitlab/-/issues/336044). Please use `milestone_id` attribute instead. `milestone` and `milestone_id` are mutually exclusive. |
+| `milestone_id`                  | string        | no         | Returns issues assigned to milestones with a given timebox value (`None`, `Any`, `Upcoming`, and `Started`). `None` lists all issues with no milestone. `Any` lists all issues that have an assigned milestone. `Upcoming` lists all issues assigned to milestones due in the future. `Started` lists all issues assigned to open, started milestones. `milestone` and `milestone_id` are mutually exclusive. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/335939) in GitLab 14.3)_ |
+| `my_reaction_emoji`             | string        | no         | Return issues reacted by the authenticated user by the given `emoji`. `None` returns issues not given a reaction. `Any` returns issues given at least one reaction. |
+| `non_archived`                  | boolean       | no         | Return issues only from non-archived projects. If `false`, the response returns issues from both archived and non-archived projects. Default is `true`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/197170) in GitLab 13.0)_ |
+| `not`                           | Hash          | no         | Return issues that do not match the parameters supplied. Accepts: `assignee_id`, `assignee_username`, `author_id`, `author_username`, `iids`, `iteration_id`, `iteration_title`, `labels`, `milestone`, `milestone_id` and `weight`. |
+| `order_by`                      | string        | no         | Return issues ordered by `created_at`, `due_date`, `label_priority`, `milestone_due`, `popularity`, `priority`, `relative_position`, `title`, `updated_at`, or `weight` fields. Default is `created_at`. |
+| `scope`                         | string        | no         | Return issues for the given scope: `created_by_me`, `assigned_to_me` or `all`. Defaults to `created_by_me`. |
+| `search`                        | string        | no         | Search issues against their `title` and `description`                                                                                               |
+| `sort`                          | string        | no         | Return issues sorted in `asc` or `desc` order. Default is `desc`                                                                                    |
+| `state`                         | string        | no         | Return `all` issues or just those that are `opened` or `closed`                                                                                       |
+| `updated_after`                 | datetime      | no         | Return issues updated on or after the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
+| `updated_before`                | datetime      | no         | Return issues updated on or before the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
+| `weight` **(PREMIUM)**          | integer       | no         | Return issues with the specified `weight`. `None` returns issues with no weight assigned. `Any` returns issues with a weight assigned.              |
+| `with_labels_details`           | boolean       | no         | If `true`, the response returns more details for each label in labels field: `:name`, `:color`, `:description`, `:description_html`, `:text_color`. Default is `false`. The `description_html` attribute was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/21413) in GitLab 12.7|
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/issues"
@@ -294,7 +295,7 @@ GET /groups/:id/issues?state=opened
 | `created_before`    | datetime         | no         | Return issues created on or before the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
 | `due_date`          | string           | no         | Return issues that have no due date, are overdue, or whose due date is this week, this month, or between two weeks ago and next month. Accepts: `0` (no due date), `any`, `today`, `tomorrow`, `overdue`, `week`, `month`, `next_month_and_previous_two_weeks`. |
 | `epic_id` **(PREMIUM)** | integer      | no         | Return issues associated with the given epic ID. `None` returns issues that are not associated with an epic. `Any` returns issues that are associated with an epic. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/46887) in GitLab 13.6)_
-| `id`                | integer/string   | yes        | The global ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user                 |
+| `id`                | integer/string   | yes        | The global ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user                 |
 | `iids[]`            | integer array    | no         | Return only the issues having the given `iid`                                                                                 |
 | `issue_type`        | string           | no         | Filter to a given type of issue. One of `issue`, `incident`, or `test_case`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/260375) in GitLab 13.12)_ |
 | `iteration_id` **(PREMIUM)** | integer | no         | Return issues assigned to the given iteration ID. `None` returns issues that do not belong to an iteration. `Any` returns issues that belong to an iteration. Mutually exclusive with `iteration_title`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/118742) in GitLab 13.6)_ |
@@ -498,7 +499,7 @@ GET /projects/:id/issues?state=opened
 | `created_before`    | datetime         | no         | Return issues created on or before the given time. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`) |
 | `due_date`          | string           | no         | Return issues that have no due date, are overdue, or whose due date is this week, this month, or between two weeks ago and next month. Accepts: `0` (no due date), `any`, `today`, `tomorrow`, `overdue`, `week`, `month`, `next_month_and_previous_two_weeks`. |
 | `epic_id` **(PREMIUM)** | integer      | no         | Return issues associated with the given epic ID. `None` returns issues that are not associated with an epic. `Any` returns issues that are associated with an epic. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/46887) in GitLab 13.6)_
-| `id`                | integer/string   | yes        | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user               |
+| `id`                | integer/string   | yes        | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user               |
 | `iids[]`            | integer array    | no         | Return only the issues having the given `iid`                                                                              |
 | `issue_type`        | string           | no         | Filter to a given type of issue. One of `issue`, `incident`, or `test_case`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/260375) in GitLab 13.12)_ |
 | `iteration_id` **(PREMIUM)** | integer | no         | Return issues assigned to the given iteration ID. `None` returns issues that do not belong to an iteration. `Any` returns issues that belong to an iteration. Mutually exclusive with `iteration_title`. _([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/118742) in GitLab 13.6)_ |
@@ -845,7 +846,7 @@ GET /projects/:id/issues/:issue_iid
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -1011,7 +1012,7 @@ POST /projects/:id/issues
 | `due_date`                                | string         | no       | The due date. Date time string in the format `YYYY-MM-DD`, for example `2016-03-11` |
 | `epic_id` **(PREMIUM)** | integer | no | ID of the epic to add the issue to. Valid values are greater than or equal to 0. |
 | `epic_iid` **(PREMIUM)** | integer | no | IID of the epic to add the issue to. Valid values are greater than or equal to 0. (deprecated, [scheduled for removal](https://gitlab.com/gitlab-org/gitlab/-/issues/35157) in API version 5) |
-| `id`                                      | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`                                      | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `iid`                                     | integer/string | no       | The internal ID of the project's issue (requires administrator or project owner rights) |
 | `issue_type`                              | string         | no       | The type of issue. One of `issue`, `incident`, or `test_case`. Default is `issue`. |
 | `labels`                                  | string         | no       | Comma-separated label names for an issue  |
@@ -1179,7 +1180,7 @@ PUT /projects/:id/issues/:issue_iid
 | `due_date`     | string  | no       | The due date. Date time string in the format `YYYY-MM-DD`, for example `2016-03-11`                                           |
 | `epic_id` **(PREMIUM)** | integer | no | ID of the epic to add the issue to. Valid values are greater than or equal to 0. |
 | `epic_iid` **(PREMIUM)** | integer | no | IID of the epic to add the issue to. Valid values are greater than or equal to 0. (deprecated, [scheduled for removal](https://gitlab.com/gitlab-org/gitlab/-/issues/35157) in API version 5) |
-| `id`           | integer/string | yes | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`           | integer/string | yes | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `issue_iid`    | integer | yes      | The internal ID of a project's issue                                                                       |
 | `issue_type`   | string  | no       | Updates the type of issue. One of `issue`, `incident`, or `test_case`. |
 | `labels`       | string  | no       | Comma-separated label names for an issue. Set to an empty string to unassign all labels.                   |
@@ -1325,7 +1326,7 @@ DELETE /projects/:id/issues/:issue_iid
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -1344,7 +1345,7 @@ PUT /projects/:id/issues/:issue_iid/reorder
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of the project's issue |
 | `move_after_id` | integer | no | The global ID of a project's issue that should be placed after this issue |
 | `move_before_id` | integer | no | The global ID of a project's issue that should be placed before this issue |
@@ -1368,7 +1369,7 @@ POST /projects/:id/issues/:issue_iid/move
 
 | Attribute       | Type    | Required | Description                          |
 |-----------------|---------|----------|--------------------------------------|
-| `id`            | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`            | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid`     | integer | yes      | The internal ID of a project's issue |
 | `to_project_id` | integer | yes      | The ID of the new project            |
 
@@ -1505,8 +1506,8 @@ Please use `iid` of the `epic` attribute instead.
 Clone the issue to given project. If the user has insufficient permissions,
 an error message with status code `400` is returned.
 
-Copies as much data as possible as long as the target project contains equivalent labels, milestones,
-and so on.
+Copies as much data as possible as long as the target project contains equivalent
+criteria such as labels or milestones.
 
 ```plaintext
 POST /projects/:id/issues/:issue_iid/clone
@@ -1514,7 +1515,7 @@ POST /projects/:id/issues/:issue_iid/clone
 
 | Attribute       | Type           | Required               | Description                       |
 | --------------- | -------------- | ---------------------- | --------------------------------- |
-| `id`            | integer/string | **{check-circle}** Yes | ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`            | integer/string | **{check-circle}** Yes | ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `issue_iid`     | integer        | **{check-circle}** Yes | Internal ID of a project's issue. |
 | `to_project_id` | integer        | **{check-circle}** Yes | ID of the new project.            |
 | `with_notes`    | boolean        | **{dotted-circle}** No | Clone the issue with [notes](notes.md). Default is `false`. |
@@ -1621,7 +1622,7 @@ POST /projects/:id/issues/:issue_iid/subscribe
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -1764,7 +1765,7 @@ POST /projects/:id/issues/:issue_iid/unsubscribe
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -1838,7 +1839,7 @@ POST /projects/:id/issues/:issue_iid/todo
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -1949,7 +1950,7 @@ The `assignee` column is deprecated. We now show it as a single-sized array `ass
 Promotes an issue to an epic by adding a comment with the `/promote`
 [quick action](../user/project/quick_actions.md).
 
-To learn more about promoting issues to epics, visit [Manage epics](../user/group/epics/manage_epics.md#promote-an-issue-to-an-epic).
+For more information about promoting issues to epics, see [Manage epics](../user/group/epics/manage_epics.md#promote-an-issue-to-an-epic).
 
 ```plaintext
 POST /projects/:id/issues/:issue_iid/notes
@@ -1959,7 +1960,7 @@ Supported attributes:
 
 | Attribute   | Type           | Required | Description |
 | :---------- | :------------- | :------- | :---------- |
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `issue_iid` | integer        | yes      | The internal ID of a project's issue |
 | `body`      | String         | yes      | The content of a note. Must contain `/promote` at the start of a new line. |
 
@@ -2009,8 +2010,8 @@ POST /projects/:id/issues/:issue_iid/time_estimate
 
 | Attribute   | Type    | Required | Description                              |
 |-------------|---------|----------|------------------------------------------|
-| `duration`  | string  | yes      | The duration in human format. e.g: 3h30m |
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user      |
+| `duration`  | string  | yes      | The duration in human format. e.g: `3h30m` |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue     |
 
 ```shell
@@ -2038,7 +2039,7 @@ POST /projects/:id/issues/:issue_iid/reset_time_estimate
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2066,8 +2067,8 @@ POST /projects/:id/issues/:issue_iid/add_spent_time
 
 | Attribute   | Type    | Required | Description                              |
 |-------------|---------|----------|------------------------------------------|
-| `duration`  | string  | yes      | The duration in human format. e.g: 3h30m |
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user      |
+| `duration`  | string  | yes      | The duration in human format. e.g: `3h30m` |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user      |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue     |
 | `summary`   | string  | no       | A summary of how the time was spent  |
 
@@ -2096,7 +2097,7 @@ POST /projects/:id/issues/:issue_iid/reset_spent_time
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2125,7 +2126,7 @@ GET /projects/:id/issues/:issue_iid/time_stats
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2156,7 +2157,7 @@ GET /projects/:id/issues/:issue_iid/related_merge_requests
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2316,7 +2317,7 @@ GET /projects/:id/issues/:issue_iid/closed_by
 
 | Attribute   | Type           | Required | Description                        |
 | ----------- | ---------------| -------- | ---------------------------------- |
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `issue_iid` | integer        | yes      | The internal ID of a project issue |
 
 ```shell
@@ -2393,7 +2394,7 @@ GET /projects/:id/issues/:issue_iid/participants
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2437,7 +2438,7 @@ GET /projects/:id/issues/:issue_iid/user_agent_detail
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2469,7 +2470,7 @@ POST /projects/:id/issues/:issue_iid/metric_images
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 | `file` | file | yes      | The image file to be uploaded |
 | `url` | string | no      | The URL to view more metric information |
@@ -2503,7 +2504,7 @@ GET /projects/:id/issues/:issue_iid/metric_images
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 
 ```shell
@@ -2541,7 +2542,7 @@ PUT /projects/:id/issues/:issue_iid/metric_images/:image_id
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 | `image_id` | integer | yes      | The ID of the image |
 | `url` | string | no      | The URL to view more metric information |
@@ -2574,7 +2575,7 @@ DELETE /projects/:id/issues/:issue_iid/metric_images/:image_id
 
 | Attribute   | Type    | Required | Description                          |
 |-------------|---------|----------|--------------------------------------|
-| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user  |
+| `id`        | integer/string | yes      | The global ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user  |
 | `issue_iid` | integer | yes      | The internal ID of a project's issue |
 | `image_id` | integer | yes      | The ID of the image |
 

@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Govern
 group: Compliance
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Audit event streaming **(ULTIMATE)**
@@ -18,6 +18,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 > - Custom HTTP headers UI [made generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/365259) in GitLab 15.3. [Feature flag `custom_headers_streaming_audit_events_ui`](https://gitlab.com/gitlab-org/gitlab/-/issues/365259) removed.
 > - [Improved user experience](https://gitlab.com/gitlab-org/gitlab/-/issues/367963) in GitLab 15.3.
 > - User-specified verification token API support [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/360813) in GitLab 15.4.
+> - Event type filters API [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/344845) in GitLab 15.7.
 
 Users can set a streaming destination for a top-level group to receive all audit events about the group, its subgroups, and
 projects as structured JSON.
@@ -39,8 +40,8 @@ Streaming destinations receive **all** audit event data, which could include sen
 
 Users with the Owner role for a group can add streaming destinations for it:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Security & Compliance > Audit events**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Security and Compliance > Audit events**.
 1. On the main area, select **Streams** tab.
 1. Select **Add streaming destination** to show the section for adding destinations.
 1. Enter the destination URL to add.
@@ -117,8 +118,8 @@ Users with the Owner role for a group can list streaming destinations.
 
 To list the streaming destinations:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Security & Compliance > Audit events**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Security and Compliance > Audit events**.
 1. On the main area, select **Streams** tab.
 1. To the right of the item, select **Edit** (**{pencil}**) to see all the custom HTTP headers.
 
@@ -143,6 +144,7 @@ query {
             id
           }
         }
+        eventTypeFilters
       }
     }
   }
@@ -161,8 +163,8 @@ Users with the Owner role for a group can update streaming destinations.
 
 To update a streaming destinations custom HTTP headers:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Security & Compliance > Audit events**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Security and Compliance > Audit events**.
 1. On the main area, select **Streams** tab.
 1. To the right of the item, select **Edit** (**{pencil}**).
 1. Locate the **Custom HTTP headers** table.
@@ -215,15 +217,15 @@ When the last destination is successfully deleted, streaming is disabled for the
 
 To delete a streaming destination:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Security & Compliance > Audit events**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Security and Compliance > Audit events**.
 1. On the main area, select the **Streams** tab.
 1. To the right of the item, select **Delete** (**{remove}**).
 
 To delete only the custom HTTP headers for a streaming destination:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Security & Compliance > Audit events**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Security and Compliance > Audit events**.
 1. On the main area, select the **Streams** tab.
 1. To the right of the item, **Edit** (**{pencil}**).
 1. Locate the **Custom HTTP headers** table.
@@ -279,10 +281,67 @@ the destination's value when [listing streaming destinations](#list-streaming-de
 
 Users with the Owner role for a group can list streaming destinations and see the verification tokens:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Security & Compliance > Audit events**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Security and Compliance > Audit events**.
 1. On the main area, select the **Streams**.
 1. View the verification token on the right side of each item.
+
+## Event type filters
+
+> Event type filters API [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/344845) in GitLab 15.7.
+
+When this feature is enabled for a group, you can use an API to permit users to filter streamed audit events per destination.
+If the feature is enabled with no filters, the destination receives all audit events.
+
+A streaming destination that has an event type filter set has a **filtered** (**{filter}**) label.
+
+### Use the API to add an event type filter
+
+Prerequisites:
+
+- You must have the Owner role for the group.
+
+You can add a list of event type filters using the `auditEventsStreamingDestinationEventsAdd` query type:
+
+```graphql
+mutation {
+    auditEventsStreamingDestinationEventsAdd(input: {
+        destinationId: "gid://gitlab/AuditEvents::ExternalAuditEventDestination/1",
+        eventTypeFilters: ["list of event type filters"]}){
+        errors
+        eventTypeFilters
+    }
+}
+```
+
+Event type filters are added if:
+
+- The returned `errors` object is empty.
+- The API responds with `200 OK`.
+
+### Use the API to remove an event type filter
+
+Prerequisites:
+
+- You must have the Owner role for the group.
+
+You can remove a list of event type filters using the `auditEventsStreamingDestinationEventsRemove` query type:
+
+```graphql
+mutation {
+    auditEventsStreamingDestinationEventsRemove(input: {
+    destinationId: "gid://gitlab/AuditEvents::ExternalAuditEventDestination/1",
+    eventTypeFilters: ["list of event type filters"]
+  }){
+    errors
+  }
+}
+```
+
+Event type filters are removed if:
+
+- The returned `errors` object is empty.
+- The API responds with `200 OK`.
 
 ## Payload schema
 
@@ -312,12 +371,9 @@ Streamed audit events have a predictable schema in the body of the response.
 > - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/357211) in GitLab 15.0.
 > - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/357211) in GitLab 15.1 by default.
 > - [Added `details.author_class` field](https://gitlab.com/gitlab-org/gitlab/-/issues/363876) in GitLab 15.3.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/101583) in GitLab 15.6. Feature flag `audit_event_streaming_git_operations` removed.
 
-FLAG:
-On self-managed GitLab, by default this feature is available. To hide the
-feature, ask an administrator to [disable the feature flag](feature_flags.md) named `audit_event_streaming_git_operations`.
-
-Streaming audit events can be sent when signed-in users push or pull a project's remote Git repositories:
+Streaming audit events can be sent when authenticated users push, pull, or clone a project's remote Git repositories:
 
 - [Using SSH](../user/ssh.md).
 - Using HTTP or HTTPS.
@@ -829,5 +885,51 @@ X-Gitlab-Event-Streaming-Token: <DESTINATION_TOKEN>
   "target_type": "Group",
   "target_id": 31,
   "event_type": "project_group_link_destroy"
+}
+```
+
+## Audit event streaming on invalid merge request approver state
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/374566) in GitLab 15.5.
+
+Stream audit events that relate to invalid merge request approver states within a project.
+
+### Headers
+
+Headers are formatted as follows:
+
+```plaintext
+POST /logs HTTP/1.1
+Host: <DESTINATION_HOST>
+Content-Type: application/x-www-form-urlencoded
+X-Gitlab-Event-Streaming-Token: <DESTINATION_TOKEN>
+X-Gitlab-Audit-Event-Type: audit_operation
+```
+
+### Example payload
+
+```json
+{
+  "id": 1,
+  "author_id": 1,
+  "entity_id": 6,
+  "entity_type": "Project",
+  "details": {
+    "author_name": "example_username",
+    "target_id": 20,
+    "target_type": "MergeRequest",
+    "target_details": { title: "Merge request title", iid: "Merge request iid", id: "Merge request id" },
+    "custom_message": "Invalid merge request approver rules",
+    "ip_address": "127.0.0.1",
+    "entity_path": "example-group/example-project"
+  },
+  "ip_address": "127.0.0.1",
+  "author_name": "example_username",
+  "entity_path": "example-group/example-project",
+  "target_details": "merge request title",
+  "created_at": "2022-03-09T06:53:11.181Z",
+  "target_type": "MergeRequest",
+  "target_id": 20,
+  "event_type": "audit_operation"
 }
 ```

@@ -62,7 +62,7 @@ function previous_deploy_failed() {
   return $status
 }
 
-function delete_release() {
+function delete_helm_release() {
   local namespace="${CI_ENVIRONMENT_SLUG}"
   local release="${CI_ENVIRONMENT_SLUG}"
 
@@ -74,32 +74,6 @@ function delete_release() {
   if deploy_exists "${namespace}" "${release}"; then
     helm uninstall --namespace="${namespace}" "${release}"
   fi
-}
-
-function delete_failed_release() {
-  local namespace="${CI_ENVIRONMENT_SLUG}"
-  local release="${CI_ENVIRONMENT_SLUG}"
-
-  if [ -z "${release}" ]; then
-    echoerr "No release given, aborting the delete!"
-    return
-  fi
-
-  if ! deploy_exists "${namespace}" "${release}"; then
-    echoinfo "No Review App with ${release} is currently deployed."
-  else
-    # Cleanup and previous installs, as FAILED and PENDING_UPGRADE will cause errors with `upgrade`
-    if previous_deploy_failed "${namespace}" "${release}" ; then
-      echoinfo "Review App deployment in bad state, cleaning up namespace ${release}"
-      delete_namespace
-    else
-      echoinfo "Review App deployment in good state"
-    fi
-  fi
-}
-
-function delete_namespace() {
-  local namespace="${CI_ENVIRONMENT_SLUG}"
 
   if namespace_exists "${namespace}"; then
     echoinfo "Deleting namespace ${namespace}..." true
@@ -143,7 +117,7 @@ function run_task() {
   local ruby_cmd="${1}"
   local toolbox_pod=$(get_pod "toolbox")
 
-  kubectl exec --namespace "${namespace}" "${toolbox_pod}" -- gitlab-rails runner "${ruby_cmd}"
+  run_timed_command "kubectl exec --namespace \"${namespace}\" \"${toolbox_pod}\" -- gitlab-rails runner \"${ruby_cmd}\""
 }
 
 function disable_sign_ups() {
@@ -154,13 +128,9 @@ function disable_sign_ups() {
     true
   fi
 
-  # Create the root token
-  local set_token_rb="token = User.find_by_username('root').personal_access_tokens.create(scopes: [:api], name: 'Token to disable sign-ups'); token.set_token('${REVIEW_APPS_ROOT_TOKEN}'); begin; token.save!; rescue(ActiveRecord::RecordNotUnique); end"
-  retry "run_task \"${set_token_rb}\""
-
-  # Disable sign-ups
-  local disable_signup_rb="Gitlab::CurrentSettings.current_application_settings.update!(signup_enabled: false)"
-  if (retry "run_task \"${disable_signup_rb}\""); then
+  # Create the root token + Disable sign-ups
+  local disable_signup_rb="token = User.find_by_username('root').personal_access_tokens.create(scopes: [:api], name: 'Token to disable sign-ups'); token.set_token('${REVIEW_APPS_ROOT_TOKEN}'); begin; token.save!; rescue(ActiveRecord::RecordNotUnique); end; Gitlab::CurrentSettings.current_application_settings.update!(signup_enabled: false)"
+  if (retry_exponential "run_task \"${disable_signup_rb}\""); then
     echoinfo "Sign-ups have been disabled successfully."
   else
     echoerr "Sign-ups are still enabled!"
@@ -226,9 +196,9 @@ function create_application_secret() {
 
   if [ -z "${REVIEW_APPS_EE_LICENSE_FILE}" ]; then echo "License not found" && return; fi
 
-  gitlab_license_shared_secret=$(kubectl get secret --namespace ${namespace} --no-headers -o=custom-columns=NAME:.metadata.name shared-gitlab-license 2> /dev/null | tail -n 1)
+  gitlab_license_shared_secret=$(kubectl get secret --namespace "${namespace}" --no-headers -o=custom-columns=NAME:.metadata.name shared-gitlab-license 2> /dev/null | tail -n 1)
   if [[ "${gitlab_license_shared_secret}" == "" ]]; then
-    echoinfo "Creating the 'shared-gitlab-license' secret in the ${namespace} namespace..." true
+    echoinfo "Creating the 'shared-gitlab-license' secret in the "${namespace}" namespace..." true
     kubectl create secret generic --namespace "${namespace}" \
       "shared-gitlab-license" \
       --from-file=license="${REVIEW_APPS_EE_LICENSE_FILE}" \
@@ -239,16 +209,21 @@ function create_application_secret() {
 }
 
 function download_chart() {
-  echoinfo "Downloading the GitLab chart..." true
+  # If the requirements.lock is present, it means we got everything we need from the cache.
+  if [[ -f "gitlab-${GITLAB_HELM_CHART_REF}/requirements.lock" ]]; then
+    echosuccess "Downloading/Building chart dependencies skipped. Using the chart ${gitlab-${GITLAB_HELM_CHART_REF}} local folder'..."
+  else
+    echoinfo "Downloading the GitLab chart..." true
 
-  curl --location -o gitlab.tar.bz2 "https://gitlab.com/gitlab-org/charts/gitlab/-/archive/${GITLAB_HELM_CHART_REF}/gitlab-${GITLAB_HELM_CHART_REF}.tar.bz2"
-  tar -xjf gitlab.tar.bz2
+    curl --location -o gitlab.tar.bz2 "https://gitlab.com/gitlab-org/charts/gitlab/-/archive/${GITLAB_HELM_CHART_REF}/gitlab-${GITLAB_HELM_CHART_REF}.tar.bz2"
+    tar -xjf gitlab.tar.bz2
 
-  echoinfo "Adding the gitlab repo to Helm..."
-  helm repo add gitlab https://charts.gitlab.io
+    echoinfo "Adding the gitlab repo to Helm..."
+    helm repo add gitlab https://charts.gitlab.io
 
-  echoinfo "Building the gitlab chart's dependencies..."
-  helm dependency build "gitlab-${GITLAB_HELM_CHART_REF}"
+    echoinfo "Building the gitlab chart's dependencies..."
+    helm dependency build "gitlab-${GITLAB_HELM_CHART_REF}"
+  fi
 }
 
 function base_config_changed() {
@@ -287,15 +262,15 @@ function deploy() {
   gitlab_workhorse_image_repository="${IMAGE_REPOSITORY}/gitlab-workhorse-ee"
   sentry_enabled="false"
 
-  if [ -n ${REVIEW_APPS_SENTRY_DSN} ]; then
+  if [ -n "${REVIEW_APPS_SENTRY_DSN}" ]; then
     echo "REVIEW_APPS_SENTRY_DSN detected, enabling Sentry"
     sentry_enabled="true"
   fi
 
-  ensure_namespace "${namespace}"
-  label_namespace "${namespace}" "tls=review-apps-tls" # label namespace for kubed to sync tls
+  retry "ensure_namespace \"${namespace}\""
+  retry "label_namespace \"${namespace}\" \"tls=review-apps-tls\"" # label namespace for kubed to sync tls
 
-  create_application_secret
+  retry "create_application_secret"
 
 cat > review_apps.values.yml <<EOF
   gitlab:
@@ -324,68 +299,125 @@ HELM_CMD=$(cat << EOF
     --set global.appConfig.sentry.dsn="${REVIEW_APPS_SENTRY_DSN}" \
     --set global.appConfig.sentry.environment="review" \
     --set gitlab.migrations.image.repository="${gitlab_toolbox_image_repository}" \
-    --set gitlab.migrations.image.tag="${CI_COMMIT_REF_SLUG}" \
+    --set gitlab.migrations.image.tag="${CI_COMMIT_SHA}" \
     --set gitlab.gitaly.image.repository="${gitlab_gitaly_image_repository}" \
     --set gitlab.gitaly.image.tag="${gitaly_image_tag}" \
     --set gitlab.gitlab-shell.image.repository="${gitlab_shell_image_repository}" \
     --set gitlab.gitlab-shell.image.tag="v${GITLAB_SHELL_VERSION}" \
     --set gitlab.sidekiq.annotations.commit="${CI_COMMIT_SHORT_SHA}" \
     --set gitlab.sidekiq.image.repository="${gitlab_sidekiq_image_repository}" \
-    --set gitlab.sidekiq.image.tag="${CI_COMMIT_REF_SLUG}" \
+    --set gitlab.sidekiq.image.tag="${CI_COMMIT_SHA}" \
     --set gitlab.webservice.annotations.commit="${CI_COMMIT_SHORT_SHA}" \
     --set gitlab.webservice.image.repository="${gitlab_webservice_image_repository}" \
-    --set gitlab.webservice.image.tag="${CI_COMMIT_REF_SLUG}" \
+    --set gitlab.webservice.image.tag="${CI_COMMIT_SHA}" \
     --set gitlab.webservice.workhorse.image="${gitlab_workhorse_image_repository}" \
-    --set gitlab.webservice.workhorse.tag="${CI_COMMIT_REF_SLUG}" \
+    --set gitlab.webservice.workhorse.tag="${CI_COMMIT_SHA}" \
     --set gitlab.toolbox.image.repository="${gitlab_toolbox_image_repository}" \
-    --set gitlab.toolbox.image.tag="${CI_COMMIT_REF_SLUG}"
+    --set gitlab.toolbox.image.tag="${CI_COMMIT_SHA}"
 EOF
 )
 
 if [ -n "${REVIEW_APPS_EE_LICENSE_FILE}" ]; then
 HELM_CMD=$(cat << EOF
   ${HELM_CMD} \
-  --set global.gitlab.license.secret="shared-gitlab-license"
+    --set global.gitlab.license.secret="shared-gitlab-license"
 EOF
 )
 fi
 
 HELM_CMD=$(cat << EOF
   ${HELM_CMD} \
-  --version="${CI_PIPELINE_ID}-${CI_JOB_ID}" \
-  -f "${base_config_file}" \
-  -v "${HELM_LOG_VERBOSITY:-1}" \
-  "${release}" "gitlab-${GITLAB_HELM_CHART_REF}"
+    --version="${CI_PIPELINE_ID}-${CI_JOB_ID}" \
+    -f "${base_config_file}" \
+    -v "${HELM_LOG_VERBOSITY:-1}" \
+    "${release}" "gitlab-${GITLAB_HELM_CHART_REF}"
 EOF
 )
 
+  # Pretty-print the command for display
   echoinfo "Deploying with:"
-  echoinfo "${HELM_CMD}"
+  echo "${HELM_CMD}" | sed 's/    /\n\t/g'
 
-  eval "${HELM_CMD}"
+  retry "eval \"${HELM_CMD}\""
 }
 
 function verify_deploy() {
-  echoinfo "Verifying deployment at ${CI_ENVIRONMENT_URL}"
+  local deployed="false"
 
-  if retry "test_url \"${CI_ENVIRONMENT_URL}\""; then
-    echoinfo "Review app is deployed to ${CI_ENVIRONMENT_URL}"
-    return 0
+  mkdir -p curl-logs/
+
+  for i in {1..60}; do # try for 5 minutes
+    local now=$(date '+%H:%M:%S')
+    echo "[${now}] Verifying deployment at ${CI_ENVIRONMENT_URL}/users/sign_in"
+    log_name="curl-logs/${now}.log"
+    curl --connect-timeout 3 -o "${log_name}" -s "${CI_ENVIRONMENT_URL}/users/sign_in"
+
+    if grep "Remember me" "${log_name}" &> /dev/null; then
+      deployed="true"
+      break
+    fi
+
+    sleep 5
+  done
+
+  if [[ "${deployed}" == "true" ]]; then
+    echoinfo "[$(date '+%H:%M:%S')] Review app is deployed to ${CI_ENVIRONMENT_URL}"
   else
-    echoerr "Review app is not available at ${CI_ENVIRONMENT_URL}: see the logs from cURL above for more details"
+    echoerr "[$(date '+%H:%M:%S')] Review app is not available at ${CI_ENVIRONMENT_URL}: see the logs from cURL above for more details"
     return 1
   fi
 }
 
+# We need to be able to access the GitLab API to run this method.
+# Since we are creating a personal access token in `disable_sign_ups`,
+# This method should be executed after it.
+function verify_commit_sha() {
+  local verify_success="false"
+
+  for i in {1..60}; do # try for 2 minutes in case review-apps containers are restarting
+    echoinfo "[$(date '+%H:%M:%S')] Checking the correct commit is deployed in the review-app:"
+    echo "Expected commit sha: ${CI_COMMIT_SHA}"
+
+    review_app_revision=$(curl --header "PRIVATE-TOKEN: ${REVIEW_APPS_ROOT_TOKEN}" "${CI_ENVIRONMENT_URL}/api/v4/metadata" | jq -r .revision)
+    echo "review-app revision: ${review_app_revision}"
+
+    if [[ "${CI_COMMIT_SHA}" == "${review_app_revision}"* ]]; then
+      verify_success="true"
+      break
+    fi
+
+    sleep 2
+  done
+
+  if [[ "${verify_success}" != "true" ]]; then
+    echoerr "[$(date '+%H:%M:%S')] Review app revision is not the same as the current commit!"
+    return 1
+  fi
+
+  return 0
+}
+
 function display_deployment_debug() {
   local namespace="${CI_ENVIRONMENT_SLUG}"
-  local release="${CI_ENVIRONMENT_SLUG}"
 
-  # Get all pods for this release
-  echoinfo "Pods for release ${release}"
-  kubectl get pods --namespace "${namespace}" -lrelease=${release}
+  # Install dig to inspect DNS entries
+  apk add -q bind-tools
 
-  # Get all non-completed jobs
-  echoinfo "Unsuccessful Jobs for release ${release}"
-  kubectl get jobs --namespace "${namespace}" -lrelease=${release} --field-selector=status.successful!=1
+  echoinfo "[debugging data] Check review-app webservice DNS entry:"
+  dig +short $(echo "${CI_ENVIRONMENT_URL}" | sed 's~http[s]*://~~g')
+
+  echoinfo "[debugging data] Check external IP for nginx-ingress-controller service (should be THE SAME AS the DNS entry IP above):"
+  kubectl -n "${namespace}" get svc "${namespace}-nginx-ingress-controller" -o jsonpath='{.status.loadBalancer.ingress[].ip}'
+
+  echoinfo "[debugging data] k8s resources:"
+  kubectl -n "${namespace}" get pods
+
+  echoinfo "[debugging data] PostgreSQL logs:"
+  kubectl -n "${namespace}" logs -l app=postgresql --all-containers
+
+  echoinfo "[debugging data] DB migrations logs:"
+  kubectl -n "${namespace}" logs -l app=migrations --all-containers
+
+  echoinfo "[debugging data] Webservice logs:"
+  kubectl -n "${namespace}" logs -l app=webservice -c webservice
 }

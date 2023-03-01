@@ -21,11 +21,13 @@ module Gitlab
       # The known importer stages and their corresponding Sidekiq workers.
       STAGES = {
         pull_requests_merged_by: Stage::ImportPullRequestsMergedByWorker,
+        pull_request_review_requests: Stage::ImportPullRequestsReviewRequestsWorker,
         pull_request_reviews: Stage::ImportPullRequestsReviewsWorker,
         issues_and_diff_notes: Stage::ImportIssuesAndDiffNotesWorker,
         issue_events: Stage::ImportIssueEventsWorker,
         notes: Stage::ImportNotesWorker,
         attachments: Stage::ImportAttachmentsWorker,
+        protected_branches: Stage::ImportProtectedBranchesWorker,
         lfs_objects: Stage::ImportLfsObjectsWorker,
         finish: Stage::FinishImportWorker
       }.freeze

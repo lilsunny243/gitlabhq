@@ -1,12 +1,13 @@
-/* eslint-disable no-new, class-methods-use-this */
+/* eslint-disable class-methods-use-this */
 import $ from 'jquery';
 import Vue from 'vue';
+import { createAlert } from '~/flash';
 import { getCookie, isMetaClick, parseBoolean, scrollToElement } from '~/lib/utils/common_utils';
 import { parseUrlPathname } from '~/lib/utils/url_utility';
 import createEventHub from '~/helpers/event_hub_factory';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import BlobForkSuggestion from './blob/blob_fork_suggestion';
 import Diff from './diff';
-import createFlash from './flash';
 import { initDiffStatsDropdown } from './init_diff_stats_dropdown';
 import axios from './lib/utils/axios_utils';
 
@@ -133,8 +134,8 @@ function destroyPipelines(app) {
   return null;
 }
 
-function loadDiffs({ url, sticky }) {
-  return axios.get(`${url}.json${location.search}`).then(({ data }) => {
+function loadDiffs({ url, sticky, tabs }) {
+  return axios.get(url).then(({ data }) => {
     const $container = $('#diffs');
     $container.html(data.html);
     initDiffStatsDropdown(sticky);
@@ -142,7 +143,9 @@ function loadDiffs({ url, sticky }) {
     localTimeAgo(document.querySelectorAll('#diffs .js-timeago'));
     syntaxHighlight($('#diffs .js-syntax-highlight'));
 
-    new Diff();
+    tabs.createDiff();
+    tabs.setHubToDiff();
+
     scrollToContainer('#diffs');
 
     $('.diff-file').each((i, el) => {
@@ -160,6 +163,23 @@ function loadDiffs({ url, sticky }) {
 function toggleLoader(state) {
   $('.mr-loading-status .loading').toggleClass('hide', !state);
 }
+
+function getActionFromHref(href) {
+  let action = new URL(href).pathname.match(/\/(commits|diffs|pipelines).*$/);
+
+  if (action) {
+    action = action[0].replace(/(^\/|\.html)/g, '');
+  } else {
+    action = 'show';
+  }
+
+  return action;
+}
+
+const pageBundles = {
+  show: () => import(/* webpackPrefetch: true */ '~/mr_notes/init_notes'),
+  diffs: () => import(/* webpackPrefetch: true */ '~/diffs'),
+};
 
 export default class MergeRequestTabs {
   constructor({ action, setUrl, stubLocation } = {}) {
@@ -186,13 +206,15 @@ export default class MergeRequestTabs {
 
     this.currentTab = null;
     this.diffsLoaded = false;
-    this.pipelinesLoaded = false;
+    this.diffsClass = null;
     this.commitsLoaded = false;
     this.fixedLayoutPref = null;
     this.eventHub = createEventHub();
+    this.loadedPages = { [action]: true };
 
     this.setUrl = setUrl !== undefined ? setUrl : true;
     this.setCurrentAction = this.setCurrentAction.bind(this);
+    this.switchViewType = this.switchViewType.bind(this);
     this.tabShown = this.tabShown.bind(this);
     this.clickTab = this.clickTab.bind(this);
 
@@ -206,18 +228,19 @@ export default class MergeRequestTabs {
 
   bindEvents() {
     $('.merge-request-tabs a[data-toggle="tabvue"]').on('click', this.clickTab);
-    window.addEventListener('popstate', (event) => {
-      if (event.state && event.state.action) {
-        this.tabShown(event.state.action, event.target.location);
-        this.currentAction = event.state.action;
-        this.eventHub.$emit('MergeRequestTabChange', this.getCurrentAction());
-      }
+    window.addEventListener('popstate', () => {
+      const action = getActionFromHref(location.href);
+
+      this.tabShown(action, location.href);
+      this.eventHub.$emit('MergeRequestTabChange', action);
     });
+    this.eventHub.$on('diff:switch-view-type', this.switchViewType);
   }
 
   // Used in tests
   unbindEvents() {
     $('.merge-request-tabs a[data-toggle="tabvue"]').off('click', this.clickTab);
+    this.eventHub.$off('diff:switch-view-type', this.switchViewType);
   }
 
   storeScroll() {
@@ -252,17 +275,18 @@ export default class MergeRequestTabs {
       } else if (action) {
         const href = e.currentTarget.getAttribute('href');
         this.tabShown(action, href);
-
-        if (this.setUrl) {
-          this.setCurrentAction(action);
-        }
       }
     }
   }
 
-  tabShown(action, href) {
+  tabShown(action, href, shouldScroll = true) {
+    toggleLoader(false);
+
     if (action !== this.currentTab && this.mergeRequestTabs) {
       this.currentTab = action;
+      if (this.setUrl) {
+        this.setCurrentAction(action);
+      }
 
       if (this.mergeRequestTabPanesAll) {
         this.mergeRequestTabPanesAll.forEach((el) => {
@@ -282,6 +306,20 @@ export default class MergeRequestTabs {
       const tab = this.mergeRequestTabs.querySelector(`.${action}-tab`);
       if (tab) tab.classList.add('active');
 
+      if (!this.loadedPages[action] && action in pageBundles) {
+        toggleLoader(true);
+        pageBundles[action]()
+          .then(({ default: init }) => {
+            toggleLoader(false);
+            init();
+            this.loadedPages[action] = true;
+          })
+          .catch(() => {
+            toggleLoader(false);
+            createAlert({ message: __('MergeRequest|Failed to load the page') });
+          });
+      }
+
       if (window.gon?.features?.movedMrSidebar) {
         this.expandSidebar?.forEach((el) =>
           el.classList.toggle('gl-display-none!', action !== 'show'),
@@ -289,7 +327,9 @@ export default class MergeRequestTabs {
       }
 
       if (action === 'commits') {
-        this.loadCommits(href);
+        if (!this.commitsLoaded) {
+          this.loadCommits(href);
+        }
         // this.hideSidebar();
         this.resetViewContainer();
         this.commitPipelinesTable = destroyPipelines(this.commitPipelinesTable);
@@ -307,7 +347,7 @@ export default class MergeRequestTabs {
             in practice, this only occurs when comparing commits in
             the new merge request form page.
           */
-          this.loadDiff(href);
+          this.loadDiff({ endpoint: href, strip: true });
         }
         // this.hideSidebar();
         this.expandViewContainer();
@@ -332,9 +372,9 @@ export default class MergeRequestTabs {
         this.commitPipelinesTable = destroyPipelines(this.commitPipelinesTable);
       }
 
-      $('.detail-page-description').renderGFM();
+      renderGFM(document.querySelector('.detail-page-description'));
 
-      this.recallScroll(action);
+      if (shouldScroll) this.recallScroll(action);
     } else if (action === this.currentAction) {
       // ContentTop is used to handle anything at the top of the page before the main content
       const mainContentContainer = document.querySelector('.content-wrapper');
@@ -348,7 +388,7 @@ export default class MergeRequestTabs {
         const scrollDestination = tabContentTop - mainContentTop - 51;
 
         // scrollBehavior is only available in browsers that support scrollToOptions
-        if ('scrollBehavior' in document.documentElement.style) {
+        if ('scrollBehavior' in document.documentElement.style && shouldScroll) {
           window.scrollTo({
             top: scrollDestination,
             behavior: 'smooth',
@@ -396,7 +436,7 @@ export default class MergeRequestTabs {
     // Ensure parameters and hash come along for the ride
     newState += location.search + location.hash;
 
-    if (window.history.state && window.history.state.url && window.location.pathname !== newState) {
+    if (window.location.pathname !== newState) {
       window.history.pushState(
         {
           url: newState,
@@ -423,31 +463,42 @@ export default class MergeRequestTabs {
     return this.currentAction;
   }
 
-  loadCommits(source) {
-    if (this.commitsLoaded) {
-      return;
-    }
-
+  loadCommits(source, page = 1) {
     toggleLoader(true);
 
     axios
-      .get(`${source}.json`)
+      .get(`${source}.json`, { params: { page, per_page: 100 } })
       .then(({ data }) => {
+        toggleLoader(false);
+
         const commitsDiv = document.querySelector('div#commits');
         // eslint-disable-next-line no-unsanitized/property
-        commitsDiv.innerHTML = data.html;
+        commitsDiv.innerHTML += data.html;
         localTimeAgo(commitsDiv.querySelectorAll('.js-timeago'));
         this.commitsLoaded = true;
         scrollToContainer('#commits');
 
-        toggleLoader(false);
+        const loadMoreButton = document.querySelector('.js-load-more-commits');
 
-        return import('./add_context_commits_modal');
+        if (loadMoreButton) {
+          loadMoreButton.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            loadMoreButton.remove();
+            this.loadCommits(source, loadMoreButton.dataset.nextPage);
+          });
+        }
+
+        if (!data.next_page) {
+          return import('./add_context_commits_modal');
+        }
+
+        return null;
       })
-      .then((m) => m.default())
+      .then((m) => m?.default())
       .catch(() => {
         toggleLoader(false);
-        createFlash({
+        createAlert({
           message: __('An error occurred while fetching this tab.'),
         });
       });
@@ -458,19 +509,20 @@ export default class MergeRequestTabs {
   }
 
   // load the diff tab content from the backend
-  loadDiff(source) {
+  loadDiff({ endpoint, strip = true }) {
     if (this.diffsLoaded) {
       document.dispatchEvent(new CustomEvent('scroll'));
       return;
     }
 
-    toggleLoader(true);
+    // We extract pathname for the current Changes tab anchor href
+    // some pages like MergeRequestsController#new has query parameters on that anchor
+    const diffUrl = strip ? `${parseUrlPathname(endpoint)}.json${location.search}` : endpoint;
 
     loadDiffs({
-      // We extract pathname for the current Changes tab anchor href
-      // some pages like MergeRequestsController#new has query parameters on that anchor
-      url: parseUrlPathname(source),
+      url: diffUrl,
       sticky: computeTopOffset(this.mergeRequestTabs),
+      tabs: this,
     })
       .then(() => {
         if (this.isDiffAction(this.currentAction)) {
@@ -480,13 +532,25 @@ export default class MergeRequestTabs {
         this.diffsLoaded = true;
       })
       .catch(() => {
-        createFlash({
+        createAlert({
           message: __('An error occurred while fetching this tab.'),
         });
-      })
-      .finally(() => {
-        toggleLoader(false);
       });
+  }
+  switchViewType({ source }) {
+    this.diffsLoaded = false;
+
+    this.loadDiff({ endpoint: source, strip: false });
+  }
+  createDiff() {
+    if (!this.diffsClass) {
+      this.diffsClass = new Diff({ mergeRequestEventHub: this.eventHub });
+    }
+  }
+  setHubToDiff() {
+    if (this.diffsClass) {
+      this.diffsClass.mrHub = this.eventHub;
+    }
   }
 
   diffViewType() {

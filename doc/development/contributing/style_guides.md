@@ -2,22 +2,23 @@
 type: reference, dev
 stage: none
 group: Development
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Style guides
 
 ## Editor/IDE styling standardization
 
-We use [EditorConfig](https://editorconfig.org/) to automatically apply certain styling
-standards before files are saved locally. Most editors/IDEs will honor the `.editorconfig`
-settings automatically by default. If your editor/IDE does not automatically support `.editorconfig`,
-we suggest investigating to see if a plugin exists. For instance here is the
+We use [EditorConfig](https://editorconfig.org/) to automatically apply certain styling standards before files are saved
+locally. Some editors and IDEs honor the `.editorconfig` settings [automatically by default](https://editorconfig.org/#pre-installed).
+
+If your editor or IDE does not automatically support `.editorconfig`, we suggest investigating to
+[see if a plugin exists](https://editorconfig.org/#download). For example, a
 [plugin for vim](https://github.com/editorconfig/editorconfig-vim).
 
 ## Pre-push static analysis with Lefthook
 
-[Lefthook](https://github.com/Arkweid/lefthook) is a Git hooks manager that allows
+[Lefthook](https://github.com/evilmartians/lefthook) is a Git hooks manager that allows
 custom logic to be executed prior to Git committing or pushing. GitLab comes with
 Lefthook configuration (`lefthook.yml`), but it must be installed.
 
@@ -41,20 +42,20 @@ We were using Overcommit prior to Lefthook, so you may want to uninstall it firs
    bundle exec lefthook install
    ```
 
-1. Test Lefthook is working by running the Lefthook `prepare-commit-msg` Git hook:
+1. Test Lefthook is working by running the Lefthook `pre-push` Git hook:
 
    ```shell
-   bundle exec lefthook run prepare-commit-msg
+   bundle exec lefthook run pre-push
    ```
 
-This should return a fully qualified path command with no other output.
+This should return the Lefthook version and the list of executable commands with output.
 
 ### Lefthook configuration
 
 Lefthook is configured with a combination of:
 
 - Project configuration in [`lefthook.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lefthook.yml).
-- Any [local configuration](https://github.com/Arkweid/lefthook/blob/master/docs/full_guide.md#local-config).
+- Any [local configuration](https://github.com/evilmartians/lefthook/blob/master/README.md#local-config).
 
 ### Disable Lefthook temporarily
 
@@ -72,7 +73,7 @@ To run the `pre-push` Git hook, run:
 bundle exec lefthook run pre-push
 ```
 
-For more information, check out [Lefthook documentation](https://github.com/Arkweid/lefthook/blob/master/docs/full_guide.md#run-githook-group-directly).
+For more information, check out [Lefthook documentation](https://github.com/evilmartians/lefthook/blob/master/README.md#direct-control).
 
 ### Skip Lefthook checks per tag
 
@@ -91,7 +92,7 @@ pre-push:
     - documentation
 ```
 
-For more information, check out [Lefthook documentation](https://github.com/Arkweid/lefthook/blob/master/docs/full_guide.md#skip-some-tags-on-the-fly).
+For more information, check out [Lefthook documentation](https://github.com/evilmartians/lefthook/blob/master/docs/configuration.md#exclude_tags).
 
 ### Skip or enable a specific Lefthook check
 
@@ -106,85 +107,7 @@ pre-push:
       skip: false
 ```
 
-For more information, check out [Lefthook documentation Skipping commands section](https://github.com/evilmartians/lefthook/blob/master/docs/full_guide.md#skipping-commands).
-
-## Ruby, Rails, RSpec
-
-Our codebase style is defined and enforced by [RuboCop](https://github.com/rubocop-hq/rubocop).
-
-You can check for any offenses locally with `bundle exec rubocop --parallel`.
-On the CI, this is automatically checked by the `static-analysis` jobs.
-
-In addition, you can [integrate RuboCop](../developing_with_solargraph.md) into
-supported IDEs using the [Solargraph](https://github.com/castwide/solargraph) gem.
-
-For RuboCop rules that we have not taken a decision on yet, we follow the
-[Ruby Style Guide](https://github.com/rubocop-hq/ruby-style-guide),
-[Rails Style Guide](https://github.com/rubocop-hq/rails-style-guide), and
-[RSpec Style Guide](https://github.com/rubocop-hq/rspec-style-guide) as general
-guidelines to write idiomatic Ruby/Rails/RSpec, but reviewers/maintainers should
-be tolerant and not too pedantic about style.
-
-Similarly, some RuboCop rules are currently disabled, and for those,
-reviewers/maintainers must not ask authors to use one style or the other, as both
-are accepted. This isn't an ideal situation since this leaves space for
-[bike-shedding](https://en.wiktionary.org/wiki/bikeshedding), and ideally we
-should enable all RuboCop rules to avoid style-related
-discussions/nitpicking/back-and-forth in reviews. There are some styles that
-commonly come up in reviews that are not enforced, the
-[GitLab Ruby style guide](../backend/ruby_style_guide.md) includes a non-exhaustive
-list of these topics.
-
-Additionally, we have a dedicated
-[newlines style guide](../newlines_styleguide.md), as well as dedicated
-[test-specific style guides and best practices](../testing_guide/index.md).
-
-### Creating new RuboCop cops
-
-Typically it is better for the linting rules to be enforced programmatically as it
-reduces the aforementioned [bike-shedding](https://en.wiktionary.org/wiki/bikeshedding).
-
-To that end, we encourage creation of new RuboCop rules in the codebase.
-
-We currently maintain Cops across several Ruby code bases, and not all of them are
-specific to the GitLab application.
-When creating a new cop that could be applied to multiple applications, we encourage you
-to add it to our [GitLab Styles](https://gitlab.com/gitlab-org/gitlab-styles) gem.
-If the Cop targets rules that only apply to the main GitLab application,
-it should be added to [GitLab](https://gitlab.com/gitlab-org/gitlab) instead.
-
-### Resolving RuboCop exceptions
-
-When the number of RuboCop exceptions exceed the default [`exclude-limit` of 15](https://docs.rubocop.org/rubocop/1.2/usage/basic_usage.html#command-line-flags),
-we may want to resolve exceptions over multiple commits. To minimize confusion,
-we should track our progress through the exception list.
-
-The preferred way to [generate the initial list or a list for specific RuboCop rules](../rake_tasks.md#generate-initial-rubocop-todo-list)
-is to run the Rake task `rubocop:todo:generate`:
-
-```shell
-# Initial list
-bundle exec rake rubocop:todo:generate
-
-# List for specific RuboCop rules
-bundle exec rake 'rubocop:todo:generate[Gitlab/NamespacedClass,Lint/Syntax]'
-```
-
-This Rake task creates or updates the exception list in `.rubocop_todo/`. For
-example, the configuration for the RuboCop rule `Gitlab/NamespacedClass` is
-located in `.rubocop_todo/gitlab/namespaced_class.yml`.
-
-Make sure to commit any changes in `.rubocop_todo/` after running the Rake task.
-
-### Reveal existing RuboCop exceptions
-
-To reveal existing RuboCop exceptions in the code that have been excluded via `.rubocop_todo.yml` and
-`.rubocop_todo/**/*.yml`, set the environment variable `REVEAL_RUBOCOP_TODO` to `1`.
-
-This allows you to reveal existing RuboCop exceptions during your daily work cycle and fix them along the way.
-
-NOTE:
-Define permanent `Exclude`s in `.rubocop.yml` instead of `.rubocop_todo/**/*.yml`.
+For more information, check out [Lefthook documentation Skipping commands section](https://github.com/evilmartians/lefthook/blob/master/docs/configuration.md#skip).
 
 ## Database migrations
 
@@ -197,6 +120,10 @@ See the dedicated [JS Style Guide](../fe_guide/style/javascript.md).
 ## SCSS
 
 See the dedicated [SCSS Style Guide](../fe_guide/style/scss.md).
+
+## Ruby
+
+See the dedicated [Ruby Style Guide](../backend/ruby_style_guide.md).
 
 ## Go
 
@@ -223,8 +150,6 @@ We're following [Ciro Santilli's Markdown Style Guide](https://cirosantilli.com/
 See the dedicated [Documentation Style Guide](../documentation/styleguide/index.md).
 
 ### Guidelines for good practices
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/36576/) in GitLab 13.2 as GitLab Development documentation.
 
 *Good practice* examples demonstrate encouraged ways of writing code while
 comparing with examples of practices to avoid. These examples are labeled as

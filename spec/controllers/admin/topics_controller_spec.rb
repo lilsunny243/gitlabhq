@@ -176,7 +176,7 @@ RSpec.describe Admin::TopicsController do
 
   describe 'POST #merge' do
     let_it_be(:source_topic) { create(:topic, name: 'source_topic') }
-    let_it_be(:project) { create(:project, topic_list: source_topic.name ) }
+    let_it_be(:project) { create(:project, topic_list: source_topic.name) }
 
     it 'merges source topic into target topic' do
       post :merge, params: { source_topic_id: source_topic.id, target_topic_id: topic.id }
@@ -194,7 +194,7 @@ RSpec.describe Admin::TopicsController do
     end
 
     it 'renders a 400 error for identical topic ids' do
-      post :merge, params: { source_topic_id: topic, target_topic_id: topic.id }
+      post :merge, params: { source_topic_id: topic.id, target_topic_id: topic.id }
 
       expect(response).to have_gitlab_http_status(:bad_request)
       expect { topic.reload }.not_to raise_error

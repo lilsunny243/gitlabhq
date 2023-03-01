@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Releases **(FREE)**
@@ -61,7 +61,6 @@ You can create a release:
 
 - [Using a job in your CI/CD pipeline](#creating-a-release-by-using-a-cicd-job).
 - [In the Releases page](#create-a-release-in-the-releases-page).
-- [In the Tags page](#create-a-release-in-the-tags-page).
 - Using the [Releases API](../../../api/releases/index.md#create-a-release).
 
 We recommend creating a release as one of the last steps in your CI/CD pipeline.
@@ -75,44 +74,23 @@ Prerequisites:
 
 To create a release in the Releases page:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Deployments > Releases** and select **New release**.
-1. From the [**Tag name**](release_fields.md#tag-name) dropdown, either:
+1. From the [**Tag name**](release_fields.md#tag-name) dropdown list, either:
    - Select an existing Git tag. Selecting an existing tag that is already associated with a release
      results in a validation error.
    - Enter a new Git tag name.
-      1. From the **Create from** dropdown, select a branch or commit SHA to use when creating the
-         new tag.
+     1. From the **Create from** dropdown list, select a branch or commit SHA to use when
+        creating the new tag.
+     1. Optional. In the **Set tag message** text box, enter a message to create an
+        [annotated tag](https://git-scm.com/book/en/v2/Git-Basics-Tagging#_annotated_tags).
 1. Optional. Enter additional information about the release, including:
    - [Title](release_fields.md#title).
    - [Milestones](#associate-milestones-with-a-release).
    - [Release notes](release_fields.md#release-notes-description).
-   - Whether or not to include the [Tag message](../../../topics/git/tags.md).
+   - Whether or not to include the [Tag message](../repository/tags/index.md).
    - [Asset links](release_fields.md#links).
 1. Select **Create release**.
-
-### Create a release in the Tags page
-
-To create a release in the Tags page, add release notes to either an existing or a new Git tag.
-
-To add release notes to a new Git tag:
-
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Repository > Tags**.
-1. Select **New tag**.
-1. Optional. Enter a tag message in the **Message** text box.
-1. In the **Release notes** text box, enter the release's description.
-   You can use Markdown and drag and drop files to this text box.
-1. Select **Create tag**.
-
-To edit release notes of an existing Git tag:
-
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Repository > Tags**.
-1. Select **Edit release notes** (**{pencil}**).
-1. In the **Release notes** text box, enter the release's description.
-   You can use Markdown and drag and drop files to this text box.
-1. Select **Save changes**.
 
 ### Creating a release by using a CI/CD job
 
@@ -133,7 +111,7 @@ Methods for creating a release using a CI/CD job include:
 You can use the `ADDITIONAL_CA_CERT_BUNDLE` CI/CD variable to configure a custom SSL CA certificate authority,
 which is used to verify the peer when the `release-cli` creates a release through the API using HTTPS with custom certificates.
 The `ADDITIONAL_CA_CERT_BUNDLE` value should contain the
-[text representation of the X.509 PEM public-key certificate](https://tools.ietf.org/html/rfc7468#section-5.1)
+[text representation of the X.509 PEM public-key certificate](https://www.rfc-editor.org/rfc/rfc7468#section-5.1)
 or the `path/to/file` containing the certificate authority.
 For example, to configure this value in the `.gitlab-ci.yml` file, use the following:
 
@@ -154,7 +132,7 @@ release:
 ```
 
 The `ADDITIONAL_CA_CERT_BUNDLE` value can also be configured as a
-[custom variable in the UI](../../../ci/variables/index.md#custom-cicd-variables),
+[custom variable in the UI](../../../ci/variables/index.md#for-a-project),
 either as a `file`, which requires the path to the certificate, or as a variable,
 which requires the text representation of the certificate.
 
@@ -206,19 +184,19 @@ is not available.
 
 ## Edit a release
 
-Only users with at least the Developer role can edit releases.
-Read more about [Release permissions](#release-permissions).
+To edit the details of a release after it's created, you can use the
+[Update a release API](../../../api/releases/index.md#update-a-release) or the UI.
 
-To edit the details of a release:
+Prerequisites:
+
+- You must have at least the Developer role.
+
+In the UI:
 
 1. On the left sidebar, select **Deployments > Releases**.
-1. In the top-right corner of the release you want to modify, select **Edit this release** (the pencil icon).
+1. In the upper-right corner of the release you want to modify, select **Edit this release** (the pencil icon).
 1. On the **Edit Release** page, change the release's details.
 1. Select **Save changes**.
-
-You can edit the release title, notes, associated milestones, and asset links.
-To change the release date use the
-[Releases API](../../../api/releases/index.md#update-a-release).
 
 ## Delete a release
 
@@ -231,11 +209,15 @@ Prerequisites:
 
 - You must have at least the Developer role. Read more about [Release permissions](#release-permissions).
 
-To delete a release in the UI:
+To delete a release, use either the
+[Delete a release API](../../../api/releases/index.md#delete-a-release) or the UI.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+In the UI:
+
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Deployments > Releases**.
-1. In the top-right corner of the release you want to delete, select **Edit this release** (**{pencil}**).
+1. In the upper-right corner of the release you want to delete, select **Edit this release**
+   (**{pencil}**).
 1. On the **Edit Release** page, select **Delete**.
 1. Select **Delete release**.
 
@@ -254,7 +236,7 @@ the [Releases API](../../../api/releases/index.md#create-a-release).
 In the user interface, to associate milestones to a release:
 
 1. On the left sidebar, select **Deployments > Releases**.
-1. In the top-right corner of the release you want to modify, select **Edit this release** (the pencil icon).
+1. In the upper-right corner of the release you want to modify, select **Edit this release** (the pencil icon).
 1. From the **Milestones** list, select each milestone you want to associate. You can select multiple milestones.
 1. Select **Save changes**.
 
@@ -313,6 +295,7 @@ deploy_to_production:
   script: deploy_to_prod.sh
   rules:
     - if: $CI_DEPLOY_FREEZE == null
+  environment: production
 ```
 
 To set a deploy freeze window in the UI, complete these steps:
@@ -452,7 +435,7 @@ release evidence.
 If you [schedule release evidence collection](#schedule-release-evidence-collection),
 some artifacts may already be expired by the time of evidence collection. To avoid this you can use
 the [`artifacts:expire_in`](../../../ci/yaml/index.md#artifactsexpire_in)
-keyword. Learn more in [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/222351).
+keyword. For more information, see [issue 222351](https://gitlab.com/gitlab-org/gitlab/-/issues/222351).
 
 ### Schedule release evidence collection
 
@@ -470,11 +453,11 @@ In the API:
 
 ## Release permissions
 
-> [The permission model for create, update and delete actions was fixed](https://gitlab.com/gitlab-org/gitlab/-/issues/327505) in GitLab 14.1.
+> Fixes to the permission model for create, update and delete actions [were introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/327505) in GitLab 14.1.
 
 ### View a release and download assets
 
-> [Changes were made to the Guest role access](https://gitlab.com/gitlab-org/gitlab/-/issues/335209) in GitLab 14.5.
+> Changes to the Guest role [were introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/335209) in GitLab 14.5.
 
 - Users with at least the Reporter role
   have read and download access to the project releases.
@@ -482,6 +465,20 @@ In the API:
   have read and download access to the project releases.
   This includes associated Git-tag-names, release description, author information of the releases.
   However, other repository-related information, such as [source code](release_fields.md#source-code), [release evidence](#release-evidence) are redacted.
+
+### Publish releases without giving access to source code
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/216485) in GitLab 15.6.
+
+Releases can be made accessible to non-project members while keeping repository-related information such as
+[source code](release_fields.md#source-code) and [release evidence](#release-evidence) private. This is useful for
+projects that use releases as a way to give access to new versions of software but do not want the source code to
+be public.
+
+To make releases available publicly, set the following [project settings](../settings/index.md#project-feature-settings):
+
+- Repository is enabled and set to **Only Project Members**
+- Releases is enabled and set to **Everyone With Access**
 
 ### Create, update, and delete a release and its assets
 

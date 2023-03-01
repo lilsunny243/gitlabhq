@@ -7,9 +7,11 @@ class WebHook < ApplicationRecord
 
   MAX_FAILURES = 100
   FAILURE_THRESHOLD = 3 # three strikes
-  INITIAL_BACKOFF = 10.minutes
+  EXCEEDED_FAILURE_THRESHOLD = FAILURE_THRESHOLD + 1
+  INITIAL_BACKOFF = 1.minute
   MAX_BACKOFF = 1.day
   BACKOFF_GROWTH_FACTOR = 2.0
+  SECRET_MASK = '************'
 
   attr_encrypted :token,
                  mode: :per_attribute_iv,
@@ -33,41 +35,26 @@ class WebHook < ApplicationRecord
   has_many :web_hook_logs
 
   validates :url, presence: true
-  validates :url, public_url: true, unless: ->(hook) { hook.is_a?(SystemHook) }
+  validates :url, public_url: true, unless: ->(hook) { hook.is_a?(SystemHook) || hook.url_variables? }
 
   validates :token, format: { without: /\n/ }
-  validates :push_events_branch_filter, branch_filter: true
-  validates :url_variables, json_schema: { filename: 'web_hooks_url_variables' }
-  validate :no_missing_url_variables
-
   after_initialize :initialize_url_variables
 
-  scope :executable, -> do
-    next all unless Feature.enabled?(:web_hooks_disable_failed)
+  before_validation :reset_token
+  before_validation :reset_url_variables, unless: ->(hook) { hook.is_a?(ServiceHook) }
+  before_validation :set_branch_filter_nil, if: :branch_filter_strategy_all_branches?
+  validates :push_events_branch_filter, untrusted_regexp: true, if: :branch_filter_strategy_regex?
+  validates :push_events_branch_filter, "web_hooks/wildcard_branch_filter": true, if: :branch_filter_strategy_wildcard?
 
-    where('recent_failures <= ? AND (disabled_until IS NULL OR disabled_until < ?)', FAILURE_THRESHOLD, Time.current)
-  end
+  validates :url_variables, json_schema: { filename: 'web_hooks_url_variables' }
+  validate :no_missing_url_variables
+  validates :interpolated_url, public_url: true, if: ->(hook) { hook.url_variables? && hook.errors.empty? }
 
-  # Inverse of executable
-  scope :disabled, -> do
-    where('recent_failures > ? OR disabled_until >= ?', FAILURE_THRESHOLD, Time.current)
-  end
-
-  def executable?
-    !temporarily_disabled? && !permanently_disabled?
-  end
-
-  def temporarily_disabled?
-    return false unless web_hooks_disable_failed?
-
-    disabled_until.present? && disabled_until >= Time.current
-  end
-
-  def permanently_disabled?
-    return false unless web_hooks_disable_failed?
-
-    recent_failures > FAILURE_THRESHOLD
-  end
+  enum branch_filter_strategy: {
+    wildcard: 0,
+    regex: 1,
+    all_branches: 2
+  }, _prefix: true
 
   # rubocop: disable CodeReuse/ServiceClass
   def execute(data, hook_name, force: false)
@@ -100,9 +87,7 @@ class WebHook < ApplicationRecord
   end
 
   def disable!
-    return if permanently_disabled?
-
-    update_attribute(:recent_failures, FAILURE_THRESHOLD + 1)
+    update_attribute(:recent_failures, EXCEEDED_FAILURE_THRESHOLD)
   end
 
   def enable!
@@ -112,17 +97,24 @@ class WebHook < ApplicationRecord
     save(validate: false)
   end
 
+  # Don't actually back-off until FAILURE_THRESHOLD failures have been seen
+  # we mark the grace-period using the recent_failures counter
   def backoff!
-    return if permanently_disabled? || (backoff_count >= MAX_FAILURES && temporarily_disabled?)
+    attrs = { recent_failures: next_failure_count }
 
-    assign_attributes(disabled_until: next_backoff.from_now, backoff_count: backoff_count.succ.clamp(0, MAX_FAILURES))
-    save(validate: false)
+    if recent_failures >= FAILURE_THRESHOLD
+      attrs[:backoff_count] = next_backoff_count
+      attrs[:disabled_until] = next_backoff.from_now
+    end
+
+    assign_attributes(attrs)
+    save(validate: false) if changed?
   end
 
   def failed!
     return unless recent_failures < MAX_FAILURES
 
-    assign_attributes(recent_failures: recent_failures + 1)
+    assign_attributes(disabled_until: nil, backoff_count: 0, recent_failures: next_failure_count)
     save(validate: false)
   end
 
@@ -146,16 +138,6 @@ class WebHook < ApplicationRecord
     { related_class: type }
   end
 
-  def alert_status
-    if temporarily_disabled?
-      :temporarily_disabled
-    elsif permanently_disabled?
-      :disabled
-    else
-      :executable
-    end
-  end
-
   # Exclude binary columns by default - they have no sensible JSON encoding
   def serializable_hash(options = nil)
     options = options.try(:dup) || {}
@@ -166,7 +148,7 @@ class WebHook < ApplicationRecord
   end
 
   # See app/validators/json_schemas/web_hooks_url_variables.json
-  VARIABLE_REFERENCE_RE = /\{([A-Za-z_][A-Za-z0-9_]+)\}/.freeze
+  VARIABLE_REFERENCE_RE = /\{([A-Za-z]+[0-9]*(?:[._-][A-Za-z0-9]+)*)\}/.freeze
 
   def interpolated_url
     return url unless url.include?('{')
@@ -183,10 +165,26 @@ class WebHook < ApplicationRecord
     # Overridden in child classes.
   end
 
+  def masked_token
+    token.present? ? SECRET_MASK : nil
+  end
+
   private
 
-  def web_hooks_disable_failed?
-    Feature.enabled?(:web_hooks_disable_failed)
+  def reset_token
+    self.token = nil if url_changed? && !encrypted_token_changed?
+  end
+
+  def reset_url_variables
+    self.url_variables = {} if url_changed? && !encrypted_url_variables_changed?
+  end
+
+  def next_failure_count
+    recent_failures.succ.clamp(1, MAX_FAILURES)
+  end
+
+  def next_backoff_count
+    backoff_count.succ.clamp(1, MAX_FAILURES)
   end
 
   def initialize_url_variables
@@ -208,5 +206,9 @@ class WebHook < ApplicationRecord
     return if missing.empty?
 
     errors.add(:url, "Invalid URL template. Missing keys: #{missing}")
+  end
+
+  def set_branch_filter_nil
+    self.push_events_branch_filter = nil
   end
 end

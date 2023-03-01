@@ -25,4 +25,22 @@ RSpec.describe 'groups/new.html.haml' do
       expect(rendered).not_to have_checked_field('Just me')
     end
   end
+
+  context 'when a subgroup' do
+    let_it_be(:group) { create(:group, :nested) }
+
+    it 'renders the visibility level section' do
+      expect(rendered).to have_content('Visibility level')
+      expect(rendered).to have_field('Private')
+      expect(rendered).to have_field('Internal')
+      expect(rendered).to have_field('Public')
+    end
+  end
+
+  describe 'role field' do
+    it 'does have a default selection' do
+      expect(rendered).to have_content('Role')
+      expect(rendered).to have_select('Role', selected: 'Software Developer')
+    end
+  end
 end

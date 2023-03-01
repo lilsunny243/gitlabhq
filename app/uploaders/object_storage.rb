@@ -67,16 +67,6 @@ module ObjectStorage
         super
       end
 
-      def schedule_background_upload(*args)
-        return unless schedule_background_upload?
-        return unless upload
-
-        ObjectStorage::BackgroundMoveWorker.perform_async(self.class.name,
-                                                upload.class.to_s,
-                                                mounted_as,
-                                                upload.id)
-      end
-
       def exclusive_lease_key
         # For FileUploaders, model may have many uploaders. In that case
         # we want to use exclusive key per upload, not per model to allow
@@ -95,40 +85,6 @@ module ObjectStorage
         paths.include?(upload.path) &&
           upload.model_id == model.id &&
           upload.model_type == model.class.base_class.sti_name
-      end
-    end
-  end
-
-  # Add support for automatic background uploading after the file is stored.
-  #
-  module BackgroundMove
-    extend ActiveSupport::Concern
-
-    def background_upload(mount_points = [])
-      return unless mount_points.any?
-
-      run_after_commit do
-        mount_points.each { |mount| send(mount).schedule_background_upload } # rubocop:disable GitlabSecurity/PublicSend
-      end
-    end
-
-    def changed_mounts
-      self.class.uploaders.select do |mount, uploader_class|
-        mounted_as = uploader_class.serialization_column(self.class, mount)
-        uploader = send(:"#{mounted_as}") # rubocop:disable GitlabSecurity/PublicSend
-
-        next unless uploader
-        next unless uploader.exists?
-        next unless send(:"saved_change_to_#{mounted_as}?") # rubocop:disable GitlabSecurity/PublicSend
-
-        mount
-      end.keys
-    end
-
-    included do
-      include AfterCommitQueue
-      after_save do
-        background_upload(changed_mounts)
       end
     end
   end
@@ -153,10 +109,6 @@ module ObjectStorage
 
       def direct_upload_enabled?
         object_store_options&.direct_upload
-      end
-
-      def background_upload_enabled?
-        object_store_options.background_upload
       end
 
       def proxy_download_enabled?
@@ -187,6 +139,7 @@ module ObjectStorage
             hash[:TempPath] = workhorse_local_upload_path
           end
 
+          hash[:UploadHashFunctions] = %w[sha1 sha256 sha512] if ::Gitlab::FIPS.enabled?
           hash[:MaximumSize] = maximum_size if maximum_size.present?
         end
       end
@@ -311,15 +264,6 @@ module ObjectStorage
       end
     end
 
-    def schedule_background_upload(*args)
-      return unless schedule_background_upload?
-
-      ObjectStorage::BackgroundMoveWorker.perform_async(self.class.name,
-                                                          model.class.name,
-                                                          mounted_as,
-                                                          model.id)
-    end
-
     def fog_directory
       self.class.remote_store_path
     end
@@ -333,8 +277,7 @@ module ObjectStorage
     end
 
     # Set ACL of uploaded objects to not-public (fog-aws)[1] or no ACL at all
-    # (fog-google).  Value is ignored by other supported backends (fog-aliyun,
-    # fog-openstack, fog-rackspace)
+    # (fog-google).  Value is ignored by fog-aliyun
     # [1]: https://github.com/fog/fog-aws/blob/daa50bb3717a462baf4d04d0e0cbfc18baacb541/lib/fog/aws/models/storage/file.rb#L152-L159
     def fog_public
       nil
@@ -404,12 +347,6 @@ module ObjectStorage
     end
 
     private
-
-    def schedule_background_upload?
-      self.class.object_store_enabled? &&
-        self.class.background_upload_enabled? &&
-        self.file_storage?
-    end
 
     def cache_remote_file!(remote_object_id, original_filename)
       file_path = File.join(TMP_UPLOAD_PATH, remote_object_id)

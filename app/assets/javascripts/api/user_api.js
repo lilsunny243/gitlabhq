@@ -1,5 +1,5 @@
 import { DEFAULT_PER_PAGE } from '~/api';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { __ } from '~/locale';
 import axios from '../lib/utils/axios_utils';
 import { buildApiUrl } from './api_utils';
@@ -12,7 +12,7 @@ const USER_PROJECTS_PATH = '/api/:version/users/:id/projects';
 const USER_POST_STATUS_PATH = '/api/:version/user/status';
 const USER_FOLLOW_PATH = '/api/:version/users/:id/follow';
 const USER_UNFOLLOW_PATH = '/api/:version/users/:id/unfollow';
-const CURRENT_USER_PATH = '/api/:version/user';
+const USER_ASSOCIATIONS_COUNT_PATH = '/api/:version/users/:id/associations_count';
 
 export function getUsers(query, options) {
   const url = buildApiUrl(USERS_PATH);
@@ -56,7 +56,7 @@ export function getUserProjects(userId, query, options, callback) {
     })
     .then(({ data }) => callback(data))
     .catch(() =>
-      createFlash({
+      createAlert({
         message: __('Something went wrong while fetching projects'),
       }),
     );
@@ -65,7 +65,7 @@ export function getUserProjects(userId, query, options, callback) {
 export function updateUserStatus({ emoji, message, availability, clearStatusAfter }) {
   const url = buildApiUrl(USER_POST_STATUS_PATH);
 
-  return axios.put(url, {
+  return axios.patch(url, {
     emoji,
     message,
     availability,
@@ -83,7 +83,7 @@ export function unfollowUser(userId) {
   return axios.post(url);
 }
 
-export function getCurrentUser(options) {
-  const url = buildApiUrl(CURRENT_USER_PATH);
-  return axios.get(url, { ...options });
+export function associationsCount(userId) {
+  const url = buildApiUrl(USER_ASSOCIATIONS_COUNT_PATH).replace(':id', encodeURIComponent(userId));
+  return axios.get(url);
 }

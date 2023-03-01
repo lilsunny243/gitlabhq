@@ -13,7 +13,7 @@ class DeployToken < ApplicationRecord
   GITLAB_DEPLOY_TOKEN_NAME = 'gitlab-deploy-token'
   REQUIRED_DEPENDENCY_PROXY_SCOPES = %i[read_registry write_registry].freeze
 
-  default_value_for(:expires_at) { Forever.date }
+  attribute :expires_at, default: -> { Forever.date }
 
   # Do NOT use this `user` for the authentication/authorization of the deploy tokens.
   # It's for the auditing purpose on Credential Inventory, only.
@@ -37,6 +37,7 @@ class DeployToken < ApplicationRecord
       message: "can contain only letters, digits, '_', '-', '+', and '.'"
     }
 
+  validates :expires_at, iso8601_date: true, on: :create
   validates :deploy_token_type, presence: true
   enum deploy_token_type: {
     group_type: 1,

@@ -24,6 +24,10 @@ FactoryBot.define do
       status { :pending_destruction }
     end
 
+    trait :last_downloaded_at do
+      last_downloaded_at { 2.days.ago }
+    end
+
     factory :maven_package do
       maven_metadatum
 
@@ -55,14 +59,20 @@ FactoryBot.define do
       end
     end
 
-    factory :debian_package do
+    factory :rpm_package do
       sequence(:name) { |n| "package-#{n}" }
+      sequence(:version) { |n| "v1.0.#{n}" }
+      package_type { :rpm }
+    end
+
+    factory :debian_package do
+      sequence(:name) { |n| "#{FFaker::Lorem.word}#{n}" }
       sequence(:version) { |n| "1.0-#{n}" }
       package_type { :debian }
 
       transient do
         without_package_files { false }
-        file_metadatum_trait { :keep }
+        file_metadatum_trait { processing? ? :unknown : :keep }
         published_in { :create }
       end
 
@@ -243,7 +253,7 @@ FactoryBot.define do
       end
 
       trait(:without_loaded_metadatum) do
-        conan_metadatum { build(:conan_metadatum, package: nil) } # rubocop:disable FactoryBot/InlineAssociation
+        conan_metadatum { build(:conan_metadatum, package: nil) } # rubocop:disable RSpec/FactoryBot/InlineAssociation
       end
     end
 

@@ -1,7 +1,7 @@
 ---
-stage: Protect
-group: Container Security
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Secure
+group: Static Analysis
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Security scanner integration
@@ -31,7 +31,6 @@ For consistency, scanning jobs should be named after the scanner, in lower case.
 The job name is suffixed after the type of scanning:
 
 - `_dependency_scanning`
-- `_cluster_image_scanning`
 - `_container_scanning`
 - `_dast`
 - `_sast`
@@ -79,7 +78,6 @@ Valid reports are:
 
 - `dependency_scanning`
 - `container_scanning`
-- `cluster_image_scanning`
 - `dast`
 - `api_fuzzing`
 - `coverage_fuzzing`
@@ -96,19 +94,18 @@ mysec_sast:
       sast: gl-sast-report.json
 ```
 
-Note that `gl-sast-report.json` is an example file path but any other filename can be used. See
+`gl-sast-report.json` is an example file path but any other filename can be used. See
 [the Output file section](#output-file) for more details. It's processed as a SAST report because
 it's declared under the `reports:sast` key in the job definition, not because of the filename.
 
 ### Policies
 
-Certain GitLab workflows, such as [AutoDevOps](../../topics/autodevops/customize.md#disable-jobs),
+Certain GitLab workflows, such as [AutoDevOps](../../topics/autodevops/cicd_variables.md#job-disabling-variables),
 define CI/CD variables to indicate that given scans should be disabled. You can check for this by looking
 for variables such as:
 
 - `DEPENDENCY_SCANNING_DISABLED`
 - `CONTAINER_SCANNING_DISABLED`
-- `CLUSTER_IMAGE_SCANNING_DISABLED`
 - `SAST_DISABLED`
 - `DAST_DISABLED`
 
@@ -150,14 +147,14 @@ regardless of the individual machine the scanner runs on.
 Depending on the CI infrastructure,
 the CI may have to fetch the Docker image every time the job runs.
 For the scanning job to run fast and avoid wasting bandwidth, Docker images should be as small as
-possible. You should aim for 50MB or smaller. If that isn't possible, try to keep it below 1.46 GB,
+possible. You should aim for 50 MB or smaller. If that isn't possible, try to keep it below 1.46 GB,
 which is the size of a DVD-ROM.
 
 If the scanner requires a fully functional Linux environment,
 it is recommended to use a [Debian](https://www.debian.org/intro/about) "slim" distribution or [Alpine Linux](https://www.alpinelinux.org/).
 If possible, it is recommended to build the image from scratch, using the `FROM scratch` instruction,
 and to compile the scanner with all the libraries it needs.
-[Multi-stage builds](https://docs.docker.com/develop/develop-images/multistage-build/)
+[Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
 might also help with keeping the image small.
 
 To keep an image size small, consider using [dive](https://github.com/wagoodman/dive#dive) to analyze layers in a Docker image to
@@ -180,7 +177,7 @@ Here are some examples to get you started:
 
 As documented in the [Docker Official Images](https://github.com/docker-library/official-images#tags-and-aliases) project,
 it is strongly encouraged that version number tags be given aliases which allows the user to easily refer to the "most recent" release of a particular series.
-See also [Docker Tagging: Best practices for tagging and versioning Docker images](https://docs.microsoft.com/en-us/archive/blogs/stevelasker/docker-tagging-best-practices-for-tagging-and-versioning-docker-images).
+See also [Docker Tagging: Best practices for tagging and versioning Docker images](https://learn.microsoft.com/en-us/archive/blogs/stevelasker/docker-tagging-best-practices-for-tagging-and-versioning-docker-images).
 
 ## Command line
 
@@ -199,7 +196,7 @@ SAST and Dependency Scanning scanners must scan the files in the project directo
 
 #### Container Scanning
 
-In order to be consistent with the official Container Scanning for GitLab,
+To be consistent with the official Container Scanning for GitLab,
 scanners must scan the Docker image whose name and tag are given by
 `CI_APPLICATION_REPOSITORY` and `CI_APPLICATION_TAG`, respectively. If the `DOCKER_IMAGE`
 CI/CD variable is provided, then the `CI_APPLICATION_REPOSITORY` and `CI_APPLICATION_TAG` variables
@@ -213,19 +210,6 @@ The scanner should sign in the Docker registry
 using the variables `DOCKER_USER` and `DOCKER_PASSWORD`.
 If these are not defined, then the scanner should use
 `CI_REGISTRY_USER` and `CI_REGISTRY_PASSWORD` as default values.
-
-#### Cluster Image Scanning
-
-To be consistent with the official `cluster_image_scanning` for GitLab, scanners must scan the
-Kubernetes cluster whose configuration is given by `KUBECONFIG`.
-
-If you use the `CIS_KUBECONFIG` CI/CD variable, then the
-`KUBECONFIG` variable is ignored and the cluster specified in the
-`CIS_KUBECONFIG` variable is scanned instead. If you don't provide
-the `CIS_KUBECONFIG` CI/CD variable, the value defaults to the value of
-`$KUBECONFIG`. `$KUBECONFIG` is a predefined CI/CD variable configured when the project is assigned to a
-Kubernetes cluster. When multiple contexts are provided in the `KUBECONFIG` variable, the context
-selected as `current-context` will be used to fetch vulnerabilities.
 
 #### Configuration files
 
@@ -314,34 +298,18 @@ This documentation gives an overview of the report JSON format,
 as well as recommendations and examples to help integrators set its fields.
 The format is extensively described in the documentation of
 [SAST](../../user/application_security/sast/index.md#reports-json-format),
-[DAST](../../user/application_security/dast/index.md#reports),
+[DAST](../../user/application_security/dast/proxy-based.md#reports),
 [Dependency Scanning](../../user/application_security/dependency_scanning/index.md#reports-json-format),
 and [Container Scanning](../../user/application_security/container_scanning/index.md#reports-json-format)
 
 You can find the schemas for these scanners here:
 
-- [Cluster Image Scanning](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/cluster-image-scanning-report-format.json)
 - [Container Scanning](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/container-scanning-report-format.json)
 - [Coverage Fuzzing](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/coverage-fuzzing-report-format.json)
 - [DAST](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/dast-report-format.json)
 - [Dependency Scanning](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/dependency-scanning-report-format.json)
 - [SAST](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/sast-report-format.json)
 - [Secret Detection](https://gitlab.com/gitlab-org/security-products/security-report-schemas/-/blob/master/dist/secret-detection-report-format.json)
-
-### Retention period for vulnerabilities
-
-GitLab has the following retention policies for vulnerabilities on non-default branches. Vulnerabilities are no longer available:
-
-- When the related CI job artifact expires.
-- 90 days after the pipeline is created, even if the related CI job artifacts are locked.
-
-To view vulnerabilities, either:
-
-- Run a new pipeline.
-- Download the related CI job artifacts if they are available.
-
-NOTE:
-This does not apply for the vulnerabilities existing on the default branch.
 
 ### Report validation
 
@@ -358,12 +326,16 @@ analyzer to use the latest available schemas.
 After the deprecation period for a schema version, the file is removed from GitLab. Reports that
 declare removed versions are rejected, and an error message displays on the corresponding pipeline.
 
+If a report uses a `PATCH` version that doesn't match any vendored schema version, it is validated against
+the latest vendored `PATCH` version. For example, if a report version is 14.0.23 and the latest vendored
+version is 14.0.6, the report is validated against version 14.0.6.
+
 GitLab uses the
 [`json_schemer`](https://www.rubydoc.info/gems/json_schemer) gem to perform validation.
 
-Ongoing improvements to report validation are tracked [in this epic](https://gitlab.com/groups/gitlab-org/-/epics/6968).
+Ongoing improvements to report validation are tracked [in this epic](https://gitlab.com/groups/gitlab-org/-/epics/8900).
 In the meantime, you can see which versions are supported in the
-[source code](https://gitlab.com/gitlab-org/gitlab/-/blob/08dd756429731a0cca1e27ca9d59eea226398a7d/lib/gitlab/ci/parsers/security/validators/schema_validator.rb#L9-27).
+[source code](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/parsers/security/validators/schema_validator.rb#L9). Remember to pick the correct version for your instance, for example [`v15.7.3-ee`](https://gitlab.com/gitlab-org/gitlab/-/blob/v15.7.3-ee/lib/gitlab/ci/parsers/security/validators/schema_validator.rb#L9).
 
 #### Validate locally
 
@@ -425,15 +397,33 @@ We recommend that you generate a UUID and use it as the `id` field's value.
 The value of the `category` field matches the report type:
 
 - `dependency_scanning`
-- `cluster_image_scanning`
 - `container_scanning`
 - `sast`
 - `dast`
 
-##### Scanner
+##### Scan
 
-The `scanner` field is an object that embeds a human-readable `name` and a technical `id`.
-The `id` should not collide with any other scanner another integrator would provide.
+The `scan` field is an object that embeds meta information about the scan itself: the `analyzer`
+and `scanner` that performed the scan, the `start_time` and `end_time` the scan executed,
+and `status` of the scan (either "success" or "failure").
+
+Both the `analyzer` and `scanner` fields are objects that embeds a human-readable `name` and a technical `id`.
+The `id` should not collide with any other analyzers or scanners another integrator would provide.
+
+##### Scan Primary Identifiers
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368284) in GitLab 15.4 [with a flag](../../administration/feature_flags.md) named `sec_mark_dropped_findings_as_resolved`. Disabled by default.
+
+The `scan.primary_identifiers` field is an optional field containing an array of
+[primary identifiers](../../user/application_security/terminology/index.md#primary-identifier)).
+This is an exhaustive list of all rulesets for which the analyzer performed the scan.
+
+Even when the [`Vulnerabilities`](#vulnerabilities) array for a given scan may be empty, this optional field
+should contain the complete list of potential identifiers to inform the Rails application of which
+rules were executed.
+
+When populated, the Rails application automatically resolves previously detected vulnerabilities as no
+longer relevant when their primary identifier is not included.
 
 ##### Name, message, and description
 
@@ -518,7 +508,7 @@ Not all vulnerabilities have CVEs, and a CVE can be identified multiple times. A
 isn't a stable identifier and you shouldn't assume it as such when tracking vulnerabilities.
 
 The maximum number of identifiers for a vulnerability is set as 20. If a vulnerability has more than 20 identifiers,
-the system saves only the first 20 of them. Note that vulnerabilities in the [Pipeline Security](../../user/application_security/vulnerability_report/pipeline.md#view-vulnerabilities-in-a-pipeline)
+the system saves only the first 20 of them. The vulnerabilities in the [Pipeline Security](../../user/application_security/vulnerability_report/pipeline.md#view-vulnerabilities-in-a-pipeline)
 tab do not enforce this limit and all identifiers present in the report artifact are displayed.
 
 #### Details
@@ -595,40 +585,6 @@ combines the `operating_system` and the package `name`,
 so these attributes are mandatory.
 The `image` is also mandatory.
 All other attributes are optional.
-
-##### Cluster Image Scanning
-
-The `location` of a `cluster_image_scanning` vulnerability has a `dependency` field. It also has
-an `operating_system` field. For example, here is the `location` object for a vulnerability
-affecting version `2.50.3-2+deb9u1` of Debian package `glib2.0`:
-
-```json
-{
-    "dependency": {
-        "package": {
-            "name": "glib2.0"
-        },
-    },
-    "version": "2.50.3-2+deb9u1",
-    "operating_system": "debian:9",
-    "image": "index.docker.io/library/nginx:1.18",
-    "kubernetes_resource": {
-        "namespace": "production",
-        "kind": "Deployment",
-        "name": "nginx-ingress",
-        "container_name": "nginx",
-        "agent_id": "1"
-    }
-}
-```
-
-The affected package is found when scanning a deployment using the `index.docker.io/library/nginx:1.18` image.
-
-The location fingerprint of a Cluster Image Scanning vulnerability combines the
-`namespace`, `kind`, `name`, and `container_name` fields from the `kubernetes_resource`,
-as well as the package `name`, so these fields are required. The `image` field is also mandatory.
-The `cluster_id` and `agent_id` are mutually exclusive, and one of them must be present.
-All other fields are optional.
 
 ##### SAST
 

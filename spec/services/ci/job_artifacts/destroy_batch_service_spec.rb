@@ -29,7 +29,7 @@ RSpec.describe Ci::JobArtifacts::DestroyBatchService do
     create(:ci_job_artifact, :trace, :expired)
   end
 
-  describe '.execute' do
+  describe '#execute' do
     subject(:execute) { service.execute }
 
     it 'creates a deleted object for artifact with attached file' do
@@ -60,10 +60,9 @@ RSpec.describe Ci::JobArtifacts::DestroyBatchService do
       execute
     end
 
-    it 'preserves trace artifacts and removes any timestamp' do
+    it 'preserves trace artifacts' do
       expect { subject }
-        .to change { trace_artifact.reload.expire_at }.from(trace_artifact.expire_at).to(nil)
-        .and not_change { Ci::JobArtifact.exists?(trace_artifact.id) }
+        .to not_change { Ci::JobArtifact.exists?(trace_artifact.id) }
     end
 
     context 'when artifact belongs to a project that is undergoing stats refresh' do
@@ -208,35 +207,58 @@ RSpec.describe Ci::JobArtifacts::DestroyBatchService do
       end
     end
 
-    context 'ProjectStatistics' do
-      it 'resets project statistics' do
-        expect(ProjectStatistics).to receive(:increment_statistic).once
-          .with(artifact_with_file.project, :build_artifacts_size, -artifact_with_file.file.size)
-          .and_call_original
-        expect(ProjectStatistics).to receive(:increment_statistic).once
-          .with(artifact_without_file.project, :build_artifacts_size, 0)
-          .and_call_original
+    context 'ProjectStatistics', :sidekiq_inline do
+      let_it_be(:project_1) { create(:project) }
+      let_it_be(:project_2) { create(:project) }
+
+      let(:artifact_with_file) { create(:ci_job_artifact, :zip, project: project_1) }
+      let(:artifact_with_file_2) { create(:ci_job_artifact, :zip, project: project_1) }
+      let(:artifact_without_file) { create(:ci_job_artifact, project: project_2) }
+      let!(:artifacts) { Ci::JobArtifact.where(id: [artifact_with_file.id, artifact_without_file.id, artifact_with_file_2.id]) }
+
+      it 'updates project statistics by the relevant amount' do
+        expected_amount = -(artifact_with_file.size + artifact_with_file_2.size)
+
+        expect { execute }
+          .to change { project_1.statistics.reload.build_artifacts_size }.by(expected_amount)
+          .and change { project_2.statistics.reload.build_artifacts_size }.by(0)
+      end
+
+      it 'increments project statistics with artifact size as amount and job artifact id as ref' do
+        project_1_increments = [
+          have_attributes(amount: -artifact_with_file.size, ref: artifact_with_file.id),
+          have_attributes(amount: -artifact_with_file_2.file.size, ref: artifact_with_file_2.id)
+        ]
+        project_2_increments = [have_attributes(amount: 0, ref: artifact_without_file.id)]
+
+        expect(ProjectStatistics).to receive(:bulk_increment_statistic).with(project_1, :build_artifacts_size, match_array(project_1_increments))
+        expect(ProjectStatistics).to receive(:bulk_increment_statistic).with(project_2, :build_artifacts_size, match_array(project_2_increments))
 
         execute
       end
 
       context 'with update_stats: false' do
-        it 'does not update project statistics' do
-          expect(ProjectStatistics).not_to receive(:increment_statistic)
+        subject(:execute) { service.execute(update_stats: false) }
 
-          service.execute(update_stats: false)
+        it 'does not update project statistics' do
+          expect { execute }.not_to change { [project_1.statistics.reload.build_artifacts_size, project_2.statistics.reload.build_artifacts_size] }
         end
 
-        it 'returns size statistics' do
+        it 'returns statistic updates per project' do
+          project_1_updates = [
+            have_attributes(amount: -artifact_with_file.size, ref: artifact_with_file.id),
+            have_attributes(amount: -artifact_with_file_2.file.size, ref: artifact_with_file_2.id)
+          ]
+          project_2_updates = [have_attributes(amount: 0, ref: artifact_without_file.id)]
+
           expected_updates = {
             statistics_updates: {
-              artifact_with_file.project => -artifact_with_file.file.size,
-              artifact_without_file.project => 0
+              project_1 => match_array(project_1_updates),
+              project_2 => project_2_updates
             }
           }
 
-          expect(service.execute(update_stats: false)).to match(
-            a_hash_including(expected_updates))
+          expect(execute).to match(a_hash_including(expected_updates))
         end
       end
     end
@@ -266,82 +288,6 @@ RSpec.describe Ci::JobArtifacts::DestroyBatchService do
 
       it 'reports the number of destroyed artifacts' do
         is_expected.to eq(destroyed_artifacts_count: 0, statistics_updates: {}, status: :success)
-      end
-    end
-
-    context 'with artifacts that has backfilled expire_at' do
-      let!(:created_on_00_30_45_minutes_on_21_22_23) do
-        [
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-21 00:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-21 01:30:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-22 12:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-22 12:30:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-23 23:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-23 23:30:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-23 06:45:00.000'))
-        ]
-      end
-
-      let!(:created_close_to_00_or_30_minutes) do
-        [
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-21 00:00:00.001')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-21 00:30:00.999'))
-        ]
-      end
-
-      let!(:created_on_00_or_30_minutes_on_other_dates) do
-        [
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-01 00:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-19 12:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-24 23:30:00.000'))
-        ]
-      end
-
-      let!(:created_at_other_times) do
-        [
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-19 00:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-19 00:30:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-24 00:00:00.000')),
-          create(:ci_job_artifact, expire_at: Time.zone.parse('2022-01-24 00:30:00.000'))
-        ]
-      end
-
-      let(:artifacts_to_keep) { created_on_00_30_45_minutes_on_21_22_23 }
-      let(:artifacts_to_delete) { created_close_to_00_or_30_minutes + created_on_00_or_30_minutes_on_other_dates + created_at_other_times }
-      let(:all_artifacts) { artifacts_to_keep + artifacts_to_delete }
-
-      let(:artifacts) { Ci::JobArtifact.where(id: all_artifacts.map(&:id)) }
-
-      it 'deletes job artifacts that do not have expire_at on 00, 30 or 45 minute of 21, 22, 23 of the month' do
-        expect { subject }.to change { Ci::JobArtifact.count }.by(artifacts_to_delete.size * -1)
-      end
-
-      it 'keeps job artifacts that have expire_at on 00, 30 or 45 minute of 21, 22, 23 of the month' do
-        expect { subject }.not_to change { Ci::JobArtifact.where(id: artifacts_to_keep.map(&:id)).count }
-      end
-
-      it 'removes expire_at on job artifacts that have expire_at on 00, 30 or 45 minute of 21, 22, 23 of the month' do
-        subject
-
-        expect(artifacts_to_keep.all? { |artifact| artifact.reload.expire_at.nil? }).to be(true)
-      end
-
-      context 'when feature flag is disabled' do
-        before do
-          stub_feature_flags(ci_detect_wrongly_expired_artifacts: false)
-        end
-
-        it 'deletes all job artifacts' do
-          expect { subject }.to change { Ci::JobArtifact.count }.by(all_artifacts.size * -1)
-        end
-      end
-
-      context 'when fix_expire_at is false' do
-        let(:service) { described_class.new(artifacts, pick_up_at: Time.current, fix_expire_at: false) }
-
-        it 'deletes all job artifacts' do
-          expect { subject }.to change { Ci::JobArtifact.count }.by(all_artifacts.size * -1)
-        end
       end
     end
   end

@@ -71,14 +71,6 @@ module Gitlab
         "#{type}_#{hashed_identifier}"
       end
 
-      def with_lock_retries(&block)
-        Gitlab::Database::WithLockRetries.new(
-          connection: connection,
-          klass: self.class,
-          logger: Gitlab::BackgroundMigration::Logger
-        ).run(&block)
-      end
-
       def assert_not_in_transaction_block(scope:)
         return unless transaction_open?
 

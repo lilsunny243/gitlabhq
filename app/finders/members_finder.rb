@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 class MembersFinder
-  RELATIONS = %i(direct inherited descendants invited_groups).freeze
-  DEFAULT_RELATIONS = %i(direct inherited).freeze
+  RELATIONS = %i[direct inherited descendants invited_groups].freeze
+  DEFAULT_RELATIONS = %i[direct inherited].freeze
 
   # Params can be any of the following:
   #   sort:       string
@@ -22,8 +22,8 @@ class MembersFinder
     filter_members(members)
   end
 
-  def can?(*args)
-    Ability.allowed?(*args)
+  def can?(...)
+    Ability.allowed?(...)
   end
 
   private
@@ -31,7 +31,11 @@ class MembersFinder
   attr_reader :project, :current_user, :group
 
   def find_members(include_relations)
-    project_members = project.project_members
+    project_members = if Feature.enabled?(:project_members_index_by_project_namespace, project)
+                        project.namespace_members
+                      else
+                        project.project_members
+                      end
 
     if params[:active_without_invites_and_requests].present?
       project_members = project_members.active_without_invites_and_requests

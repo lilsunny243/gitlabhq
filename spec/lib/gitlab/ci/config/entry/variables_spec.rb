@@ -61,8 +61,17 @@ RSpec.describe Gitlab::Ci::Config::Entry::Variables do
     describe '#value_with_data' do
       it 'returns variable with data' do
         expect(entry.value_with_data).to eq(
-          'VARIABLE_1' => { value: 'value 1', description: nil },
-          'VARIABLE_2' => { value: 'value 2', description: nil }
+          'VARIABLE_1' => { value: 'value 1' },
+          'VARIABLE_2' => { value: 'value 2' }
+        )
+      end
+    end
+
+    describe '#value_with_prefill_data' do
+      it 'returns variable with prefill data' do
+        expect(entry.value_with_prefill_data).to eq(
+          'VARIABLE_1' => { value: 'value 1' },
+          'VARIABLE_2' => { value: 'value 2' }
         )
       end
     end
@@ -98,6 +107,76 @@ RSpec.describe Gitlab::Ci::Config::Entry::Variables do
     it_behaves_like 'invalid config', /must be either a string or a hash/
   end
 
+  context 'when entry config value has unallowed value key-value pair and value is a string' do
+    let(:config) do
+      { 'VARIABLE_1' => { value: 'value', description: 'variable 1' } }
+    end
+
+    context 'when there is no allowed_value_data metadata' do
+      it_behaves_like 'invalid config', /variable_1 config must be a string/
+    end
+
+    context 'when metadata has the allowed_value_data key' do
+      let(:metadata) { { allowed_value_data: %i[value description options] } }
+
+      let(:result) do
+        { 'VARIABLE_1' => 'value' }
+      end
+
+      it_behaves_like 'valid config'
+
+      describe '#value_with_data' do
+        it 'returns variable with data' do
+          expect(entry.value_with_data).to eq(
+            'VARIABLE_1' => { value: 'value' }
+          )
+        end
+      end
+
+      describe '#value_with_prefill_data' do
+        it 'returns variable with prefill data' do
+          expect(entry.value_with_prefill_data).to eq(
+            'VARIABLE_1' => { value: 'value', description: 'variable 1' }
+          )
+        end
+      end
+    end
+  end
+
+  context 'when entry config value has options' do
+    let(:config) do
+      { 'VARIABLE_1' => {
+        value: 'value1', options: %w[value1 value2], description: 'variable 1'
+      } }
+    end
+
+    context 'when metadata has allowed_value_data' do
+      let(:metadata) { { allowed_value_data: %i[value description options] } }
+
+      let(:result) do
+        { 'VARIABLE_1' => 'value1' }
+      end
+
+      it_behaves_like 'valid config'
+
+      describe '#value_with_data' do
+        it 'returns variable with data' do
+          expect(entry.value_with_data).to eq(
+            'VARIABLE_1' => { value: 'value1' }
+          )
+        end
+      end
+
+      describe '#value_with_prefill_data' do
+        it 'returns variable with prefill data' do
+          expect(entry.value_with_prefill_data).to eq(
+            'VARIABLE_1' => { value: 'value1', options: %w[value1 value2], description: 'variable 1' }
+          )
+        end
+      end
+    end
+  end
+
   context 'when entry config value has key-value pair and hash' do
     let(:config) do
       { 'VARIABLE_1' => { value: 'value 1', description: 'variable 1' },
@@ -118,8 +197,17 @@ RSpec.describe Gitlab::Ci::Config::Entry::Variables do
       describe '#value_with_data' do
         it 'returns variable with data' do
           expect(entry.value_with_data).to eq(
+            'VARIABLE_1' => { value: 'value 1' },
+            'VARIABLE_2' => { value: 'value 2' }
+          )
+        end
+      end
+
+      describe '#value_with_prefill_data' do
+        it 'returns variable with prefill data' do
+          expect(entry.value_with_prefill_data).to eq(
             'VARIABLE_1' => { value: 'value 1', description: 'variable 1' },
-            'VARIABLE_2' => { value: 'value 2', description: nil }
+            'VARIABLE_2' => { value: 'value 2' }
           )
         end
       end
@@ -142,14 +230,6 @@ RSpec.describe Gitlab::Ci::Config::Entry::Variables do
       end
 
       it_behaves_like 'invalid config', /variable_1 config uses invalid data keys: hello/
-    end
-
-    context 'when entry config value has hash with nil description' do
-      let(:config) do
-        { 'VARIABLE_1' => { value: 'value 1', description: nil } }
-      end
-
-      it_behaves_like 'invalid config', /variable_1 config description must be an alphanumeric string/
     end
 
     context 'when entry config value has hash without description' do

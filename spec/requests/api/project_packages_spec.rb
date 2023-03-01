@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe API::ProjectPackages do
+RSpec.describe API::ProjectPackages, feature_category: :package_registry do
   let_it_be(:project) { create(:project, :public) }
 
   let(:user) { create(:user) }
-  let!(:package1) { create(:npm_package, project: project, version: '3.1.0', name: "@#{project.root_namespace.path}/foo1") }
+  let!(:package1) { create(:npm_package, :last_downloaded_at, project: project, version: '3.1.0', name: "@#{project.root_namespace.path}/foo1") }
   let(:package_url) { "/projects/#{project.id}/packages/#{package1.id}" }
   let!(:package2) { create(:nuget_package, project: project, version: '2.0.4') }
   let!(:another_package) { create(:npm_package) }
@@ -88,7 +88,7 @@ RSpec.describe API::ProjectPackages do
         end
 
         context 'with JOB-TOKEN auth' do
-          let(:job) { create(:ci_build, :running, user: user) }
+          let(:job) { create(:ci_build, :running, user: user, project: project) }
 
           subject { get api(url, job_token: job.token) }
 
@@ -130,7 +130,7 @@ RSpec.describe API::ProjectPackages do
         end
 
         context 'with JOB-TOKEN auth' do
-          let(:job) { create(:ci_build, :running, user: user) }
+          let(:job) { create(:ci_build, :running, user: user, project: project) }
 
           subject { get api(url, job_token: job.token) }
 
@@ -229,8 +229,8 @@ RSpec.describe API::ProjectPackages do
             get api(package_url, user)
           end
 
-          pipeline = create(:ci_pipeline, user: user)
-          create(:ci_build, user: user, pipeline: pipeline)
+          pipeline = create(:ci_pipeline, user: user, project: project)
+          create(:ci_build, user: user, pipeline: pipeline, project: project)
           create(:package_build_info, package: package1, pipeline: pipeline)
 
           expect do
@@ -262,7 +262,7 @@ RSpec.describe API::ProjectPackages do
         it_behaves_like 'no destroy url'
 
         context 'with JOB-TOKEN auth' do
-          let(:job) { create(:ci_build, :running, user: user) }
+          let(:job) { create(:ci_build, :running, user: user, project: project) }
 
           subject { get api(package_url, job_token: job.token) }
 
@@ -271,6 +271,17 @@ RSpec.describe API::ProjectPackages do
           it_behaves_like 'returns package', :project, :reporter
           it_behaves_like 'returns package', :project, :no_type
           it_behaves_like 'returns package', :project, :guest
+        end
+
+        context 'with a package without last_downloaded_at' do
+          let(:package_url) { "/projects/#{project.id}/packages/#{package2.id}" }
+
+          it 'returns 200 and the package information' do
+            subject
+
+            expect(response).to have_gitlab_http_status(:ok)
+            expect(response).to match_response_schema(single_package_schema)
+          end
         end
       end
 
@@ -313,7 +324,7 @@ RSpec.describe API::ProjectPackages do
         end
 
         context 'with JOB-TOKEN auth' do
-          let(:job) { create(:ci_build, :running, user: user) }
+          let(:job) { create(:ci_build, :running, user: user, project: project) }
 
           subject { get api(package_url, job_token: job.token) }
 
@@ -337,6 +348,16 @@ RSpec.describe API::ProjectPackages do
             expect(response).to match_response_schema('public_api/v4/packages/package_with_build')
           end
         end
+      end
+    end
+
+    context 'when package has no default status' do
+      let!(:package1) { create(:npm_package, :error, project: project) }
+
+      it 'returns 404' do
+        subject
+
+        expect(response).to have_gitlab_http_status(:not_found)
       end
     end
   end
@@ -409,7 +430,7 @@ RSpec.describe API::ProjectPackages do
         end
 
         context 'with JOB-TOKEN auth' do
-          let(:job) { create(:ci_build, :running, user: user) }
+          let(:job) { create(:ci_build, :running, user: user, project: project) }
 
           it 'returns 403 for a user without enough permissions' do
             project.add_developer(user)

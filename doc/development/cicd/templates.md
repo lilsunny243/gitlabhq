@@ -1,13 +1,13 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index, concepts, howto
 ---
 
-# Development guide for GitLab CI/CD templates **(FREE)**
+# Development guide for GitLab CI/CD templates
 
-This document explains how to develop [GitLab CI/CD templates](../../ci/examples/index.md).
+This document explains how to develop [GitLab CI/CD templates](../../ci/examples/index.md#cicd-templates).
 
 ## Requirements for CI/CD templates
 
@@ -391,7 +391,7 @@ This is useful information for reviewers to make sure the template is safe to be
 ### Make sure the new template can be selected in UI
 
 Templates located under some directories are also [selectable in the **New file** UI](#template-directories).
-When you add a template into one of those directories, make sure that it correctly appears in the dropdown:
+When you add a template into one of those directories, make sure that it correctly appears in the dropdown list:
 
 ![CI/CD template selection](img/ci_template_selection_v13_1.png)
 
@@ -418,7 +418,7 @@ is updated in a major version GitLab release.
 
 Every CI/CD template must also have metrics defined to track their use. The CI/CD template monthly usage report
 can be found in [Sisense (GitLab team members only)](https://app.periscopedata.com/app/gitlab/785953/Pipeline-Authoring-Dashboard?widget=13440051&udv=0).
-Double click a template to see the graph for that single template.
+Select a template to see the graph for that single template.
 
 To add a metric definition for a new template:
 
@@ -465,7 +465,10 @@ To add a metric definition for a new template:
    - `name:` and `performance_indicator_type:`: Delete (not needed).
    - `introduced_by_url:`: The URL of the MR adding the template.
    - `data_source:`: Set to `redis_hll`.
-   - All other fields that have no values: Set to empty strings (`''`).
+   - `description`: Add a short description of what this metric counts, for example: `Count of pipelines using the latest Auto Deploy template`
+   - `product_*`: Set to [section, stage, group, and feature category](https://about.gitlab.com/handbook/product/categories/#devops-stages)
+     as per the [metrics dictionary guide](../service_ping/metrics_dictionary.md#metrics-definition-and-validation).
+     If you are unsure what to use for these keywords, you can ask for help in the merge request.
    - Add the following to the end of each file:
 
      ```yaml

@@ -2,37 +2,65 @@
 
 module Members
   class UpdateService < Members::BaseService
-    # returns the updated member
-    def execute(member, permission: :update)
-      raise Gitlab::Access::AccessDeniedError unless can?(current_user, action_member_permission(permission, member), member)
-      raise Gitlab::Access::AccessDeniedError if prevent_upgrade_to_owner?(member) || prevent_downgrade_from_owner?(member)
+    # @param members [Member, Array<Member>]
+    # returns the updated member(s)
+    def execute(members, permission: :update)
+      members = Array.wrap(members)
 
-      return success(member: member) if update_results_in_no_change?(member)
-
-      old_access_level = member.human_access
-      old_expiry = member.expires_at
-
-      if member.update(params)
-        after_execute(action: permission, old_access_level: old_access_level, old_expiry: old_expiry, member: member)
-
-        # Deletes only confidential issues todos for guests
-        enqueue_delete_todos(member) if downgrading_to_guest?
+      old_access_level_expiry_map = members.to_h do |member|
+        [member.id, { human_access: member.human_access, expires_at: member.expires_at }]
       end
 
-      if member.errors.any?
-        error(member.errors.full_messages.to_sentence, pass_back: { member: member })
-      else
-        success(member: member)
+      updated_members = update_members(members, permission)
+      Member.transaction do
+        updated_members.each { |member| post_update(member, permission, old_access_level_expiry_map) }
       end
+
+      prepare_response(members)
     end
 
     private
 
-    def update_results_in_no_change?(member)
-      return false if params[:expires_at]&.to_date != member.expires_at
-      return false if params[:access_level] != member.access_level
+    def update_members(members, permission)
+      # `filter_map` avoids the `post_update` call for the member that resulted in no change
+      Member.transaction do
+        members.filter_map { |member| update_member(member, permission) }
+      end
+    rescue ActiveRecord::RecordInvalid
+      []
+    end
 
-      true
+    def update_member(member, permission)
+      raise Gitlab::Access::AccessDeniedError unless has_update_permissions?(member, permission)
+
+      member.attributes = params
+      return unless member.changed?
+
+      member.tap(&:save!)
+    end
+
+    def post_update(member, permission, old_access_level_expiry_map)
+      old_access_level = old_access_level_expiry_map[member.id][:human_access]
+      old_expiry = old_access_level_expiry_map[member.id][:expires_at]
+
+      after_execute(action: permission, old_access_level: old_access_level, old_expiry: old_expiry, member: member)
+      enqueue_delete_todos(member) if downgrading_to_guest? # Deletes only confidential issues todos for guests
+    end
+
+    def prepare_response(members)
+      errored_members = members.select { |member| member.errors.any? }
+      if errored_members.present?
+        error_message = errored_members.flat_map { |member| member.errors.full_messages }.uniq.to_sentence
+        return error(error_message, pass_back: { members: errored_members })
+      end
+
+      success(members: members)
+    end
+
+    def has_update_permissions?(member, permission)
+      can?(current_user, action_member_permission(permission, member), member) &&
+        !prevent_upgrade_to_owner?(member) &&
+        !prevent_downgrade_from_owner?(member)
     end
 
     def downgrading_to_guest?

@@ -11,14 +11,14 @@ RSpec.describe PipelineDetailsEntity do
     described_class.represent(pipeline, request: request)
   end
 
-  it 'inherits from PipelineEntity' do
-    expect(described_class).to be < Ci::PipelineEntity
-  end
-
   before do
     stub_not_protect_default_branch
 
     allow(request).to receive(:current_user).and_return(user)
+  end
+
+  it 'inherits from PipelineEntity' do
+    expect(described_class).to be < Ci::PipelineEntity
   end
 
   describe '#as_json' do
@@ -104,7 +104,7 @@ RSpec.describe PipelineDetailsEntity do
       let(:pipeline) { create(:ci_empty_pipeline) }
 
       before do
-        create(:generic_commit_status, pipeline: pipeline)
+        create(:ci_build, pipeline: pipeline)
       end
 
       it 'contains stages' do
@@ -182,6 +182,7 @@ RSpec.describe PipelineDetailsEntity do
 
         expect(source_jobs[cross_project_pipeline.id][:name]).to eq('cross-project')
         expect(source_jobs[child_pipeline.id][:name]).to eq('child')
+        expect(source_jobs[child_pipeline.id][:retried]).to eq false
       end
     end
   end

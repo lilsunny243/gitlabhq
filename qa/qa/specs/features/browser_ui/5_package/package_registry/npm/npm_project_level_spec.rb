@@ -2,7 +2,7 @@
 
 module QA
   RSpec.describe 'Package' do
-    describe 'Package Registry', :orchestrated, :reliable, :packages, :object_storage do
+    describe 'Package Registry', :skip_live_env, :orchestrated, :reliable, :packages, :object_storage, product_group: :package_registry do
       describe 'npm project level endpoint' do
         using RSpec::Parameterized::TableSyntax
         include Runtime::Fixtures
@@ -39,7 +39,7 @@ module QA
         end
 
         let!(:runner) do
-          Resource::Runner.fabricate! do |runner|
+          Resource::ProjectRunner.fabricate! do |runner|
             runner.name = "qa-runner-#{Time.now.to_i}"
             runner.tags = ["runner-for-#{project.name}"]
             runner.executor = :docker

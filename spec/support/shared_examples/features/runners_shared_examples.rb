@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 RSpec.shared_examples 'shows and resets runner registration token' do
-  include Spec::Support::Helpers::ModalHelpers
   include Spec::Support::Helpers::Features::RunnersHelpers
+  include Spec::Support::Helpers::ModalHelpers
 
   before do
     click_on dropdown_text
@@ -63,10 +63,13 @@ RSpec.shared_examples 'shows and resets runner registration token' do
 end
 
 RSpec.shared_examples 'shows no runners registered' do
-  it 'shows counts with 0' do
-    expect(page).to have_text "Online 0"
-    expect(page).to have_text "Offline 0"
-    expect(page).to have_text "Stale 0"
+  it 'shows total count with 0' do
+    expect(find('[data-testid="runner-type-tabs"]')).to have_text "#{s_('Runners|All')} 0"
+
+    # No stats are shown
+    expect(page).not_to have_text s_('Runners|Online')
+    expect(page).not_to have_text s_('Runners|Offline')
+    expect(page).not_to have_text s_('Runners|Stale')
   end
 
   it 'shows "no runners" message' do
@@ -101,7 +104,7 @@ RSpec.shared_examples 'pauses, resumes and deletes a runner' do
     within_runner_row(runner.id) do
       click_button "Pause"
 
-      expect(page).to have_text 'paused'
+      expect(page).to have_text s_('Runners|Paused')
       expect(page).to have_button 'Resume'
       expect(page).not_to have_button 'Pause'
 
@@ -142,6 +145,51 @@ RSpec.shared_examples 'pauses, resumes and deletes a runner' do
       wait_for_requests
 
       expect(page).to have_content runner.description
+    end
+  end
+end
+
+RSpec.shared_examples 'deletes runners in bulk' do
+  describe 'when selecting all for deletion', :js do
+    before do
+      check s_('Runners|Select all')
+      click_button s_('Runners|Delete selected')
+
+      within_modal do
+        click_on "Permanently delete #{runner_count} runners"
+      end
+
+      wait_for_requests
+    end
+
+    it_behaves_like 'shows no runners registered'
+  end
+end
+
+RSpec.shared_examples 'filters by tag' do
+  it 'shows correct runner when tag matches' do
+    expect(page).to have_content found_runner
+    expect(page).to have_content missing_runner
+
+    input_filtered_search_filter_is_only('Tags', tag)
+
+    expect(page).to have_content found_runner
+    expect(page).not_to have_content missing_runner
+  end
+end
+
+RSpec.shared_examples 'shows runner jobs tab' do
+  context 'when clicking on jobs tab' do
+    before do
+      click_on("#{s_('Runners|Jobs')} #{job_count}")
+
+      wait_for_requests
+    end
+
+    it 'shows job in list' do
+      within "[data-testid='job-row-#{job.id}']" do
+        expect(page).to have_link("##{job.id}")
+      end
     end
   end
 end

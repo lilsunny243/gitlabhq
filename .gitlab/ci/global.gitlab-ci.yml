@@ -8,14 +8,24 @@
       - job_execution_timeout
       - stuck_or_timeout_failure
 
-.default-before_script:
+.default-utils-before_script:
   before_script:
     - echo $FOSS_ONLY
     - '[ "$FOSS_ONLY" = "1" ] && rm -rf ee/ qa/spec/ee/ qa/qa/specs/features/ee/ qa/qa/ee/ qa/qa/ee.rb'
     - export GOPATH=$CI_PROJECT_DIR/.go
     - mkdir -p $GOPATH
     - source scripts/utils.sh
+
+.default-before_script:
+  before_script:
+    - !reference [.default-utils-before_script, before_script]
     - source scripts/prepare_build.sh
+
+.production:
+  variables:
+    RAILS_ENV: "production"
+    NODE_ENV: "production"
+    GITLAB_ALLOW_SEPARATE_CI_DATABASE: "true"
 
 .ruby-gems-cache: &ruby-gems-cache
   key: "ruby-gems-debian-${DEBIAN_VERSION}-ruby-${RUBY_VERSION}"
@@ -78,19 +88,17 @@
   <<: *node-modules-cache
   policy: push  # We want to rebuild the cache from scratch to ensure stale dependencies are cleaned up.
 
-.assets-cache: &assets-cache
-  key: "assets-debian-${DEBIAN_VERSION}-ruby-${RUBY_VERSION}-node-${NODE_ENV}-v2"
+.assets-tmp-cache: &assets-tmp-cache
+  key: "assets-tmp-debian-${DEBIAN_VERSION}-ruby-${RUBY_VERSION}-node-${NODE_ENV}-v1"
   paths:
-    - assets-hash.txt
-    - public/assets/webpack/
     - tmp/cache/assets/sprockets/
     - tmp/cache/babel-loader/
     - tmp/cache/vue-loader/
   policy: pull
 
-.assets-cache-push: &assets-cache-push
-  <<: *assets-cache
-  policy: push  # We want to rebuild the cache from scratch to ensure stale dependencies are cleaned up.
+.assets-tmp-cache-push: &assets-tmp-cache-push
+  <<: *assets-tmp-cache
+  policy: push  # We want to rebuild the cache from scratch to ensure we don't pile up outdated cache files.
 
 .storybook-node-modules-cache: &storybook-node-modules-cache
   key: "storybook-node-modules-${DEBIAN_VERSION}-${NODE_ENV}"
@@ -174,7 +182,7 @@
   cache:
     - *ruby-gems-cache
 
-.danger-review-cache:
+.ruby-node-cache:
   cache:
     - *ruby-gems-cache
     - *node-modules-cache
@@ -199,21 +207,17 @@
   cache:
     - *node-modules-cache
 
-.yarn-cache-push:
-  cache:
-    - *node-modules-cache-push
-
 .assets-compile-cache:
   cache:
     - *ruby-gems-cache
     - *node-modules-cache
-    - *assets-cache
+    - *assets-tmp-cache
 
 .assets-compile-cache-push:
   cache:
     - *ruby-gems-cache  # We don't push this cache as it's already rebuilt by `update-setup-test-env-cache`
     - *node-modules-cache-push
-    - *assets-cache-push
+    - *assets-tmp-cache-push
 
 .storybook-yarn-cache:
   cache:
@@ -222,17 +226,9 @@
 
 .storybook-yarn-cache-push:
   cache:
-    - *node-modules-cache  # We don't push this cache as it's already rebuilt by `update-yarn-cache`
+    - *node-modules-cache  # We don't push this cache as it's already rebuilt by `update-assets-compile-*-cache`
     - *storybook-node-modules-cache-push
 
-.use-pg11:
-  services:
-    - name: postgres:11.6
-      command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
-    - name: redis:5.0-alpine
-  variables:
-    POSTGRES_HOST_AUTH_METHOD: trust
-    PG_VERSION: "11"
 
 .use-pg12:
   services:
@@ -252,62 +248,83 @@
     POSTGRES_HOST_AUTH_METHOD: trust
     PG_VERSION: "13"
 
-.use-pg11-ee:
-  services:
-    - name: postgres:11.6
-      command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
-    - name: redis:5.0-alpine
-    - name: elasticsearch:7.17.0
-      command: ["elasticsearch", "-E", "discovery.type=single-node", "-E", "xpack.security.enabled=false"]
-  variables:
-    POSTGRES_HOST_AUTH_METHOD: trust
-    PG_VERSION: "11"
-
-.use-pg12-ee:
+.use-pg12-es7-ee:
   services:
     - name: postgres:12
       command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
     - name: redis:6.0-alpine
-    - name: elasticsearch:7.17.0
+    - name: elasticsearch:7.17.6
       command: ["elasticsearch", "-E", "discovery.type=single-node", "-E", "xpack.security.enabled=false"]
+    - name: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images:zoekt-ci-image-1.0
+      alias: zoekt-ci-image
   variables:
     POSTGRES_HOST_AUTH_METHOD: trust
     PG_VERSION: "12"
+    ZOEKT_INDEX_BASE_URL: http://zoekt-ci-image:6060
+    ZOEKT_SEARCH_BASE_URL: http://zoekt-ci-image:6070
 
-.use-pg13-ee:
+.use-pg13-es7-ee:
   services:
     - name: postgres:13
       command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
     - name: redis:6.2-alpine
-    - name: elasticsearch:7.17.0
+    - name: elasticsearch:7.17.6
       command: ["elasticsearch", "-E", "discovery.type=single-node", "-E", "xpack.security.enabled=false"]
+    - name: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images:zoekt-ci-image-1.0
+      alias: zoekt-ci-image
   variables:
     POSTGRES_HOST_AUTH_METHOD: trust
     PG_VERSION: "13"
+    ZOEKT_INDEX_BASE_URL: http://zoekt-ci-image:6060
+    ZOEKT_SEARCH_BASE_URL: http://zoekt-ci-image:6070
 
 .use-pg12-es8-ee:
   services:
     - name: postgres:12
       command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
     - name: redis:6.0-alpine
-    - name: elasticsearch:8.3.3
+    - name: elasticsearch:8.5.3
+    - name: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images:zoekt-ci-image-1.0
+      alias: zoekt-ci-image
   variables:
     POSTGRES_HOST_AUTH_METHOD: trust
     PG_VERSION: "12"
     ES_SETTING_DISCOVERY_TYPE: "single-node"
     ES_SETTING_XPACK_SECURITY_ENABLED: "false"
+    ZOEKT_INDEX_BASE_URL: http://zoekt-ci-image:6060
+    ZOEKT_SEARCH_BASE_URL: http://zoekt-ci-image:6070
 
 .use-pg12-opensearch1-ee:
   services:
     - name: postgres:12
       command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
     - name: redis:6.0-alpine
-    - name: opensearchproject/opensearch:1.2.4
+    - name: opensearchproject/opensearch:1.3.5
       alias: elasticsearch
       command: ["bin/opensearch", "-E", "discovery.type=single-node", "-E", "plugins.security.disabled=true"]
+    - name: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images:zoekt-ci-image-1.0
+      alias: zoekt-ci-image
   variables:
     POSTGRES_HOST_AUTH_METHOD: trust
     PG_VERSION: "12"
+    ZOEKT_INDEX_BASE_URL: http://zoekt-ci-image:6060
+    ZOEKT_SEARCH_BASE_URL: http://zoekt-ci-image:6070
+
+.use-pg12-opensearch2-ee:
+  services:
+    - name: postgres:12
+      command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    - name: redis:6.0-alpine
+    - name: opensearchproject/opensearch:2.2.1
+      alias: elasticsearch
+      command: ["bin/opensearch", "-E", "discovery.type=single-node", "-E", "plugins.security.disabled=true"]
+    - name: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images:zoekt-ci-image-1.0
+      alias: zoekt-ci-image
+  variables:
+    POSTGRES_HOST_AUTH_METHOD: trust
+    PG_VERSION: "12"
+    ZOEKT_INDEX_BASE_URL: http://zoekt-ci-image:6060
+    ZOEKT_SEARCH_BASE_URL: http://zoekt-ci-image:6070
 
 .use-kaniko:
   image:
@@ -323,7 +340,7 @@
     FOSS_ONLY: '1'
 
 .use-docker-in-docker:
-  image: ${GITLAB_DEPENDENCY_PROXY}docker:${DOCKER_VERSION}
+  image: ${GITLAB_DEPENDENCY_PROXY_ADDRESS}docker:${DOCKER_VERSION}
   services:
     - docker:${DOCKER_VERSION}-dind
   variables:
@@ -333,3 +350,25 @@
   tags:
     # See https://gitlab.com/gitlab-com/www-gitlab-com/-/issues/7019 for tag descriptions
     - gitlab-org-docker
+
+.use-buildx:
+  extends: .use-docker-in-docker
+  image: ${REGISTRY_HOST}/${REGISTRY_GROUP}/gitlab-build-images/debian-bullseye-slim:docker-${DOCKER_VERSION}-buildx-0.8
+  variables:
+    QEMU_IMAGE: tonistiigi/binfmt:qemu-v7.0.0
+  before_script:
+    - !reference [.default-utils-before_script, before_script]
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - |
+      if [[ "${ARCH}" =~ arm64 ]]; then
+        echo -e "\033[1;33mInstalling latest qemu emulators\033[0m"
+        docker pull -q ${QEMU_IMAGE};
+        docker run --rm --privileged ${QEMU_IMAGE} --uninstall qemu-*;
+        docker run --rm --privileged ${QEMU_IMAGE} --install all;
+      fi
+    - docker buildx create --use # creates and set's to active buildkit builder
+
+.use-kube-context:
+  before_script:
+    - export KUBE_CONTEXT="gitlab-org/gitlab:review-apps"
+    - kubectl config use-context ${KUBE_CONTEXT}

@@ -3,7 +3,7 @@
 class Groups::AutocompleteSourcesController < Groups::ApplicationController
   feature_category :subgroups, [:members]
   feature_category :team_planning, [:issues, :labels, :milestones, :commands]
-  feature_category :code_review, [:merge_requests]
+  feature_category :code_review_workflow, [:merge_requests]
 
   urgency :low, [:issues, :labels, :milestones, :commands, :merge_requests, :members]
 
@@ -46,6 +46,8 @@ class Groups::AutocompleteSourcesController < Groups::ApplicationController
 
   # rubocop: disable CodeReuse/ActiveRecord
   def target
+    # TODO https://gitlab.com/gitlab-org/gitlab/-/issues/388541
+    # type_id is a misnomer. QuickActions::TargetService actually requires an iid.
     QuickActions::TargetService
       .new(nil, current_user, group: @group)
       .execute(params[:type], params[:type_id])

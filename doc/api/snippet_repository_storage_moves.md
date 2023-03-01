@@ -1,7 +1,7 @@
 ---
 stage: Create
-group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Source Code
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -9,7 +9,7 @@ type: reference
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/49228) in GitLab 13.8.
 
-Snippet repositories can be moved between storages. This can be useful when
+Snippet repositories can be moved between storages. This API can help you when
 [migrating to Gitaly Cluster](../administration/gitaly/index.md#migrate-to-gitaly-cluster), for
 example.
 
@@ -28,7 +28,7 @@ To ensure data integrity, snippets are put in a temporary read-only state for th
 duration of the move. During this time, users receive a `The repository is temporarily
 read-only. Please try again later.` message if they try to push new commits.
 
-This API requires you to [authenticate yourself](index.md#authentication) as an administrator.
+This API requires you to [authenticate yourself](rest/index.md#authentication) as an administrator.
 
 For other repository types see:
 
@@ -42,7 +42,7 @@ GET /snippet_repository_storage_moves
 ```
 
 By default, `GET` requests return 20 results at a time because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 Example request:
 
@@ -84,7 +84,7 @@ GET /snippets/:snippet_id/repository_storage_moves
 ```
 
 By default, `GET` requests return 20 results at a time because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 Supported attributes:
 
@@ -266,6 +266,8 @@ Example response:
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/49228) in GitLab 13.8.
 
 Schedules repository storage moves for each snippet repository stored on the source storage shard.
+This endpoint migrates all snippets at once. For more information, see
+[Move all snippets](../administration/operations/moving_repositories.md#move-all-snippets).
 
 ```plaintext
 POST /snippet_repository_storage_moves

@@ -1,10 +1,10 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Migrate from GitLab Managed Apps to Cluster Management Projects **(FREE)**
+# Migrate from GitLab Managed Apps to Cluster Management Projects (DEPRECATED) **(FREE)**
 
 The GitLab Managed Apps were deprecated in GitLab 14.0
 in favor of user-controlled Cluster Management projects.
@@ -77,7 +77,7 @@ See also [video walk-throughs](#video-walk-throughs) with examples.
 
    1. Overwrite `applications/gitlab-runner/values.yaml` with the output of the previous command.
 
-   This safe step will guarantee that no unexpected default values overwrite your currently deployed values.
+   This safe step guarantees that no unexpected default values overwrite your currently deployed values.
    For instance, your GitLab Runner could have its `gitlabUrl` or `runnerRegistrationToken` overwritten by mistake.
 
 1. Some apps require special attention:

@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/articles/laravel_with_gitlab_and_envoy/index.html'
 author: Mehran Rasulian
 author_gitlab: mehranrasulian
@@ -67,7 +67,7 @@ This test will be used later for continuously testing our app with GitLab CI/CD.
 ### Push to GitLab
 
 Since we have our app up and running locally, it's time to push the codebase to our remote repository.
-Let's create [a new project](../../../user/project/working_with_projects.md#create-a-project) in GitLab named `laravel-sample`.
+Let's create [a new project](../../../user/project/index.md#create-a-project) in GitLab named `laravel-sample`.
 After that, follow the command line instructions displayed on the project's homepage to initiate the repository on our machine and push the first commit.
 
 ```shell
@@ -444,7 +444,7 @@ On your GitLab project repository navigate to the **Registry** tab.
 You may need to enable the Container Registry for your project to see this tab. You'll find it under your project's **Settings > General > Visibility, project features, permissions**.
 
 To start using Container Registry on our machine, we first need to sign in to the GitLab registry using our GitLab username and password.
-Make sure you have [Docker](https://docs.docker.com/engine/installation/) installed on our machine,
+Make sure you have [Docker](https://docs.docker.com/engine/install/) installed on our machine,
 then run the following commands:
 
 ```shell
@@ -628,11 +628,11 @@ To do that, commit and push `.gitlab-ci.yml` to the `main` branch. It will trigg
 
 Here we see our **Test** and **Deploy** stages.
 The **Test** stage has the `unit_test` build running.
-click on it to see the runner's output.
+Select it to see the runner's output.
 
 ![pipeline page](img/pipeline_page.png)
 
-After our code passed through the pipeline successfully, we can deploy to our production server by clicking the **play** button on the right side.
+After our code passed through the pipeline successfully, we can deploy to our production server by selecting the **play** button on the right side.
 
 ![pipelines page deploy button](img/pipelines_page_deploy_button.png)
 
@@ -644,7 +644,7 @@ If something doesn't work as expected, you can roll back to the latest working v
 
 ![environment page](img/environment_page.png)
 
-By clicking on the external link icon specified on the right side, GitLab opens the production website.
+By selecting the external link icon specified on the right side, GitLab opens the production website.
 Our deployment successfully was done and we can see the application is live.
 
 ![Laravel welcome page](img/laravel_welcome_page.png)

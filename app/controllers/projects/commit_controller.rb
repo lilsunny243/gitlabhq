@@ -12,7 +12,7 @@ class Projects::CommitController < Projects::ApplicationController
 
   # Authorize
   before_action :require_non_empty_project
-  before_action :authorize_download_code!
+  before_action :authorize_read_code!
   before_action :authorize_read_pipeline!, only: [:pipelines]
   before_action :commit
   before_action :define_commit_vars, only: [:show, :diff_for_path, :diff_files, :pipelines, :merge_requests]
@@ -31,6 +31,7 @@ class Projects::CommitController < Projects::ApplicationController
 
     respond_to do |format|
       format.html do
+        @ref = params[:id]
         render locals: { pagination_params: params.permit(:page) }
       end
       format.diff do
@@ -86,7 +87,7 @@ class Projects::CommitController < Projects::ApplicationController
 
     respond_to do |format|
       format.json do
-        render json: @merge_requests.to_json
+        render json: Gitlab::Json.dump(@merge_requests)
       end
     end
   end
@@ -114,8 +115,12 @@ class Projects::CommitController < Projects::ApplicationController
 
     @branch_name = create_new_branch? ? @commit.revert_branch_name : @start_branch
 
-    create_commit(Commits::RevertService, success_notice: "The #{@commit.change_type_title(current_user)} has been successfully reverted.",
-                                          success_path: -> { successful_change_path(@project) }, failure_path: failed_change_path)
+    create_commit(
+      Commits::RevertService,
+      success_notice: "The #{@commit.change_type_title(current_user)} has been successfully reverted.",
+      success_path: -> { successful_change_path(@project) },
+      failure_path: failed_change_path
+    )
   end
 
   def cherry_pick
@@ -130,10 +135,13 @@ class Projects::CommitController < Projects::ApplicationController
 
     @branch_name = create_new_branch? ? @commit.cherry_pick_branch_name : @start_branch
 
-    create_commit(Commits::CherryPickService, success_notice: "The #{@commit.change_type_title(current_user)} has been successfully cherry-picked into #{@branch_name}.",
-                                              success_path: -> { successful_change_path(target_project) },
-                                              failure_path: failed_change_path,
-                                              target_project: target_project)
+    create_commit(
+      Commits::CherryPickService,
+      success_notice: "The #{@commit.change_type_title(current_user)} has been successfully cherry-picked into #{@branch_name}.",
+      success_path: -> { successful_change_path(target_project) },
+      failure_path: failed_change_path,
+      target_project: target_project
+    )
   end
 
   private

@@ -9,10 +9,6 @@ module Trigger
     %w[gitlab gitlab-ee].include?(ENV['CI_PROJECT_NAME'])
   end
 
-  def self.security?
-    %r{\Agitlab-org/security(\z|/)}.match?(ENV['CI_PROJECT_NAMESPACE'])
-  end
-
   def self.non_empty_variable_value(variable)
     variable_value = ENV[variable]
 
@@ -30,10 +26,10 @@ module Trigger
   class Base
     # Can be overridden
     def self.access_token
-      ENV['GITLAB_BOT_MULTI_PROJECT_PIPELINE_POLLING_TOKEN']
+      ENV['PROJECT_TOKEN_FOR_CI_SCRIPTS_API_USAGE']
     end
 
-    def invoke!(downstream_job_name: nil)
+    def invoke!
       pipeline_variables = variables
 
       puts "Triggering downstream pipeline on #{downstream_project_path}"
@@ -48,18 +44,7 @@ module Trigger
       puts "Triggered downstream pipeline: #{pipeline.web_url}\n"
       puts "Waiting for downstream pipeline status"
 
-      downstream_job =
-        if downstream_job_name
-          downstream_client.pipeline_jobs(downstream_project_path, pipeline.id).auto_paginate.find do |potential_job|
-            potential_job.name == downstream_job_name
-          end
-        end
-
-      if downstream_job
-        Trigger::Job.new(downstream_project_path, downstream_job.id, downstream_client)
-      else
-        Trigger::Pipeline.new(downstream_project_path, pipeline.id, downstream_client)
-      end
+      Trigger::Pipeline.new(downstream_project_path, pipeline.id, downstream_client)
     end
 
     def variables
@@ -153,51 +138,15 @@ module Trigger
 
     # Read version files from all components
     def version_file_variables
-      Dir.glob("*_VERSION").each_with_object({}) do |version_file, params|
+      Dir.glob("*_VERSION").each_with_object({}) do |version_file, params| # rubocop:disable Rails/IndexWith
         params[version_file] = version_param_value(version_file)
       end
     end
   end
 
-  class Omnibus < Base
-    def self.access_token
-      # Default to "Multi-pipeline (from 'gitlab-org/gitlab' 'e2e:package-and-test' job)" at https://gitlab.com/gitlab-org/build/omnibus-gitlab-mirror/-/settings/access_tokens
-      ENV['OMNIBUS_GITLAB_PROJECT_ACCESS_TOKEN'] || super
-    end
-
-    private
-
-    def downstream_project_path
-      ENV.fetch('OMNIBUS_PROJECT_PATH', 'gitlab-org/build/omnibus-gitlab-mirror')
-    end
-
-    def ref_param_name
-      'OMNIBUS_BRANCH'
-    end
-
-    def primary_ref
-      'master'
-    end
-
-    def trigger_stable_branch_if_detected?
-      true
-    end
-
-    def extra_variables
-      {
-        'GITLAB_VERSION' => ENV['CI_COMMIT_SHA'],
-        'IMAGE_TAG' => ENV['CI_COMMIT_SHA'],
-        'SKIP_QA_DOCKER' => 'true',
-        'SKIP_QA_TEST' => 'true',
-        'ALTERNATIVE_SOURCES' => 'true',
-        'SECURITY_SOURCES' => Trigger.security? ? 'true' : 'false',
-        'ee' => Trigger.ee? ? 'true' : 'false',
-        'CACHE_UPDATE' => ENV['OMNIBUS_GITLAB_CACHE_UPDATE']
-      }
-    end
-  end
-
   class CNG < Base
+    ASSETS_HASH = "cached-assets-hash.txt"
+
     def variables
       # Delete variables that aren't useful when using native triggers.
       super.tap do |hash|
@@ -220,12 +169,25 @@ module Trigger
       true
     end
 
+    def gitlab_ref_slug
+      if ENV['CI_COMMIT_TAG']
+        ENV['CI_COMMIT_REF_NAME']
+      else
+        ENV['CI_COMMIT_SHA']
+      end
+    end
+
+    def base_variables
+      super.merge(
+        'GITLAB_REF_SLUG' => gitlab_ref_slug
+      )
+    end
+
     def extra_variables
       {
         "TRIGGER_BRANCH" => ref,
         "GITLAB_VERSION" => ENV['CI_COMMIT_SHA'],
         "GITLAB_TAG" => ENV['CI_COMMIT_TAG'], # Always set a value, even an empty string, so that the downstream pipeline can correctly check it.
-        "GITLAB_ASSETS_TAG" => ENV['CI_COMMIT_TAG'] ? ENV['CI_COMMIT_REF_NAME'] : ENV['CI_COMMIT_SHA'],
         "FORCE_RAILS_IMAGE_BUILDS" => 'true',
         "CE_PIPELINE" => Trigger.ee? ? nil : "true", # Always set a value, even an empty string, so that the downstream pipeline can correctly check it.
         "EE_PIPELINE" => Trigger.ee? ? "true" : nil # Always set a value, even an empty string, so that the downstream pipeline can correctly check it.
@@ -244,6 +206,11 @@ module Trigger
     end
   end
 
+  # This is used in:
+  # - https://gitlab.com/gitlab-org/gitlab-runner/-/blob/ddaf90761c917a42ed4aab60541b6bc33871fe68/.gitlab/ci/docs.gitlab-ci.yml#L1-47
+  # - https://gitlab.com/gitlab-org/charts/gitlab/-/blob/fa348e709e901196803051669b4874b657b4ea91/.gitlab-ci.yml#L497-543
+  # - https://gitlab.com/gitlab-org/omnibus-gitlab/-/blob/b44483f05c5e22628ba3b49ec4c7f8761c688af0/gitlab-ci-config/gitlab-com.yml#L199-224
+  # - https://gitlab.com/gitlab-org/omnibus-gitlab/-/blob/b44483f05c5e22628ba3b49ec4c7f8761c688af0/gitlab-ci-config/gitlab-com.yml#L356-380
   class Docs < Base
     def self.access_token
       # Default to "DOCS_PROJECT_API_TOKEN" at https://gitlab.com/gitlab-org/gitlab-docs/-/settings/access_tokens
@@ -344,7 +311,7 @@ module Trigger
   class DatabaseTesting < Base
     IDENTIFIABLE_NOTE_TAG = 'gitlab-org/database-team/gitlab-com-database-testing:identifiable-note'
 
-    def invoke!(downstream_job_name: nil)
+    def invoke!
       pipeline = super
       project_path = variables['TOP_UPSTREAM_SOURCE_PROJECT']
       merge_request_id = variables['TOP_UPSTREAM_MERGE_REQUEST_IID']
@@ -389,8 +356,9 @@ module Trigger
 
     def extra_variables
       {
-        'GITLAB_COMMIT_SHA' => ENV['CI_COMMIT_SHA'],
-        'TRIGGERED_USER_LOGIN' => ENV['GITLAB_USER_LOGIN']
+        'GITLAB_COMMIT_SHA' => Trigger.non_empty_variable_value('CI_MERGE_REQUEST_SOURCE_BRANCH_SHA') || ENV['CI_COMMIT_SHA'],
+        'TRIGGERED_USER_LOGIN' => ENV['GITLAB_USER_LOGIN'],
+        'TOP_UPSTREAM_SOURCE_SHA' => Trigger.non_empty_variable_value('CI_MERGE_REQUEST_SOURCE_BRANCH_SHA') || ENV['CI_COMMIT_SHA']
       }
     end
 
@@ -460,16 +428,10 @@ module Trigger
 
     attr_reader :project, :gitlab_client, :start_time
   end
-
-  Job = Class.new(Pipeline)
 end
 
-if $0 == __FILE__
+if $PROGRAM_NAME == __FILE__
   case ARGV[0]
-  when 'omnibus'
-    Trigger::Omnibus.new.invoke!(downstream_job_name: 'Trigger:qa-test').wait!
-  when 'cng'
-    Trigger::CNG.new.invoke!.wait!
   when 'gitlab-com-database-testing'
     Trigger::DatabaseTesting.new.invoke!
   when 'docs'
@@ -487,7 +449,6 @@ if $0 == __FILE__
   else
     puts "Please provide a valid option:
     omnibus - Triggers a pipeline that builds the omnibus-gitlab package
-    cng - Triggers a pipeline that builds images used by the GitLab helm chart
     gitlab-com-database-testing - Triggers a pipeline that tests database changes on GitLab.com data"
   end
 end

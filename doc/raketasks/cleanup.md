@@ -1,10 +1,10 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Clean up **(FREE SELF)**
+# Clean up Rake tasks **(FREE SELF)**
 
 GitLab provides Rake tasks for cleaning up GitLab instances.
 
@@ -35,7 +35,8 @@ You can also specify the project with `PROJECT_ID` instead of `PROJECT_PATH`.
 For example:
 
 ```shell
-$ sudo gitlab-rake gitlab:cleanup:orphan_lfs_file_references PROJECT_PATH="gitlab-org/gitlab-foss"
+$ sudo gitlab-rake gitlab:cleanup:orphan_lfs_file_references PROJECT_ID="13083"
+
 I, [2019-12-13T16:35:31.764962 #82356]  INFO -- :  Looking for orphan LFS files for project GitLab Org / GitLab Foss
 I, [2019-12-13T16:35:31.923659 #82356]  INFO -- :  Removed invalid references: 12
 ```
@@ -44,7 +45,7 @@ By default, this task does not delete anything but shows how many file reference
 delete. Run the command with `DRY_RUN=false` if you actually want to
 delete the references. You can also use `LIMIT={number}` parameter to limit the number of deleted references.
 
-Note that this Rake task only removes the references to LFS files. Unreferenced LFS files are garbage-collected
+This Rake task only removes the references to LFS files. Unreferenced LFS files are garbage-collected
 later (once a day). If you need to garbage collect them immediately, run
 `rake gitlab:cleanup:orphan_lfs_files` described below.
 
@@ -151,6 +152,12 @@ I, [2018-08-02T10:26:47.764356 #45087]  INFO -- : Moved to lost and found: @hash
 NOTE:
 These commands don't work for artifacts stored on
 [object storage](../administration/object_storage.md).
+
+WARNING:
+Prior to GitLab 14.9, this task incorrectly deletes [pipeline artifacts](../ci/pipelines/pipeline_artifacts.md)
+[The bug fix](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/81022) was
+also back-ported to 14.6.6, 14.7.5, and 14.8.3. Upgrade to a release with the bug
+fix to avoid data loss.
 
 When you notice there are more job artifacts files and/or directories on disk than there
 should be, you can run:

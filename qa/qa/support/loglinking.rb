@@ -1,85 +1,59 @@
 # frozen_string_literal: true
+
 module QA
   module Support
     module Loglinking
       # Static address variables declared for mapping environment to logging URLs
-      STAGING_ADDRESS     = 'https://staging.gitlab.com'
-      STAGING_REF_ADDRESS = 'https://staging-ref.gitlab.com'
-      PRODUCTION_ADDRESS  = 'https://gitlab.com'
-      PRE_PROD_ADDRESS    = 'https://pre.gitlab.com'
-      SENTRY_ENVIRONMENTS = {
-        staging: 'https://sentry.gitlab.net/gitlab/staginggitlabcom/?environment=gstg',
-        staging_canary: 'https://sentry.gitlab.net/gitlab/staginggitlabcom/?environment=gstg-cny',
-        staging_ref: 'https://sentry.gitlab.net/gitlab/staging-ref/?environment=gstg-ref',
-        pre: 'https://sentry.gitlab.net/gitlab/pregitlabcom/?environment=pre',
-        canary: 'https://sentry.gitlab.net/gitlab/gitlabcom/?environment=gprd',
-        production: 'https://sentry.gitlab.net/gitlab/gitlabcom/?environment=gprd-cny'
-      }.freeze
-      KIBANA_ENVIRONMENTS = {
-        staging: 'https://nonprod-log.gitlab.net/',
-        staging_canary: 'https://nonprod-log.gitlab.net/',
-        canary: 'https://log.gprd.gitlab.net/',
-        production: 'https://log.gprd.gitlab.net/'
-      }.freeze
+      STAGING_ADDRESS            = 'https://staging.gitlab.com'
+      STAGING_REF_ADDRESS        = 'https://staging-ref.gitlab.com'
+      PRODUCTION_ADDRESS         = 'https://gitlab.com'
+      PRE_PROD_ADDRESS           = 'https://pre.gitlab.com'
 
-      def self.failure_metadata(correlation_id)
-        return if correlation_id.blank?
+      # Text titles used for labeling various IDs and URLs
+      CORRELATION_ID_TITLE       = 'Correlation Id:'
+      SENTRY_URL_TITLE           = 'Sentry Url:'
+      KIBANA_DISCOVER_URL_TITLE  = 'Kibana - Discover Url:'
+      KIBANA_DASHBOARD_URL_TITLE = 'Kibana - Dashboard Url:'
 
-        sentry_uri = sentry_url
-        kibana_uri = kibana_url
+      class << self
+        def failure_metadata(correlation_id)
+          return if correlation_id.blank?
 
-        errors = ["Correlation Id: #{correlation_id}"]
-        errors << "Sentry Url: #{sentry_uri}&query=correlation_id%3A%22#{correlation_id}%22" if sentry_uri
-        errors << "Kibana Url: #{kibana_uri}app/discover#/?_a=(query:(language:kuery,query:'json.correlation_id%20:%20#{correlation_id}'))&_g=(time:(from:now-24h%2Fh,to:now))" if kibana_uri
+          errors = ["#{CORRELATION_ID_TITLE} #{correlation_id}"]
 
-        errors.join("\n")
-      end
+          env = logging_environment
 
-      def self.sentry_url
-        return unless logging_environment?
+          sentry = QA::Support::SystemLogs::Sentry.new(env, correlation_id)
+          sentry_url = sentry.url
 
-        SENTRY_ENVIRONMENTS[logging_environment]
-      end
+          kibana = QA::Support::SystemLogs::Kibana.new(env, correlation_id)
+          kibana_discover_url = kibana.discover_url
+          kibana_dashboard_url = kibana.dashboard_url
 
-      def self.kibana_url
-        return unless logging_environment?
+          errors << "#{SENTRY_URL_TITLE} #{sentry_url}" if sentry_url
+          errors << "#{KIBANA_DISCOVER_URL_TITLE} #{kibana_discover_url}" if kibana_discover_url
+          errors << "#{KIBANA_DASHBOARD_URL_TITLE} #{kibana_dashboard_url}" if kibana_dashboard_url
 
-        KIBANA_ENVIRONMENTS[logging_environment]
-      end
-
-      def self.logging_environment
-        address = QA::Runtime::Scenario.attributes[:gitlab_address]
-        return if address.nil?
-
-        case address
-        when STAGING_ADDRESS
-          canary? ? :staging_canary : :staging
-        when STAGING_REF_ADDRESS
-          :staging_ref
-        when PRODUCTION_ADDRESS
-          canary? ? :canary : :production
-        when PRE_PROD_ADDRESS
-          :pre
-        else
-          nil
+          errors.join("\n")
         end
-      end
 
-      def self.logging_environment?
-        !logging_environment.nil?
-      end
+        def logging_environment
+          address = QA::Runtime::Scenario.attributes[:gitlab_address]
+          return if address.nil?
 
-      def self.cookies
-        browser_cookies = Capybara.current_session.driver.browser.manage.all_cookies
-        # rubocop:disable Rails/IndexBy
-        browser_cookies.each_with_object({}) do |cookie, memo|
-          memo[cookie[:name]] = cookie
+          case address
+          when STAGING_ADDRESS
+            :staging
+          when STAGING_REF_ADDRESS
+            :staging_ref
+          when PRODUCTION_ADDRESS
+            :production
+          when PRE_PROD_ADDRESS
+            :pre
+          else
+            nil
+          end
         end
-        # rubocop:enable Rails/IndexBy
-      end
-
-      def self.canary?
-        cookies.dig('gitlab_canary', :value) == 'true'
       end
     end
   end

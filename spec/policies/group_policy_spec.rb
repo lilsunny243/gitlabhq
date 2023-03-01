@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe GroupPolicy do
+RSpec.describe GroupPolicy, feature_category: :system_access do
+  include AdminModeHelper
   include_context 'GroupPolicy context'
 
   context 'public group with no user' do
@@ -156,7 +157,7 @@ RSpec.describe GroupPolicy do
     let(:current_user) { maintainer }
 
     context 'with subgroup_creation level set to maintainer' do
-      before_all do
+      before do
         group.update!(subgroup_creation_level: ::Gitlab::Access::MAINTAINER_SUBGROUP_ACCESS)
       end
 
@@ -257,6 +258,19 @@ RSpec.describe GroupPolicy do
 
     it_behaves_like 'deploy token does not get confused with user' do
       let(:user_id) { migration_bot.id }
+    end
+
+    context 'with no user' do
+      let(:current_user) { nil }
+
+      it :aggregate_failures do
+        expect_disallowed(:read_resource_access_tokens, :destroy_resource_access_tokens)
+        expect_disallowed(*guest_permissions)
+        expect_disallowed(*reporter_permissions)
+        expect_disallowed(*developer_permissions)
+        expect_disallowed(*maintainer_permissions)
+        expect_disallowed(*owner_permissions)
+      end
     end
   end
 
@@ -536,7 +550,7 @@ RSpec.describe GroupPolicy do
 
   context 'create_projects' do
     context 'when group has no project creation level set' do
-      before_all do
+      before do
         group.update!(project_creation_level: nil)
       end
 
@@ -566,7 +580,7 @@ RSpec.describe GroupPolicy do
     end
 
     context 'when group has project creation level set to no one' do
-      before_all do
+      before do
         group.update!(project_creation_level: ::Gitlab::Access::NO_ONE_PROJECT_ACCESS)
       end
 
@@ -596,7 +610,7 @@ RSpec.describe GroupPolicy do
     end
 
     context 'when group has project creation level set to maintainer only' do
-      before_all do
+      before do
         group.update!(project_creation_level: ::Gitlab::Access::MAINTAINER_PROJECT_ACCESS)
       end
 
@@ -626,7 +640,7 @@ RSpec.describe GroupPolicy do
     end
 
     context 'when group has project creation level set to developers + maintainer' do
-      before_all do
+      before do
         group.update!(project_creation_level: ::Gitlab::Access::DEVELOPER_MAINTAINER_PROJECT_ACCESS)
       end
 
@@ -658,7 +672,7 @@ RSpec.describe GroupPolicy do
 
   context 'create_subgroup' do
     context 'when group has subgroup creation level set to owner' do
-      before_all do
+      before do
         group.update!(subgroup_creation_level: ::Gitlab::Access::OWNER_SUBGROUP_ACCESS)
       end
 
@@ -688,7 +702,7 @@ RSpec.describe GroupPolicy do
     end
 
     context 'when group has subgroup creation level set to maintainer' do
-      before_all do
+      before do
         group.update!(subgroup_creation_level: ::Gitlab::Access::MAINTAINER_SUBGROUP_ACCESS)
       end
 
@@ -916,6 +930,75 @@ RSpec.describe GroupPolicy do
     end
   end
 
+  describe 'observability' do
+    using RSpec::Parameterized::TableSyntax
+
+    let(:allowed_admin) { be_allowed(:read_observability) && be_allowed(:admin_observability) }
+    let(:allowed_read) { be_allowed(:read_observability) && be_disallowed(:admin_observability) }
+    let(:disallowed) { be_disallowed(:read_observability) && be_disallowed(:admin_observability) }
+
+    # rubocop:disable Layout/LineLength
+    where(:feature_enabled, :admin_matcher, :owner_matcher, :maintainer_matcher, :developer_matcher, :reporter_matcher, :guest_matcher, :non_member_matcher, :anonymous_matcher) do
+      false | ref(:disallowed) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed)
+      true | ref(:allowed_admin) | ref(:allowed_admin) | ref(:allowed_admin) | ref(:allowed_read) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed) | ref(:disallowed)
+    end
+    # rubocop:enable Layout/LineLength
+
+    with_them do
+      before do
+        stub_feature_flags(observability_group_tab: feature_enabled)
+      end
+
+      context 'admin', :enable_admin_mode do
+        let(:current_user) { admin }
+
+        it { is_expected.to admin_matcher }
+      end
+
+      context 'owner' do
+        let(:current_user) { owner }
+
+        it { is_expected.to owner_matcher }
+      end
+
+      context 'maintainer' do
+        let(:current_user) { maintainer }
+
+        it { is_expected.to maintainer_matcher }
+      end
+
+      context 'developer' do
+        let(:current_user) { developer }
+
+        it { is_expected.to developer_matcher }
+      end
+
+      context 'reporter' do
+        let(:current_user) { reporter }
+
+        it { is_expected.to reporter_matcher }
+      end
+
+      context 'with guest' do
+        let(:current_user) { guest }
+
+        it { is_expected.to guest_matcher }
+      end
+
+      context 'with non member' do
+        let(:current_user) { create(:user) }
+
+        it { is_expected.to non_member_matcher }
+      end
+
+      context 'with anonymous' do
+        let(:current_user) { nil }
+
+        it { is_expected.to anonymous_matcher }
+      end
+    end
+  end
+
   describe 'dependency proxy' do
     context 'feature disabled' do
       let(:current_user) { owner }
@@ -991,7 +1074,7 @@ RSpec.describe GroupPolicy do
   it_behaves_like 'Self-managed Core resource access tokens'
 
   context 'support bot' do
-    let_it_be(:group) { create(:group, :private, :crm_enabled) }
+    let_it_be_with_refind(:group) { create(:group, :private, :crm_enabled) }
     let_it_be(:current_user) { User.support_bot }
 
     before do
@@ -1107,24 +1190,26 @@ RSpec.describe GroupPolicy do
       let(:current_user) { admin }
 
       context 'when admin mode is enabled', :enable_admin_mode do
-        context 'with runner_registration_control FF disabled' do
+        it { is_expected.to be_allowed(:register_group_runners) }
+
+        context 'with specific group runner registration disabled' do
           before do
-            stub_feature_flags(runner_registration_control: false)
+            group.runner_registration_enabled = false
           end
 
           it { is_expected.to be_allowed(:register_group_runners) }
         end
 
-        context 'with runner_registration_control FF enabled' do
+        context 'with group runner registration disabled' do
           before do
-            stub_feature_flags(runner_registration_control: true)
+            stub_application_setting(valid_runner_registrars: ['project'])
           end
 
           it { is_expected.to be_allowed(:register_group_runners) }
 
-          context 'with group runner registration disabled' do
+          context 'with specific group runner registration disabled' do
             before do
-              stub_application_setting(valid_runner_registrars: ['project'])
+              group.runner_registration_enabled = false
             end
 
             it { is_expected.to be_allowed(:register_group_runners) }
@@ -1142,28 +1227,20 @@ RSpec.describe GroupPolicy do
 
       it { is_expected.to be_allowed(:register_group_runners) }
 
-      context 'with runner_registration_control FF disabled' do
+      context 'with group runner registration disabled' do
         before do
-          stub_feature_flags(runner_registration_control: false)
+          stub_application_setting(valid_runner_registrars: ['project'])
         end
 
-        it { is_expected.to be_allowed(:register_group_runners) }
+        it { is_expected.to be_disallowed(:register_group_runners) }
       end
 
-      context 'with runner_registration_control FF enabled' do
+      context 'with specific group runner registration disabled' do
         before do
-          stub_feature_flags(runner_registration_control: true)
+          group.runner_registration_enabled = false
         end
 
-        it { is_expected.to be_allowed(:register_group_runners) }
-
-        context 'with group runner registration disabled' do
-          before do
-            stub_application_setting(valid_runner_registrars: ['project'])
-          end
-
-          it { is_expected.to be_disallowed(:register_group_runners) }
-        end
+        it { is_expected.to be_disallowed(:register_group_runners) }
       end
     end
 
@@ -1198,6 +1275,234 @@ RSpec.describe GroupPolicy do
     end
   end
 
+  describe 'create_group_runners' do
+    shared_examples 'disallowed when group runner registration disabled' do
+      context 'with group runner registration disabled' do
+        before do
+          stub_application_setting(valid_runner_registrars: ['project'])
+          group.runner_registration_enabled = runner_registration_enabled
+        end
+
+        context 'with specific group runner registration enabled' do
+          let(:runner_registration_enabled) { true }
+
+          it { is_expected.to be_disallowed(:create_group_runners) }
+        end
+
+        context 'with specific group runner registration disabled' do
+          let(:runner_registration_enabled) { false }
+
+          it { is_expected.to be_disallowed(:create_group_runners) }
+        end
+      end
+    end
+
+    context 'create_runner_workflow flag enabled' do
+      before do
+        stub_feature_flags(create_runner_workflow: true)
+      end
+
+      context 'admin' do
+        let(:current_user) { admin }
+
+        context 'when admin mode is enabled', :enable_admin_mode do
+          it { is_expected.to be_allowed(:create_group_runners) }
+
+          context 'with specific group runner registration disabled' do
+            before do
+              group.runner_registration_enabled = false
+            end
+
+            it { is_expected.to be_allowed(:create_group_runners) }
+          end
+
+          context 'with group runner registration disabled' do
+            before do
+              stub_application_setting(valid_runner_registrars: ['project'])
+              group.runner_registration_enabled = runner_registration_enabled
+            end
+
+            context 'with specific group runner registration enabled' do
+              let(:runner_registration_enabled) { true }
+
+              it { is_expected.to be_allowed(:create_group_runners) }
+            end
+
+            context 'with specific group runner registration disabled' do
+              let(:runner_registration_enabled) { false }
+
+              it { is_expected.to be_allowed(:create_group_runners) }
+            end
+          end
+        end
+
+        context 'when admin mode is disabled' do
+          it { is_expected.to be_disallowed(:create_group_runners) }
+        end
+      end
+
+      context 'with owner' do
+        let(:current_user) { owner }
+
+        it { is_expected.to be_allowed(:create_group_runners) }
+
+        it_behaves_like 'disallowed when group runner registration disabled'
+      end
+
+      context 'with maintainer' do
+        let(:current_user) { maintainer }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with reporter' do
+        let(:current_user) { reporter }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with guest' do
+        let(:current_user) { guest }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with developer' do
+        let(:current_user) { developer }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with anonymous' do
+        let(:current_user) { nil }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+    end
+
+    context 'with create_runner_workflow flag disabled' do
+      before do
+        stub_feature_flags(create_runner_workflow: false)
+      end
+
+      context 'admin' do
+        let(:current_user) { admin }
+
+        context 'when admin mode is enabled', :enable_admin_mode do
+          it { is_expected.to be_disallowed(:create_group_runners) }
+
+          context 'with specific group runner registration disabled' do
+            before do
+              group.runner_registration_enabled = false
+            end
+
+            it { is_expected.to be_disallowed(:create_group_runners) }
+          end
+
+          it_behaves_like 'disallowed when group runner registration disabled'
+        end
+
+        context 'when admin mode is disabled' do
+          it { is_expected.to be_disallowed(:create_group_runners) }
+        end
+      end
+
+      context 'with owner' do
+        let(:current_user) { owner }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+
+        it_behaves_like 'disallowed when group runner registration disabled'
+      end
+
+      context 'with maintainer' do
+        let(:current_user) { maintainer }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with reporter' do
+        let(:current_user) { reporter }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with guest' do
+        let(:current_user) { guest }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with developer' do
+        let(:current_user) { developer }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+
+      context 'with anonymous' do
+        let(:current_user) { nil }
+
+        it { is_expected.to be_disallowed(:create_group_runners) }
+      end
+    end
+  end
+
+  describe 'read_group_all_available_runners' do
+    context 'admin' do
+      let(:current_user) { admin }
+
+      context 'when admin mode is enabled', :enable_admin_mode do
+        specify { is_expected.to be_allowed(:read_group_all_available_runners) }
+      end
+
+      context 'when admin mode is disabled' do
+        specify { is_expected.to be_disallowed(:read_group_all_available_runners) }
+      end
+    end
+
+    context 'with owner' do
+      let(:current_user) { owner }
+
+      specify { is_expected.to be_allowed(:read_group_all_available_runners) }
+    end
+
+    context 'with maintainer' do
+      let(:current_user) { maintainer }
+
+      specify { is_expected.to be_allowed(:read_group_all_available_runners) }
+    end
+
+    context 'with developer' do
+      let(:current_user) { developer }
+
+      specify { is_expected.to be_allowed(:read_group_all_available_runners) }
+    end
+
+    context 'with reporter' do
+      let(:current_user) { reporter }
+
+      specify { is_expected.to be_disallowed(:read_group_all_available_runners) }
+    end
+
+    context 'with guest' do
+      let(:current_user) { guest }
+
+      specify { is_expected.to be_disallowed(:read_group_all_available_runners) }
+    end
+
+    context 'with non member' do
+      let(:current_user) { create(:user) }
+
+      specify { is_expected.to be_disallowed(:read_group_all_available_runners) }
+    end
+
+    context 'with anonymous' do
+      let(:current_user) { nil }
+
+      specify { is_expected.to be_disallowed(:read_group_all_available_runners) }
+    end
+  end
+
   describe 'change_prevent_sharing_groups_outside_hierarchy' do
     context 'with owner' do
       let(:current_user) { owner }
@@ -1219,9 +1524,8 @@ RSpec.describe GroupPolicy do
   context 'when crm_enabled is false' do
     let(:current_user) { owner }
 
-    before_all do
-      group.crm_settings.enabled = false
-      group.crm_settings.save!
+    before do
+      group.crm_settings.update!(enabled: false)
     end
 
     it { is_expected.to be_disallowed(:read_crm_contact) }
@@ -1236,5 +1540,51 @@ RSpec.describe GroupPolicy do
     let(:users_container) { group }
 
     subject { described_class.new(current_user, group) }
+  end
+
+  describe 'read_usage_quotas policy' do
+    context 'reading usage quotas' do
+      using RSpec::Parameterized::TableSyntax
+
+      let(:policy) { :read_usage_quotas }
+
+      where(:role, :admin_mode, :allowed) do
+        :owner      | nil   | true
+        :admin      | true  | true
+        :admin      | false | false
+        :maintainer | nil   | false
+        :developer  | nil   | false
+        :reporter   | nil   | false
+        :guest      | nil   | false
+      end
+
+      with_them do
+        let(:current_user) { public_send(role) }
+
+        before do
+          enable_admin_mode!(current_user) if admin_mode
+        end
+
+        it { is_expected.to(allowed ? be_allowed(policy) : be_disallowed(policy)) }
+      end
+    end
+  end
+
+  describe 'achievements' do
+    let(:current_user) { owner }
+
+    specify { is_expected.to be_allowed(:read_achievement) }
+    specify { is_expected.to be_allowed(:admin_achievement) }
+    specify { is_expected.to be_allowed(:award_achievement) }
+
+    context 'with feature flag disabled' do
+      before do
+        stub_feature_flags(achievements: false)
+      end
+
+      specify { is_expected.to be_disallowed(:read_achievement) }
+      specify { is_expected.to be_disallowed(:admin_achievement) }
+      specify { is_expected.to be_disallowed(:award_achievement) }
+    end
   end
 end

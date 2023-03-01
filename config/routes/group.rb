@@ -56,10 +56,14 @@ constraints(::Constraints::GroupUrlConstrainer.new) do
         end
       end
 
-      resources :applications
+      resources :applications do
+        put 'renew', on: :member
+      end
 
       resource :packages_and_registries, only: [:show]
     end
+
+    resources :usage_quotas, only: [:index]
 
     resource :variables, only: [:show, :update]
 
@@ -120,6 +124,11 @@ constraints(::Constraints::GroupUrlConstrainer.new) do
     resources :container_registries, only: [:index, :show], controller: 'registry/repositories'
     resource :dependency_proxy, only: [:show, :update]
     resources :email_campaigns, only: :index
+
+    namespace :observability do
+      get 'explore'
+      get 'datasources'
+    end
 
     namespace :harbor do
       resources :repositories, only: [:index, :show], constraints: { id: %r{[a-zA-Z./:0-9_\-]+} } do

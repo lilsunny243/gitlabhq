@@ -90,12 +90,12 @@ RSpec.describe QA::Resource::ApiFabricator do
 
       context 'when creating a resource' do
         before do
-          allow(subject).to receive(:post).with(resource_web_url, subject.api_post_body).and_return(raw_post)
+          allow(subject).to receive(:post).with(resource_web_url, subject.api_post_body, {}).and_return(raw_post)
         end
 
         it 'returns the resource URL' do
           expect(api_request).to receive(:new).with(api_client_instance, subject.api_post_path).and_return(double(url: resource_web_url))
-          expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body).and_return(raw_post)
+          expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body, {}).and_return(raw_post)
 
           expect(subject.fabricate_via_api!).to eq(resource_web_url)
         end
@@ -112,8 +112,7 @@ RSpec.describe QA::Resource::ApiFabricator do
 
           it 'raises a ResourceFabricationFailedError exception' do
             expect(api_request).to receive(:new).with(api_client_instance, subject.api_post_path).and_return(double(url: resource_web_url))
-            expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body).and_return(raw_post)
-            allow(QA::Support::Loglinking).to receive(:logging_environment).and_return(nil)
+            expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body, {}).and_return(raw_post)
 
             expect { subject.fabricate_via_api! }.to raise_error do |error|
               expect(error.class).to eql(described_class::ResourceFabricationFailedError)
@@ -129,7 +128,7 @@ RSpec.describe QA::Resource::ApiFabricator do
             allow(QA::Support::Loglinking).to receive(:logging_environment).and_return(nil)
 
             expect(api_request).to receive(:new).with(api_client_instance, subject.api_post_path).and_return(double(url: resource_web_url))
-            expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body).and_return(response)
+            expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body, {}).and_return(response)
 
             expect { subject.fabricate_via_api! }.to raise_error do |error|
               expect(error.class).to eql(described_class::ResourceFabricationFailedError)
@@ -140,23 +139,26 @@ RSpec.describe QA::Resource::ApiFabricator do
             end
           end
 
-          it 'logs a sentry url from staging' do
+          it 'logs Sentry and Kibana URLs from staging' do
             response = double('Raw POST response', code: 400, body: post_response.to_json, headers: { x_request_id: 'foobar' })
             cookies = [{ name: 'Foo', value: 'Bar' }, { name: 'gitlab_canary', value: 'true' }]
+            time = Time.new(2022, 11, 14, 0, 0, 0, '+00:00')
 
             allow(Capybara.current_session).to receive_message_chain(:driver, :browser, :manage, :all_cookies).and_return(cookies)
             allow(QA::Runtime::Scenario).to receive(:attributes).and_return({ gitlab_address: 'https://staging.gitlab.com' })
+            allow(Time).to receive(:now).and_return(time)
 
             expect(api_request).to receive(:new).with(api_client_instance, subject.api_post_path).and_return(double(url: resource_web_url))
-            expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body).and_return(response)
+            expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body, {}).and_return(response)
 
             expect { subject.fabricate_via_api! }.to raise_error do |error|
               expect(error.class).to eql(described_class::ResourceFabricationFailedError)
               expect(error.to_s).to eql(<<~ERROR.chomp)
                 Fabrication of FooBarResource using the API failed (400) with `#{raw_post}`.
                 Correlation Id: foobar
-                Sentry Url: https://sentry.gitlab.net/gitlab/staginggitlabcom/?environment=gstg-cny&query=correlation_id%3A%22foobar%22
-                Kibana Url: https://nonprod-log.gitlab.net/app/discover#/?_a=(query:(language:kuery,query:'json.correlation_id%20:%20foobar'))&_g=(time:(from:now-24h%2Fh,to:now))
+                Sentry Url: https://sentry.gitlab.net/gitlab/staginggitlabcom/?environment=gstg&query=correlation_id%3A%22foobar%22
+                Kibana - Discover Url: https://nonprod-log.gitlab.net/app/discover#/?_a=%28index:%27ed942d00-5186-11ea-ad8a-f3610a492295%27%2Cquery%3A%28language%3Akuery%2Cquery%3A%27json.correlation_id%20%3A%20foobar%27%29%29&_g=%28time%3A%28from%3A%272022-11-13T00:00:00.000Z%27%2Cto%3A%272022-11-14T00:00:00.000Z%27%29%29
+                Kibana - Dashboard Url: https://nonprod-log.gitlab.net/app/dashboards#/view/b74dc030-6f56-11ed-9af2-6131f0ee4ce6?_g=%28time%3A%28from:%272022-11-13T00:00:00.000Z%27%2Cto%3A%272022-11-14T00:00:00.000Z%27%29%29&_a=%28filters%3A%21%28%28query%3A%28match_phrase%3A%28json.correlation_id%3A%27foobar%27%29%29%29%29%29
               ERROR
             end
           end
@@ -193,7 +195,7 @@ RSpec.describe QA::Resource::ApiFabricator do
         let(:transformed_resource) { { existing: 'foo', new: 'foobar', web_url: resource_web_url } }
 
         it 'transforms the resource' do
-          expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body).and_return(raw_post)
+          expect(subject).to receive(:post).with(resource_web_url, subject.api_post_body, {}).and_return(raw_post)
           expect(subject).to receive(:transform_api_resource).with(response).and_return(transformed_resource)
 
           subject.fabricate_via_api!

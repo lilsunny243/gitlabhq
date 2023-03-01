@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Create GitLab branches from Jira', :js do
+RSpec.describe 'Create GitLab branches from Jira', :js, feature_category: :integrations do
+  include ListboxHelpers
+
   let_it_be(:alice) { create(:user, name: 'Alice') }
   let_it_be(:bob) { create(:user, name: 'Bob') }
 
@@ -18,8 +20,8 @@ RSpec.describe 'Create GitLab branches from Jira', :js do
     sign_in(alice)
   end
 
-  def within_dropdown(&block)
-    within('.dropdown-menu', &block)
+  def within_project_listbox(&block)
+    within('#project-select', &block)
   end
 
   it 'select project and branch and submit the form' do
@@ -33,48 +35,44 @@ RSpec.describe 'Create GitLab branches from Jira', :js do
 
     click_on 'Select a project'
 
-    within_dropdown do
-      expect(page).to have_text('Alice / foo')
-      expect(page).to have_text('Alice / bar')
-      expect(page).not_to have_text('Bob /')
+    within_project_listbox do
+      expect_listbox_item('Alice / foo')
+      expect_listbox_item('Alice / bar')
+      expect_no_listbox_item('Bob /')
 
       fill_in 'Search', with: 'foo'
 
-      expect(page).not_to have_text('Alice / bar')
+      expect_no_listbox_item('Alice / bar')
 
-      click_on 'Alice / foo'
+      select_listbox_item('Alice / foo')
     end
 
     expect(page).to have_field('Branch name', with: 'ACME-123-my-issue-title')
     expect(page).to have_button('Create branch', disabled: false)
 
     click_on 'master'
+    fill_in 'Search', with: source_branch
+    expect(page).not_to have_text(source_branch)
 
-    within_dropdown do
-      fill_in 'Search', with: source_branch
-
-      expect(page).not_to have_text(source_branch)
-
-      fill_in 'Search', with: 'master'
-
-      expect(page).to have_text('master')
-    end
+    fill_in 'Search', with: 'master'
+    expect(page).to have_text('master')
 
     # Switch to project2
 
-    click_on 'Alice / foo'
+    find('span', text: 'Alice / foo', match: :first).click
 
-    within_dropdown do
+    within_project_listbox do
       fill_in 'Search', with: ''
-      click_on 'Alice / bar'
+      select_listbox_item('Alice / bar')
     end
 
     click_on 'master'
+    wait_for_requests
 
-    within_dropdown do
-      fill_in 'Search', with: source_branch
-      click_on source_branch
-    end
+    fill_in 'Search', with: source_branch
+    wait_for_requests
+
+    select_listbox_item(source_branch)
 
     fill_in 'Branch name', with: new_branch
     click_on 'Create branch'

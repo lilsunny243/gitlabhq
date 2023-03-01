@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin::Users' do
+RSpec.describe 'Admin::Users', feature_category: :user_management do
   include Spec::Support::Helpers::Features::AdminUsersHelpers
   include Spec::Support::Helpers::ModalHelpers
+  include ListboxHelpers
 
   let_it_be(:user, reload: true) { create(:omniauth_user, provider: 'twitter', extern_uid: '123456') }
   let_it_be(:current_user) { create(:admin) }
@@ -28,7 +29,7 @@ RSpec.describe 'Admin::Users' do
 
       expect(page).to have_content(current_user.email)
       expect(page).to have_content(current_user.name)
-      expect(page).to have_content(current_user.created_at.strftime('%e %b, %Y'))
+      expect(page).to have_content(current_user.created_at.strftime('%b %d, %Y'))
       expect(page).to have_content(user.email)
       expect(page).to have_content(user.name)
       expect(page).to have_content('Projects')
@@ -366,7 +367,9 @@ RSpec.describe 'Admin::Users' do
       expect(user.projects_limit)
         .to eq(Gitlab.config.gitlab.default_projects_limit)
       expect(user.can_create_group)
-        .to eq(Gitlab.config.gitlab.default_can_create_group)
+        .to eq(Gitlab::CurrentSettings.can_create_group)
+      expect(user.private_profile)
+        .to eq(Gitlab::CurrentSettings.user_defaults_to_private_profile)
     end
 
     it 'creates user with valid data' do
@@ -481,14 +484,14 @@ RSpec.describe 'Admin::Users' do
     end
 
     it 'lists groups' do
-      within(:css, '.gl-mb-3 + .card') do
+      within(:css, '.gl-mb-3 + .gl-card') do
         expect(page).to have_content 'Groups'
         expect(page).to have_link group.name, href: admin_group_path(group)
       end
     end
 
     it 'allows navigation to the group details' do
-      within(:css, '.gl-mb-3 + .card') do
+      within(:css, '.gl-mb-3 + .gl-card') do
         click_link group.name
       end
       expect(page).to have_content "Group: #{group.name}"
@@ -496,7 +499,7 @@ RSpec.describe 'Admin::Users' do
     end
 
     it 'shows the group access level' do
-      within(:css, '.gl-mb-3 + .card') do
+      within(:css, '.gl-mb-3 + .gl-card') do
         expect(page).to have_content 'Developer'
       end
     end
@@ -564,6 +567,7 @@ RSpec.describe 'Admin::Users' do
         fill_in 'user_password', with: 'AValidPassword1'
         fill_in 'user_password_confirmation', with: 'AValidPassword1'
         choose 'user_access_level_admin'
+        check 'Private profile'
         click_button 'Save changes'
       end
 
@@ -577,6 +581,7 @@ RSpec.describe 'Admin::Users' do
         expect(user.name).to eq('Big Bang')
         expect(user.admin?).to be_truthy
         expect(user.password_expires_at).to be <= Time.zone.now
+        expect(user.private_profile).to eq(true)
       end
     end
 
@@ -605,7 +610,7 @@ RSpec.describe 'Admin::Users' do
   def sort_by(option)
     page.within('.filtered-search-block') do
       find('.gl-new-dropdown').click
-      find('.gl-new-dropdown-item', text: option).click
+      select_listbox_item(option)
     end
   end
 end

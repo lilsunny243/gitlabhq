@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Projects::PagesController < Projects::ApplicationController
-  layout 'project_settings'
+  layout :resolve_layout
 
   before_action :require_pages_enabled!
   before_action :authorize_read_pages!, only: [:show]
@@ -9,6 +9,10 @@ class Projects::PagesController < Projects::ApplicationController
   before_action :authorize_remove_pages!, only: [:destroy]
 
   feature_category :pages
+
+  before_action do
+    push_frontend_feature_flag(:show_pages_in_deployments_menu, current_user, type: :experiment)
+  end
 
   def new
     @pipeline_wizard_data = {
@@ -39,9 +43,7 @@ class Projects::PagesController < Projects::ApplicationController
 
     respond_to do |format|
       format.html do
-        redirect_to project_pages_path(@project),
-                    status: :found,
-                    notice: 'Pages were scheduled for removal'
+        redirect_to project_pages_path(@project), status: :found, notice: 'Pages were scheduled for removal'
       end
     end
   end
@@ -64,12 +66,24 @@ class Projects::PagesController < Projects::ApplicationController
 
   private
 
+  def resolve_layout
+    'project_settings' unless Feature.enabled?(:show_pages_in_deployments_menu, current_user, type: :experiment)
+  end
+
   def project_params
     params.require(:project).permit(project_params_attributes)
   end
 
   def project_params_attributes
-    %i[pages_https_only]
+    attributes = %i[pages_https_only]
+
+    return attributes unless Feature.enabled?(:pages_unique_domain)
+
+    attributes + [
+      project_setting_attributes: [
+        :pages_unique_domain_enabled
+      ]
+    ]
   end
 end
 

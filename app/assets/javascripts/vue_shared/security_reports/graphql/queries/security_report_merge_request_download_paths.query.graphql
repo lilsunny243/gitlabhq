@@ -14,8 +14,8 @@ query securityReportDownloadPaths(
             id
             name
             artifacts {
+              # eslint-disable-next-line @graphql-eslint/require-id-when-available
               nodes {
-                id
                 downloadPath
                 fileType
               }

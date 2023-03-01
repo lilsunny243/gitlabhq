@@ -1,29 +1,16 @@
 <script>
-import { GlToast, GlTooltipDirective, GlSafeHtmlDirective, GlModal } from '@gitlab/ui';
+import { GlToast, GlTooltipDirective, GlModal } from '@gitlab/ui';
 import Vue from 'vue';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { BV_SHOW_MODAL, BV_HIDE_MODAL } from '~/lib/utils/constants';
-import { __, s__ } from '~/locale';
+import { s__ } from '~/locale';
 import { updateUserStatus } from '~/rest_api';
-import { timeRanges } from '~/vue_shared/constants';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { isUserBusy } from './utils';
+import { isUserBusy, computedClearStatusAfterValue } from './utils';
+import { AVAILABILITY_STATUS } from './constants';
 import SetStatusForm from './set_status_form.vue';
 
-export const AVAILABILITY_STATUS = {
-  BUSY: 'busy',
-  NOT_SET: 'not_set',
-};
-
 Vue.use(GlToast);
-
-const statusTimeRanges = [
-  {
-    label: __('Never'),
-    name: 'never',
-  },
-  ...timeRanges,
-];
 
 export default {
   components: {
@@ -32,7 +19,6 @@ export default {
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml: GlSafeHtmlDirective,
   },
   mixins: [glFeatureFlagsMixin()],
   props: {
@@ -67,8 +53,16 @@ export default {
       message: this.currentMessage,
       modalId: 'set-user-status-modal',
       availability: isUserBusy(this.currentAvailability),
-      clearStatusAfter: statusTimeRanges[0],
+      clearStatusAfter: null,
     };
+  },
+  computed: {
+    shouldIncludeClearStatusAfterInApiRequest() {
+      return this.clearStatusAfter !== null;
+    },
+    clearStatusAfterApiRequestValue() {
+      return computedClearStatusAfterValue(this.clearStatusAfter);
+    },
   },
   mounted() {
     this.$root.$emit(BV_SHOW_MODAL, this.modalId);
@@ -84,14 +78,21 @@ export default {
       this.setStatus();
     },
     setStatus() {
-      const { emoji, message, availability, clearStatusAfter } = this;
+      const {
+        emoji,
+        message,
+        availability,
+        shouldIncludeClearStatusAfterInApiRequest,
+        clearStatusAfterApiRequestValue,
+      } = this;
 
       updateUserStatus({
         emoji,
         message,
         availability: availability ? AVAILABILITY_STATUS.BUSY : AVAILABILITY_STATUS.NOT_SET,
-        clearStatusAfter:
-          clearStatusAfter.label === statusTimeRanges[0].label ? null : clearStatusAfter.shortcut,
+        ...(shouldIncludeClearStatusAfterInApiRequest
+          ? { clearStatusAfter: clearStatusAfterApiRequestValue }
+          : {}),
       })
         .then(this.onUpdateSuccess)
         .catch(this.onUpdateFail);
@@ -102,7 +103,7 @@ export default {
       window.location.reload();
     },
     onUpdateFail() {
-      createFlash({
+      createAlert({
         message: s__(
           "SetStatusModal|Sorry, we weren't able to set your status. Please try again later.",
         ),
@@ -123,8 +124,6 @@ export default {
       this.availability = value;
     },
   },
-  statusTimeRanges,
-  safeHtmlConfig: { ADD_TAGS: ['gl-emoji'] },
   actionPrimary: { text: s__('SetStatusModal|Set status') },
   actionSecondary: { text: s__('SetStatusModal|Remove status') },
 };

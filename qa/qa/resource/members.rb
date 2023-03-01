@@ -10,8 +10,8 @@ module QA
       def add_member(user, access_level = AccessLevel::DEVELOPER)
         Support::Retrier.retry_until do
           QA::Runtime::Logger.info(%(Adding user #{user.username} to #{full_path} #{self.class.name}))
-
-          response = post Runtime::API::Request.new(api_client, api_members_path).url, { user_id: user.id, access_level: access_level }
+          response = post Runtime::API::Request.new(api_client, api_members_path).url,
+{ user_id: user.id, access_level: access_level }
           break true if response.code == QA::Support::API::HTTP_STATUS_CREATED
           break true if response.body.include?('Member already exists')
         end
@@ -24,14 +24,23 @@ module QA
       end
 
       def list_members
-        JSON.parse(get(Runtime::API::Request.new(api_client, api_members_path).url).body)
+        parse_body(api_get_from(api_members_path))
+      end
+
+      def list_all_members
+        parse_body(api_get_from("#{api_members_path}/all"))
+      end
+
+      def find_member(username)
+        list_members.find { |member| member[:username] == username }
       end
 
       def invite_group(group, access_level = AccessLevel::GUEST)
         Support::Retrier.retry_until do
           QA::Runtime::Logger.info(%(Sharing #{self.class.name} with #{group.name}))
 
-          response = post Runtime::API::Request.new(api_client, api_share_path).url, { group_id: group.id, group_access: access_level }
+          response = post Runtime::API::Request.new(api_client, api_share_path).url,
+{ group_id: group.id, group_access: access_level }
           response.code == QA::Support::API::HTTP_STATUS_CREATED
         end
       end

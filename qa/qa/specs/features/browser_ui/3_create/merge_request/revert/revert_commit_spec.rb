@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', :reliable do
+  RSpec.describe 'Create', :reliable, product_group: :code_review do
     describe 'Reverting a commit' do
       let(:file_name) { "secret_file.md" }
 
@@ -16,9 +16,7 @@ module QA
         Resource::Repository::Commit.fabricate_via_api! do |commit|
           commit.project = project
           commit.commit_message = 'Add new file'
-          commit.add_files([
-            { file_path: file_name, content: 'pssst!' }
-          ])
+          commit.add_files([{ file_path: file_name, content: 'pssst!' }])
         end
       end
 

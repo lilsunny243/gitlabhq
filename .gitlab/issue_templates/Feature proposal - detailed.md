@@ -37,7 +37,7 @@ Personas are described at https://about.gitlab.com/handbook/marketing/product-ma
 
 <!-- What is the single user experience workflow this problem addresses?
 For example, "The user should be able to use the UI/API/.gitlab-ci.yml with GitLab to <perform a specific task>"
-https://about.gitlab.com/handbook/engineering/ux/ux-research-training/user-story-mapping/ -->
+https://about.gitlab.com/handbook/product/ux/ux-research-training/user-story-mapping/ -->
 
 ### Proposal
 
@@ -125,6 +125,7 @@ In which enterprise tier should this feature go? See https://about.gitlab.com/ha
 
 <!-- Label reminders - you should have one of each of the following labels.
 Use the following resources to find the appropriate labels:
+- Use only one tier label choosing the lowest tier this is intended for
 - https://gitlab.com/gitlab-org/gitlab/-/labels
 - https://about.gitlab.com/handbook/product/categories/features/
 -->

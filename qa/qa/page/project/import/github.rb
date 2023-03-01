@@ -5,8 +5,6 @@ module QA
     module Project
       module Import
         class Github < Page::Base
-          include Page::Component::Select2
-
           view 'app/views/import/github/new.html.haml' do
             element :personal_access_token_field
             element :authenticate_button
@@ -17,7 +15,7 @@ module QA
             element :project_path_field
             element :import_button
             element :project_path_content
-            element :go_to_project_button
+            element :go_to_project_link
             element :import_status_indicator
           end
 
@@ -62,9 +60,9 @@ module QA
           #
           # @param [String] gh_project_name
           # @return [Boolean]
-          def has_go_to_project_button?(gh_project_name)
+          def has_go_to_project_link?(gh_project_name)
             within_element(:project_import_row, source_project: gh_project_name) do
-              has_element?(:go_to_project_button)
+              has_element?(:go_to_project_link)
             end
           end
 
@@ -81,12 +79,31 @@ module QA
                 reload: false,
                 skip_finished_loading_check_on_refresh: true
               ) do
-                has_element?(:import_status_indicator, text: "Complete")
+                status_selector = 'import_status_indicator'
+                is_partial_import = has_css?(status_selector, text: "Partial import")
+
+                # Temporarily adding this for investigation purposes. This makes sure that the details section is
+                # expanded when the screenshot is taken when the test fails. This can be removed or repurposed later
+                # after investigation. Related: https://gitlab.com/gitlab-org/gitlab/-/issues/385252#note_1211218434
+                if is_partial_import
+                  within_element_by_index(:import_status_indicator, 0) do
+                    find('button').click
+                  end
+                end
+
+                has_element?(status_selector, text: "Complete")
               end
             end
           end
-
           alias_method :wait_for_success, :has_imported_project?
+
+          # Select advanced github import option
+          #
+          # @param [Symbol] option_name
+          # @return [void]
+          def select_advanced_option(option_name)
+            check_element(:advanced_settings_checkbox, true, option_name: option_name)
+          end
         end
       end
     end

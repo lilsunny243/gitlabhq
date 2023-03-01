@@ -1,12 +1,13 @@
 ---
-stage: Ecosystem
-group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Configure
+group: Configure
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Metadata API **(FREE)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/357032) in GitLab 15.2.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/357032) in GitLab 15.2.
+> - `enterprise` [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/103969) in GitLab 15.6.
 
 Retrieve metadata information for this GitLab instance.
 
@@ -24,6 +25,7 @@ Response body attributes:
 | `kas.enabled`     | boolean        | Indicates whether KAS is enabled.                                                        |
 | `kas.externalUrl` | string or null | URL used by the agents to communicate with KAS. It's `null` if `kas.enabled` is `false`. |
 | `kas.version`     | string or null | Version of KAS. It's `null` if `kas.enabled` is `false`.                                 |
+| `enterprise`      | boolean        | Indicates whether GitLab instance is Enterprise Edition.                                 |
 
 Example request:
 
@@ -41,6 +43,7 @@ Example response:
     "enabled": true,
     "externalUrl": "grpc://gitlab.example.com:8150",
     "version": "15.0.0"
-  }
+  },
+  "enterprise": true
 }
 ```

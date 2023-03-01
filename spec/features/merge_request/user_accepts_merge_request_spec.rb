@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User accepts a merge request', :js, :sidekiq_might_not_need_inline do
+RSpec.describe 'User accepts a merge request', :js, :sidekiq_might_not_need_inline, feature_category: :code_review_workflow do
   let(:merge_request) { create(:merge_request, :simple, source_project: project) }
   let(:project) { create(:project, :public, :repository) }
   let(:user) { create(:user) }
@@ -17,6 +17,8 @@ RSpec.describe 'User accepts a merge request', :js, :sidekiq_might_not_need_inli
       visit(merge_request_path(merge_request))
 
       click_button('Merge')
+
+      puts merge_request.short_merged_commit_sha
 
       expect(page).to have_content("Changes merged into #{merge_request.target_branch} with #{merge_request.short_merged_commit_sha}")
     end

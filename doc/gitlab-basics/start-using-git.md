@@ -1,12 +1,12 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto, tutorial
 description: "Introduction to using Git through the command line."
 ---
 
-# Git on the command line **(FREE)**
+# Command line Git **(FREE)**
 
 [Git](https://git-scm.com/) is an open-source distributed version control system. GitLab is built
 on top of Git.
@@ -37,7 +37,7 @@ prompt, command shell, and command line). Here are some options:
   - [iTerm2](https://iterm2.com/). You can integrate it with [Zsh](https://git-scm.com/book/id/v2/Appendix-A%3A-Git-in-Other-Environments-Git-in-Zsh) and [Oh My Zsh](https://ohmyz.sh/) for color highlighting and other advanced features.
 - For Windows users:
   - Built-in command line. On the Windows taskbar, select the search icon and type `cmd`.
-  - [PowerShell](https://docs.microsoft.com/en-us/powershell/scripting/windows-powershell/install/installing-windows-powershell?view=powershell-7).
+  - [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/windows-powershell/install/installing-windows-powershell?view=powershell-7.3&viewFallbackFrom=powershell-7).
   - Git Bash. It is built into [Git for Windows](https://gitforwindows.org/).
 - For Linux users:
   - Built-in [Linux Terminal](https://ubuntu.com/tutorials/command-line-for-beginners#3-opening-a-terminal).
@@ -98,7 +98,7 @@ access on GitLab.com or any other GitLab instance.
 To use the repository in the examples on this page:
 
 1. Go to [https://gitlab.com/gitlab-tests/sample-project/](https://gitlab.com/gitlab-tests/sample-project/).
-1. In the top right, select **Fork**.
+1. In the upper-right corner, select **Fork**.
 1. Choose a namespace for your fork.
 
 The project becomes available at `https://gitlab.com/<your-namespace>/sample-project/`.
@@ -147,10 +147,14 @@ between your computer and GitLab.
    git clone https://gitlab.com/gitlab-tests/sample-project.git
    ```
 
-1. GitLab requests your username and password:
-   - If you have 2FA enabled for your account, you must [clone using a token](#clone-using-a-token)
-     with `read_repository` or `write_repository` permissions instead of your account's password.
-   - If you don't have 2FA enabled, use your account's password.
+1. GitLab requests your username and password.
+
+   If you have enabled two-factor authentication (2FA) on your account, you cannot use your account password. Instead, you can do one of the following:
+
+   - [Clone using a token](#clone-using-a-token) with `read_repository` or `write_repository` permissions.
+   - Install [Git Credential Manager](../user/profile/account/two_factor_authentication.md#git-credential-manager).
+
+   If you have not enabled 2FA, use your account password.
 
 1. To view the files, go to the new directory:
 
@@ -168,7 +172,7 @@ add your namespace (username or group) to the path:
 Clone with HTTPS using a token if:
 
 - You want to use 2FA.
-- You want to have a revokable set of credentials scoped to one or more repositories.
+- You want to have a revocable set of credentials scoped to one or more repositories.
 
 You can use any of these tokens to authenticate when cloning over HTTPS:
 
@@ -207,7 +211,7 @@ The remote tells Git where to push or pull from.
 
 To add a remote to your local copy:
 
-1. In GitLab, [create a project](../user/project/working_with_projects.md#create-a-project) to hold your files.
+1. In GitLab, [create a project](../user/project/index.md#create-a-project) to hold your files.
 1. Visit this project's homepage, scroll down to **Push an existing folder**, and copy the command that starts with `git remote add`.
 1. On your computer, open the terminal in the directory you've initialized, paste the command you copied, and press <kbd>enter</kbd>:
 
@@ -439,6 +443,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

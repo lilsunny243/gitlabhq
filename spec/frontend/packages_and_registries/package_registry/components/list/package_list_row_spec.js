@@ -1,5 +1,5 @@
-import { GlSprintf } from '@gitlab/ui';
-import Vue, { nextTick } from 'vue';
+import { GlFormCheckbox, GlSprintf, GlTruncate } from '@gitlab/ui';
+import Vue from 'vue';
 import VueRouter from 'vue-router';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
@@ -15,7 +15,13 @@ import TimeagoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import { PACKAGE_ERROR_STATUS } from '~/packages_and_registries/package_registry/constants';
 
 import ListItem from '~/vue_shared/components/registry/list_item.vue';
-import { packageData, packagePipelines, packageProject, packageTags } from '../../mock_data';
+import {
+  linksData,
+  packageData,
+  packagePipelines,
+  packageProject,
+  packageTags,
+} from '../../mock_data';
 
 Vue.use(VueRouter);
 
@@ -26,23 +32,28 @@ describe('packages_list_row', () => {
     isGroupPage: false,
   };
 
-  const packageWithoutTags = { ...packageData(), project: packageProject() };
+  const packageWithoutTags = { ...packageData(), project: packageProject(), ...linksData };
   const packageWithTags = { ...packageWithoutTags, tags: { nodes: packageTags() } };
-  const packageCannotDestroy = { ...packageData(), canDestroy: false };
+  const packageCannotDestroy = { ...packageData(), ...linksData, canDestroy: false };
 
-  const findPackageTags = () => wrapper.find(PackageTags);
-  const findPackagePath = () => wrapper.find(PackagePath);
+  const findPackageTags = () => wrapper.findComponent(PackageTags);
+  const findPackagePath = () => wrapper.findComponent(PackagePath);
   const findDeleteDropdown = () => wrapper.findByTestId('action-delete');
-  const findPackageIconAndName = () => wrapper.find(PackageIconAndName);
+  const findPackageIconAndName = () => wrapper.findComponent(PackageIconAndName);
   const findPackageLink = () => wrapper.findByTestId('details-link');
   const findWarningIcon = () => wrapper.findByTestId('warning-icon');
   const findLeftSecondaryInfos = () => wrapper.findByTestId('left-secondary-infos');
+  const findPackageVersion = () => findLeftSecondaryInfos().findComponent(GlTruncate);
   const findPublishMethod = () => wrapper.findComponent(PublishMethod);
   const findCreatedDateText = () => wrapper.findByTestId('created-date');
   const findTimeAgoTooltip = () => wrapper.findComponent(TimeagoTooltip);
+  const findListItem = () => wrapper.findComponent(ListItem);
+  const findBulkDeleteAction = () => wrapper.findComponent(GlFormCheckbox);
+  const findPackageName = () => wrapper.findComponent(GlTruncate);
 
   const mountComponent = ({
     packageEntity = packageWithoutTags,
+    selected = false,
     provide = defaultProvide,
   } = {}) => {
     wrapper = shallowMountExtended(PackagesListRow, {
@@ -53,9 +64,10 @@ describe('packages_list_row', () => {
       },
       propsData: {
         packageEntity,
+        selected,
       },
       directives: {
-        GlTooltip: createMockDirective(),
+        GlTooltip: createMockDirective('gl-tooltip'),
       },
     });
   };
@@ -73,8 +85,15 @@ describe('packages_list_row', () => {
     mountComponent();
 
     expect(findPackageLink().props()).toMatchObject({
-      event: 'click',
       to: { name: 'details', params: { id: getIdFromGraphQLId(packageWithoutTags.id) } },
+    });
+  });
+
+  it('lists the package name', () => {
+    mountComponent();
+
+    expect(findPackageName().props()).toMatchObject({
+      text: '@gitlab-org/package-15',
     });
   });
 
@@ -117,24 +136,36 @@ describe('packages_list_row', () => {
       });
     });
 
-    it('emits the packageToDelete event when the delete button is clicked', async () => {
+    it('emits the delete event when the delete button is clicked', async () => {
       mountComponent({ packageEntity: packageWithoutTags });
 
       findDeleteDropdown().vm.$emit('click');
 
-      await nextTick();
-      expect(wrapper.emitted('packageToDelete')).toHaveLength(1);
-      expect(wrapper.emitted('packageToDelete')[0]).toEqual([packageWithoutTags]);
+      expect(wrapper.emitted('delete')).toHaveLength(1);
     });
   });
 
   describe(`when the package is in ${PACKAGE_ERROR_STATUS} status`, () => {
     beforeEach(() => {
-      mountComponent({ packageEntity: { ...packageWithoutTags, status: PACKAGE_ERROR_STATUS } });
+      mountComponent({
+        packageEntity: {
+          ...packageWithoutTags,
+          status: PACKAGE_ERROR_STATUS,
+          _links: {
+            webPath: null,
+          },
+        },
+      });
     });
 
-    it('details link is disabled', () => {
-      expect(findPackageLink().props('event')).toBe('');
+    it('lists the package name', () => {
+      expect(findPackageName().props()).toMatchObject({
+        text: '@gitlab-org/package-15',
+      });
+    });
+
+    it('does not have a link to navigate to the details page', () => {
+      expect(findPackageLink().exists()).toBe(false);
     });
 
     it('has a warning icon', () => {
@@ -151,11 +182,50 @@ describe('packages_list_row', () => {
     });
   });
 
+  describe('left action template', () => {
+    it('does not render checkbox if not permitted', () => {
+      mountComponent({
+        packageEntity: { ...packageWithoutTags, canDestroy: false },
+      });
+
+      expect(findBulkDeleteAction().exists()).toBe(false);
+    });
+
+    it('renders checkbox', () => {
+      mountComponent();
+
+      expect(findBulkDeleteAction().exists()).toBe(true);
+      expect(findBulkDeleteAction().attributes('checked')).toBeUndefined();
+    });
+
+    it('emits select when checked', () => {
+      mountComponent();
+
+      findBulkDeleteAction().vm.$emit('change');
+
+      expect(wrapper.emitted('select')).toHaveLength(1);
+    });
+
+    it('renders checkbox in selected state if selected', () => {
+      mountComponent({
+        selected: true,
+      });
+
+      expect(findBulkDeleteAction().attributes('checked')).toBe('true');
+      expect(findListItem().props()).toMatchObject({
+        selected: true,
+      });
+    });
+  });
+
   describe('secondary left info', () => {
     it('has the package version', () => {
       mountComponent();
 
-      expect(findLeftSecondaryInfos().text()).toContain(packageWithoutTags.version);
+      expect(findPackageVersion().props()).toMatchObject({
+        text: packageWithoutTags.version,
+        withTooltip: true,
+      });
     });
 
     it('if the pipeline exists show the author message', () => {

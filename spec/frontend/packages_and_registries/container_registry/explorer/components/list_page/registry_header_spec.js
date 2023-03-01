@@ -17,7 +17,7 @@ jest.mock('~/lib/utils/datetime_utility', () => ({
 describe('registry_header', () => {
   let wrapper;
 
-  const findTitleArea = () => wrapper.find(TitleArea);
+  const findTitleArea = () => wrapper.findComponent(TitleArea);
   const findCommandsSlot = () => wrapper.find('[data-testid="commands-slot"]');
   const findImagesCountSubHeader = () => wrapper.find('[data-testid="images-count"]');
   const findExpirationPolicySubHeader = () => wrapper.find('[data-testid="expiration-policy"]');
@@ -58,6 +58,12 @@ describe('registry_header', () => {
 
     describe('sub header parts', () => {
       describe('images count', () => {
+        it('does not exist', async () => {
+          await mountComponent({ imagesCount: 0 });
+
+          expect(findImagesCountSubHeader().exists()).toBe(false);
+        });
+
         it('exists', async () => {
           await mountComponent({ imagesCount: 1 });
 

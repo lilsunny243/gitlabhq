@@ -7,6 +7,7 @@ module ApplicationSettingsHelper
            :gravatar_enabled?,
            :password_authentication_enabled_for_web?,
            :akismet_enabled?,
+           :spam_check_endpoint_enabled?,
            to: :'Gitlab::CurrentSettings.current_application_settings'
 
   def user_oauth_applications?
@@ -60,6 +61,10 @@ module ApplicationSettingsHelper
     all_protocols_enabled? || Gitlab::CurrentSettings.enabled_git_access_protocol == 'http'
   end
 
+  def anti_spam_service_enabled?
+    akismet_enabled? || spam_check_endpoint_enabled?
+  end
+
   def enabled_protocol_button(container, protocol)
     case protocol
     when 'ssh'
@@ -70,16 +75,38 @@ module ApplicationSettingsHelper
   end
 
   def restricted_level_checkboxes(form)
-    Gitlab::VisibilityLevel.values.map do |level|
+    restricted_visibility_levels_help_text = {
+      Gitlab::VisibilityLevel::PUBLIC => s_(
+        'AdminSettings|If selected, only administrators are able to create public groups, projects, ' \
+        'and snippets. Also, profiles are only visible to authenticated users.'
+      ),
+      Gitlab::VisibilityLevel::INTERNAL => s_(
+        'AdminSettings|If selected, only administrators are able to create internal groups, projects, and ' \
+        'snippets.'
+      ),
+      Gitlab::VisibilityLevel::PRIVATE => s_(
+        'AdminSettings|If selected, only administrators are able to create private groups, projects, and ' \
+        'snippets.'
+      )
+    }
+
+    Gitlab::VisibilityLevel.options.map do |label, level|
       checked = restricted_visibility_levels(true).include?(level)
 
       form.gitlab_ui_checkbox_component(
         :restricted_visibility_levels,
-        "#{visibility_level_icon(level)} #{visibility_level_label(level)}".html_safe,
         checkbox_options: { checked: checked, multiple: true, autocomplete: 'off' },
         checked_value: level,
         unchecked_value: nil
-      )
+      ) do |c|
+        c.label do
+          visibility_level_icon(level) + content_tag(:span, label, { class: 'gl-ml-2' })
+        end
+
+        c.help_text do
+          restricted_visibility_levels_help_text.fetch(level)
+        end
+      end
     end
   end
 
@@ -140,6 +167,10 @@ module ApplicationSettingsHelper
         " using their classification label.")
   end
 
+  def external_authorization_allow_token_help_text
+    s_("ExternalAuthorization|Does not apply if service URL is specified.")
+  end
+
   def external_authorization_timeout_help_text
     s_("ExternalAuthorization|Period GitLab waits for a response from the external "\
         "service. If there is no response, access is denied. Default: 0.5 seconds.")
@@ -192,6 +223,7 @@ module ApplicationSettingsHelper
       :allow_local_requests_from_hooks_and_services,
       :allow_local_requests_from_web_hooks_and_services,
       :allow_local_requests_from_system_hooks,
+      :allow_possible_spam,
       :dns_rebinding_protection_enabled,
       :archive_builds_in_human_readable,
       :asset_proxy_enabled,
@@ -211,11 +243,14 @@ module ApplicationSettingsHelper
       :default_branch_protection,
       :default_ci_config_path,
       :default_group_visibility,
+      :default_preferred_language,
       :default_project_creation,
       :default_project_visibility,
       :default_projects_limit,
       :default_snippet_visibility,
+      :default_syntax_highlighting_theme,
       :delete_inactive_projects,
+      :disable_admin_oauth_scopes,
       :disable_feed_token,
       :disabled_oauth_sign_in_sources,
       :domain_denylist,
@@ -236,6 +271,7 @@ module ApplicationSettingsHelper
       :eks_access_key_id,
       :eks_secret_access_key,
       :email_author_in_body,
+      :email_confirmation_setting,
       :enabled_git_access_protocol,
       :enforce_terms,
       :error_tracking_enabled,
@@ -265,6 +301,7 @@ module ApplicationSettingsHelper
       :housekeeping_full_repack_period,
       :housekeeping_gc_period,
       :housekeeping_incremental_repack_period,
+      :housekeeping_optimize_repository_period,
       :html_emails_enabled,
       :import_sources,
       :in_product_marketing_emails_enabled,
@@ -273,11 +310,15 @@ module ApplicationSettingsHelper
       :inactive_projects_send_warning_email_after_months,
       :invisible_captcha_enabled,
       :jira_connect_application_key,
+      :jira_connect_public_key_storage_enabled,
+      :jira_connect_proxy_url,
       :max_artifacts_size,
       :max_attachment_size,
       :max_export_size,
       :max_import_size,
       :max_pages_size,
+      :max_pages_custom_domains_per_project,
+      :max_terraform_state_size_bytes,
       :max_yaml_size_bytes,
       :max_yaml_depth,
       :metrics_method_call_threshold,
@@ -309,7 +350,6 @@ module ApplicationSettingsHelper
       :require_two_factor_authentication,
       :restricted_visibility_levels,
       :rsa_key_restriction,
-      :send_user_confirmation_email,
       :session_expire_delay,
       :shared_runners_enabled,
       :shared_runners_text,
@@ -372,7 +412,6 @@ module ApplicationSettingsHelper
       :user_default_internal_regex,
       :user_oauth_applications,
       :version_check_enabled,
-      :web_ide_clientside_preview_enabled,
       :diff_max_patch_bytes,
       :diff_max_files,
       :diff_max_lines,
@@ -435,13 +474,27 @@ module ApplicationSettingsHelper
       :group_runner_token_expiration_interval,
       :project_runner_token_expiration_interval,
       :pipeline_limit_per_project_user_sha,
-      :invitation_flow_enforcement
+      :invitation_flow_enforcement,
+      :can_create_group,
+      :bulk_import_enabled,
+      :allow_runner_registration_token,
+      :user_defaults_to_private_profile,
+      :deactivation_email_additional_text,
+      :projects_api_rate_limit_unauthenticated
     ].tap do |settings|
       next if Gitlab.com?
 
       settings << :deactivate_dormant_users
       settings << :deactivate_dormant_users_period
     end
+  end
+
+  def runner_token_expiration_interval_attributes
+    {
+      instance_runner_token_expiration_interval: @application_setting.runner_token_expiration_interval,
+      group_runner_token_expiration_interval: @application_setting.group_runner_token_expiration_interval,
+      project_runner_token_expiration_interval: @application_setting.project_runner_token_expiration_interval
+    }
   end
 
   def external_authorization_service_attributes
@@ -452,7 +505,8 @@ module ApplicationSettingsHelper
       :external_authorization_service_default_label,
       :external_authorization_service_enabled,
       :external_authorization_service_timeout,
-      :external_authorization_service_url
+      :external_authorization_service_url,
+      :allow_deploy_tokens_and_keys_with_external_authn
     ]
   end
 
@@ -527,7 +581,7 @@ module ApplicationSettingsHelper
       settings_path: general_admin_application_settings_path(anchor: 'js-signup-settings'),
       signup_enabled: @application_setting[:signup_enabled].to_s,
       require_admin_approval_after_user_signup: @application_setting[:require_admin_approval_after_user_signup].to_s,
-      send_user_confirmation_email: @application_setting[:send_user_confirmation_email].to_s,
+      email_confirmation_setting: @application_setting[:email_confirmation_setting].to_s,
       minimum_password_length: @application_setting[:minimum_password_length],
       minimum_password_length_min: ApplicationSetting::DEFAULT_MINIMUM_PASSWORD_LENGTH,
       minimum_password_length_max: Devise.password_length.max,
@@ -543,7 +597,9 @@ module ApplicationSettingsHelper
       supported_syntax_link_url: 'https://github.com/google/re2/wiki/Syntax',
       email_restrictions: @application_setting.email_restrictions.to_s,
       after_sign_up_text: @application_setting[:after_sign_up_text].to_s,
-      pending_user_count: pending_user_count
+      pending_user_count: pending_user_count,
+      project_sharing_help_link: help_page_path('user/group/access_and_permissions', anchor: 'prevent-a-project-from-being-shared-with-groups'),
+      group_sharing_help_link: help_page_path('user/group/access_and_permissions', anchor: 'prevent-group-sharing-outside-the-group-hierarchy')
     }
   end
 end

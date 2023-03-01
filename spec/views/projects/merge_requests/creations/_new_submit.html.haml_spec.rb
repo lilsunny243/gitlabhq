@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'projects/merge_requests/creations/_new_submit.html.haml' do
+RSpec.describe 'projects/merge_requests/creations/_new_submit.html.haml', feature_category: :code_review_workflow do
   let(:merge_request) { create(:merge_request) }
   let!(:pipeline) { create(:ci_empty_pipeline) }
 
@@ -33,19 +33,6 @@ RSpec.describe 'projects/merge_requests/creations/_new_submit.html.haml' do
       render
       expect(rendered).to have_text('Pipelines 1')
       expect(rendered).not_to have_text('Builds')
-    end
-  end
-
-  context 'when there are hidden commits' do
-    before do
-      assign(:pipelines, Ci::Pipeline.none)
-      assign(:hidden_commit_count, 2)
-    end
-
-    it 'shows notice about omitted commits' do
-      render
-
-      expect(rendered).to match(/2 additional commits have been omitted to prevent performance issues/)
     end
   end
 end

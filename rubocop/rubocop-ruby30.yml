@@ -1,0 +1,16 @@
+# RuboCop configuration adjustments during the transition time from Ruby 2.7 to
+# Ruby 3.0.
+#
+# After the transition has been completed:
+# * Move all configuration which enable cops to .rubocop.yml.
+# * Remove all reminaing configuration.
+
+# These cops are disabled in Ruby 2.7 (rubocop-27.yml).
+Style/MutableConstant:
+  Enabled: true
+Style/RedundantFreeze:
+  Enabled: true
+
+# No longer needed because Ruby 3.0 will fail due to kwargs issues.
+Lint/LastKeywordArgument:
+  Enabled: false

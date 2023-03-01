@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Use AliCloud as an OmniAuth authentication provider **(FREE)**
@@ -59,7 +59,9 @@ Sign in to the AliCloud platform and create an application on it. AliCloud gener
      sudo -u git -H editor config/gitlab.yml
      ```
 
-1. [Configure the initial settings](omniauth.md#configure-initial-settings).
+1. Edit the [common configuration file settings](omniauth.md#configure-common-settings)
+   to add `alicloud` as a single sign-on provider. This enables Just-In-Time
+   account provisioning for users who do not have an existing GitLab account.
 
 1. Add the provider configuration. Replace `YOUR_APP_ID` with the ID on the application details page
    and `YOUR_APP_SECRET` with the **SecretValue** you got when you registered the AliCloud application.

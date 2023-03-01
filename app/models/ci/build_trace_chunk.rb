@@ -2,6 +2,7 @@
 
 module Ci
   class BuildTraceChunk < Ci::ApplicationRecord
+    include Ci::Partitionable
     include ::Comparable
     include ::FastDestroyAll
     include ::Checksummable
@@ -10,7 +11,9 @@ module Ci
 
     belongs_to :build, class_name: "Ci::Build", foreign_key: :build_id
 
-    default_value_for :data_store, :redis_trace_chunks
+    partitionable scope: :build
+
+    attribute :data_store, default: :redis_trace_chunks
 
     after_create { metrics.increment_trace_operation(operation: :chunked) }
 
@@ -28,8 +31,8 @@ module Ci
       redis_trace_chunks: 4
     }.freeze
 
-    STORE_TYPES = DATA_STORES.keys.to_h do |store|
-      [store, "Ci::BuildTraceChunks::#{store.to_s.camelize}".constantize]
+    STORE_TYPES = DATA_STORES.keys.index_with do |store|
+      "Ci::BuildTraceChunks::#{store.to_s.camelize}".constantize
     end.freeze
     LIVE_STORES = %i[redis redis_trace_chunks].freeze
 
@@ -105,7 +108,7 @@ module Ci
       raise ArgumentError, 'Offset is out of range' if offset > size || offset < 0
       return if offset == size # Skip the following process as it doesn't affect anything
 
-      self.append(+"", offset)
+      append(+"", offset)
     end
 
     def append(new_data, offset)
@@ -163,7 +166,7 @@ module Ci
         raise FailedToPersistDataError, 'Modifed build trace chunk detected' if has_changes_to_save?
 
         self.class.with_read_consistency(build) do
-          self.reset.then { |chunk| chunk.unsafe_persist_data! }
+          reset.then(&:unsafe_persist_data!)
         end
       end
     rescue FailedToObtainLockError
@@ -202,9 +205,9 @@ module Ci
     end
 
     def <=>(other)
-      return unless self.build_id == other.build_id
+      return unless build_id == other.build_id
 
-      self.chunk_index <=> other.chunk_index
+      chunk_index <=> other.chunk_index
     end
 
     protected

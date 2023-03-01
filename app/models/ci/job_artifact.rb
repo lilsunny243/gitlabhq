@@ -2,16 +2,19 @@
 
 module Ci
   class JobArtifact < Ci::ApplicationRecord
+    include Ci::Partitionable
     include IgnorableColumns
     include AfterCommitQueue
-    include ObjectStorage::BackgroundMove
     include UpdateProjectStatistics
     include UsageStatistics
     include Sortable
     include Artifactable
+    include Lockable
     include FileStoreMounter
     include EachBatch
     include Gitlab::Utils::StrongMemoize
+
+    enum accessibility: { public: 0, private: 1 }, _suffix: true
 
     NON_ERASABLE_FILE_TYPES = %w[trace].freeze
 
@@ -50,7 +53,8 @@ module Ci
       cobertura: 'cobertura-coverage.xml',
       terraform: 'tfplan.json',
       cluster_applications: 'gl-cluster-applications.json', # DEPRECATED: https://gitlab.com/gitlab-org/gitlab/-/issues/361094
-      requirements: 'requirements.json',
+      requirements: 'requirements.json', # Will be DEPRECATED soon: https://gitlab.com/groups/gitlab-org/-/epics/9203
+      requirements_v2: 'requirements_v2.json',
       coverage_fuzzing: 'gl-coverage-fuzzing.json',
       api_fuzzing: 'gl-api-fuzzing-report.json',
       cyclonedx: 'gl-sbom.cdx.json'
@@ -93,6 +97,7 @@ module Ci
       load_performance: :raw,
       terraform: :raw,
       requirements: :raw,
+      requirements_v2: :raw,
       coverage_fuzzing: :raw,
       api_fuzzing: :raw
     }.freeze
@@ -117,6 +122,7 @@ module Ci
       sast
       secret_detection
       requirements
+      requirements_v2
       cluster_image_scanning
       cyclonedx
     ].freeze
@@ -128,19 +134,23 @@ module Ci
     belongs_to :project
     belongs_to :job, class_name: "Ci::Build", foreign_key: :job_id
 
-    # We will start using this column once we complete https://gitlab.com/gitlab-org/gitlab/-/issues/285597
-    ignore_column :original_filename, remove_with: '14.7', remove_after: '2022-11-22'
-
     mount_file_store_uploader JobArtifactUploader, skip_store_file: true
 
+    before_save :set_size, if: :file_changed?
     after_save :store_file_in_transaction!, unless: :store_after_commit?
+
+    after_create_commit :log_create
+
     after_commit :store_file_after_transaction!, on: [:create, :update], if: :store_after_commit?
 
+    after_destroy_commit :log_destroy
+
+    validates :job, presence: true
     validates :file_format, presence: true, unless: :trace?, on: :create
     validate :validate_file_format!, unless: :trace?, on: :create
-    before_save :set_size, if: :file_changed?
 
     update_project_statistics project_statistics_name: :build_artifacts_size
+    partitionable scope: :job
 
     scope :not_expired, -> { where('expire_at IS NULL OR expire_at > ?', Time.current) }
     scope :for_sha, ->(sha, project_id) { joins(job: :pipeline).where(ci_pipelines: { sha: sha, project_id: project_id }) }
@@ -205,7 +215,8 @@ module Ci
       load_performance: 25, ## EE-specific
       api_fuzzing: 26, ## EE-specific
       cluster_image_scanning: 27, ## EE-specific
-      cyclonedx: 28 ## EE-specific
+      cyclonedx: 28, ## EE-specific
+      requirements_v2: 29 ## EE-specific
     }
 
     # `file_location` indicates where actual files are stored.
@@ -221,17 +232,6 @@ module Ci
       legacy_path: 1,
       hashed_path: 2
     }
-
-    # `locked` will be populated from the source of truth on Ci::Pipeline
-    # in order to clean up expired job artifacts in a performant way.
-    # The values should be the same as `Ci::Pipeline.lockeds` with the
-    # additional value of `unknown` to indicate rows that have not
-    # yet been populated from the parent Ci::Pipeline
-    enum locked: {
-      unlocked: 0,
-      artifacts_locked: 1,
-      unknown: 2
-    }, _prefix: :artifact
 
     def validate_file_format!
       unless TYPE_AND_FORMAT_PAIRS[self.file_type&.to_sym] == self.file_format&.to_sym
@@ -350,6 +350,12 @@ module Ci
       end
     end
 
+    def public_access?
+      return true unless Feature.enabled?(:non_public_artifacts, type: :development)
+
+      public_accessibility?
+    end
+
     private
 
     def store_file_in_transaction!
@@ -379,6 +385,14 @@ module Ci
     def project_destroyed?
       # Use job.project to avoid extra DB query for project
       job.project.pending_delete?
+    end
+
+    def log_create
+      Gitlab::Ci::Artifacts::Logger.log_created(self)
+    end
+
+    def log_destroy
+      Gitlab::Ci::Artifacts::Logger.log_deleted(self, __method__)
     end
   end
 end

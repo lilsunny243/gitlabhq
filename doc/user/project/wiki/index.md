@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Wiki **(FREE)**
@@ -14,7 +14,7 @@ to keep it in the same project as your code, you can use the wiki GitLab provide
 in each GitLab project. Every wiki is a separate Git repository, so you can create
 wiki pages in the web interface, or [locally using Git](#create-or-edit-wiki-pages-locally).
 
-GitLab wikis support Markdown, RDoc, AsciiDoc, and Org for content.
+GitLab wikis support Markdown, Rdoc, AsciiDoc, and Org for content.
 Wiki pages written in Markdown support all [Markdown features](../../markdown.md),
 and also provide some [wiki-specific behavior](../../markdown.md#wiki-specific-markdown)
 for links.
@@ -31,7 +31,7 @@ with sibling pages listed in alphabetical order. To view a list of all pages, se
 
 To access a project wiki:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. To display the wiki, either:
    - On the left sidebar, select **Wiki**.
    - On any page in the project, use the <kbd>g</kbd> + <kbd>w</kbd>
@@ -61,7 +61,7 @@ When a wiki is created, it is empty. On your first visit, you can create the
 home page users see when viewing the wiki. This page requires a specific title
 to be used as your wiki's home page. To create it:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -79,7 +79,7 @@ to be used as your wiki's home page. To create it:
 
 Users with at least the Developer role can create new wiki pages:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -142,7 +142,7 @@ may not be able to check out the wiki locally afterward.
 
 You need at least the Developer role to edit a wiki page:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -151,6 +151,8 @@ You need at least the Developer role to edit a wiki page:
    - Select the edit icon (**{pencil}**).
 1. Edit the content.
 1. Select **Save changes**.
+
+Unsaved changes to a wiki page are preserved in local browser storage to prevent accidental data loss.
 
 ### Create a table of contents
 
@@ -161,7 +163,7 @@ For an example, read [Table of contents](../../markdown.md#table-of-contents).
 
 You need at least the Developer role to delete a wiki page:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -174,7 +176,7 @@ You need at least the Developer role to delete a wiki page:
 
 You need at least the Developer role to move a wiki page:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -200,7 +202,7 @@ The history page shows:
 
 To view the changes for a wiki page:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -213,7 +215,7 @@ To view the changes for a wiki page:
 
 You can see the changes made in a version of a wiki page, similar to versioned diff file views:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
@@ -246,11 +248,11 @@ You need at least the Developer role to customize the wiki
 navigation sidebar. This process creates a wiki page named `_sidebar` which fully
 replaces the default sidebar navigation:
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
    - For project wikis, select **Projects** and find your project.
    - For group wikis, select **Groups** and find your group.
 1. On the left sidebar, select **Wiki**.
-1. In the top right corner of the page, select **Edit sidebar**.
+1. In the upper-right corner of the page, select **Edit sidebar**.
 1. When complete, select **Save changes**.
 
 A `_sidebar` example, formatted with Markdown:
@@ -267,8 +269,6 @@ A `_sidebar` example, formatted with Markdown:
 - [Sidebar](_sidebar)
 ```
 
-Support for displaying a generated table of contents with a custom side navigation is being considered.
-
 ## Enable or disable a project wiki
 
 Wikis are enabled by default in GitLab. Project [administrators](../../permissions.md)
@@ -284,7 +284,7 @@ You can disable group wikis from the [group settings](group.md#configure-group-w
 
 To add a link to an external wiki from a project's left sidebar:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **External wiki**.
 1. Add the URL to your external wiki.
@@ -300,7 +300,7 @@ To hide the internal wiki from the sidebar, [disable the project's wiki](#disabl
 
 To hide the link to an external wiki:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **External wiki**.
 1. In the **Enable integration** section, clear the **Active** checkbox.
@@ -310,7 +310,7 @@ To hide the link to an external wiki:
 
 To disable a project's internal wiki:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. Go to your project and select **Settings > General**.
 1. Expand **Visibility, project features, permissions**.
 1. Scroll down to find **Wiki** and toggle it off (in gray).
@@ -336,11 +336,12 @@ GitLab provides a WYSIWYG editing experience for GitLab Flavored Markdown in wik
 
 Support includes:
 
-- Text formatting options, including bold, italics, block quotes, headings, and inline code.
-- List formatting for unordered, numbered, and checklists.
-- Creating and editing the structure of tables.
+- Formatting text, including using bold, italics, block quotes, headings, and inline code.
+- Formatting ordered lists, unordered lists, and checklists.
+- Creating and editing table structure.
 - Inserting and formatting code blocks with syntax highlighting.
-- Live preview of Mermaid, PlantUML, and Kroki diagrams ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/86701) in GitLab 15.2).
+- Previewing Mermaid, PlantUML, and Kroki diagrams ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/86701) in GitLab 15.2).
+- Creating and editing HTML comments ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104084) in GitLab 15.7).
 
 ### Use the Content Editor
 
@@ -387,6 +388,11 @@ line of your Apache configuration to ensure your page slugs render correctly.
 
 WARNING:
 This operation deletes all data in the wiki.
+
+WARNING:
+Any command that changes data directly could be damaging if not run correctly, or under the
+right conditions. We highly recommend running them in a test environment with a backup of the
+instance ready to be restored, just in case.
 
 To clear all data from a project wiki and recreate it in a blank state:
 

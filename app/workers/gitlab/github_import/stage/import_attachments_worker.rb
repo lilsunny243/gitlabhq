@@ -28,7 +28,12 @@ module Gitlab
 
         # For future issue/mr/milestone/etc attachments importers
         def importers
-          [::Gitlab::GithubImport::Importer::ReleasesAttachmentsImporter]
+          [
+            ::Gitlab::GithubImport::Importer::Attachments::ReleasesImporter,
+            ::Gitlab::GithubImport::Importer::Attachments::NotesImporter,
+            ::Gitlab::GithubImport::Importer::Attachments::IssuesImporter,
+            ::Gitlab::GithubImport::Importer::Attachments::MergeRequestsImporter
+          ]
         end
 
         def start_importer(project, importer, client)
@@ -42,11 +47,15 @@ module Gitlab
         end
 
         def move_to_next_stage(project, waiters = {})
-          AdvanceStageWorker.perform_async(project.id, waiters, :lfs_objects)
+          AdvanceStageWorker.perform_async(
+            project.id,
+            waiters,
+            :protected_branches
+          )
         end
 
         def feature_disabled?(project)
-          Feature.disabled?(:github_importer_attachments_import, project.group, type: :ops)
+          import_settings(project).disabled?(:attachments_import)
         end
       end
     end

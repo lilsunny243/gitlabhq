@@ -312,9 +312,10 @@ module Gitlab
 
           normalized_section = section_to_class_name(section)
 
-          if action == "start"
+          case action
+          when "start"
             handle_section_start(normalized_section, timestamp)
-          elsif action == "end"
+          when "end"
             handle_section_end(normalized_section, timestamp)
           end
         end
@@ -447,8 +448,8 @@ module Gitlab
         end
 
         def state
-          state = STATE_PARAMS.each_with_object({}) do |param, h|
-            h[param] = send(param) # rubocop:disable GitlabSecurity/PublicSend
+          state = STATE_PARAMS.index_with do |param|
+            send(param) # rubocop:disable GitlabSecurity/PublicSend
           end
           Base64.urlsafe_encode64(state.to_json)
         end

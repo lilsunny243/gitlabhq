@@ -1,20 +1,20 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Mock CI Service **(FREE)**
+# Mock CI **(FREE)**
 
 NOTE:
-This service is only listed if you are in a [development environment](https://gitlab.com/gitlab-org/gitlab-mock-ci-service#setup-mockci-integration)!
+This integration only appears if you're in a [development environment](https://gitlab.com/gitlab-org/gitlab-mock-ci-service#setup-mockci-integration).
 
-To set up the mock CI service server, respond to the following endpoints
+To set up the mock CI service server, respond to the following endpoints:
 
 - `commit_status`: `#{project.namespace.path}/#{project.path}/status/#{sha}.json`
-  - Have your service return `200 { status: ['failed'|'canceled'|'running'|'pending'|'success'|'success-with-warnings'|'skipped'|'not_found'] }`
-  - If the service returns a 404, it is interpreted as `pending`
+  - Have your service return `200 { status: ['failed'|'canceled'|'running'|'pending'|'success'|'success-with-warnings'|'skipped'|'not_found'] }`.
+  - If the service returns a 404, the service is interpreted as `pending`.
 - `build_page`: `#{project.namespace.path}/#{project.path}/status/#{sha}`
-  - Just where the build is linked to, doesn't matter if implemented
+  - Where the build is linked to (whether or not it's implemented).
 
-For an example of a mock CI server, see [`gitlab-org/gitlab-mock-ci-service`](https://gitlab.com/gitlab-org/gitlab-mock-ci-service)
+For an example of a mock CI server, see [`gitlab-org/gitlab-mock-ci-service`](https://gitlab.com/gitlab-org/gitlab-mock-ci-service).

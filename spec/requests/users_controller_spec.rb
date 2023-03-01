@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe UsersController do
+RSpec.describe UsersController, feature_category: :user_management do
   # This user should have the same e-mail address associated with the GPG key prepared for tests
   let(:user) { create(:user, email: GpgHelpers::User1.emails[0]) }
   let(:private_user) { create(:user, private_profile: true) }
@@ -464,6 +464,18 @@ RSpec.describe UsersController do
           expect(response.body).not_to be_empty
         end
 
+        it 'renders the correct url for issues and work items' do
+          work_item = create(:work_item, :task, project: project)
+          issue = create(:issue, project: project)
+          EventCreateService.new.open_issue(work_item, public_user)
+          EventCreateService.new.open_issue(issue, public_user)
+
+          get user_calendar_activities_url public_user.username
+
+          expect(response.body).to include(project_work_items_path(project, work_item.iid, iid_path: true))
+          expect(response.body).to include(project_issue_path(project, issue))
+        end
+
         it 'avoids N+1 queries', :request_store do
           get user_calendar_activities_url public_user.username
 
@@ -824,6 +836,26 @@ RSpec.describe UsersController do
             it_behaves_like 'redirects to the canonical path'
           end
         end
+      end
+    end
+  end
+
+  describe 'POST #follow' do
+    context 'when over followee limit' do
+      before do
+        stub_const('Users::UserFollowUser::MAX_FOLLOWEE_LIMIT', 2)
+        sign_in(user)
+      end
+
+      it 'alerts and not follow' do
+        Users::UserFollowUser::MAX_FOLLOWEE_LIMIT.times { user.follow(create(:user)) }
+
+        post user_follow_url(username: public_user.username)
+        expect(response).to be_redirect
+
+        expected_message = format(_("You can't follow more than %{limit} users. To follow more users, unfollow some others."), limit: Users::UserFollowUser::MAX_FOLLOWEE_LIMIT)
+        expect(flash[:alert]).to eq(expected_message)
+        expect(user).not_to be_following(public_user)
       end
     end
   end

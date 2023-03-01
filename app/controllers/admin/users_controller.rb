@@ -7,7 +7,6 @@ class Admin::UsersController < Admin::ApplicationController
   before_action :user, except: [:index, :new, :create]
   before_action :check_impersonation_availability, only: :impersonate
   before_action :ensure_destroy_prerequisites_met, only: [:destroy]
-  before_action :check_ban_user_feature_flag, only: [:ban]
 
   feature_category :user_management
 
@@ -26,6 +25,8 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def show
+    @can_impersonate = can_impersonate_user
+    @impersonation_error_text = @can_impersonate ? nil : impersonation_error_text
   end
 
   # rubocop: disable CodeReuse/ActiveRecord
@@ -47,7 +48,7 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def impersonate
-    if can?(user, :log_in) && !impersonation_in_progress?
+    if can_impersonate_user
       session[:impersonator_id] = current_user.id
 
       warden.set_user(user, scope: :user)
@@ -55,20 +56,11 @@ class Admin::UsersController < Admin::ApplicationController
 
       log_impersonation_event
 
-      flash[:alert] = _("You are now impersonating %{username}") % { username: user.username }
+      flash[:alert] = format(_("You are now impersonating %{username}"), username: user.username)
 
       redirect_to root_path
     else
-      flash[:alert] =
-        if impersonation_in_progress?
-          _("You are already impersonating another user")
-        elsif user.blocked?
-          _("You cannot impersonate a blocked user")
-        elsif user.internal?
-          _("You cannot impersonate an internal user")
-        else
-          _("You cannot impersonate a user who cannot log in")
-        end
+      flash[:alert] = impersonation_error_text
 
       redirect_to admin_user_path(user)
     end
@@ -88,24 +80,32 @@ class Admin::UsersController < Admin::ApplicationController
     result = Users::RejectService.new(current_user).execute(user)
 
     if result[:status] == :success
-      redirect_back_or_admin_user(notice: _("You've rejected %{user}" % { user: user.name }))
+      redirect_back_or_admin_user(notice: format(_("You've rejected %{user}"), user: user.name))
     else
       redirect_back_or_admin_user(alert: result[:message])
     end
   end
 
   def activate
-    return redirect_back_or_admin_user(notice: _("Error occurred. A blocked user must be unblocked to be activated")) if user.blocked?
+    if user.blocked?
+      return redirect_back_or_admin_user(notice: _("Error occurred. A blocked user must be unblocked to be activated"))
+    end
 
     user.activate
     redirect_back_or_admin_user(notice: _("Successfully activated"))
   end
 
   def deactivate
-    return redirect_back_or_admin_user(notice: _("Error occurred. A blocked user cannot be deactivated")) if user.blocked?
+    if user.blocked?
+      return redirect_back_or_admin_user(notice: _("Error occurred. A blocked user cannot be deactivated"))
+    end
+
     return redirect_back_or_admin_user(notice: _("Successfully deactivated")) if user.deactivated?
     return redirect_back_or_admin_user(notice: _("Internal users cannot be deactivated")) if user.internal?
-    return redirect_back_or_admin_user(notice: _("The user you are trying to deactivate has been active in the past %{minimum_inactive_days} days and cannot be deactivated") % { minimum_inactive_days: Gitlab::CurrentSettings.deactivate_dormant_users_period }) unless user.can_be_deactivated?
+
+    unless user.can_be_deactivated?
+      return redirect_back_or_admin_user(notice: format(_("The user you are trying to deactivate has been active in the past %{minimum_inactive_days} days and cannot be deactivated"), minimum_inactive_days: Gitlab::CurrentSettings.deactivate_dormant_users_period))
+    end
 
     user.deactivate
     redirect_back_or_admin_user(notice: _("Successfully deactivated"))
@@ -123,8 +123,12 @@ class Admin::UsersController < Admin::ApplicationController
 
   def unblock
     if user.ldap_blocked?
-      redirect_back_or_admin_user(alert: _("This user cannot be unlocked manually from GitLab"))
-    elsif update_user { |user| user.activate }
+      return redirect_back_or_admin_user(alert: _("This user cannot be unlocked manually from GitLab"))
+    end
+
+    result = Users::UnblockService.new(current_user).execute(user)
+
+    if result.success?
       redirect_back_or_admin_user(notice: _("Successfully unblocked"))
     else
       redirect_back_or_admin_user(alert: _("Error occurred. User was not unblocked"))
@@ -152,7 +156,7 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def unlock
-    if update_user { |user| user.unlock_access! }
+    if update_user(&:unlock_access!)
       redirect_back_or_admin_user(notice: _("Successfully unlocked"))
     else
       redirect_back_or_admin_user(alert: _("Error occurred. User was not unlocked"))
@@ -160,7 +164,7 @@ class Admin::UsersController < Admin::ApplicationController
   end
 
   def confirm
-    if update_user { |user| user.force_confirm }
+    if update_user(&:force_confirm)
       redirect_back_or_admin_user(notice: _("Successfully confirmed"))
     else
       redirect_back_or_admin_user(alert: _("Error occurred. User was not confirmed"))
@@ -354,9 +358,11 @@ class Admin::UsersController < Admin::ApplicationController
       :skype,
       :theme_id,
       :twitter,
+      :discord,
       :username,
       :website_url,
       :note,
+      :private_profile,
       credit_card_validation_attributes: [:credit_card_validated_at]
     ]
   end
@@ -371,12 +377,26 @@ class Admin::UsersController < Admin::ApplicationController
     access_denied! unless Gitlab.config.gitlab.impersonation_enabled
   end
 
-  def check_ban_user_feature_flag
-    access_denied! unless Feature.enabled?(:ban_user_feature_flag)
+  def log_impersonation_event
+    Gitlab::AppLogger.info(format(_("User %{current_user_username} has started impersonating %{username}"), current_user_username: current_user.username, username: user.username))
   end
 
-  def log_impersonation_event
-    Gitlab::AppLogger.info(_("User %{current_user_username} has started impersonating %{username}") % { current_user_username: current_user.username, username: user.username })
+  def can_impersonate_user
+    can?(user, :log_in) && !user.password_expired? && !impersonation_in_progress?
+  end
+
+  def impersonation_error_text
+    if impersonation_in_progress?
+      _("You are already impersonating another user")
+    elsif user.blocked?
+      _("You cannot impersonate a blocked user")
+    elsif user.password_expired?
+      _("You cannot impersonate a user with an expired password")
+    elsif user.internal?
+      _("You cannot impersonate an internal user")
+    else
+      _("You cannot impersonate a user who cannot log in")
+    end
   end
 end
 

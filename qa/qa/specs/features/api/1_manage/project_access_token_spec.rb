@@ -2,10 +2,12 @@
 
 module QA
   RSpec.describe 'Manage' do
-    describe 'Project access token', :reliable do
+    describe 'Project access token', product_group: :authentication_and_authorization do
       before(:all) do
         @project_access_token = QA::Resource::ProjectAccessToken.fabricate_via_api! do |pat|
-          pat.project = Resource::ReusableProject.fabricate_via_api!
+          pat.project = Resource::Project.fabricate_via_api! do |project|
+            project.initialize_with_readme = true
+          end
         end
 
         @user_api_client = Runtime::API::Client.new(:gitlab, personal_access_token: @project_access_token.token)
@@ -33,9 +35,7 @@ module QA
               commit.branch = "new_branch_#{SecureRandom.hex(8)}"
               commit.start_branch = @project_access_token.project.default_branch
               commit.commit_message = 'Add new file'
-              commit.add_files([
-                { file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }
-              ])
+              commit.add_files([{ file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }])
             end
           end.not_to raise_error
         end
@@ -67,9 +67,7 @@ module QA
               commit.branch = "new_branch_#{SecureRandom.hex(8)}"
               commit.start_branch = @different_project.default_branch
               commit.commit_message = 'Add new file'
-              commit.add_files([
-                { file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }
-              ])
+              commit.add_files([{ file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }])
             end
           end.to raise_error(Resource::ApiFabricator::ResourceFabricationFailedError, /403 Forbidden - You are not allowed to push into this branch/)
         end

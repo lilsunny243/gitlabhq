@@ -59,15 +59,20 @@ module API
       end
 
       def search(additional_params = {})
-        @search_duration_s = Benchmark.realtime do
-          @results = search_service(additional_params).search_objects(preload_method)
+        search_service = search_service(additional_params)
+        if search_service.global_search? && !search_service.global_search_enabled_for_scope?
+          forbidden!('Global Search is disabled for this scope')
         end
 
-        set_global_search_log_information
+        @search_duration_s = Benchmark.realtime do
+          @results = search_service.search_objects(preload_method)
+        end
+
+        set_global_search_log_information(additional_params)
 
         Gitlab::Metrics::GlobalSearchSlis.record_apdex(
           elapsed: @search_duration_s,
-          search_type: search_type,
+          search_type: search_type(additional_params),
           search_level: search_service.level,
           search_scope: search_scope
         )
@@ -75,6 +80,16 @@ module API
         Gitlab::UsageDataCounters::SearchCounter.count(:all_searches)
 
         paginate(@results)
+
+      ensure
+        # If we raise an error somewhere in the @search_duration_s benchmark block, we will end up here
+        # with a 200 status code, but an empty @search_duration_s.
+        Gitlab::Metrics::GlobalSearchSlis.record_error_rate(
+          error: @search_duration_s.nil? || (status < 200 || status >= 400),
+          search_type: search_type(additional_params),
+          search_level: search_service(additional_params).level,
+          search_scope: search_scope
+        )
       end
 
       def snippets?
@@ -95,7 +110,7 @@ module API
         # EE, without having to modify this file directly.
       end
 
-      def search_type
+      def search_type(additional_params = {})
         'basic'
       end
 
@@ -103,10 +118,10 @@ module API
         params[:scope]
       end
 
-      def set_global_search_log_information
+      def set_global_search_log_information(additional_params)
         Gitlab::Instrumentation::GlobalSearchApi.set_information(
-          type: search_type,
-          level: search_service.level,
+          type: search_type(additional_params),
+          level: search_service(additional_params).level,
           scope: search_scope,
           search_duration_s: @search_duration_s
         )
@@ -161,7 +176,7 @@ module API
         detail 'This feature was introduced in GitLab 10.5.'
       end
       params do
-        requires :id, type: String, desc: 'The ID of a project'
+        requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
         requires :search, type: String, desc: 'The expression it should be searched for'
         requires :scope,
           type: String,

@@ -14,8 +14,7 @@ class Label < ApplicationRecord
 
   DEFAULT_COLOR = ::Gitlab::Color.of('#6699cc')
 
-  attribute :color, ::Gitlab::Database::Type::Color.new
-  default_value_for :color, DEFAULT_COLOR
+  attribute :color, ::Gitlab::Database::Type::Color.new, default: DEFAULT_COLOR
 
   has_many :lists, dependent: :destroy # rubocop:disable Cop/ActiveRecordDependent
   has_many :priorities, class_name: 'LabelPriority'
@@ -42,6 +41,7 @@ class Label < ApplicationRecord
   scope :order_name_asc, -> { reorder(title: :asc) }
   scope :order_name_desc, -> { reorder(title: :desc) }
   scope :subscribed_by, ->(user_id) { joins(:subscriptions).where(subscriptions: { user_id: user_id, subscribed: true }) }
+  scope :with_preloaded_container, -> { preload(parent_container: :route) }
 
   scope :top_labels_by_target, -> (target_relation) {
     label_id_column = arel_table[:id]
@@ -58,6 +58,13 @@ class Label < ApplicationRecord
       .reorder(count_by_id: :desc)
       .distinct
   }
+
+  scope :for_targets, ->(target_relation) do
+    joins(:label_links)
+      .merge(LabelLink.where(target: target_relation))
+      .select(arel_table[Arel.star], LabelLink.arel_table[:target_id])
+      .with_preloaded_container
+  end
 
   def self.prioritized(project)
     joins(:priorities)

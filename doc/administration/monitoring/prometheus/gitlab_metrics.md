@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Prometheus metrics **(FREE SELF)**
@@ -9,9 +9,9 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 To enable the GitLab Prometheus metrics:
 
 1. Log in to GitLab as a user with administrator access.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Metrics and profiling**.
-1. Find the **Metrics - Prometheus** section, and select **Add link to Prometheus**.
+1. Find the **Metrics - Prometheus** section, and select **Enable GitLab Prometheus metrics endpoint**.
 1. [Restart GitLab](../../restart_gitlab.md#omnibus-gitlab-restart) for the changes to take effect.
 
 For installations from source you must configure it yourself.
@@ -20,7 +20,7 @@ For installations from source you must configure it yourself.
 
 GitLab monitors its own internal service metrics, and makes them available at the
 `/-/metrics` endpoint. Unlike other [Prometheus](https://prometheus.io) exporters, to access
-the metrics, the client IP address must be [explicitly allowed](../ip_whitelist.md).
+the metrics, the client IP address must be [explicitly allowed](../ip_allowlist.md).
 
 These metrics are enabled and collected for [Omnibus GitLab](https://docs.gitlab.com/omnibus/)
 and Chart installations. For source installations, these metrics must be enabled
@@ -39,11 +39,14 @@ The following metrics are available:
 | `gitlab_cache_misses_total`                                      | Counter     | 10.2    | Cache read miss                                                                                                       | `controller`, `action`                                    |
 | `gitlab_cache_operation_duration_seconds`                        | Histogram   | 10.2    | Cache access time                                                                                                     |                                                           |
 | `gitlab_cache_operations_total`                                  | Counter     | 12.2    | Cache operations by controller or action                                                                              | `controller`, `action`, `operation`                       |
+| `gitlab_cache_read_multikey_count`                               | Histogram   | 15.7    | Count of keys in multi-key cache read operations                                                                      | `controller`, `action`                   |
 | `gitlab_ci_pipeline_builder_scoped_variables_duration`           | Histogram   | 14.5   | Time in seconds it takes to create the scoped variables for a CI/CD job
-| `gitlab_ci_pipeline_creation_duration_seconds`                   | Histogram   | 13.0    | Time in seconds it takes to create a CI/CD pipeline                                                                   |                                                           |
+| `gitlab_ci_pipeline_creation_duration_seconds`                   | Histogram   | 13.0    | Time in seconds it takes to create a CI/CD pipeline                                                                   | `gitlab`                                                  |
 | `gitlab_ci_pipeline_size_builds`                                 | Histogram   | 13.1    | Total number of builds within a pipeline grouped by a pipeline source                                                 | `source`                                                  |
 | `gitlab_ci_runner_authentication_success_total`                  | Counter     | 15.2    | Total number of times that runner authentication has succeeded                                                        | `type`                                                    |
 | `gitlab_ci_runner_authentication_failure_total`                  | Counter     | 15.2    | Total number of times that runner authentication has failed
+| `gitlab_ghost_user_migration_lag_seconds`                        | Gauge       | 15.6    | The waiting time in seconds of the oldest scheduled record for ghost user migration                                   |                                                           |
+| `gitlab_ghost_user_migration_scheduled_records_total`            | Gauge       | 15.6    | The total number of scheduled ghost user migrations                                                                   |                                                           |
 | `job_waiter_started_total`                                       | Counter     | 12.9    | Number of batches of jobs started where a web request is waiting for the jobs to complete                             | `worker`                                                  |
 | `job_waiter_timeouts_total`                                      | Counter     | 12.9    | Number of batches of jobs that timed out where a web request is waiting for the jobs to complete                      | `worker`                                                  |
 | `gitlab_ci_active_jobs`                                          | Histogram   | 14.2    | Count of active jobs when pipeline is created                                                                         |                                                           |
@@ -148,6 +151,21 @@ The following metrics are available:
 | `gitlab_ci_build_trace_errors_total`                             | Counter     | 14.4    | Total amount of different error types on a build trace                                                                | `error_reason`                                            |
 | `gitlab_presentable_object_cacheless_render_real_duration_seconds`              | Histogram   | 15.3     | Duration of real time spent caching and representing specific web request objects                                                    | `controller`, `action`                                    |
 | `cached_object_operations_total`                                      | Counter     | 15.3    | Total number of objects cached for specific web requests                                                                                                      | `controller`, `action`                                    |
+| `redis_hit_miss_operations_total`                                | Counter     | 15.6    | Total number of Redis cache hits and misses                                                                           | `cache_hit`, `caller_id`, `cache_identifier`, `feature_category`, `backing_resource` |
+| `redis_cache_generation_duration_seconds`                        | Histogram   | 15.6    | Time to generate Redis cache                                                                                          | `cache_hit`, `caller_id`, `cache_identifier`, `feature_category`, `backing_resource` |
+| `gitlab_diffs_reorder_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spend on reordering of diff files on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_collection_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on querying merge request diff files on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_comparison_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on getting comparison data on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_unfoldable_positions_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on getting unfoldable note positions on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_unfold_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on unfolding positions on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_write_cache_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on caching highlighted lines and stats on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_highlight_cache_decorate_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on setting highlighted lines from cache on diffs batch request | `controller`, `action` |
+| `gitlab_diffs_render_real_duration_seconds` | Histogram | 15.8 | Duration in seconds spent on serializing and rendering diffs on diffs batch request | `controller`, `action` |
+| `gitlab_memwd_violations_total`                      | Counter | 15.9  | Total number of times a Ruby process violated a memory threshold | |
+| `gitlab_memwd_violations_handled_total`              | Counter | 15.9  | Total number of times Ruby process memory violations were handled | |
+| `gitlab_sli_rails_request_apdex_total` | Counter | 14.4 | Total number of request Apdex measurements. For more information, see [Rails request SLIs](../../../development/application_slis/rails_request.md) | `endpoint_id`, `feature_category`, `request_urgency` |
+| `gitlab_sli_rails_request_apdex_success_total` | Counter | 14.4 | Total number of successful requests that met the target duration for their urgency. Divide by `gitlab_sli_rails_requests_apdex_total` to get a success ratio | `endpoint_id`, `feature_category`, `request_urgency` |
+| `gitlab_sli_rails_request_error_total` | Counter | 15.7 | Total number of request error measurements. For more information, see [Rails request SLIs](../../../development/application_slis/rails_request.md) | `endpoint_id`, `feature_category`, `request_urgency`, `error` |
 
 ## Metrics controlled by a feature flag
 
@@ -155,7 +173,6 @@ The following metrics can be controlled by feature flags:
 
 | Metric                                                         | Feature Flag                                                       |
 |:---------------------------------------------------------------|:-------------------------------------------------------------------|
-| `gitlab_method_call_duration_seconds`                          | `prometheus_metrics_method_instrumentation`                        |
 | `gitlab_view_rendering_duration_seconds`                       | `prometheus_metrics_view_instrumentation`                          |
 
 ## Praefect metrics
@@ -201,7 +218,7 @@ configuration option in `gitlab.yml`. These metrics are served from the
 | `geo_lfs_objects_registry`                     | Gauge   | 14.6  | Number of LFS objects in the registry | `url` |
 | `geo_lfs_objects_verified`                     | Gauge   | 14.6  | Number of LFS objects verified on secondary | `url` |
 | `geo_lfs_objects_verification_failed`          | Gauge   | 14.6 | Number of LFS objects' verifications failed on secondary | `url` |
-| `geo_lfs_objects_verification_total`           | Gauge   | 14.6  | Number of LFS objects' verifications tried on secondary | `url` |LFS objects failed to sync on secondary | `url` |
+| `geo_lfs_objects_verification_total`           | Gauge   | 14.6  | Number of LFS objects' verifications tried on secondary | `url` |
 | `geo_attachments`                              | Gauge   | 10.2  | Total number of file attachments available on primary | `url` |
 | `geo_attachments_synced`                       | Gauge   | 10.2  | Number of attachments synced on secondary | `url` |
 | `geo_attachments_failed`                       | Gauge   | 10.2  | Number of attachments failed to sync on secondary | `url` |
@@ -302,8 +319,10 @@ configuration option in `gitlab.yml`. These metrics are served from the
 | `geo_uploads_verification_total`   | Gauge   | 14.6 | Number of uploads verifications tried on secondary | `url` |
 | `geo_uploads_verified`             | Gauge   | 14.6 | Number of uploads verified on secondary | `url` |
 | `geo_uploads_verification_failed`  | Gauge   | 14.6 | Number of uploads verifications failed on secondary | `url` |
-| `gitlab_sli:rails_request_apdex:total` | Counter | 14.4 | The number of request-apdex measurements, [more information the development documentation](../../../development/application_slis/rails_request_apdex.md) | `endpoint_id`, `feature_category`, `request_urgency` |
-| `gitlab_sli:rails_request_apdex:success_total` | Counter | 14.4 | The number of successful requests that met the target duration for their urgency. Divide by `gitlab_sli:rails_requests_apdex:total` to get a success ratio | `endpoint_id`, `feature_category`, `request_urgency` |
+| `geo_container_repositories`           | Gauge   | 15.4  | Number of container repositories on primary | `url` |
+| `geo_container_repositories_synced`    | Gauge   | 15.4  | Number of container repositories synced on secondary | `url` |
+| `geo_container_repositories_failed`    | Gauge   | 15.4  | Number of syncable container repositories failed to sync on secondary | `url` |
+| `geo_container_repositories_registry`  | Gauge   | 15.4  | Number of container repositories in the registry | `url` |
 | `geo_ci_secure_files`                            | Gauge   | 15.3  | Number of secure files on primary | `url` |
 | `geo_ci_secure_files_checksum_total`             | Gauge   | 15.3  | Number of secure files tried to checksum on primary | `url` |
 | `geo_ci_secure_files_checksummed`                | Gauge   | 15.3  | Number of secure files successfully checksummed on primary | `url` |
@@ -314,6 +333,29 @@ configuration option in `gitlab.yml`. These metrics are served from the
 | `geo_ci_secure_files_verification_total`         | Gauge   | 15.3  | Number of secure files verifications tried on secondary | `url` |
 | `geo_ci_secure_files_verified`                   | Gauge   | 15.3  | Number of secure files verified on secondary | `url` |
 | `geo_ci_secure_files_verification_failed`        | Gauge   | 15.3  | Number of secure files verifications failed on secondary | `url` |
+| `geo_dependency_proxy_blob`                      | Gauge   | 15.6  | Number of dependency proxy blobs on primary | |
+| `geo_dependency_proxy_blob_checksum_total`       | Gauge   | 15.6  | Number of dependency proxy blobs tried to checksum on primary | |
+| `geo_dependency_proxy_blob_checksummed`          | Gauge   | 15.6  | Number of dependency proxy blobs successfully checksummed on primary | |
+| `geo_dependency_proxy_blob_checksum_failed`      | Gauge   | 15.6  | Number of dependency proxy blobs failed to calculate the checksum on primary | |
+| `geo_dependency_proxy_blob_synced`               | Gauge   | 15.6  | Number of dependency proxy blobs synced on secondary | |
+| `geo_dependency_proxy_blob_failed`               | Gauge   | 15.6  | Number of dependency proxy blobs failed to sync on secondary | |
+| `geo_dependency_proxy_blob_registry`             | Gauge   | 15.6  | Number of dependency proxy blobs in the registry | |
+| `geo_dependency_proxy_blob_verification_total`   | Gauge   | 15.6  | Number of dependency proxy blobs verifications tried on secondary | |
+| `geo_dependency_proxy_blob_verified`             | Gauge   | 15.6  | Number of dependency proxy blobs verified on secondary | |
+| `geo_dependency_proxy_blob_verification_failed`  | Gauge   | 15.6  | Number of dependency proxy blobs verifications failed on secondary | |
+| `geo_dependency_proxy_manifests`                     | Gauge   | 15.6  | Number of dependency proxy manifests on primary | `url` |
+| `geo_dependency_proxy_manifests_checksum_total`      | Gauge   | 15.6  | Number of dependency proxy manifests tried to checksum on primary | `url` |
+| `geo_dependency_proxy_manifests_checksummed`         | Gauge   | 15.6  | Number of dependency proxy manifests successfully checksummed on primary | `url` |
+| `geo_dependency_proxy_manifests_checksum_failed`     | Gauge   | 15.6  | Number of dependency proxy manifests failed to calculate the checksum on primary | `url` |
+| `geo_dependency_proxy_manifests_synced`              | Gauge   | 15.6  | Number of syncable dependency proxy manifests synced on secondary | `url` |
+| `geo_dependency_proxy_manifests_failed`              | Gauge   | 15.6  | Number of syncable dependency proxy manifests failed to sync on secondary | `url` |
+| `geo_dependency_proxy_manifests_registry`            | Gauge   | 15.6  | Number of dependency proxy manifests in the registry | `url` |
+| `geo_dependency_proxy_manifests_verification_total`  | Gauge   | 15.6  | Number of dependency proxy manifests verifications tried on secondary | `url` |
+| `geo_dependency_proxy_manifests_verified`            | Gauge   | 15.6  | Number of dependency proxy manifests verified on secondary | `url` |
+| `geo_dependency_proxy_manifests_verification_failed` | Gauge   | 15.6  | Number of dependency proxy manifests verifications failed on secondary | `url` |
+| `gitlab_memwd_violations_total`                      | Counter | 15.9    | Total number of times a Sidekiq process violated a memory threshold                                                                                        | |
+| `gitlab_memwd_violations_handled_total`              | Counter | 15.9    | Total number of times Sidekiq process memory violations were handled                                                                                       | |
+| `sidekiq_watchdog_running_jobs_total`                | Counter | 15.9    | Current running jobs when RSS limit was reached                                                                                                            | `worker_class`                                                                                          |
 
 ## Database load balancing metrics **(PREMIUM SELF)**
 
@@ -370,6 +412,8 @@ Some basic Ruby runtime metrics are available:
 | `ruby_process_cpu_seconds_total`         | Gauge     | 12.0  | Total amount of CPU time per process |
 | `ruby_process_max_fds`                   | Gauge     | 12.0  | Maximum number of open file descriptors per process |
 | `ruby_process_resident_memory_bytes`     | Gauge     | 12.0  | Memory usage by process (RSS/Resident Set Size) |
+| `ruby_process_resident_anon_memory_bytes`| Gauge     | 15.6  | Anonymous memory usage by process (RSS/Resident Set Size) |
+| `ruby_process_resident_file_memory_bytes`| Gauge     | 15.6  | File-backed memory usage by process (RSS/Resident Set Size) |
 | `ruby_process_unique_memory_bytes`       | Gauge     | 13.0  | Memory usage by process (USS/Unique Set Size) |
 | `ruby_process_proportional_memory_bytes` | Gauge     | 13.0  | Memory usage by process (PSS/Proportional Set Size) |
 | `ruby_process_start_time_seconds`        | Gauge     | 12.0  | UNIX timestamp of process start time |
@@ -395,13 +439,14 @@ These client metrics are meant to complement Redis server metrics.
 These metrics are broken down per
 [Redis instance](https://docs.gitlab.com/omnibus/settings/redis.html#running-with-multiple-redis-instances).
 These metrics all have a `storage` label which indicates the Redis
-instance (`cache`, `shared_state`, and so on).
+instance. For example, `cache` or `shared_state`.
 
 | Metric                            | Type    | Since | Description |
 |:--------------------------------- |:------- |:----- |:----------- |
 | `gitlab_redis_client_exceptions_total`                    | Counter   | 13.2  | Number of Redis client exceptions, broken down by exception class |
 | `gitlab_redis_client_requests_total`                    | Counter   | 13.2  | Number of Redis client requests |
 | `gitlab_redis_client_requests_duration_seconds`                    | Histogram   | 13.2  | Redis request latency, excluding blocking commands |
+| `gitlab_redis_client_redirections_total` | Counter | 15.10 | Number of Redis Cluster MOVED/ASK redirections, broken down by redirection type |
 
 ## Metrics shared directory
 

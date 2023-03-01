@@ -13,7 +13,7 @@ module API
     # These endpoints are defined in `TimeTrackingEndpoints` and is shared by
     # API::Issues. In order to be able to define the feature category of these
     # endpoints, we need to define them at the top-level by route.
-    feature_category :code_review, [
+    feature_category :code_review_workflow, [
       '/projects/:id/merge_requests/:merge_request_iid/time_estimate',
       '/projects/:id/merge_requests/:merge_request_iid/reset_time_estimate',
       '/projects/:id/merge_requests/:merge_request_iid/add_spent_time',
@@ -105,20 +105,12 @@ module API
         options
       end
 
-      def authorize_push_to_merge_request!(merge_request)
-        forbidden!('Source branch does not exist') unless
-          merge_request.source_branch_exists?
+      def authorize_merge_request_rebase!(merge_request)
+        result = ::MergeRequests::RebaseService
+          .new(project: merge_request.source_project, current_user: current_user)
+          .validate(merge_request)
 
-        user_access = Gitlab::UserAccess.new(
-          current_user,
-          container: merge_request.source_project
-        )
-
-        forbidden!('Cannot push to source branch') unless
-          user_access.can_push_to_branch?(merge_request.source_branch)
-
-        forbidden!('Source branch is protected from force push') unless
-          merge_request.permits_force_push?
+        forbidden!(result.message) if result.error?
       end
 
       def recheck_mergeability_of(merge_requests:)
@@ -134,15 +126,21 @@ module API
 
     resource :merge_requests do
       desc 'List merge requests' do
+        detail 'Get all merge requests the authenticated user has access to. By default it returns only merge requests created by the current user. To get all merge requests, use parameter `scope=all`.'
         success Entities::MergeRequestBasic
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[merge_requests]
       end
       params do
         use :merge_requests_params
         use :optional_scope_param
       end
-      get feature_category: :code_review, urgency: :low do
+      get feature_category: :code_review_workflow, urgency: :low do
         authenticate! unless params[:scope] == 'all'
-        validate_anonymous_search_access! if params[:search].present?
+        validate_search_rate_limit! if declared_params[:search].present?
         merge_requests = find_merge_requests
 
         present merge_requests, serializer_options_for(merge_requests)
@@ -150,19 +148,27 @@ module API
     end
 
     params do
-      requires :id, type: String, desc: 'The ID of a group'
+      requires :id, type: String, desc: 'The ID or URL-encoded path of the group owned by the authenticated user.'
     end
     resource :groups, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
-      desc 'Get a list of group merge requests' do
+      desc 'List group merge requests' do
+        detail 'Get all merge requests for this group and its subgroups.'
         success Entities::MergeRequestBasic
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[merge_requests]
       end
       params do
         use :merge_requests_params
-        optional :non_archived, type: Boolean, desc: 'Return merge requests from non archived projects',
-                                default: true
+        optional :non_archived, type: Boolean,
+                                default: true,
+                                desc: 'Returns merge requests from non archived projects only.'
       end
-      get ":id/merge_requests", feature_category: :code_review, urgency: :low do
-        validate_anonymous_search_access! if declared_params[:search].present?
+      get ":id/merge_requests", feature_category: :code_review_workflow, urgency: :low do
+        validate_search_rate_limit! if declared_params[:search].present?
         merge_requests = find_merge_requests(group_id: user_group.id, include_subgroups: true)
 
         present merge_requests, serializer_options_for(merge_requests).merge(group: user_group)
@@ -170,40 +176,66 @@ module API
     end
 
     params do
-      requires :id, type: String, desc: 'The ID of a project'
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project.'
     end
     resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       include TimeTrackingEndpoints
 
       helpers do
         params :optional_params do
-          optional :assignee_id, type: Integer, desc: 'The ID of a user to assign the merge request'
-          optional :assignee_ids, type: Array[Integer], coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce, desc: 'Comma-separated list of assignee ids'
-          optional :reviewer_ids, type: Array[Integer], coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce, desc: 'Comma-separated list of reviewer ids'
-          optional :description, type: String, desc: 'The description of the merge request'
-          optional :labels, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Comma-separated list of label names'
-          optional :add_labels, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Comma-separated list of label names'
-          optional :remove_labels, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Comma-separated list of label names'
-          optional :milestone_id, type: Integer, desc: 'The ID of a milestone to assign the merge request'
-          optional :remove_source_branch, type: Boolean, desc: 'Remove source branch when merging'
-          optional :allow_collaboration, type: Boolean, desc: 'Allow commits from members who can merge to the target branch'
+          optional :assignee_id, type: Integer, desc: 'Assignee user ID.'
+          optional :assignee_ids, type: Array[Integer],
+                                  coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce,
+                                  desc: 'The IDs of the users to assign the merge request to, as a comma-separated list. Set to 0 or provide an empty value to unassign all assignees.',
+                                  documentation: { is_array: true }
+          optional :reviewer_ids, type: Array[Integer],
+                                  coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce,
+                                  desc: 'The IDs of the users to review the merge request, as a comma-separated list. Set to 0 or provide an empty value to unassign all reviewers.',
+                                  documentation: { is_array: true }
+          optional :description, type: String, desc: 'Description of the merge request. Limited to 1,048,576 characters.'
+          optional :labels, type: Array[String],
+                            coerce_with: Validations::Types::CommaSeparatedToArray.coerce,
+                            desc: 'Comma-separated label names for a merge request. Set to an empty string to unassign all labels.',
+                            documentation: { is_array: true }
+          optional :add_labels, type: Array[String],
+                                coerce_with: Validations::Types::CommaSeparatedToArray.coerce,
+                                desc: 'Comma-separated label names to add to a merge request.',
+                                documentation: { is_array: true }
+          optional :remove_labels, type: Array[String],
+                                   coerce_with: Validations::Types::CommaSeparatedToArray.coerce,
+                                   desc: 'Comma-separated label names to remove from a merge request.',
+                                   documentation: { is_array: true }
+          optional :milestone_id, type: Integer, desc: 'The global ID of a milestone to assign the merge reques to.'
+          optional :remove_source_branch, type: Boolean, desc: 'Flag indicating if a merge request should remove the source branch when merging.'
+          optional :allow_collaboration, type: Boolean, desc: 'Allow commits from members who can merge to the target branch.'
           optional :allow_maintainer_to_push, type: Boolean, as: :allow_collaboration, desc: '[deprecated] See allow_collaboration'
-          optional :squash, type: Grape::API::Boolean, desc: 'When true, the commits will be squashed into a single commit on merge'
+          optional :squash, type: Grape::API::Boolean, desc: 'Squash commits into a single commit when merging.'
 
           use :optional_params_ee
         end
       end
 
-      desc 'List merge requests' do
+      desc 'List project merge requests' do
+        detail 'Get all merge requests for this project.'
         success Entities::MergeRequestBasic
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[merge_requests]
       end
       params do
         use :merge_requests_params
-        optional :iids, type: Array[Integer], coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce, desc: 'The IID array of merge requests'
+
+        optional :iids, type: Array[Integer],
+                        coerce_with: ::API::Validations::Types::CommaSeparatedToIntegerArray.coerce,
+                        desc: 'Returns the request having the given `iid`.',
+                        documentation: { is_array: true }
       end
-      get ":id/merge_requests", feature_category: :code_review, urgency: :low do
+      get ":id/merge_requests", feature_category: :code_review_workflow, urgency: :low do
         authorize! :read_merge_request, user_project
-        validate_anonymous_search_access! if declared_params[:search].present?
+        validate_search_rate_limit! if declared_params[:search].present?
 
         merge_requests = find_merge_requests(project_id: user_project.id)
 
@@ -212,21 +244,41 @@ module API
 
         recheck_mergeability_of(merge_requests: merge_requests) unless options[:skip_merge_status_recheck]
 
-        present_cached merge_requests, expires_in: 8.hours, cache_context: -> (mr) { "#{current_user&.cache_key}:#{mr.merge_status}" }, **options
+        present_cached merge_requests,
+          expires_in: 8.hours,
+          cache_context: -> (mr) do
+            [
+              current_user&.cache_key,
+              mr.merge_status,
+              mr.labels.map(&:cache_key),
+              mr.merge_request_assignees.map(&:cache_key),
+              mr.merge_request_reviewers.map(&:cache_key)
+            ].join(":")
+          end,
+          **options
       end
 
-      desc 'Create a merge request' do
+      desc 'Create merge request' do
+        detail 'Create a new merge request.'
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' },
+          { code: 409, message: 'Conflict' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
         success Entities::MergeRequest
+        tags %w[merge_requests]
       end
       params do
-        requires :title, type: String, desc: 'The title of the merge request'
-        requires :source_branch, type: String, desc: 'The source branch'
-        requires :target_branch, type: String, desc: 'The target branch'
+        requires :title, type: String, desc: 'The title of the merge request.'
+        requires :source_branch, type: String, desc: 'The source branch.'
+        requires :target_branch, type: String, desc: 'The target branch.'
         optional :target_project_id, type: Integer,
-                                     desc: 'The target project of the merge request defaults to the :id of the project'
+                                     desc: 'The target project of the merge request defaults to the :id of the project.'
         use :optional_params
       end
-      post ":id/merge_requests", feature_category: :code_review, urgency: :low do
+      post ":id/merge_requests", feature_category: :code_review_workflow, urgency: :low do
         Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/20770')
 
         authorize! :create_merge_request_from, user_project
@@ -242,30 +294,44 @@ module API
         present merge_request, with: Entities::MergeRequest, current_user: current_user, project: user_project
       end
 
-      desc 'Delete a merge request'
-      params do
-        requires :merge_request_iid, type: Integer, desc: 'The IID of a merge request'
+      desc 'Delete a merge request' do
+        detail 'Only for administrators and project owners. Deletes the merge request in question. '
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' },
+          { code: 412, message: 'Precondition failed' }
+        ]
+        tags %w[merge_requests]
       end
-      delete ":id/merge_requests/:merge_request_iid", feature_category: :code_review, urgency: :low do
+      params do
+        requires :merge_request_iid, type: Integer, desc: 'The internal ID of the merge request.'
+      end
+      delete ":id/merge_requests/:merge_request_iid", feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_project_merge_request(params[:merge_request_iid])
 
         authorize!(:destroy_merge_request, merge_request)
 
         destroy_conditionally!(merge_request) do |merge_request|
-          Issuable::DestroyService.new(project: user_project, current_user: current_user).execute(merge_request)
+          Issuable::DestroyService.new(container: user_project, current_user: current_user).execute(merge_request)
         end
       end
 
       params do
-        requires :merge_request_iid, type: Integer, desc: 'The IID of a merge request'
-        optional :render_html, type: Boolean, desc: 'Returns the description and title rendered HTML'
-        optional :include_diverged_commits_count, type: Boolean, desc: 'Returns the commits count behind the target branch'
-        optional :include_rebase_in_progress, type: Boolean, desc: 'Returns whether a rebase operation is ongoing '
+        requires :merge_request_iid, type: Integer, desc: 'The internal ID of the merge request.'
+        optional :render_html, type: Boolean, desc: 'If `true`, response includes rendered HTML for title and description.'
+        optional :include_diverged_commits_count, type: Boolean, desc: 'If `true`, response includes the commits behind the target branch.'
+        optional :include_rebase_in_progress, type: Boolean, desc: 'If `true`, response includes whether a rebase operation is in progress.'
       end
-      desc 'Get a single merge request' do
+      desc 'Get single merge request' do
+        detail 'Shows information about a single merge request. Note: the `changes_count` value in the response is a string, not an integer. This is because when an merge request has too many changes to display and store, it is capped at 1,000. In that case, the API returns the string `"1000+"` for the changes count.'
+
         success Entities::MergeRequest
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      get ':id/merge_requests/:merge_request_iid', feature_category: :code_review, urgency: :low do
+      get ':id/merge_requests/:merge_request_iid', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
         present merge_request,
@@ -278,10 +344,15 @@ module API
           include_rebase_in_progress: params[:include_rebase_in_progress]
       end
 
-      desc 'Get the participants of a merge request' do
+      desc 'Get single merge request participants' do
+        detail 'Get a list of merge request participants.'
         success Entities::UserBasic
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      get ':id/merge_requests/:merge_request_iid/participants', feature_category: :code_review, urgency: :low do
+      get ':id/merge_requests/:merge_request_iid/participants', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
         participants = ::Kaminari.paginate_array(merge_request.visible_participants(current_user))
@@ -289,10 +360,15 @@ module API
         present paginate(participants), with: Entities::UserBasic
       end
 
-      desc 'Get the reviewers of a merge request' do
+      desc 'Get single merge request reviewers' do
+        detail 'Get a list of merge request reviewers.'
         success Entities::MergeRequestReviewer
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      get ':id/merge_requests/:merge_request_iid/reviewers', feature_category: :code_review, urgency: :low do
+      get ':id/merge_requests/:merge_request_iid/reviewers', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
         reviewers = ::Kaminari.paginate_array(merge_request.merge_request_reviewers)
@@ -300,10 +376,15 @@ module API
         present paginate(reviewers), with: Entities::MergeRequestReviewer
       end
 
-      desc 'Get the commits of a merge request' do
+      desc 'Get single merge request commits' do
+        detail 'Get a list of merge request commits.'
         success Entities::Commit
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      get ':id/merge_requests/:merge_request_iid/commits', feature_category: :code_review, urgency: :low do
+      get ':id/merge_requests/:merge_request_iid/commits', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
         commits =
@@ -313,10 +394,15 @@ module API
         present commits, with: Entities::Commit
       end
 
-      desc 'Get the context commits of a merge request' do
+      desc 'List merge request context commits' do
+        detail 'Get a list of merge request context commits.'
         success Entities::Commit
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      get ':id/merge_requests/:merge_request_iid/context_commits', feature_category: :code_review, urgency: :high do
+      get ':id/merge_requests/:merge_request_iid/context_commits', feature_category: :code_review_workflow, urgency: :high do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
         context_commits =
           paginate(merge_request.merge_request_context_commits).map(&:to_commit)
@@ -325,12 +411,22 @@ module API
       end
 
       params do
-        requires :commits, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, allow_blank: false, desc: 'List of context commits sha'
+        requires :commits, type: Array[String],
+                           coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce,
+                           allow_blank: false,
+                           desc: 'The context commits’ SHA.',
+                           documentation: { is_array: true }
       end
-      desc 'create context commits of merge request' do
+      desc 'Create merge request context commits' do
+        detail 'Create a list of merge request context commits.'
         success Entities::Commit
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      post ':id/merge_requests/:merge_request_iid/context_commits', feature_category: :code_review do
+      post ':id/merge_requests/:merge_request_iid/context_commits', feature_category: :code_review_workflow do
         commit_ids = params[:commits]
 
         if commit_ids.size > CONTEXT_COMMITS_POST_LIMIT
@@ -352,10 +448,22 @@ module API
       end
 
       params do
-        requires :commits, type: Array[String], coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce, allow_blank: false, desc: 'List of context commits sha'
+        requires :commits, type: Array[String],
+                           coerce_with: ::API::Validations::Types::CommaSeparatedToArray.coerce,
+                           allow_blank: false,
+                           desc: 'The context commits’ SHA.',
+                           documentation: { is_array: true }
       end
-      desc 'remove context commits of merge request'
-      delete ':id/merge_requests/:merge_request_iid/context_commits', feature_category: :code_review do
+      desc 'Delete merge request context commits' do
+        detail 'Delete a list of merge request context commits.'
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
+      end
+      delete ':id/merge_requests/:merge_request_iid/context_commits', feature_category: :code_review_workflow do
         commit_ids = params[:commits]
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
@@ -371,10 +479,15 @@ module API
         status 204
       end
 
-      desc 'Show the merge request changes' do
+      desc 'Get single merge request changes' do
+        detail 'Shows information about the merge request including its files and changes.'
         success Entities::MergeRequestChanges
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
-      get ':id/merge_requests/:merge_request_iid/changes', feature_category: :code_review, urgency: :low do
+      get ':id/merge_requests/:merge_request_iid/changes', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
 
         present merge_request,
@@ -384,17 +497,46 @@ module API
           access_raw_diffs: to_boolean(params.fetch(:access_raw_diffs, false))
       end
 
-      desc 'Get the merge request pipelines' do
+      desc 'Get the merge request diffs' do
+        detail 'Get a list of merge request diffs.'
+        success Entities::Diff
+        failure [
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
+      end
+      params do
+        use :pagination
+      end
+      get ':id/merge_requests/:merge_request_iid/diffs', feature_category: :code_review_workflow, urgency: :low do
+        merge_request = find_merge_request_with_access(params[:merge_request_iid])
+
+        present paginate(merge_request.merge_request_diff.paginated_diffs(params[:page], params[:per_page])).diffs, with: Entities::Diff
+      end
+
+      desc 'Get single merge request pipelines' do
+        detail 'Get a list of merge request pipelines.'
         success Entities::Ci::PipelineBasic
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
       get ':id/merge_requests/:merge_request_iid/pipelines', urgency: :low, feature_category: :continuous_integration do
         pipelines = merge_request_pipelines_with_access
-
         present paginate(pipelines), with: Entities::Ci::PipelineBasic
       end
 
-      desc 'Create a pipeline for merge request' do
+      desc 'Create merge request pipeline' do
+        detail 'Create a new pipeline for a merge request. A pipeline created via this endpoint doesn’t run a regular branch/tag pipeline. It requires `.gitlab-ci.yml` to be configured with `only: [merge_requests]` to create jobs.'
         success ::API::Entities::Ci::Pipeline
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 404, message: 'Not found' },
+          { code: 405, message: 'Method not allowed' }
+        ]
+        tags %w[merge_requests]
       end
       post ':id/merge_requests/:merge_request_iid/pipelines', urgency: :low, feature_category: :continuous_integration do
         pipeline = ::MergeRequests::CreatePipelineService
@@ -412,20 +554,30 @@ module API
         end
       end
 
-      desc 'Update a merge request' do
+      desc 'Update merge request' do
+        detail 'Updates an existing merge request. You can change the target branch, title, or even close the merge request.'
         success Entities::MergeRequest
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 404, message: 'Not found' },
+          { code: 409, message: 'Conflict' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[merge_requests]
       end
       params do
-        optional :title, type: String, allow_blank: false, desc: 'The title of the merge request'
-        optional :target_branch, type: String, allow_blank: false, desc: 'The target branch'
-        optional :state_event, type: String, values: %w[close reopen],
-                               desc: 'Status of the merge request'
-        optional :discussion_locked, type: Boolean, desc: 'Whether the MR discussion is locked'
+        optional :title, type: String, allow_blank: false, desc: 'The title of the merge request.'
+        optional :target_branch, type: String, allow_blank: false, desc: 'The target branch.'
+        optional :state_event, type: String,
+                               values: %w[close reopen],
+                               desc: 'New state (close/reopen).'
+        optional :discussion_locked, type: Boolean,
+                                     desc: 'Flag indicating if the merge request’s discussion is locked. If the discussion is locked only project members can add, edit or resolve comments.'
 
         use :optional_params
         at_least_one_of(*::API::MergeRequests.update_params_at_least_one_of)
       end
-      put ':id/merge_requests/:merge_request_iid', feature_category: :code_review, urgency: :low do
+      put ':id/merge_requests/:merge_request_iid', feature_category: :code_review_workflow, urgency: :low do
         Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/20772')
 
         merge_request = find_merge_request_with_access(params.delete(:merge_request_iid), :update_merge_request)
@@ -445,25 +597,36 @@ module API
       end
 
       desc 'Merge a merge request' do
+        detail 'Accept and merge changes submitted with the merge request using this API.'
         success Entities::MergeRequest
+        failure [
+          { code: 400, message: 'Bad request' },
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' },
+          { code: 405, message: 'Method not allowed' },
+          { code: 409, message: 'Conflict' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[merge_requests]
       end
       params do
-        optional :merge_commit_message, type: String, desc: 'Custom merge commit message'
-        optional :squash_commit_message, type: String, desc: 'Custom squash commit message'
+        optional :merge_commit_message, type: String, desc: 'Custom merge commit message.'
+        optional :squash_commit_message, type: String, desc: 'Custom squash commit message.'
         optional :should_remove_source_branch, type: Boolean,
-                                               desc: 'When true, the source branch will be deleted if possible'
+                                               desc: 'If `true`, removes the source branch.'
         optional :merge_when_pipeline_succeeds, type: Boolean,
-                                                desc: 'When true, this merge request will be merged when the pipeline succeeds'
-        optional :sha, type: String, desc: 'When present, must have the HEAD SHA of the source branch'
-        optional :squash, type: Grape::API::Boolean, desc: 'When true, the commits will be squashed into a single commit on merge'
+                                                desc: 'If `true`, the merge request is merged when the pipeline succeeds.'
+        optional :sha, type: String, desc: 'If present, then this SHA must match the HEAD of the source branch, otherwise the merge fails.'
+        optional :squash, type: Grape::API::Boolean, desc: 'If `true`, the commits are squashed into a single commit on merge.'
       end
-      put ':id/merge_requests/:merge_request_iid/merge', feature_category: :code_review, urgency: :low do
+      put ':id/merge_requests/:merge_request_iid/merge', feature_category: :code_review_workflow, urgency: :low do
         Gitlab::QueryLimiting.disable!('https://gitlab.com/gitlab-org/gitlab/-/issues/4796')
 
         merge_request = find_project_merge_request(params[:merge_request_iid])
 
-        # Merge request can not be merged
-        # because user dont have permissions to push into target branch
+        # Merge request can not be merged because the user doesn't have
+        #   permissions to push into target branch
+        #
         unauthorized! unless merge_request.can_be_merged_by?(current_user)
 
         merge_when_pipeline_succeeds = to_boolean(params[:merge_when_pipeline_succeeds])
@@ -501,8 +664,14 @@ module API
         end
       end
 
-      desc 'Returns the up to date merge-ref HEAD commit'
-      get ':id/merge_requests/:merge_request_iid/merge_ref', feature_category: :code_review do
+      desc 'Returns the up to date merge-ref HEAD commit' do
+        detail 'Returns the up to date merge-ref HEAD commit'
+        failure [
+          { code: 400, message: 'Bad request' }
+        ]
+        tags %w[merge_requests]
+      end
+      get ':id/merge_requests/:merge_request_iid/merge_ref', feature_category: :code_review_workflow do
         merge_request = find_project_merge_request(params[:merge_request_iid])
 
         result = ::MergeRequests::MergeabilityCheckService.new(merge_request).execute(recheck: true)
@@ -514,10 +683,18 @@ module API
         end
       end
 
-      desc 'Cancel merge if "Merge When Pipeline Succeeds" is enabled' do
+      desc 'Cancel Merge When Pipeline Succeeds' do
+        detail 'Cancel merge if "Merge When Pipeline Succeeds" is enabled'
         success Entities::MergeRequest
+        failure [
+          { code: 401, message: 'Unauthorized' },
+          { code: 404, message: 'Not found' },
+          { code: 405, message: 'Method not allowed' },
+          { code: 406, message: 'Not acceptable' }
+        ]
+        tags %w[merge_requests]
       end
-      post ':id/merge_requests/:merge_request_iid/cancel_merge_when_pipeline_succeeds', feature_category: :code_review do
+      post ':id/merge_requests/:merge_request_iid/cancel_merge_when_pipeline_succeeds', feature_category: :code_review_workflow do
         merge_request = find_project_merge_request(params[:merge_request_iid])
 
         unauthorized! unless merge_request.can_cancel_auto_merge?(current_user)
@@ -525,16 +702,22 @@ module API
         AutoMergeService.new(merge_request.target_project, current_user).cancel(merge_request)
       end
 
-      desc 'Rebase the merge request against its target branch' do
-        detail 'This feature was added in GitLab 11.6'
+      desc 'Rebase a merge request' do
+        detail 'Automatically rebase the `source_branch` of the merge request against its `target_branch`. This feature was added in GitLab 11.6'
+        failure [
+          { code: 403, message: 'Forbidden' },
+          { code: 404, message: 'Not found' },
+          { code: 409, message: 'Conflict' }
+        ]
+        tags %w[merge_requests]
       end
       params do
-        optional :skip_ci, type: Boolean, desc: 'Do not create CI pipeline'
+        optional :skip_ci, type: Boolean, desc: 'Set to true to skip creating a CI pipeline.'
       end
-      put ':id/merge_requests/:merge_request_iid/rebase', feature_category: :code_review, urgency: :low do
+      put ':id/merge_requests/:merge_request_iid/rebase', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_project_merge_request(params[:merge_request_iid])
 
-        authorize_push_to_merge_request!(merge_request)
+        authorize_merge_request_rebase!(merge_request)
 
         merge_request.rebase_async(current_user.id, skip_ci: params[:skip_ci])
 
@@ -543,14 +726,18 @@ module API
       rescue ::MergeRequest::RebaseLockTimeout => e
         render_api_error!(e.message, 409)
       end
-
-      desc 'List issues that will be closed on merge' do
+      desc 'List issues that close on merge' do
+        detail 'Get all the issues that would be closed by merging the provided merge request.'
         success Entities::MRNote
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[merge_requests]
       end
       params do
         use :pagination
       end
-      get ':id/merge_requests/:merge_request_iid/closes_issues', feature_category: :code_review, urgency: :low do
+      get ':id/merge_requests/:merge_request_iid/closes_issues', feature_category: :code_review_workflow, urgency: :low do
         merge_request = find_merge_request_with_access(params[:merge_request_iid])
         issues = ::Kaminari.paginate_array(merge_request.visible_closing_issues_for(current_user))
         issues = paginate(issues)

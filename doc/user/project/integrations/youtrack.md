@@ -1,10 +1,10 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# YouTrack service **(FREE)**
+# YouTrack **(FREE)**
 
 JetBrains [YouTrack](https://www.jetbrains.com/youtrack/) is a web-based issue tracking and project
 management platform.
@@ -14,7 +14,7 @@ You can configure YouTrack as an
 
 To enable the YouTrack integration in a project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **YouTrack**.
 1. Select the checkbox under **Enable integration**.
@@ -28,8 +28,8 @@ After you configure and enable YouTrack, a link appears on the GitLab
 project pages. This link takes you to the appropriate YouTrack project.
 
 You can also disable [GitLab internal issue tracking](../issues/index.md) in this project.
-Learn more about the steps and consequences of disabling GitLab issues in
-[Sharing and permissions](../settings/index.md#configure-project-visibility-features-and-permissions).
+For more information about the steps and consequences of disabling GitLab issues, see
+[Configure project visibility, features, and permissions](../settings/index.md#configure-project-visibility-features-and-permissions).
 
 ## Reference YouTrack issues in GitLab
 

@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Clusters::AgentTokens do
+RSpec.describe API::Clusters::AgentTokens, feature_category: :kubernetes_management do
   let_it_be(:agent) { create(:cluster_agent) }
   let_it_be(:agent_token_one) { create(:cluster_agent_token, agent: agent) }
-  let_it_be(:agent_token_two) { create(:cluster_agent_token, agent: agent) }
+  let_it_be(:revoked_agent_token) { create(:cluster_agent_token, :revoked, agent: agent) }
   let_it_be(:project) { agent.project }
   let_it_be(:user) { agent.created_by_user }
   let_it_be(:unauthorized_user) { create(:user) }
@@ -17,7 +17,7 @@ RSpec.describe API::Clusters::AgentTokens do
 
   describe 'GET /projects/:id/cluster_agents/:agent_id/tokens' do
     context 'with authorized user' do
-      it 'returns tokens' do
+      it 'returns tokens regardless of status' do
         get api("/projects/#{project.id}/cluster_agents/#{agent.id}/tokens", user)
 
         aggregate_failures "testing response" do
@@ -27,9 +27,15 @@ RSpec.describe API::Clusters::AgentTokens do
           expect(json_response.count).to eq(2)
           expect(json_response.first['name']).to eq(agent_token_one.name)
           expect(json_response.first['agent_id']).to eq(agent.id)
-          expect(json_response.second['name']).to eq(agent_token_two.name)
+          expect(json_response.second['name']).to eq(revoked_agent_token.name)
           expect(json_response.second['agent_id']).to eq(agent.id)
         end
+      end
+
+      it 'returns a not_found error if agent_id does not exist' do
+        get api("/projects/#{project.id}/cluster_agents/#{non_existing_record_id}/tokens", user)
+
+        expect(response).to have_gitlab_http_status(:not_found)
       end
     end
 
@@ -72,6 +78,27 @@ RSpec.describe API::Clusters::AgentTokens do
           expect(json_response['name']).to eq(agent_token_one.name)
           expect(json_response['agent_id']).to eq(agent.id)
         end
+      end
+
+      it 'returns an agent token that is revoked' do
+        get api("/projects/#{project.id}/cluster_agents/#{agent.id}/tokens/#{revoked_agent_token.id}", user)
+
+        aggregate_failures "testing response" do
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response).to match_response_schema('public_api/v4/agent_token')
+          expect(json_response['id']).to eq(revoked_agent_token.id)
+          expect(json_response['name']).to eq(revoked_agent_token.name)
+          expect(json_response['agent_id']).to eq(agent.id)
+          expect(json_response['status']).to eq('revoked')
+        end
+      end
+
+      it 'returns a 404 if agent does not exist' do
+        path = "/projects/#{project.id}/cluster_agents/#{non_existing_record_id}/tokens/#{non_existing_record_id}"
+
+        get api(path, user)
+
+        expect(response).to have_gitlab_http_status(:not_found)
       end
 
       it 'returns a 404 error if agent token id is not available' do
@@ -152,6 +179,21 @@ RSpec.describe API::Clusters::AgentTokens do
 
       expect(response).to have_gitlab_http_status(:no_content)
       expect(agent_token_one.reload).to be_revoked
+    end
+
+    it 'returns a success response when revoking an already revoked agent token', :aggregate_failures do
+      delete api("/projects/#{project.id}/cluster_agents/#{agent.id}/tokens/#{revoked_agent_token.id}", user)
+
+      expect(response).to have_gitlab_http_status(:no_content)
+      expect(revoked_agent_token.reload).to be_revoked
+    end
+
+    it 'returns a 404 error when given agent_id does not exist' do
+      path = "/projects/#{project.id}/cluster_agents/#{non_existing_record_id}/tokens/#{non_existing_record_id}"
+
+      delete api(path, user)
+
+      expect(response).to have_gitlab_http_status(:not_found)
     end
 
     it 'returns a 404 error when revoking non existent agent token' do

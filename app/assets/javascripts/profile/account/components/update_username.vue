@@ -1,7 +1,8 @@
 <script>
-import { GlSafeHtmlDirective as SafeHtml, GlButton, GlModal, GlModalDirective } from '@gitlab/ui';
+import { GlButton, GlModal, GlModalDirective } from '@gitlab/ui';
 import { escape } from 'lodash';
-import createFlash from '~/flash';
+import SafeHtml from '~/vue_shared/directives/safe_html';
+import { createAlert, VARIANT_INFO } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { __, s__, sprintf } from '~/locale';
 
@@ -85,12 +86,12 @@ Please update your Git repository remotes as soon as possible.`),
       return axios
         .put(this.actionUrl, putData)
         .then((result) => {
-          createFlash({ message: result.data.message, type: 'notice' });
+          createAlert({ message: result.data.message, variant: VARIANT_INFO });
           this.username = username;
           this.isRequestPending = false;
         })
         .catch((error) => {
-          createFlash({
+          createAlert({
             message:
               error?.response?.data?.message ||
               s__('Profiles|An error occurred while updating your username, please try again.'),
@@ -116,6 +117,7 @@ Please update your Git repository remotes as soon as possible.`),
         <input
           :id="$options.inputId"
           v-model="newUsername"
+          data-testid="new-username-input"
           :disabled="isRequestPending"
           class="form-control"
           required="required"

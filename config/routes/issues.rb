@@ -14,6 +14,10 @@ resources :issues, concerns: :awardable, constraints: { id: /\d+/ } do
     post :create_merge_request
     get :discussions, format: :json
     get '/designs(/*vueroute)', to: 'issues#designs', as: :designs, format: false
+    get '/:incident_tab',
+      action: :show,
+      as: :incident_issue,
+      constraints: { incident_tab: /timeline|metrics|alerts/ }
   end
 
   collection do
@@ -21,6 +25,13 @@ resources :issues, concerns: :awardable, constraints: { id: /\d+/ } do
     post :bulk_update
     post :import_csv
     post :export_csv
+
+    scope :incident do
+      get '/:id(/:incident_tab)',
+        to: 'incidents#show',
+        as: :incident,
+        constraints: { incident_tab: /timeline|metrics|alerts/ }
+    end
   end
 
   resources :issue_links, only: [:index, :create, :destroy], as: 'links', path: 'links'

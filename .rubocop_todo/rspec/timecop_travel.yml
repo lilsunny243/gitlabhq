@@ -1,5 +1,0 @@
----
-RSpec/TimecopTravel:
-  Exclude:
-  - spec/workers/concerns/reenqueuer_spec.rb
-  - qa/spec/support/repeater_spec.rb

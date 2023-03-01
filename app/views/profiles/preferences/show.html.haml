@@ -1,4 +1,5 @@
 - page_title _('Preferences')
+- add_page_specific_style 'page_bundles/profiles/preferences'
 - @content_class = "limit-container-width" unless fluid_layout
 - user_theme_id = Gitlab::Themes.for_user(@user).id
 - user_color_schema_id = Gitlab::ColorSchemes.for_user(@user).id
@@ -72,22 +73,17 @@
       .form-group
         = f.label :layout, class: 'label-bold' do
           = s_('Preferences|Layout width')
-        = f.select :layout, layout_choices, {}, class: 'select2'
+        = f.select :layout, layout_choices, {}, class: 'gl-form-select custom-select'
         .form-text.text-muted
           = s_('Preferences|Choose between fixed (max. 1280px) and fluid (%{percentage}) application layout.').html_safe % { percentage: '100%' }
-      .form-group
-        = f.label :dashboard, class: 'label-bold' do
-          = s_('Preferences|Homepage content')
-        = f.select :dashboard, dashboard_choices, {}, class: 'select2'
-        .form-text.text-muted
-          = s_('Preferences|Choose what content you want to see on your homepage.')
+      .js-listbox-input{ data: { label: s_('Preferences|Dashboard'), description: s_('Preferences|Choose what content you want to see by default on your dashboard.'), name: 'user[dashboard]', items: dashboard_choices.to_json, value: current_user.dashboard } }
 
       = render_if_exists 'profiles/preferences/group_overview_selector', f: f # EE-specific
 
       .form-group
         = f.label :project_view, class: 'label-bold' do
           = s_('Preferences|Project overview content')
-        = f.select :project_view, project_view_choices, {}, class: 'select2'
+        = f.select :project_view, project_view_choices, {}, class: 'gl-form-select custom-select'
         .form-text.text-muted
           = s_('Preferences|Choose what content you want to see on a project’s overview page.')
       .form-group
@@ -102,7 +98,11 @@
         - supported_characters = %w(" ' ` &#40; [ { < * _).map { |char| "<code>#{char}</code>" }.join(', ')
         = f.gitlab_ui_checkbox_component :markdown_surround_selection,
           s_('Preferences|Surround text selection when typing quotes or brackets'),
-          help_text: sprintf(s_( "Preferences|When you type in a description or comment box, selected text is surrounded by the corresponding character after typing one of the following characters: %{supported_characters}."), { supported_characters: supported_characters }).html_safe
+          help_text: sprintf(s_("Preferences|When you type in a description or comment box, selected text is surrounded by the corresponding character after typing one of the following characters: %{supported_characters}."), { supported_characters: supported_characters }).html_safe
+      .form-group
+        = f.gitlab_ui_checkbox_component :markdown_automatic_lists,
+          s_('Preferences|Automatically add new list items'),
+          help_text: html_escape(s_('Preferences|When you type in a description or comment box, pressing %{kbdOpen}Enter%{kbdClose} in a list adds a new item below.')) % { kbdOpen: '<kbd>'.html_safe, kbdClose: '</kbd>'.html_safe }
 
       .form-group
         = f.label :tab_width, s_('Preferences|Tab width'), class: 'label-bold'
@@ -125,23 +125,33 @@
         = succeed '.' do
           = link_to _('Learn more'), help_page_path('user/profile/preferences', anchor: 'localization'), target: '_blank', rel: 'noopener noreferrer'
     .col-lg-8
-      .form-group
-        = f.label :preferred_language, class: 'label-bold' do
-          = _('Language')
-        = f.select :preferred_language, language_choices, {}, class: 'select2'
-        .form-text.text-muted
-          = s_('Preferences|This feature is experimental and translations are not yet complete.')
-          %p
-            = link_to help_page_url('development/i18n/translation'), class: 'text-nowrap', target: '_blank', rel: 'noopener noreferrer' do
-              = _("Help translate GitLab into your language")
-              %span{ aria: { label: _('Open new window') } }
-                = sprite_icon('external-link')
+      .js-listbox-input{ data: { label: _('Language'), description: s_('Preferences|This feature is experimental and translations are not yet complete.'), name: 'user[preferred_language]', items: language_choices.to_json, value: current_user.preferred_language } }
+      %p.gl-mt-n5
+        = link_to help_page_url('development/i18n/translation'), class: 'text-nowrap', target: '_blank', rel: 'noopener noreferrer' do
+          = _("Help translate GitLab into your language")
+          %span{ aria: { label: _('Open new window') } }
+            = sprite_icon('external-link')
       .form-group
         = f.label :first_day_of_week, class: 'label-bold' do
           = _('First day of the week')
-        = f.select :first_day_of_week, first_day_of_week_choices_with_default, {}, class: 'select2'
+        = f.select :first_day_of_week, first_day_of_week_choices_with_default, {}, class: 'gl-form-select custom-select'
     .col-sm-12
       %hr
+  - if Feature.enabled?(:vscode_web_ide, current_user)
+    .row.js-preferences-form.js-search-settings-section
+      .col-lg-4.profile-settings-sidebar#web-ide
+        %h4.gl-mt-0
+          = s_('Preferences|Web IDE')
+        %p
+          = s_('Preferences|The Web IDE Beta is the default Web IDE experience.')
+          = link_to _('Learn more'), help_page_path('user/project/web_ide_beta/index.md'), target: '_blank', rel: 'noopener noreferrer'
+      .col-lg-8
+        .form-group
+          = f.gitlab_ui_checkbox_component :use_legacy_web_ide,
+            s_('Preferences|Opt out of the Web IDE Beta'),
+            help_text: s_('Preferences|The Web IDE remains available alongside the Beta.')
+      .col-sm-12
+        %hr
   .row.js-preferences-form.js-search-settings-section
     .col-lg-4.profile-settings-sidebar#time-preferences
       %h4.gl-mt-0

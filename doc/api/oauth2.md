@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # OAuth 2.0 identity provider API **(FREE)**
@@ -37,7 +37,7 @@ For example, the `X-Requested-With` header can't be used for preflight requests.
 
 GitLab supports the following authorization flows:
 
-- **Authorization code with [Proof Key for Code Exchange (PKCE)](https://tools.ietf.org/html/rfc7636):**
+- **Authorization code with [Proof Key for Code Exchange (PKCE)](https://www.rfc-editor.org/rfc/rfc7636):**
   Most secure. Without PKCE, you'd have to include client secrets on mobile clients,
   and is recommended for both client and server apps.
 - **Authorization code:** Secure and common flow. Recommended option for secure
@@ -48,7 +48,7 @@ GitLab supports the following authorization flows:
 The draft specification for [OAuth 2.1](https://oauth.net/2.1/) specifically omits both the
 Implicit grant and Resource Owner Password Credentials flows.
 
-Refer to the [OAuth RFC](https://tools.ietf.org/html/rfc6749) to find out
+Refer to the [OAuth RFC](https://www.rfc-editor.org/rfc/rfc6749) to find out
 how all those flows work and pick the right one for your use case.
 
 Authorization code (with or without PKCE) flow requires `application` to be
@@ -59,11 +59,11 @@ resources which the `application` can access. Upon creation, you obtain the
 **must be kept secure**. It is also advantageous to keep the _Application ID_
 secret when your application architecture allows.
 
-For a list of scopes in GitLab, see [the provider documentation](../integration/oauth_provider.md#authorized-applications).
+For a list of scopes in GitLab, see [the provider documentation](../integration/oauth_provider.md#view-all-authorized-applications).
 
 ### Prevent CSRF attacks
 
-To [protect redirect-based flows](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-13.html#rec_redirect),
+To [protect redirect-based flows](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics-13#section-3.1),
 the OAuth specification recommends the use of "One-time use CSRF tokens carried in the state
 parameter, which are securely bound to the user agent", with each request to the
 `/oauth/authorize` endpoint. This can prevent
@@ -75,15 +75,15 @@ For production, please use HTTPS for your `redirect_uri`.
 For development, GitLab allows insecure HTTP redirect URIs.
 
 As OAuth 2.0 bases its security entirely on the transport layer, you should not use unprotected
-URIs. For more information, see the [OAuth 2.0 RFC](https://tools.ietf.org/html/rfc6749#section-3.1.2.1)
-and the [OAuth 2.0 Threat Model RFC](https://tools.ietf.org/html/rfc6819#section-4.4.2.1).
+URIs. For more information, see the [OAuth 2.0 RFC](https://www.rfc-editor.org/rfc/rfc6749#section-3.1.2.1)
+and the [OAuth 2.0 Threat Model RFC](https://www.rfc-editor.org/rfc/rfc6819#section-4.4.2.1).
 
 In the following sections you can find detailed instructions on how to obtain
 authorization with each flow.
 
 ### Authorization code with Proof Key for Code Exchange (PKCE)
 
-The [PKCE RFC](https://tools.ietf.org/html/rfc7636#section-1.1) includes a
+The [PKCE RFC](https://www.rfc-editor.org/rfc/rfc7636#section-1.1) includes a
 detailed flow description, from authorization request through access token.
 The following steps describe our implementation of the flow.
 
@@ -116,7 +116,7 @@ Before starting the flow, generate the `STATE`, the `CODE_VERIFIER` and the `COD
 
    This page asks the user to approve the request from the app to access their
    account based on the scopes specified in `REQUESTED_SCOPES`. The user is then
-   redirected back to the specified `REDIRECT_URI`. The [scope parameter](../integration/oauth_provider.md#authorized-applications)
+   redirected back to the specified `REDIRECT_URI`. The [scope parameter](../integration/oauth_provider.md#view-all-authorized-applications)
    is a space-separated list of scopes associated with the user.
    For example,`scope=read_user+profile` requests the `read_user` and `profile` scopes.
    The redirect includes the authorization `code`, for example:
@@ -177,7 +177,7 @@ You can now make requests to the API with the access token.
 ### Authorization code flow
 
 NOTE:
-Check the [RFC spec](https://tools.ietf.org/html/rfc6749#section-4.1) for a
+Check the [RFC spec](https://www.rfc-editor.org/rfc/rfc6749#section-4.1) for a
 detailed flow description.
 
 The authorization code flow is essentially the same as
@@ -196,7 +196,7 @@ be used as a CSRF token.
 
    This page asks the user to approve the request from the app to access their
    account based on the scopes specified in `REQUESTED_SCOPES`. The user is then
-   redirected back to the specified `REDIRECT_URI`. The [scope parameter](../integration/oauth_provider.md#authorized-applications)
+   redirected back to the specified `REDIRECT_URI`. The [scope parameter](../integration/oauth_provider.md#view-all-authorized-applications)
    is a space-separated list of scopes associated with the user.
    For example,`scope=read_user+profile` requests the `read_user` and `profile` scopes.
    The redirect includes the authorization `code`, for example:
@@ -257,7 +257,7 @@ You can now make requests to the API with the access token returned.
 ### Resource owner password credentials flow
 
 NOTE:
-Check the [RFC spec](https://tools.ietf.org/html/rfc6749#section-4.3) for a
+Check the [RFC spec](https://www.rfc-editor.org/rfc/rfc6749#section-4.3) for a
 detailed flow description.
 
 NOTE:
@@ -352,9 +352,13 @@ curl --header "Authorization: Bearer OAUTH-TOKEN" "https://gitlab.example.com/ap
 
 ## Access Git over HTTPS with `access token`
 
-A token with [scope](../integration/oauth_provider.md#authorized-applications)
+A token with [scope](../integration/oauth_provider.md#view-all-authorized-applications)
 `read_repository` or `write_repository` can access Git over HTTPS. Use the token as the password.
-The username must be `oauth2`, not your username.
+The username must be `oauth2`, not your username:
+
+```plaintext
+https://oauth2:<your_access_token>@gitlab.example.com/project_path/project_name.git
+```
 
 ## Retrieve the token information
 
@@ -413,7 +417,7 @@ Standard OAuth 2.0 tokens support different degrees of access to GitLab
 registries, as they:
 
 - Do not allow users to authenticate to:
-  - The GitLab [Container registry](../user/packages/container_registry/index.md#authenticate-with-the-container-registry).
+  - The GitLab [Container registry](../user/packages/container_registry/authenticate_with_container_registry.md).
   - Packages listed in the GitLab [Package registry](../user/packages/package_registry/index.md).
 - Allow users to get, list, and delete registries through
   the [Container registry API](container_registry.md).

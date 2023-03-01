@@ -139,8 +139,12 @@ module Gitlab
 
     private
 
+    def cache
+      Gitlab::Redis::RepositoryCache
+    end
+
     def with(&blk)
-      Gitlab::Redis::Cache.with(&blk) # rubocop:disable CodeReuse/ActiveRecord
+      cache.with(&blk) # rubocop:disable CodeReuse/ActiveRecord
     end
 
     # Take a hash and convert both keys and values to strings, for insertion into Redis.

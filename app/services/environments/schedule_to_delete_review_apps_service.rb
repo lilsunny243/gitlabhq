@@ -58,7 +58,7 @@ module Environments
       else
         result.set_status(
           :bad_request,
-          error_message: "Failed to authorize deletions for some or all of the environments. Ask someone with more permissions to delete the environments."
+          error_message: "No environments found for scheduled deletion. Either your query did not match any environments (default parameters match environments that are 30 days or older), or you have insufficient permissions to delete matching environments."
         )
 
         result.set_unprocessable_entries(failed)
@@ -68,7 +68,7 @@ module Environments
     end
 
     def mark_for_deletion(deletable_environments)
-      Environment.for_id(deletable_environments).schedule_to_delete
+      Environment.id_in(deletable_environments).schedule_to_delete
     end
 
     class Result

@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # How Git object deduplication works in GitLab
@@ -171,7 +171,7 @@ There are three different things that can go wrong here.
 
 #### 1. SQL says repository A belongs to pool P but Gitaly says A has no alternate objects
 
-In this case, we miss out on disk space savings but all RPC's on A
+In this case, we miss out on disk space savings but all RPCs on A
 itself function fine. The next time garbage collection runs on A,
 the alternates connection gets established in Gitaly. This is done by
 `Projects::GitDeduplicationService` in GitLab Rails.

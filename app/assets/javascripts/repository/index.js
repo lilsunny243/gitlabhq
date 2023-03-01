@@ -2,14 +2,16 @@ import { GlButton } from '@gitlab/ui';
 import Vue from 'vue';
 import Vuex from 'vuex';
 import { parseBoolean } from '~/lib/utils/common_utils';
-import { escapeFileUrl } from '~/lib/utils/url_utility';
+import { escapeFileUrl, visitUrl } from '~/lib/utils/url_utility';
 import { __ } from '~/locale';
 import initWebIdeLink from '~/pages/projects/shared/web_ide_link';
 import PerformancePlugin from '~/performance/vue_performance_plugin';
 import createStore from '~/code_navigation/store';
+import RefSelector from '~/ref/components/ref_selector.vue';
 import App from './components/app.vue';
 import Breadcrumbs from './components/breadcrumbs.vue';
 import DirectoryDownloadLinks from './components/directory_download_links.vue';
+import ForkInfo from './components/fork_info.vue';
 import LastCommit from './components/last_commit.vue';
 import BlobControls from './components/blob_controls.vue';
 import apolloProvider from './graphql';
@@ -20,6 +22,7 @@ import refsQuery from './queries/ref.query.graphql';
 import createRouter from './router';
 import { updateFormAction } from './utils/dom';
 import { setTitle } from './utils/title';
+import { generateRefDestinationPath } from './utils/ref_switcher_utils';
 
 Vue.use(Vuex);
 Vue.use(PerformancePlugin, {
@@ -61,6 +64,30 @@ export default function setupVueRepositoryList() {
     },
   });
 
+  const initForkInfo = () => {
+    const forkEl = document.getElementById('js-fork-info');
+    if (!forkEl) {
+      return null;
+    }
+    const { sourceName, sourcePath, aheadComparePath, behindComparePath } = forkEl.dataset;
+    return new Vue({
+      el: forkEl,
+      apolloProvider,
+      render(h) {
+        return h(ForkInfo, {
+          props: {
+            projectPath,
+            selectedBranch: ref,
+            sourceName,
+            sourcePath,
+            aheadComparePath,
+            behindComparePath,
+          },
+        });
+      },
+    });
+  };
+
   const initLastCommitApp = () =>
     new Vue({
       el: document.getElementById('js-last-commit'),
@@ -89,9 +116,35 @@ export default function setupVueRepositoryList() {
       },
     });
 
-  initLastCommitApp();
+  const initRefSwitcher = () => {
+    const refSwitcherEl = document.getElementById('js-tree-ref-switcher');
 
+    if (!refSwitcherEl) return false;
+
+    const { projectId, projectRootPath } = refSwitcherEl.dataset;
+
+    return new Vue({
+      el: refSwitcherEl,
+      render(createElement) {
+        return createElement(RefSelector, {
+          props: {
+            projectId,
+            value: ref,
+          },
+          on: {
+            input(selectedRef) {
+              visitUrl(generateRefDestinationPath(projectRootPath, ref, selectedRef));
+            },
+          },
+        });
+      },
+    });
+  };
+
+  initLastCommitApp();
   initBlobControlsApp();
+  initForkInfo();
+  initRefSwitcher();
 
   router.afterEach(({ params: { path } }) => {
     setTitle(path, ref, fullName);

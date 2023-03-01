@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe "Projects > Settings > Pipelines settings" do
+RSpec.describe "Projects > Settings > Pipelines settings", feature_category: :projects do
   let(:project) { create(:project) }
   let(:user) { create(:user) }
   let(:role) { :developer }
@@ -146,30 +146,6 @@ RSpec.describe "Projects > Settings > Pipelines settings" do
               expect(find_field('project_auto_devops_attributes_enabled')).to be_checked
             end
           end
-        end
-      end
-    end
-
-    describe 'runners registration token' do
-      let!(:token) { project.runners_token }
-
-      before do
-        visit project_settings_ci_cd_path(project)
-      end
-
-      it 'has a registration token' do
-        expect(page.find('#registration_token')).to have_content(token)
-      end
-
-      describe 'reload registration token' do
-        let(:page_token) { find('#registration_token').text }
-
-        before do
-          click_button 'Reset registration token'
-        end
-
-        it 'changes registration token' do
-          expect(page_token).not_to eq token
         end
       end
     end

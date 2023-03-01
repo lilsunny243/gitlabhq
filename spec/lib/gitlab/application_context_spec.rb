@@ -44,7 +44,7 @@ RSpec.describe Gitlab::ApplicationContext do
   describe '.push' do
     it 'passes the expected context on to labkit' do
       fake_proc = duck_type(:call)
-      expected_context = { user: fake_proc, client_id: fake_proc }
+      expected_context = { user: fake_proc, user_id: fake_proc, client_id: fake_proc }
 
       expect(Labkit::Context).to receive(:push).with(expected_context)
 
@@ -108,14 +108,16 @@ RSpec.describe Gitlab::ApplicationContext do
       context = described_class.new(user: -> { user }, project: -> { project }, namespace: -> { subgroup })
 
       expect(result(context))
-        .to include(user: user.username, project: project.full_path, root_namespace: namespace.full_path)
+        .to include(user: user.username, user_id: user.id, project: project.full_path,
+                    root_namespace: namespace.full_path)
     end
 
     it 'correctly loads the expected values when passed directly' do
       context = described_class.new(user: user, project: project, namespace: subgroup)
 
       expect(result(context))
-        .to include(user: user.username, project: project.full_path, root_namespace: namespace.full_path)
+        .to include(user: user.username, user_id: user.id, project: project.full_path,
+                    root_namespace: namespace.full_path)
     end
 
     it 'falls back to a projects namespace when a project is passed but no namespace' do
@@ -139,7 +141,8 @@ RSpec.describe Gitlab::ApplicationContext do
     describe 'setting the client' do
       let_it_be(:remote_ip) { '127.0.0.1' }
       let_it_be(:runner) { create(:ci_runner) }
-      let_it_be(:options) { { remote_ip: remote_ip, runner: runner, user: user } }
+      let_it_be(:job) { create(:ci_build, :pending, :queued, user: user, project: project) }
+      let_it_be(:options) { { remote_ip: remote_ip, runner: runner, user: user, job: job } }
 
       using RSpec::Parameterized::TableSyntax
 
@@ -148,6 +151,7 @@ RSpec.describe Gitlab::ApplicationContext do
         [:remote_ip, :runner]        | :runner
         [:remote_ip, :runner, :user] | :runner
         [:remote_ip, :user]          | :user
+        [:job]                       | :user
       end
 
       with_them do

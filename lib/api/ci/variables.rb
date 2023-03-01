@@ -8,17 +8,18 @@ module API
       before { authenticate! }
       before { authorize! :admin_build, user_project }
 
-      feature_category :pipeline_authoring
+      feature_category :pipeline_composition
 
       helpers ::API::Helpers::VariablesHelpers
 
       params do
-        requires :id, type: String, desc: 'The ID of a project'
+        requires :id, types: [String, Integer], desc: 'The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project owned by the authenticated user'
       end
 
       resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
         desc 'Get project variables' do
           success Entities::Ci::Variable
+          tags %w[ci_variables]
         end
         params do
           use :pagination
@@ -28,11 +29,16 @@ module API
           present paginate(variables), with: Entities::Ci::Variable
         end
 
-        desc 'Get a specific variable from a project' do
+        desc 'Get the details of a single variable from a project' do
           success Entities::Ci::Variable
+          failure [{ code: 404, message: 'Variable Not Found' }]
+          tags %w[ci_variables]
         end
         params do
-          requires :key, type: String, desc: 'The key of the variable'
+          requires :key, type: String, desc: 'The key of a variable'
+          optional :filter, type: Hash, desc: 'Available filters: [environment_scope]. Example: filter[environment_scope]=production' do
+            optional :environment_scope, type: String, desc: 'The environment scope of a variable'
+          end
         end
         # rubocop: disable CodeReuse/ActiveRecord
         get ':id/variables/:key', urgency: :low do
@@ -45,13 +51,17 @@ module API
 
         desc 'Create a new variable in a project' do
           success Entities::Ci::Variable
+          failure [{ code: 400, message: '400 Bad Request' }]
+          tags %w[ci_variables]
         end
+        route_setting :log_safety, { safe: %w[key], unsafe: %w[value] }
         params do
-          requires :key, type: String, desc: 'The key of the variable'
-          requires :value, type: String, desc: 'The value of the variable'
+          requires :key, type: String, desc: 'The key of a variable'
+          requires :value, type: String, desc: 'The value of a variable'
           optional :protected, type: Boolean, desc: 'Whether the variable is protected'
           optional :masked, type: Boolean, desc: 'Whether the variable is masked'
-          optional :variable_type, type: String, values: ::Ci::Variable.variable_types.keys, desc: 'The type of variable, must be one of env_var or file. Defaults to env_var'
+          optional :raw, type: Boolean, desc: 'Whether the variable will be expanded'
+          optional :variable_type, type: String, values: ::Ci::Variable.variable_types.keys, desc: 'The type of the variable. Default: env_var'
           optional :environment_scope, type: String, desc: 'The environment_scope of the variable'
         end
         post ':id/variables' do
@@ -70,15 +80,21 @@ module API
 
         desc 'Update an existing variable from a project' do
           success Entities::Ci::Variable
+          failure [{ code: 404, message: 'Variable Not Found' }]
+          tags %w[ci_variables]
         end
+        route_setting :log_safety, { safe: %w[key], unsafe: %w[value] }
         params do
-          optional :key, type: String, desc: 'The key of the variable'
-          optional :value, type: String, desc: 'The value of the variable'
+          optional :key, type: String, desc: 'The key of a variable'
+          optional :value, type: String, desc: 'The value of a variable'
           optional :protected, type: Boolean, desc: 'Whether the variable is protected'
           optional :masked, type: Boolean, desc: 'Whether the variable is masked'
-          optional :variable_type, type: String, values: ::Ci::Variable.variable_types.keys, desc: 'The type of variable, must be one of env_var or file'
-          optional :environment_scope, type: String, desc: 'The environment_scope of the variable'
-          optional :filter, type: Hash, desc: 'Available filters: [environment_scope]. Example: filter[environment_scope]=production'
+          optional :environment_scope, type: String, desc: 'The environment_scope of a variable'
+          optional :raw, type: Boolean, desc: 'Whether the variable will be expanded'
+          optional :variable_type, type: String, values: ::Ci::Variable.variable_types.keys, desc: 'The type of the variable. Default: env_var'
+          optional :filter, type: Hash, desc: 'Available filters: [environment_scope]. Example: filter[environment_scope]=production' do
+            optional :environment_scope, type: String, desc: 'The environment scope of a variable'
+          end
         end
         # rubocop: disable CodeReuse/ActiveRecord
         put ':id/variables/:key' do
@@ -101,10 +117,14 @@ module API
 
         desc 'Delete an existing variable from a project' do
           success Entities::Ci::Variable
+          failure [{ code: 404, message: 'Variable Not Found' }]
+          tags %w[ci_variables]
         end
         params do
-          requires :key, type: String, desc: 'The key of the variable'
-          optional :filter, type: Hash, desc: 'Available filters: [environment_scope]. Example: filter[environment_scope]=production'
+          requires :key, type: String, desc: 'The key of a variable'
+          optional :filter, type: Hash, desc: 'Available filters: [environment_scope]. Example: filter[environment_scope]=production' do
+            optional :environment_scope, type: String, desc: 'The environment scope of the variable'
+          end
         end
         # rubocop: disable CodeReuse/ActiveRecord
         delete ':id/variables/:key' do

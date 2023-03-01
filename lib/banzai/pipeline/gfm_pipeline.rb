@@ -17,10 +17,10 @@ module Banzai
           Filter::SanitizationFilter,
           Filter::KrokiFilter,
           Filter::AssetProxyFilter,
-          Filter::SyntaxHighlightFilter,
           Filter::MathFilter,
           Filter::ColorFilter,
           Filter::MermaidFilter,
+          Filter::AttributesFilter,
           Filter::VideoLinkFilter,
           Filter::AudioLinkFilter,
           Filter::ImageLazyLoadFilter,
@@ -37,7 +37,9 @@ module Banzai
           Filter::CustomEmojiFilter,
           Filter::TaskListFilter,
           Filter::InlineDiffFilter,
-          Filter::SetDirectionFilter
+          Filter::InlineObservabilityFilter,
+          Filter::SetDirectionFilter,
+          Filter::SyntaxHighlightFilter # this filter should remain at the end
         ]
       end
 

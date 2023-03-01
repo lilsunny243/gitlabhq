@@ -36,14 +36,15 @@ RSpec.describe Gitlab::Database::Partitioning::SlidingListStrategy do
 
   describe '#current_partitions' do
     it 'detects both partitions' do
-      expect(strategy.current_partitions).to eq([
-        Gitlab::Database::Partitioning::SingleNumericListPartition.new(
-          table_name, 1, partition_name: '_test_partitioned_test_1'
-        ),
-        Gitlab::Database::Partitioning::SingleNumericListPartition.new(
-          table_name, 2, partition_name: '_test_partitioned_test_2'
-        )
-      ])
+      expect(strategy.current_partitions).to eq(
+        [
+          Gitlab::Database::Partitioning::SingleNumericListPartition.new(
+            table_name, 1, partition_name: '_test_partitioned_test_1'
+          ),
+          Gitlab::Database::Partitioning::SingleNumericListPartition.new(
+            table_name, 2, partition_name: '_test_partitioned_test_2'
+          )
+        ])
     end
   end
 
@@ -136,7 +137,7 @@ RSpec.describe Gitlab::Database::Partitioning::SlidingListStrategy do
     end
 
     context 'when some partitions are true for detach_partition_if' do
-      let(:detach_partition_if) { ->(p) { p != 5 } }
+      let(:detach_partition_if) { ->(p) { p.value != 5 } }
 
       it 'is the leading set of partitions before that value' do
         # should not contain partition 2 since it's the default value for the partition column
@@ -181,9 +182,10 @@ RSpec.describe Gitlab::Database::Partitioning::SlidingListStrategy do
         Class.new(ApplicationRecord) do
           include PartitionedTable
 
-          partitioned_by :partition, strategy: :sliding_list,
-                       next_partition_if: proc { false },
-                       detach_partition_if: proc { false }
+          partitioned_by :partition,
+                         strategy: :sliding_list,
+                         next_partition_if: proc { false },
+                         detach_partition_if: proc { false }
         end
       end.to raise_error(/ignored_columns/)
     end
@@ -195,7 +197,8 @@ RSpec.describe Gitlab::Database::Partitioning::SlidingListStrategy do
 
           self.ignored_columns = [:partition]
 
-          partitioned_by :partition, strategy: :sliding_list,
+          partitioned_by :partition,
+                         strategy: :sliding_list,
                          next_partition_if: proc { false },
                          detach_partition_if: proc { false }
         end
@@ -221,15 +224,14 @@ RSpec.describe Gitlab::Database::Partitioning::SlidingListStrategy do
         def self.detach_partition_if_wrapper(...)
           detach_partition?(...)
         end
-        partitioned_by :partition, strategy: :sliding_list,
+        partitioned_by :partition,
+                       strategy: :sliding_list,
                        next_partition_if: method(:next_partition_if_wrapper),
                        detach_partition_if: method(:detach_partition_if_wrapper)
 
-        def self.next_partition?(current_partition)
-        end
+        def self.next_partition?(current_partition); end
 
-        def self.detach_partition?(partition)
-        end
+        def self.detach_partition?(partition); end
       end
     end
 

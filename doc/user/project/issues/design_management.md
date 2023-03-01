@@ -1,10 +1,10 @@
 ---
 stage: Plan
 group: Product Planning
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Design Management **(FREE)**
+# Design management **(FREE)**
 
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/660) in GitLab 12.2.
 > - Support for SVGs [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/12771) in GitLab 12.4.
@@ -92,12 +92,12 @@ The design you selected opens. You can then [zoom in](#zoom-in-on-a-design) on i
 
 When viewing a design, you can move to other designs. To do so, either:
 
-- In the top-right corner, select **Go to previous design** (**{chevron-lg-left}**) or **Go to next design** (**{chevron-lg-right}**).
+- In the upper-right corner, select **Go to previous design** (**{chevron-lg-left}**) or **Go to next design** (**{chevron-lg-right}**).
 - Press <kbd>Left</kbd> or <kbd>Right</kbd> on your keyboard.
 
 To return to the issue view, either:
 
-- In the top-left corner, select the close icon (**{close}**).
+- In the upper-left corner, select the close icon (**{close}**).
 - Press <kbd>Esc</kbd> on your keyboard.
 
 When a design is added, a green icon (**{plus-square}**) is displayed on the image
@@ -186,7 +186,7 @@ Prerequisites:
 To archive a single design:
 
 1. Select the design to view it enlarged.
-1. In the top right corner, select **Archive design** (**{archive}**).
+1. In the upper-right corner, select **Archive design** (**{archive}**).
 1. Select **Archive designs**.
 
 To archive multiple designs at once:
@@ -227,6 +227,19 @@ New discussion threads get different pin numbers, which you can use to refer to 
 In GitLab 12.5 and later, new discussions are output to the issue activity,
 so that everyone involved can participate in the discussion.
 
+## Delete a comment from a design
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/385100) in GitLab 15.9.
+
+Prerequisites:
+
+- You must have at least the Reporter role for the project.
+
+To delete a comment from a design:
+
+1. On the comment you want to delete, select **More actions** **{ellipsis_v}** **> Delete comment**.
+1. On the confirmation dialog box, select **Delete comment**.
+
 ## Resolve a discussion thread on a design
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13049) in GitLab 13.1.
@@ -235,7 +248,7 @@ When you're done discussing part of a design, you can resolve the discussion thr
 
 To mark a thread as resolved or unresolved, either:
 
-- In the top-right corner of the first comment of the discussion, select **Resolve thread** or **Unresolve thread** (**{check-circle}**).
+- In the upper-right corner of the first comment of the discussion, select **Resolve thread** or **Unresolve thread** (**{check-circle}**).
 - Add a new comment to the thread and select or clear the **Resolve thread** checkbox.
 
 Resolving a discussion thread also marks any pending [to-do items](../../todos.md) related to notes

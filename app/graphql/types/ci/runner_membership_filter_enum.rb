@@ -3,16 +3,25 @@
 module Types
   module Ci
     class RunnerMembershipFilterEnum < BaseEnum
-      graphql_name 'RunnerMembershipFilter'
-      description 'Values for filtering runners in namespaces.'
+      graphql_name 'CiRunnerMembershipFilter'
+      description 'Values for filtering runners in namespaces. ' \
+        'The previous type name `RunnerMembershipFilter` was deprecated in 15.4.'
 
       value 'DIRECT',
             description: "Include runners that have a direct relationship.",
             value: :direct
 
       value 'DESCENDANTS',
-            description: "Include runners that have either a direct relationship or a relationship with descendants. These can be project runners or group runners (in the case where group is queried).",
+            description: "Include runners that have either a direct or inherited relationship. " \
+              "These runners can be specific to a project or a group.",
             value: :descendants
+
+      value 'ALL_AVAILABLE',
+            description:
+                           "Include all runners. This list includes runners for all projects in the group " \
+                           "and subgroups, as well as for the parent groups and instance.",
+            value: :all_available,
+            deprecated: { milestone: '15.5', reason: :alpha }
     end
   end
 end

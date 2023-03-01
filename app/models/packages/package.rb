@@ -22,7 +22,8 @@ class Packages::Package < ApplicationRecord
     debian: 9,
     rubygems: 10,
     helm: 11,
-    terraform_module: 12
+    terraform_module: 12,
+    rpm: 13
   }
 
   enum status: { default: 0, hidden: 1, processing: 2, error: 3, pending_destruction: 4 }
@@ -35,6 +36,7 @@ class Packages::Package < ApplicationRecord
   # TODO: put the installable default scope on the :package_files association once the dependent: :destroy is removed
   # See https://gitlab.com/gitlab-org/gitlab/-/issues/349191
   has_many :installable_package_files, -> { installable }, class_name: 'Packages::PackageFile', inverse_of: :package
+  has_many :installable_nuget_package_files, -> { installable.with_nuget_format }, class_name: 'Packages::PackageFile', inverse_of: :package
   has_many :dependency_links, inverse_of: :package, class_name: 'Packages::DependencyLink'
   has_many :tags, inverse_of: :package, class_name: 'Packages::Tag'
   has_one :conan_metadatum, inverse_of: :package, class_name: 'Packages::Conan::Metadatum'
@@ -43,6 +45,7 @@ class Packages::Package < ApplicationRecord
   has_one :nuget_metadatum, inverse_of: :package, class_name: 'Packages::Nuget::Metadatum'
   has_one :composer_metadatum, inverse_of: :package, class_name: 'Packages::Composer::Metadatum'
   has_one :rubygems_metadatum, inverse_of: :package, class_name: 'Packages::Rubygems::Metadatum'
+  has_one :rpm_metadatum, inverse_of: :package, class_name: 'Packages::Rpm::Metadatum'
   has_one :npm_metadatum, inverse_of: :package, class_name: 'Packages::Npm::Metadatum'
   has_many :build_infos, inverse_of: :package
   has_many :pipelines, through: :build_infos, disable_joins: true
@@ -112,15 +115,21 @@ class Packages::Package < ApplicationRecord
     )
   end
 
+  scope :with_case_insensitive_version, ->(version) do
+    where('LOWER(version) = ?', version.downcase)
+  end
+
   scope :search_by_name, ->(query) { fuzzy_search(query, [:name], use_minimum_char_limit: false) }
   scope :with_version, ->(version) { where(version: version) }
   scope :without_version_like, -> (version) { where.not(arel_table[:version].matches(version)) }
   scope :with_package_type, ->(package_type) { where(package_type: package_type) }
   scope :without_package_type, ->(package_type) { where.not(package_type: package_type) }
   scope :displayable, -> { with_status(DISPLAYABLE_STATUSES) }
-  scope :including_project_route, -> { includes(project: { namespace: :route }) }
+  scope :including_project_route, -> { includes(project: :route) }
+  scope :including_project_namespace_route, -> { includes(project: { namespace: :route }) }
   scope :including_tags, -> { includes(:tags) }
   scope :including_dependency_links, -> { includes(dependency_links: :dependency) }
+  scope :including_dependency_links_with_nuget_metadatum, -> { includes(dependency_links: [:dependency, :nuget_metadatum]) }
 
   scope :with_conan_channel, ->(package_channel) do
     joins(:conan_metadatum).where(packages_conan_metadata: { package_channel: package_channel })
@@ -129,10 +138,12 @@ class Packages::Package < ApplicationRecord
     joins(:conan_metadatum).where(packages_conan_metadata: { package_username: package_username })
   end
 
-  scope :with_debian_codename, -> (codename) do
-    debian
-      .joins(:debian_distribution)
-      .where(Packages::Debian::ProjectDistribution.table_name => { codename: codename })
+  scope :with_debian_codename, ->(codename) do
+    joins(:debian_distribution).where(Packages::Debian::ProjectDistribution.table_name => { codename: codename })
+  end
+  scope :with_debian_codename_or_suite, ->(codename_or_suite) do
+    joins(:debian_distribution).where(Packages::Debian::ProjectDistribution.table_name => { codename: codename_or_suite })
+                               .or(where(Packages::Debian::ProjectDistribution.table_name => { suite: codename_or_suite }))
   end
   scope :preload_debian_file_metadata, -> { preload(package_files: :debian_file_metadatum) }
   scope :with_composer_target, -> (target) do
@@ -142,13 +153,17 @@ class Packages::Package < ApplicationRecord
   end
   scope :preload_composer, -> { preload(:composer_metadatum) }
   scope :preload_npm_metadatum, -> { preload(:npm_metadatum) }
+  scope :preload_nuget_metadatum, -> { preload(:nuget_metadatum) }
+  scope :preload_pypi_metadatum, -> { preload(:pypi_metadatum) }
 
   scope :without_nuget_temporary_name, -> { where.not(name: Packages::Nuget::TEMPORARY_PACKAGE_NAME) }
 
   scope :has_version, -> { where.not(version: nil) }
   scope :preload_files, -> { preload(:installable_package_files) }
+  scope :preload_nuget_files, -> { preload(:installable_nuget_package_files) }
   scope :preload_pipelines, -> { preload(pipelines: :user) }
-  scope :last_of_each_version, -> { where(id: all.select('MAX(id) AS id').group(:version)) }
+  scope :last_of_each_version, -> { where(id: all.last_of_each_version_ids) }
+  scope :last_of_each_version_ids, -> { select('MAX(id) AS id').unscope(where: :id).group(:version) }
   scope :limit_recent, ->(limit) { order_created_desc.limit(limit) }
   scope :select_distinct_name, -> { select(:name).distinct }
 
@@ -242,28 +257,30 @@ class Packages::Package < ApplicationRecord
     reverse_order_direction = direction == :asc ? desc_order_expression : asc_order_expression
     arel_order_classes = ::Gitlab::Pagination::Keyset::ColumnOrderDefinition::AREL_ORDER_CLASSES.invert
 
-    ::Gitlab::Pagination::Keyset::Order.build([
-      ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-        attribute_name: "#{join_table}_#{column_name}",
-        column_expression: join_class.arel_table[column_name],
-        order_expression: order_direction,
-        reversed_order_expression: reverse_order_direction,
-        order_direction: direction,
-        distinct: false,
-        add_to_projections: true
-      ),
-      ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-        attribute_name: 'id',
-        order_expression: arel_order_classes[direction].new(Packages::Package.arel_table[:id]),
-        add_to_projections: true
-      )
-    ])
+    ::Gitlab::Pagination::Keyset::Order.build(
+      [
+        ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+          attribute_name: "#{join_table}_#{column_name}",
+          column_expression: join_class.arel_table[column_name],
+          order_expression: order_direction,
+          reversed_order_expression: reverse_order_direction,
+          order_direction: direction,
+          distinct: false,
+          add_to_projections: true
+        ),
+        ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+          attribute_name: 'id',
+          order_expression: arel_order_classes[direction].new(Packages::Package.arel_table[:id]),
+          add_to_projections: true
+        )
+      ])
   end
 
   def versions
     project.packages
            .preload_pipelines
            .including_tags
+           .displayable
            .with_name(name)
            .where.not(version: version)
            .with_package_type(package_type)
@@ -328,6 +345,12 @@ class Packages::Package < ApplicationRecord
     return name unless pypi?
 
     name.gsub(/#{Gitlab::Regex::Packages::PYPI_NORMALIZED_NAME_REGEX_STRING}/o, '-').downcase
+  end
+
+  def touch_last_downloaded_at
+    ::Gitlab::Database::LoadBalancing::Session.without_sticky_writes do
+      update_column(:last_downloaded_at, Time.zone.now)
+    end
   end
 
   private

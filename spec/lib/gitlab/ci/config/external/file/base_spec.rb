@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Config::External::File::Base do
+RSpec.describe Gitlab::Ci::Config::External::File::Base, feature_category: :pipeline_composition do
   let(:variables) {}
   let(:context_params) { { sha: 'HEAD', variables: variables } }
   let(:context) { Gitlab::Ci::Config::External::Context.new(**context_params) }
@@ -13,6 +13,10 @@ RSpec.describe Gitlab::Ci::Config::External::File::Base do
         @location = params
 
         super
+      end
+
+      def validate_context!
+        # no-op
       end
     end
   end
@@ -47,7 +51,7 @@ RSpec.describe Gitlab::Ci::Config::External::File::Base do
 
   describe '#valid?' do
     subject(:valid?) do
-      file.validate!
+      Gitlab::Ci::Config::External::Mapper::Verifier.new(context).process([file])
       file.valid?
     end
 
@@ -93,6 +97,24 @@ RSpec.describe Gitlab::Ci::Config::External::File::Base do
       it 'is not a valid file' do
         expect(valid?).to be_falsy
         expect(file.error_message).to eq('Included file `some/file/xxxxxxxxxxxxxxxx.yml` does not have valid YAML syntax!')
+      end
+    end
+
+    context 'when the class has no validate_context!' do
+      let(:test_class) do
+        Class.new(described_class) do
+          def initialize(params, context)
+            @location = params
+
+            super
+          end
+        end
+      end
+
+      let(:location) { 'some/file/config.yaml' }
+
+      it 'raises an error' do
+        expect { valid? }.to raise_error(NotImplementedError)
       end
     end
   end

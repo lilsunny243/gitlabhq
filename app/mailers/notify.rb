@@ -24,6 +24,8 @@ class Notify < ApplicationMailer
   include Emails::InProductMarketing
   include Emails::AdminNotification
   include Emails::IdentityVerification
+  include Emails::Imports
+  include Emails::WorkItems
 
   helper TimeboxesHelper
   helper MergeRequestsHelper
@@ -38,11 +40,11 @@ class Notify < ApplicationMailer
   helper InProductMarketingHelper
 
   def test_email(recipient_email, subject, body)
-    mail(to: recipient_email,
-         subject: subject,
-         body: body.html_safe,
-         content_type: 'text/html'
-        )
+    mail_with_locale(to: recipient_email,
+                     subject: subject,
+                     body: body.html_safe,
+                     content_type: 'text/html'
+                    )
   end
 
   # Splits "gitlab.corp.company.com" up into "gitlab.corp.company.com",
@@ -67,14 +69,16 @@ class Notify < ApplicationMailer
   private
 
   # Return an email address that displays the name of the sender.
-  # Only the displayed name changes; the actual email address is always the same.
-  def sender(sender_id, send_from_user_email: false, sender_name: nil)
+  # Override sender_email if you want to hard replace the sender address (e.g. custom email for Service Desk)
+  def sender(sender_id, send_from_user_email: false, sender_name: nil, sender_email: nil)
     return unless sender = User.find(sender_id)
 
     address = default_sender_address
     address.display_name = sender_name.presence || "#{sender.name} (#{sender.to_reference})"
 
-    if send_from_user_email && can_send_from_user_email?(sender)
+    if sender_email
+      address.address = sender_email
+    elsif send_from_user_email && can_send_from_user_email?(sender)
       address.address = sender.email
     end
 
@@ -139,7 +143,7 @@ class Notify < ApplicationMailer
       @reply_by_email = true
     end
 
-    mail(headers)
+    mail_with_locale(headers)
   end
 
   # `model` is used on EE code
@@ -225,7 +229,7 @@ class Notify < ApplicationMailer
   end
 
   def email_with_layout(to:, subject:, layout: 'mailer')
-    mail(to: to, subject: subject) do |format|
+    mail_with_locale(to: to, subject: subject) do |format|
       format.html { render layout: layout }
       format.text { render layout: layout }
     end

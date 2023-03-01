@@ -16,15 +16,16 @@ import ForkSuggestion from '~/repository/components/fork_suggestion.vue';
 import { loadViewer } from '~/repository/components/blob_viewers';
 import DownloadViewer from '~/repository/components/blob_viewers/download_viewer.vue';
 import EmptyViewer from '~/repository/components/blob_viewers/empty_viewer.vue';
-import SourceViewer from '~/vue_shared/components/source_viewer/source_viewer.vue';
-import blobInfoQuery from '~/repository/queries/blob_info.query.graphql';
+import SourceViewer from '~/vue_shared/components/source_viewer/source_viewer_deprecated.vue';
+import blobInfoQuery from 'shared_queries/repository/blob_info.query.graphql';
+import projectInfoQuery from '~/repository/queries/project_info.query.graphql';
 import userInfoQuery from '~/repository/queries/user_info.query.graphql';
 import applicationInfoQuery from '~/repository/queries/application_info.query.graphql';
 import CodeIntelligence from '~/code_navigation/components/app.vue';
 import * as urlUtility from '~/lib/utils/url_utility';
 import { isLoggedIn, handleLocationHash } from '~/lib/utils/common_utils';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import LineHighlighter from '~/blob/line_highlighter';
 import { LEGACY_FILE_TYPES } from '~/repository/constants';
 import { SIMPLE_BLOB_VIEWER, RICH_BLOB_VIEWER } from '~/blob/components/constants';
@@ -45,8 +46,9 @@ jest.mock('~/lib/utils/common_utils');
 jest.mock('~/blob/line_highlighter');
 
 let wrapper;
-let mockResolver;
+let blobInfoMockResolver;
 let userInfoMockResolver;
+let projectInfoMockResolver;
 let applicationInfoMockResolver;
 
 const mockAxios = new MockAdapter(axios);
@@ -74,22 +76,40 @@ const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute 
     highlightJs = true,
   } = mockData;
 
-  const project = {
+  const blobInfo = {
     ...projectMock,
-    userPermissions: {
-      pushCode,
-      forkProject,
-      downloadCode,
-      createMergeRequestIn,
-    },
     repository: {
       empty,
       blobs: { nodes: [blob] },
     },
   };
 
-  mockResolver = jest.fn().mockResolvedValue({
-    data: { isBinary, project },
+  const projectInfo = {
+    __typename: 'Project',
+    id: '123',
+    userPermissions: {
+      pushCode,
+      forkProject,
+      downloadCode,
+      createMergeRequestIn,
+    },
+    pathLocks: {
+      nodes: [
+        {
+          id: 'test',
+          path: 'locked_file.js',
+          user: { id: '123', username: 'root' },
+        },
+      ],
+    },
+  };
+
+  projectInfoMockResolver = jest.fn().mockResolvedValue({
+    data: { project: projectInfo },
+  });
+
+  blobInfoMockResolver = jest.fn().mockResolvedValue({
+    data: { isBinary, project: blobInfo },
   });
 
   userInfoMockResolver = jest.fn().mockResolvedValue({
@@ -101,8 +121,9 @@ const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute 
   });
 
   const fakeApollo = createMockApollo([
-    [blobInfoQuery, mockResolver],
+    [blobInfoQuery, blobInfoMockResolver],
     [userInfoQuery, userInfoMockResolver],
+    [projectInfoQuery, projectInfoMockResolver],
     [applicationInfoQuery, applicationInfoMockResolver],
   ]);
 
@@ -129,7 +150,7 @@ const createComponent = async (mockData = {}, mountFn = shallowMount, mockRoute 
 
   // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
   // eslint-disable-next-line no-restricted-syntax
-  wrapper.setData({ project, isBinary });
+  wrapper.setData({ project: blobInfo, isBinary });
 
   await waitForPromises();
 };
@@ -235,19 +256,19 @@ describe('Blob content viewer component', () => {
       );
 
       it('loads the LineHighlighter', async () => {
-        mockAxios.onGet(legacyViewerUrl).replyOnce(httpStatusCodes.OK, 'test');
+        mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, 'test');
         await createComponent({ blob: { ...simpleViewerMock, fileType, highlightJs } });
         expect(LineHighlighter).toHaveBeenCalled();
       });
 
       it('does not load the LineHighlighter for RichViewers', async () => {
-        mockAxios.onGet(legacyViewerUrl).replyOnce(httpStatusCodes.OK, 'test');
+        mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, 'test');
         await createComponent({ blob: { ...richViewerMock, fileType, highlightJs } });
         expect(LineHighlighter).not.toHaveBeenCalled();
       });
 
       it('scrolls to the hash', async () => {
-        mockAxios.onGet(legacyViewerUrl).replyOnce(httpStatusCodes.OK, 'test');
+        mockAxios.onGet(legacyViewerUrl).replyOnce(HTTP_STATUS_OK, 'test');
         await createComponent({ blob: { ...simpleViewerMock, fileType, highlightJs } });
         expect(handleLocationHash).toHaveBeenCalled();
       });
@@ -347,7 +368,7 @@ describe('Blob content viewer component', () => {
 
     it('does not load a CodeIntelligence component when no viewers are loaded', async () => {
       const url = 'some_file.js?format=json&viewer=rich';
-      mockAxios.onGet(url).replyOnce(httpStatusCodes.INTERNAL_SERVER_ERROR);
+      mockAxios.onGet(url).replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR);
       await createComponent({ blob: { ...richViewerMock, fileType: 'unknown' } });
 
       expect(findCodeIntelligence().exists()).toBe(false);
@@ -504,14 +525,16 @@ describe('Blob content viewer component', () => {
       async ({ highlightJs, shouldFetchRawText }) => {
         await createComponent({ highlightJs });
 
-        expect(mockResolver).toHaveBeenCalledWith(expect.objectContaining({ shouldFetchRawText }));
+        expect(blobInfoMockResolver).toHaveBeenCalledWith(
+          expect.objectContaining({ shouldFetchRawText }),
+        );
       },
     );
 
     it('is called with originalBranch value if the prop has a value', async () => {
       await createComponent({ inject: { originalBranch: 'some-branch' } });
 
-      expect(mockResolver).toHaveBeenCalledWith(
+      expect(blobInfoMockResolver).toHaveBeenCalledWith(
         expect.objectContaining({
           ref: 'some-branch',
         }),
@@ -521,7 +544,7 @@ describe('Blob content viewer component', () => {
     it('is called with ref value if the originalBranch prop has no value', async () => {
       await createComponent();
 
-      expect(mockResolver).toHaveBeenCalledWith(
+      expect(blobInfoMockResolver).toHaveBeenCalledWith(
         expect.objectContaining({
           ref: 'default-ref',
         }),

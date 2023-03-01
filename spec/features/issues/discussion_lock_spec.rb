@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Discussion Lock', :js do
+RSpec.describe 'Discussion Lock', :js, feature_category: :team_planning do
   let(:user) { create(:user) }
   let(:issue) { create(:issue, project: project, author: user) }
   let(:project) { create(:project, :public) }
@@ -99,7 +99,7 @@ RSpec.describe 'Discussion Lock', :js do
       it 'the user can not create a comment' do
         page.within('#notes') do
           expect(page).not_to have_selector('js-main-target-form')
-          expect(page.find('.disabled-comment'))
+          expect(page.find('.disabled-comments'))
             .to have_content('This issue is locked. Only project members can comment.')
         end
       end

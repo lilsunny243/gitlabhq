@@ -9,7 +9,7 @@ class IssuePolicy < IssuablePolicy
 
   desc "User can read confidential issues"
   condition(:can_read_confidential) do
-    @user && IssueCollection.new([@subject]).visible_to(@user).any?
+    @user && (@user.admin? || can?(:reporter_access) || assignee_or_author?) # rubocop:disable Cop/UserAdmin
   end
 
   desc "Project belongs to a group, crm is enabled and user can read contacts in the root group"
@@ -21,11 +21,25 @@ class IssuePolicy < IssuablePolicy
   desc "Issue is confidential"
   condition(:confidential, scope: :subject) { @subject.confidential? }
 
-  desc "Issue is hidden"
-  condition(:hidden, scope: :subject) { @subject.hidden? }
-
   desc "Issue is persisted"
   condition(:persisted, scope: :subject) { @subject.persisted? }
+
+  # accessing notes requires the notes widget to be available for work items(or issue)
+  condition(:notes_widget_enabled, scope: :subject) do
+    @subject.work_item_type.widgets.include?(::WorkItems::Widgets::Notes)
+  end
+
+  rule { ~notes_widget_enabled }.policy do
+    prevent :create_note
+    prevent :read_note
+    prevent :read_internal_note
+    prevent :set_note_created_at
+    prevent :mark_note_as_internal
+    # these actions on notes are not available on issues/work items yet,
+    # but preventing any action on work item notes as long as there is no notes widget seems reasonable
+    prevent :resolve_note
+    prevent :reposition_note
+  end
 
   rule { confidential & ~can_read_confidential }.policy do
     prevent(*create_read_update_admin_destroy(:issue))
@@ -74,12 +88,20 @@ class IssuePolicy < IssuablePolicy
     enable :set_confidentiality
   end
 
+  rule { can?(:guest_access) & can?(:read_issue) }.policy do
+    enable :admin_issue_relation
+  end
+
   rule { can_read_crm_contacts }.policy do
     enable :read_crm_contacts
   end
 
   rule { can?(:set_issue_metadata) & can_read_crm_contacts }.policy do
     enable :set_issue_crm_contacts
+  end
+
+  rule { can?(:reporter_access) }.policy do
+    enable :mark_note_as_internal
   end
 end
 

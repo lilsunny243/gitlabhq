@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create', :reliable do
-    context 'Add batch suggestions to a Merge Request' do
+  RSpec.describe 'Create', :reliable, product_group: :code_review do
+    context 'with merge request batch suggestions' do
       let(:project) do
         Resource::Project.fabricate_via_api! do |project|
           project.name = 'suggestions_project'
@@ -15,9 +15,7 @@ module QA
           merge_request.title = 'Needs some suggestions'
           merge_request.description = '... so please add them.'
           merge_request.file_content = File.read(
-            Pathname
-              .new(__dir__)
-              .join('../../../../../../fixtures/metrics_dashboards/templating.yml')
+            File.join(Runtime::Path.fixtures_path, 'metrics_dashboards', 'templating.yml')
           )
         end
       end

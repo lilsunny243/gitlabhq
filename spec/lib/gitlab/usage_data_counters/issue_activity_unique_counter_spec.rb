@@ -284,6 +284,16 @@ RSpec.describe Gitlab::UsageDataCounters::IssueActivityUniqueCounter, :clean_git
     end
   end
 
+  context 'for Issue design comment removed actions' do
+    it_behaves_like 'daily tracked issuable snowplow and service ping events with project' do
+      let(:action) { described_class::ISSUE_DESIGN_COMMENT_REMOVED }
+
+      def track_action(params)
+        described_class.track_issue_design_comment_removed_action(**params)
+      end
+    end
+  end
+
   it 'can return the count of actions per user deduplicated', :aggregate_failures do
     described_class.track_issue_title_changed_action(author: user1, project: project)
     described_class.track_issue_description_changed_action(author: user1, project: project)
@@ -296,7 +306,7 @@ RSpec.describe Gitlab::UsageDataCounters::IssueActivityUniqueCounter, :clean_git
       described_class.track_issue_assignee_changed_action(author: user3, project: project)
     end
 
-    events = Gitlab::UsageDataCounters::HLLRedisCounter.events_for_category(described_class::ISSUE_CATEGORY)
+    events = [described_class::ISSUE_TITLE_CHANGED, described_class::ISSUE_DESCRIPTION_CHANGED, described_class::ISSUE_ASSIGNEE_CHANGED]
     today_count = Gitlab::UsageDataCounters::HLLRedisCounter.unique_events(event_names: events, start_date: time, end_date: time)
     week_count = Gitlab::UsageDataCounters::HLLRedisCounter.unique_events(event_names: events, start_date: time - 5.days, end_date: 1.day.since(time))
 

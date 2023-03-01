@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -18,7 +18,7 @@ This example shows you how to set a username and password that GitLab uses to ac
 
 NOTE:
 Variables set in the GitLab UI are not passed down to the service containers.
-[Learn more](../variables/index.md).
+For more information, see [GitLab CI/CD variables](../variables/index.md).
 
 1. To specify a MySQL image, add the following to your `.gitlab-ci.yml` file:
 

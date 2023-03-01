@@ -1,7 +1,7 @@
 ---
 stage: none
 group: Documentation Guidelines
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: Learn how to contribute to GitLab Documentation.
 ---
 
@@ -13,7 +13,7 @@ processes similar to those used for code to maintain standards and quality of do
 We have tests:
 
 - To lint the words and structure of the documentation.
-- To check the validity of internal links within the documentation suite.
+- To check the validity of internal links in the documentation suite.
 - To check the validity of links from UI elements, such as files in `app/views` files.
 
 For the specifics of each test run in our CI/CD pipelines, see the configuration for those tests
@@ -51,7 +51,7 @@ To run tests locally, it's important to:
 Lint checks are performed by the [`lint-doc.sh`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/scripts/lint-doc.sh)
 script and can be executed as follows:
 
-1. Navigate to the `gitlab` directory.
+1. Go to the `gitlab` directory.
 1. Run:
 
    ```shell
@@ -86,7 +86,7 @@ job, which runs two types of link checks. In both cases, links with destinations
 that begin with `http` or `https` are considered external links, and skipped:
 
 - `bundle exec nanoc check internal_links`: Tests links to internal pages.
-- `bundle exec nanoc check internal_anchors`: Tests links to subheadings (anchors) on internal pages.
+- `bundle exec nanoc check internal_anchors`: Tests links to topic title anchors on internal pages.
 
 Failures from these tests are displayed at the end of the test results in the **Issues found!** area.
 For example, failures in the `internal_anchors` test follow this format:
@@ -104,7 +104,7 @@ For example, failures in the `internal_anchors` test follow this format:
 - **Destination**: The full path to the file not found by the test. To find the
   file in the `gitlab` repository, replace `/tmp/gitlab-docs/public/ee` with `doc`, and `.html` with `.md`.
 - **Link**: The actual link the script attempted to find.
-- **Anchor**: If present, the subheading (anchor) the script attempted to find.
+- **Anchor**: If present, the topic title anchor the script attempted to find.
 
 Check for multiple instances of the same broken link on each page reporting an error.
 Even if a specific broken link appears multiple times on a page, the test reports it only once.
@@ -113,7 +113,7 @@ Even if a specific broken link appears multiple times on a page, the test report
 
 To execute documentation link tests locally:
 
-1. Navigate to the [`gitlab-docs`](https://gitlab.com/gitlab-org/gitlab-docs) directory.
+1. Go to the [`gitlab-docs`](https://gitlab.com/gitlab-org/gitlab-docs) directory.
 1. Run the following commands:
 
    ```shell
@@ -190,7 +190,7 @@ To update the linting images:
 
 1. In `gitlab-docs`, open a merge request to update `.gitlab-ci.yml` to use the new tooling
    version. ([Example MR](https://gitlab.com/gitlab-org/gitlab-docs/-/merge_requests/2571))
-1. When merged, start a `Build docs.gitlab.com every 4 hours` [scheduled pipeline](https://gitlab.com/gitlab-org/gitlab-docs/-/pipeline_schedules).
+1. When merged, start a `Build docs.gitlab.com every hour` [scheduled pipeline](https://gitlab.com/gitlab-org/gitlab-docs/-/pipeline_schedules).
 1. Go the pipeline you started, and manually run the relevant build-images job,
    for example, `image:docs-lint-markdown`.
 1. In the job output, get the name of the new image.
@@ -243,7 +243,9 @@ This configuration is also used in build pipelines.
 
 You can use markdownlint:
 
-- [On the command line](https://github.com/igorshubovych/markdownlint-cli#markdownlint-cli--).
+- On the command line, with either:
+  - [`markdownlint-cli`](https://github.com/igorshubovych/markdownlint-cli#markdownlint-cli).
+  - [`markdownlint-cli2`](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2).
 - [In a code editor](#configure-editors).
 - [In a `pre-push` hook](#configure-pre-push-hooks).
 
@@ -281,17 +283,17 @@ You can use Vale:
 Vale returns three types of results:
 
 - **Error** - For branding guidelines, trademark guidelines, and anything that causes content on
-  the docs site to render incorrectly.
-- **Warning** - For Technical Writing team style preferences.
-- **Suggestion** - For basic technical writing tenets and best practices.
+  the documentation site to render incorrectly.
+- **Warning** - For general style guide rules, tenets, and best practices.
+- **Suggestion** - For technical writing style preferences that may require refactoring of documentation or updates to an exceptions list.
 
 The result types have these attributes:
 
-| Result type  | Displayed in CI/CD job output | Causes CI/CD jobs to fail | Vale rule link |
-|--------------|-------------------------------|---------------------------|----------------|
-| `error`      | **{check-circle}** Yes        | **{check-circle}** Yes    | [Error-level Vale rules](https://gitlab.com/search?utf8=✓&snippets=false&scope=&repository_ref=master&search=path%3Adoc%2F.vale%2Fgitlab+Error%3A&group_id=9970&project_id=278964) |
-| `warning`    | **{dotted-circle}** No        | **{dotted-circle}** No    | [Warning-level Vale rules](https://gitlab.com/search?utf8=✓&snippets=false&scope=&repository_ref=master&search=path%3Adoc%2F.vale%2Fgitlab+Warning%3A&group_id=9970&project_id=278964) |
-| `suggestion` | **{dotted-circle}** No        | **{dotted-circle}** No    | [Suggestion-level Vale rules](https://gitlab.com/search?utf8=✓&snippets=false&scope=&repository_ref=master&search=path%3Adoc%2F.vale%2Fgitlab+Suggestion%3A&group_id=9970&project_id=278964) |
+| Result type  | Displays in CI/CD job output | Displays in MR diff | Causes CI/CD jobs to fail | Vale rule link |
+|--------------|------------------------------|---------------------|---------------------------|----------------|
+| `error`      | **{check-circle}** Yes       | **{check-circle}** Yes | **{check-circle}** Yes | [Error-level Vale rules](https://gitlab.com/search?utf8=✓&snippets=false&scope=&repository_ref=master&search=path%3Adoc%2F.vale%2Fgitlab+Error%3A&group_id=9970&project_id=278964) |
+| `warning`    | **{dotted-circle}** No       | **{check-circle}** Yes | **{dotted-circle}** No | [Warning-level Vale rules](https://gitlab.com/search?utf8=✓&snippets=false&scope=&repository_ref=master&search=path%3Adoc%2F.vale%2Fgitlab+Warning%3A&group_id=9970&project_id=278964) |
+| `suggestion` | **{dotted-circle}** No       | **{dotted-circle}** No | **{dotted-circle}** No | [Suggestion-level Vale rules](https://gitlab.com/search?utf8=✓&snippets=false&scope=&repository_ref=master&search=path%3Adoc%2F.vale%2Fgitlab+Suggestion%3A&group_id=9970&project_id=278964) |
 
 #### Vale spelling test
 
@@ -360,25 +362,40 @@ In general, follow these guidelines:
     If the rule is too subjective, it cannot be adequately enforced and creates
     unnecessary additional warnings.
 
+  - Whether it's appropriate to display in the merge request diff in the GitLab UI.
+    If the rule is difficult to implement directly in the merge request (for example,
+    it requires page refactoring), set it to suggestion-level so it displays in local editors only.
+
 ### Install linters
 
-At a minimum, install [markdownlint](#markdownlint) and [Vale](#vale) to match the checks run in
-build pipelines:
+At a minimum, install [markdownlint](#markdownlint) and [Vale](#vale) to match the checks run in build pipelines.
 
-1. Install `markdownlint-cli`:
+#### Install markdownlint
 
-   ```shell
-   yarn global add markdownlint-cli
-   ```
+You can install either `markdownlint-cli` or `markdownlint-cli2` to run `markdownlint`.
 
-   We recommend installing the version of `markdownlint-cli`
-   [used (see `variables:` section)](https://gitlab.com/gitlab-org/gitlab-docs/-/blob/main/.gitlab-ci.yml) when building
-   the `image:docs-lint-markdown`.
+To install `markdownlint-cli`, run:
 
-1. Install [`vale`](https://github.com/errata-ai/vale/releases). To install for:
+```shell
+yarn global add markdownlint-cli
+```
 
-   - macOS using `brew`, run: `brew install vale`.
-   - Linux, use your distribution's package manager or a [released binary](https://github.com/errata-ai/vale/releases).
+To install `markdownlint-cli2`, run:
+
+```shell
+yarn global add markdownlint-cli2
+```
+
+You should install the version of `markdownlint-cli` or `markdownlint-cli2`
+[used (see `variables:` section)](https://gitlab.com/gitlab-org/gitlab-docs/-/blob/main/.gitlab-ci.yml) when building
+the `image:docs-lint-markdown`.
+
+#### Install Vale
+
+To install Install [`vale`](https://github.com/errata-ai/vale/releases) for:
+
+- macOS using `brew`, run: `brew install vale`.
+- Linux, use your distribution's package manager or a [released binary](https://github.com/errata-ai/vale/releases).
 
 These tools can be [integrated with your code editor](#configure-editors).
 
@@ -387,16 +404,18 @@ These tools can be [integrated with your code editor](#configure-editors).
 It's important to use linter versions that are the same or newer than those run in
 CI/CD. This provides access to new features and possible bug fixes.
 
-To match the versions of `markdownlint-cli` and `vale` used in the GitLab projects, refer to the
+To match the versions of `markdownlint-cli` (or `markdownlint-cli2`) and `vale` used in the GitLab projects, refer to the
 [versions used (see `variables:` section)](https://gitlab.com/gitlab-org/gitlab-docs/-/blob/main/.gitlab-ci.yml)
 when building the `image:docs-lint-markdown` Docker image containing these tools for CI/CD.
 
-| Tool               | Version   | Command                                                | Additional information |
-|--------------------|-----------|--------------------------------------------------------|------------------------|
-| `markdownlint-cli` | Latest    | `yarn global add markdownlint-cli`                     | None.                  |
-| `markdownlint-cli` | Specific  | `yarn global add markdownlint-cli@0.23.2`              | The `@` indicates a specific version, and this example updates the tool to version `0.23.2`. |
-| Vale               | Latest    | `brew update && brew upgrade vale`                     | This command is for macOS only. |
-| Vale               | Specific  | Not applicable.                                        | Binaries can be [directly downloaded](https://github.com/errata-ai/vale/releases). |
+| Tool                | Version  | Command                                   | Additional information                                                                       |
+|:--------------------|:---------|:------------------------------------------|:---------------------------------------------------------------------------------------------|
+| `markdownlint-cli`  | Latest   | `yarn global add markdownlint-cli`        | None.                                                                                        |
+| `markdownlint-cli2` | Latest   | `yarn global add markdownlint-cli2`       | None.                                                                                        |
+| `markdownlint-cli`  | Specific | `yarn global add markdownlint-cli@0.23.2` | The `@` indicates a specific version, and this example updates the tool to version `0.23.2`. |
+| `markdownlint-cli`  | Specific | `yarn global add markdownlint-cli@0.6.0`  | The `@` indicates a specific version, and this example updates the tool to version `0.6.0`.  |
+| Vale                | Latest   | `brew update && brew upgrade vale`        | This command is for macOS only.                                                              |
+| Vale                | Specific | Not applicable.                           | Binaries can be [directly downloaded](https://github.com/errata-ai/vale/releases).           |
 
 ### Configure editors
 
@@ -406,16 +425,23 @@ command line.
 To configure markdownlint in your editor, install one of the following as appropriate:
 
 - Sublime Text [`SublimeLinter-contrib-markdownlint` package](https://packagecontrol.io/packages/SublimeLinter-contrib-markdownlint).
+  This package uses `markdownlint-cli` by default, but can be configured to use `markdownlint-cli2` with this
+  SublimeLinter configuration:
+
+  ```json
+  "markdownlint": {
+    "executable": [ "markdownlint-cli2" ]
+  }
+  ```
+
 - Visual Studio Code [`DavidAnson.vscode-markdownlint` extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint).
-- Atom [`linter-node-markdownlint` package](https://atom.io/packages/linter-node-markdownlint).
 - Vim [ALE plugin](https://github.com/dense-analysis/ale).
 
 To configure Vale in your editor, install one of the following as appropriate:
 
-- Sublime Text [`SublimeLinter-contrib-vale` package](https://packagecontrol.io/packages/SublimeLinter-contrib-vale).
+- Sublime Text [`SublimeLinter-vale` package](https://packagecontrol.io/packages/SublimeLinter-vale).
 - Visual Studio Code [`errata-ai.vale-server` extension](https://marketplace.visualstudio.com/items?itemName=errata-ai.vale-server).
   You can configure the plugin to [display only a subset of alerts](#show-subset-of-vale-alerts).
-- Atom [`atomic-vale` package](https://atom.io/packages/atomic-vale).
 - Vim [ALE plugin](https://github.com/dense-analysis/ale).
 - JetBrains IDEs - No plugin exists, but
   [this issue comment](https://github.com/errata-ai/vale-server/issues/39#issuecomment-751714451)
@@ -461,7 +487,7 @@ Git [pre-push hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) a
 - Avoid pushing a branch if failures occur with these tests.
 
 [`lefthook`](https://github.com/Arkweid/lefthook) is a Git hooks manager, making configuring,
-installing, and removing Git hooks easy.
+installing, and removing Git hooks simpler.
 
 Configuration for `lefthook` is available in the [`lefthook.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lefthook.yml)
 file for the [`gitlab`](https://gitlab.com/gitlab-org/gitlab) project.
@@ -507,7 +533,7 @@ You can set Visual Studio Code to display only a subset of Vale alerts when view
 
 To display only a subset of Vale alerts when running Vale from the command line, use
 the `--minAlertLevel` flag, which accepts `error`, `warning`, or `suggestion`. Combine it with `--config`
-to point to the configuration file within the project, if needed:
+to point to the configuration file in the project, if needed:
 
 ```shell
 vale --config .vale.ini --minAlertLevel error doc/**/*.md

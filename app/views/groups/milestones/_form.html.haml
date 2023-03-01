@@ -21,8 +21,10 @@
 
   .form-actions
     - if @milestone.new_record?
-      = f.submit _('Create milestone'), class: "btn-confirm gl-button btn", data: { qa_selector: "create_milestone_button" }
-      = link_to _("Cancel"), group_milestones_path(@group), class: "btn gl-button btn-cancel"
+      = f.submit _('Create milestone'), data: { qa_selector: "create_milestone_button" }, pajamas_button: true
+      = render Pajamas::ButtonComponent.new(href: group_milestones_path(@group)) do
+        = _("Cancel")
     - else
-      = f.submit _('Update milestone'), class: "btn-confirm gl-button btn"
-      = link_to _("Cancel"), group_milestone_path(@group, @milestone), class: "btn gl-button btn-cancel"
+      = f.submit _('Update milestone'), pajamas_button: true
+      = render Pajamas::ButtonComponent.new(href: group_milestone_path(@group, @milestone)) do
+        = _("Cancel")

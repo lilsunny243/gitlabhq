@@ -1,0 +1,9 @@
+query issuableDetails($id: IssueID!) {
+  issue(id: $id) {
+    id
+    confidential
+    milestone {
+      id
+    }
+  }
+}

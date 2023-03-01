@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Avatar do
+RSpec.describe API::Avatar, feature_category: :user_profile do
   let(:gravatar_service) { double('GravatarService') }
 
   describe 'GET /avatar' do
@@ -19,6 +19,7 @@ RSpec.describe API::Avatar do
 
           expect(response).to have_gitlab_http_status(:ok)
           expect(json_response['avatar_url']).to eql("#{::Settings.gitlab.base_url}#{user.avatar.local_url}")
+          is_expected.to have_request_urgency(:medium)
         end
       end
 

@@ -1,13 +1,20 @@
 # frozen_string_literal: true
 
 module PersonalAccessTokens
-  class RevokeService
+  class RevokeService < BaseService
     attr_reader :token, :current_user, :group
 
-    def initialize(current_user = nil, token: nil, group: nil )
+    VALID_SOURCES = %i[self secret_detection].freeze
+
+    def initialize(current_user = nil, token: nil, group: nil, source: nil)
       @current_user = current_user
       @token = token
       @group = group
+      @source = source
+
+      @source = :self if @current_user && !@source
+
+      raise ArgumentError unless VALID_SOURCES.include?(@source)
     end
 
     def execute
@@ -15,6 +22,7 @@ module PersonalAccessTokens
 
       if token.revoke!
         log_event
+        notification_service.access_token_revoked(token.user, token.name, @source)
         ServiceResponse.success(message: success_message)
       else
         ServiceResponse.error(message: error_message)
@@ -32,11 +40,23 @@ module PersonalAccessTokens
     end
 
     def revocation_permitted?
-      Ability.allowed?(current_user, :revoke_token, token)
+      case @source
+      when :self
+        Ability.allowed?(current_user, :revoke_token, token)
+      when :secret_detection
+        true
+      else
+        false
+      end
     end
 
     def log_event
-      Gitlab::AppLogger.info("PAT REVOCATION: revoked_by: '#{current_user.username}', revoked_for: '#{token.user.username}', token_id: '#{token.id}'")
+      Gitlab::AppLogger.info(
+        class: self.class.name,
+        message: "PAT Revoked",
+        revoked_by: current_user&.username || @source,
+        revoked_for: token.user.username,
+        token_id: token.id)
     end
   end
 end

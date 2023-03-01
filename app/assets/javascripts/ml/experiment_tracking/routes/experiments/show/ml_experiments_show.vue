@@ -1,0 +1,204 @@
+<script>
+import { GlTable, GlLink, GlTooltipDirective } from '@gitlab/ui';
+import TimeAgo from '~/vue_shared/components/time_ago_tooltip.vue';
+import RegistrySearch from '~/vue_shared/components/registry/registry_search.vue';
+import { FILTERED_SEARCH_TERM } from '~/vue_shared/components/filtered_search_bar/constants';
+import { FEATURE_NAME, FEATURE_FEEDBACK_ISSUE } from '~/ml/experiment_tracking/constants';
+import { queryToObject, setUrlParams, visitUrl } from '~/lib/utils/url_utility';
+import { capitalizeFirstCharacter } from '~/lib/utils/text_utility';
+import KeysetPagination from '~/vue_shared/components/incubation/pagination.vue';
+import IncubationAlert from '~/vue_shared/components/incubation/incubation_alert.vue';
+import { LIST_KEY_CREATED_AT, BASE_SORT_FIELDS, METRIC_KEY_PREFIX } from './constants';
+import * as translations from './translations';
+
+export default {
+  name: 'MlExperimentsShow',
+  components: {
+    GlTable,
+    GlLink,
+    TimeAgo,
+    IncubationAlert,
+    RegistrySearch,
+    KeysetPagination,
+  },
+  directives: {
+    GlTooltip: GlTooltipDirective,
+  },
+  props: {
+    candidates: {
+      type: Array,
+      required: true,
+    },
+    metricNames: {
+      type: Array,
+      required: true,
+    },
+    paramNames: {
+      type: Array,
+      required: true,
+    },
+    pageInfo: {
+      type: Object,
+      required: true,
+    },
+  },
+  data() {
+    const query = queryToObject(window.location.search);
+
+    const filter = query.name ? [{ value: { data: query.name }, type: FILTERED_SEARCH_TERM }] : [];
+
+    let orderBy = query.orderBy || LIST_KEY_CREATED_AT;
+
+    if (query.orderByType === 'metric') {
+      orderBy = `${METRIC_KEY_PREFIX}${orderBy}`;
+    }
+
+    return {
+      filters: filter,
+      sorting: {
+        orderBy,
+        sort: (query.sort || 'desc').toLowerCase(),
+      },
+    };
+  },
+  computed: {
+    fields() {
+      if (this.candidates.length === 0) return [];
+
+      return [
+        { key: 'name', label: this.$options.i18n.NAME_LABEL },
+        { key: 'created_at', label: this.$options.i18n.CREATED_AT_LABEL },
+        { key: 'user', label: this.$options.i18n.USER_LABEL },
+        ...this.paramNames,
+        ...this.metricNames,
+        { key: 'details', label: '' },
+        { key: 'artifact', label: '' },
+      ];
+    },
+    displayPagination() {
+      return this.candidates.length > 0;
+    },
+    sortableFields() {
+      return [
+        ...BASE_SORT_FIELDS,
+        ...this.metricNames.map((name) => ({
+          orderBy: `${METRIC_KEY_PREFIX}${name}`,
+          label: capitalizeFirstCharacter(name),
+        })),
+      ];
+    },
+    parsedQuery() {
+      const name = this.filters
+        .map((f) => f.value.data)
+        .join(' ')
+        .trim();
+
+      const filterByQuery = name === '' ? {} : { name };
+
+      let orderByType = 'column';
+      let { orderBy } = this.sorting;
+      const { sort } = this.sorting;
+
+      if (orderBy.startsWith(METRIC_KEY_PREFIX)) {
+        orderBy = this.sorting.orderBy.slice(METRIC_KEY_PREFIX.length);
+        orderByType = 'metric';
+      }
+
+      return { ...filterByQuery, orderBy, orderByType, sort };
+    },
+  },
+  methods: {
+    submitFilters() {
+      return visitUrl(setUrlParams({ ...this.parsedQuery }));
+    },
+    updateFilters(newValue) {
+      this.filters = newValue;
+    },
+    updateSorting(newValue) {
+      this.sorting = { ...this.sorting, ...newValue };
+    },
+    updateSortingAndEmitUpdate(newValue) {
+      this.updateSorting(newValue);
+      this.submitFilters();
+    },
+  },
+  i18n: translations,
+  constants: {
+    FEATURE_NAME,
+    FEATURE_FEEDBACK_ISSUE,
+  },
+};
+</script>
+
+<template>
+  <div>
+    <incubation-alert
+      :feature-name="$options.constants.FEATURE_NAME"
+      :link-to-feedback-issue="$options.constants.FEATURE_FEEDBACK_ISSUE"
+    />
+
+    <h3>
+      {{ $options.i18n.TITLE_LABEL }}
+    </h3>
+
+    <registry-search
+      :filters="filters"
+      :sorting="sorting"
+      :sortable-fields="sortableFields"
+      @sorting:changed="updateSortingAndEmitUpdate"
+      @filter:changed="updateFilters"
+      @filter:submit="submitFilters"
+      @filter:clear="filters = []"
+    />
+
+    <gl-table
+      :fields="fields"
+      :items="candidates"
+      :empty-text="$options.i18n.EMPTY_STATE_LABEL"
+      show-empty
+      small
+      class="gl-mt-0! ml-candidate-table"
+    >
+      <template #cell()="data">
+        <div v-gl-tooltip.hover :title="data.value">{{ data.value }}</div>
+      </template>
+
+      <template #cell(artifact)="data">
+        <gl-link
+          v-if="data.value"
+          v-gl-tooltip.hover
+          :href="data.value"
+          target="_blank"
+          :title="$options.i18n.ARTIFACTS_LABEL"
+          >{{ $options.i18n.ARTIFACTS_LABEL }}</gl-link
+        >
+        <div v-else v-gl-tooltip.hover :title="$options.i18n.ARTIFACTS_LABEL">
+          {{ $options.i18n.NO_DATA_CONTENT }}
+        </div>
+      </template>
+
+      <template #cell(details)="data">
+        <gl-link v-gl-tooltip.hover :href="data.value" :title="$options.i18n.DETAILS_LABEL">{{
+          $options.i18n.DETAILS_LABEL
+        }}</gl-link>
+      </template>
+
+      <template #cell(created_at)="data">
+        <time-ago v-gl-tooltip.hover :time="data.value" :title="data.value" />
+      </template>
+
+      <template #cell(user)="data">
+        <gl-link
+          v-if="data.value"
+          v-gl-tooltip.hover
+          :href="data.value.path"
+          :title="data.value.username"
+          >@{{ data.value.username }}</gl-link
+        >
+        <div v-else>{{ $options.i18n.NO_DATA_CONTENT }}</div>
+      </template>
+    </gl-table>
+
+    <keyset-pagination v-if="displayPagination" v-bind="pageInfo" />
+  </div>
+</template>

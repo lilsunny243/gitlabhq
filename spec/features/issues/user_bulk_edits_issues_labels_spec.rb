@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Issues > Labels bulk assignment' do
+RSpec.describe 'Issues > Labels bulk assignment', feature_category: :team_planning do
   let(:user)      { create(:user) }
   let!(:project)  { create(:project) }
   let!(:bug)      { create(:label, project: project, title: 'bug') }
@@ -417,7 +417,7 @@ RSpec.describe 'Issues > Labels bulk assignment' do
     click_button 'Select milestone'
     wait_for_requests
     items.map do |item|
-      click_link item
+      click_button item
     end
   end
 

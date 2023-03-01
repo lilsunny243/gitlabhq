@@ -1,7 +1,7 @@
 /* https://gist.github.com/qguv/7936275 */
 
 @import '../common';
-@import 'highlight.js/styles/base16/solarized-light.css';
+@import 'highlight.js/styles/base16/solarized-light';
 
 /*
 * Solarized light syntax colors
@@ -106,7 +106,17 @@ $solarized-light-il: #2aa198;
 }
 
 .code.solarized-light {
-  @include hljs-override('title.class_.inherited__', $solarized-light-no);
+  // Highlight.js theme overrides (https://gitlab.com/gitlab-org/gitlab/-/issues/365167)
+  // We should be able to remove the overrides once the upstream issue is fixed (https://github.com/sourcegraph/sourcegraph/issues/23251)
+  @include hljs-override('keyword', $solarized-light-k);
+  @include hljs-override('title\\.class_\\.inherited__', $solarized-light-no);
+  @include hljs-override('title\\.class\\.inherited', $solarized-light-no);
+  @include hljs-override('title\\.class', $solarized-light-nc);
+  @include hljs-override('title\\.function', $solarized-light-nf);
+  @include hljs-override('variable\\.constant', $solarized-light-no);
+  @include hljs-override('variable\\.language', $solarized-light-nb);
+  @include hljs-override('params', $solarized-light-nb);
+
   // Line numbers
   .file-line-num {
     @include line-link($black, 'link');
@@ -156,17 +166,21 @@ $solarized-light-il: #2aa198;
       @include match-line;
     }
 
+    &.diff-grid-row {
+      --diff-expansion-background-color: #{$gray-100};
+    }
+
     &.diff-grid-row.expansion .diff-td {
       background-color: $solarized-light-matchline-bg;
     }
 
-    .diff-td.diff-line-num.hll:not(.empty-cell),
-    .diff-td.line-coverage.hll:not(.empty-cell),
-    .diff-td.line-codequality.hll:not(.empty-cell),
-    .diff-td.line_content.hll:not(.empty-cell),
-    td.diff-line-num.hll:not(.empty-cell),
-    td.line-coverage.hll:not(.empty-cell),
-    td.line_content.hll:not(.empty-cell) {
+    .diff-td.diff-line-num.hll,
+    .diff-td.line-coverage.hll,
+    .diff-td.line-codequality.hll,
+    .diff-td.line_content.hll,
+    td.diff-line-num.hll,
+    td.line-coverage.hll,
+    td.line_content.hll {
       background-color: $solarized-light-hll-bg;
       border-color: darken($solarized-light-hll-bg, 15%);
     }

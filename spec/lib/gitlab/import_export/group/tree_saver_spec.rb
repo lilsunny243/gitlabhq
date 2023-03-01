@@ -51,11 +51,12 @@ RSpec.describe Gitlab::ImportExport::Group::TreeSaver do
           .map { |line| Integer(line) }
 
         expect(groups_catalog.size).to eq(3)
-        expect(groups_catalog).to eq([
-          group.id,
-          group.descendants.first.id,
-          group.descendants.first.descendants.first.id
-        ])
+        expect(groups_catalog).to eq(
+          [
+            group.id,
+            group.descendants.first.id,
+            group.descendants.first.descendants.first.id
+          ])
       end
 
       it 'has a file per group' do
@@ -105,7 +106,7 @@ RSpec.describe Gitlab::ImportExport::Group::TreeSaver do
             members
             milestones
           ].each do |association|
-            path = exported_path_for("#{g.id}", "#{association}.ndjson")
+            path = exported_path_for(g.id.to_s, "#{association}.ndjson")
             expect(File.exist?(path)).to eq(true), "#{path} does not exist"
           end
         end

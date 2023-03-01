@@ -9,7 +9,6 @@ export const FILTER_TAG_IDENTIFIER = 'tag';
 export const SCHEDULE_ORIGIN = 'schedule';
 export const NEEDS_PROPERTY = 'needs';
 export const EXPLICIT_NEEDS_PROPERTY = 'previousStageJobsOrNeeds';
-export const PIPELINE_GRAPHQL_TYPE = 'Ci::Pipeline';
 
 export const ICONS = {
   TAG: 'tag',
@@ -47,8 +46,7 @@ export const CHILD_VIEW = 'child';
 
 // Pipeline tabs
 
-export const TAB_QUERY_PARAM = 'tab';
-
+export const pipelineTabName = 'graph';
 export const needsTabName = 'dag';
 export const jobsTabName = 'builds';
 export const failedJobsTabName = 'failures';
@@ -72,12 +70,12 @@ export const PipelineKeyOptions = [
   {
     text: __('Show Pipeline ID'),
     label: __('Pipeline ID'),
-    key: 'id',
+    value: 'id',
   },
   {
     text: __('Show Pipeline IID'),
     label: __('Pipeline IID'),
-    key: 'iid',
+    value: 'iid',
   },
 ];
 
@@ -109,3 +107,9 @@ export const DEFAULT_FIELDS = [
     columnClass: 'gl-w-20p',
   },
 ];
+
+export const TRACKING_CATEGORIES = {
+  table: 'pipelines_table_component',
+  tabs: 'pipelines_filter_tabs',
+  search: 'pipelines_filtered_search',
+};

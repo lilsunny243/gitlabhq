@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: 'Learn how to administer GitLab Pages.'
 ---
 
@@ -185,7 +185,7 @@ you must also add the full paths as shown below:
 
 1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
 1. If you're using [Pages Access Control](#access-control), update the redirect URI in the GitLab Pages
-[System OAuth application](../../integration/oauth_provider.md#instance-wide-applications)
+[System OAuth application](../../integration/oauth_provider.md#create-an-instance-wide-application)
 to use the HTTPS protocol.
 
 WARNING:
@@ -243,24 +243,24 @@ control over how the Pages daemon runs and serves content in your environment.
 | `artifacts_server_url`                  | API URL to proxy artifact requests to. Defaults to GitLab `external URL` + `/api/v4`, for example `https://gitlab.com/api/v4`. When running a [separate Pages server](#running-gitlab-pages-on-a-separate-server), this URL must point to the main GitLab server's API. |
 | `auth_redirect_uri`                     | Callback URL for authenticating with GitLab. Defaults to project's subdomain of `pages_external_url` + `/auth`. |
 | `auth_secret`                           | Secret key for signing authentication requests. Leave blank to pull automatically from GitLab during OAuth registration. |
-| `client_cert_key_pairs`                 | Client certificates and keys used for mutual TLS with the GitLab API. See [Support mutual TLS when calling the GitLab API](#support-mutual-tls-when-calling-the-gitlab-api) for details. [Introduced](https://gitlab.com/gitlab-org/gitlab-pages/-/issues/548) in GitLab 14.8. |
 | `dir`                                   | Working directory for configuration and secrets files. |
 | `enable`                                | Enable or disable GitLab Pages on the current system. |
 | `external_http`                         | Configure Pages to bind to one or more secondary IP addresses, serving HTTP requests. Multiple addresses can be given as an array, along with exact ports, for example `['1.2.3.4', '1.2.3.5:8063']`. Sets value for `listen_http`. |
 | `external_https`                        | Configure Pages to bind to one or more secondary IP addresses, serving HTTPS requests. Multiple addresses can be given as an array, along with exact ports, for example `['1.2.3.4', '1.2.3.5:8063']`. Sets value for `listen_https`. |
-| `server_shutdown_timeout`               | GitLab Pages server shutdown timeout in seconds (default: 30s). |
-| `gitlab_client_http_timeout`            | GitLab API HTTP client connection timeout in seconds (default: 10s). |
-| `gitlab_client_jwt_expiry`              | JWT Token expiry time in seconds (default: 30s). |
-| `gitlab_cache_expiry`                   | The maximum time a domain's configuration is stored in the cache (default: 600s). |
-| `gitlab_cache_refresh`                  | The interval at which a domain's configuration is set to be due to refresh (default: 60s). |
-| `gitlab_cache_cleanup`                  | The interval at which expired items are removed from the cache (default: 60s). |
-| `gitlab_retrieval_timeout`              | The maximum time to wait for a response from the GitLab API per request (default: 30s). |
-| `gitlab_retrieval_interval`             | The interval to wait before retrying to resolve a domain's configuration via the GitLab API (default: 1s). |
+| `server_shutdown_timeout`               | GitLab Pages server shutdown timeout in seconds (default: 30 s). |
+| `gitlab_client_http_timeout`            | GitLab API HTTP client connection timeout in seconds (default: 10 s). |
+| `gitlab_client_jwt_expiry`              | JWT Token expiry time in seconds (default: 30 s). |
+| `gitlab_cache_expiry`                   | The maximum time a domain's configuration is stored in the cache (default: 600 s). |
+| `gitlab_cache_refresh`                  | The interval at which a domain's configuration is set to be due to refresh (default: 60 s). |
+| `gitlab_cache_cleanup`                  | The interval at which expired items are removed from the cache (default: 60 s). |
+| `gitlab_retrieval_timeout`              | The maximum time to wait for a response from the GitLab API per request (default: 30 s). |
+| `gitlab_retrieval_interval`             | The interval to wait before retrying to resolve a domain's configuration via the GitLab API (default: 1 s). |
 | `gitlab_retrieval_retries`              | The maximum number of times to retry to resolve a domain's configuration via the API (default: 3). |
 | `domain_config_source`                  | This parameter was removed in 14.0, on earlier versions it can be used to enable and test API domain configuration source |
 | `gitlab_id`                             | The OAuth application public ID. Leave blank to automatically fill when Pages authenticates with GitLab. |
 | `gitlab_secret`                         | The OAuth application secret. Leave blank to automatically fill when Pages authenticates with GitLab. |
 | `auth_scope`                            | The OAuth application scope to use for authentication. Must match GitLab Pages OAuth application settings. Leave blank to use `api` scope by default. |
+| `auth_cookie_session_timeout`           | Authentication cookie session timeout in seconds (default: 600 s). A value of `0` means the cookie is deleted after the browser session ends. |
 | `gitlab_server`                         | Server to use for authentication when access control is enabled; defaults to GitLab `external_url`. |
 | `headers`                               | Specify any additional http headers that should be sent to the client with each response. Multiple headers can be given as an array, header and value as one string, for example `['my-header: myvalue', 'my-other-header: my-other-value']` |
 | `enable_disk`                           | Allows the GitLab Pages daemon to serve content from disk. Shall be disabled if shared disk storage isn't available. |
@@ -272,12 +272,12 @@ control over how the Pages daemon runs and serves content in your environment.
 | `log_verbose`                           | Verbose logging, true/false. |
 | `propagate_correlation_id`              | Set to true (false by default) to re-use existing Correlation ID from the incoming request header `X-Request-ID` if present. If a reverse proxy sets this header, the value is propagated in the request chain. |
 | `max_connections`                       | Limit on the number of concurrent connections to the HTTP, HTTPS or proxy listeners. |
-| `max_uri_length`                        | The maximum length of URIs accepted by GitLab Pages. Set to 0 for unlimited length. [Introduced](https://gitlab.com/gitlab-org/gitlab-pages/-/issues/659) in GitLab 14.5.
+| `max_uri_length`                        | The maximum length of URIs accepted by GitLab Pages. Set to 0 for unlimited length. [Introduced](https://gitlab.com/gitlab-org/omnibus-gitlab/-/merge_requests/5729) in GitLab 14.5.
 | `metrics_address`                       | The address to listen on for metrics requests. |
 | `redirect_http`                         | Redirect pages from HTTP to HTTPS, true/false. |
-| `redirects_max_config_size`             | The maximum size of the _redirects file, in bytes (default: 65536). |
-| `redirects_max_path_segments`           | The maximum number of path segments allowed in _redirects rules URLs (default: 25). |
-| `redirects_max_rule_count`              | The maximum number of rules allowed in _redirects (default: 1000). |
+| `redirects_max_config_size`             | The maximum size of the `_redirects` file, in bytes (default: 65536). |
+| `redirects_max_path_segments`           | The maximum number of path segments allowed in `_redirects` rules URLs (default: 25). |
+| `redirects_max_rule_count`              | The maximum number of rules allowed in `_redirects` (default: 1000). |
 | `sentry_dsn`                            | The address for sending Sentry crash reporting to. |
 | `sentry_enabled`                        | Enable reporting and logging with Sentry, true/false. |
 | `sentry_environment`                    | The environment for Sentry crash reporting. |
@@ -294,7 +294,7 @@ control over how the Pages daemon runs and serves content in your environment.
 | `pages_path`                            | The directory on disk where pages are stored, defaults to `GITLAB-RAILS/shared/pages`. |
 | **`pages_nginx[]`**                     |  |
 | `enable`                                | Include a virtual host `server{}` block for Pages inside NGINX. Needed for NGINX to proxy traffic back to the Pages daemon. Set to `false` if the Pages daemon should directly receive all requests, for example, when using [custom domains](index.md#custom-domains). |
-| `FF_ENABLE_PLACEHOLDERS`                | Feature flag to enable/disable rewrites (disabled by default). Read the [redirects documentation](../../user/project/pages/redirects.md#feature-flag-for-rewrites) for more information.  |
+| `FF_ENABLE_PLACEHOLDERS`                | Feature flag for rewrites (enabled by default). See [Rewrites](../../user/project/pages/redirects.md#rewrites) for more information.  |
 | `use_legacy_storage`                    | Temporarily-introduced parameter allowing to use legacy domain configuration source and storage. [Removed in 14.3](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/6166). |
 | `rate_limit_source_ip`                  | Rate limit per source IP in number of requests per second. Set to `0` to disable this feature. |
 | `rate_limit_source_ip_burst`            | Rate limit per source IP maximum burst allowed per second. |
@@ -384,7 +384,7 @@ then you need to also add the full paths as shown below:
 
 1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
 1. If you're using [Pages Access Control](#access-control), update the redirect URI in the GitLab Pages
-[System OAuth application](../../integration/oauth_provider.md#instance-wide-applications)
+[System OAuth application](../../integration/oauth_provider.md#create-an-instance-wide-application)
 to use the HTTPS protocol.
 
 ### Custom domain verification
@@ -403,7 +403,7 @@ domain as a custom domain to their project.
 If your user base is private or otherwise trusted, you can disable the
 verification requirement:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Pages**.
 1. Clear the **Require users to prove ownership of custom domains** checkbox.
@@ -420,7 +420,7 @@ sites served under a custom domain.
 To enable it:
 
 1. Choose an email address on which you want to receive notifications about expiring domains.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Pages**.
 1. Enter the email address for receiving notifications and accept Let's Encrypt's Terms of Service.
@@ -473,7 +473,7 @@ pre-existing applications must modify the GitLab Pages OAuth application. Follow
 this:
 
 1. Enable [access control](#access-control).
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Applications**.
 1. Expand **GitLab Pages**.
 1. Clear the `api` scope's checkbox and select the desired scope's checkbox (for example,
@@ -485,14 +485,14 @@ this:
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/32095) in GitLab 12.7.
 
 You can enforce [Access Control](#access-control) for all GitLab Pages websites hosted
-on your GitLab instance. By doing so, only logged-in users have access to them.
+on your GitLab instance. By doing so, only authenticated users have access to them.
 This setting overrides Access Control set by users in individual projects.
 
 This can be helpful to restrict information published with Pages websites to the users
 of your instance only.
 To do that:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Pages**.
 1. Select the **Disable public access to Pages sites** checkbox.
@@ -513,7 +513,7 @@ internet connectivity is gated by a proxy. To use a proxy for GitLab Pages:
 
 ### Using a custom Certificate Authority (CA)
 
-When using certificates issued by a custom CA, [Access Control](../../user/project/pages/pages_access_control.md#gitlab-pages-access-control) and
+When using certificates issued by a custom CA, [Access Control](../../user/project/pages/pages_access_control.md) and
 the [online view of HTML job artifacts](../../ci/pipelines/job_artifacts.md#download-job-artifacts)
 fails to work if the custom CA is not recognized.
 
@@ -524,22 +524,6 @@ For installation from source, this can be fixed by installing the custom Certifi
 Authority (CA) in the system certificate store.
 
 For Omnibus, this is fixed by [installing a custom CA in Omnibus GitLab](https://docs.gitlab.com/omnibus/settings/ssl.html#install-custom-public-certificates).
-
-### Support mutual TLS when calling the GitLab API
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab-pages/-/issues/548) in GitLab 14.8.
-
-If GitLab has been [configured to require mutual TLS](https://docs.gitlab.com/omnibus/settings/ssl.html#enable-2-way-ssl-client-authentication), you need to add the client certificates to Pages:
-
-1. Configure in `/etc/gitlab/gitlab.rb`:
-
-   ```ruby
-   gitlab_pages['client_cert_key_pairs'] = ['</path/to/cert>:</path/to/key>']
-   ```
-
-   Where `</path/to/cert>` and `</path/to/key>` are the file paths to the client certificate and its respective key file.
-   Both of these files must be encoded in PEM format.
-1. To configure Pages to validate the server certificates, [add the root CA to the system trust store](#using-a-custom-certificate-authority-ca).
 
 ### ZIP serving and cache configuration
 
@@ -556,22 +540,22 @@ archive. You can modify the cache behavior by changing the following configurati
 
 | Setting | Description |
 | ------- | ----------- |
-| `zip_cache_expiration` | The cache expiration interval of ZIP archives. Must be greater than zero to avoid serving stale content. Default is 60s. |
-| `zip_cache_cleanup` | The interval at which archives are cleaned from memory if they have already expired. Default is 30s. |
-| `zip_cache_refresh` | The time interval in which an archive is extended in memory if accessed before `zip_cache_expiration`. This works together with `zip_cache_expiration` to determine if an archive is extended in memory. See the [example below](#zip-cache-refresh-example) for important details. Default is 30s. |
-| `zip_open_timeout` | The maximum time allowed to open a ZIP archive. Increase this time for big archives or slow network connections, as doing so may affect the latency of serving Pages. Default is 30s. |
-| `zip_http_client_timeout` | The maximum time for the ZIP HTTP client. Default is 30m. |
+| `zip_cache_expiration` | The cache expiration interval of ZIP archives. Must be greater than zero to avoid serving stale content. Default is 60 s. |
+| `zip_cache_cleanup` | The interval at which archives are cleaned from memory if they have already expired. Default is 30 s. |
+| `zip_cache_refresh` | The time interval in which an archive is extended in memory if accessed before `zip_cache_expiration`. This works together with `zip_cache_expiration` to determine if an archive is extended in memory. See the [example below](#zip-cache-refresh-example) for important details. Default is 30 s. |
+| `zip_open_timeout` | The maximum time allowed to open a ZIP archive. Increase this time for big archives or slow network connections, as doing so may affect the latency of serving Pages. Default is 30 s. |
+| `zip_http_client_timeout` | The maximum time for the ZIP HTTP client. Default is 30 m. |
 
 #### ZIP cache refresh example
 
 Archives are refreshed in the cache (extending the time they are held in memory) if they're accessed
 before `zip_cache_expiration`, and the time left before expiring is less than or equal to
-`zip_cache_refresh`. For example, if `archive.zip` is accessed at time 0s, it expires in 60s (the
-default for `zip_cache_expiration`). In the example below, if the archive is opened again after 15s
-it is **not** refreshed because the time left for expiry (45s) is greater than `zip_cache_refresh`
-(default 30s). However, if the archive is accessed again after 45s (from the first time it was
+`zip_cache_refresh`. For example, if `archive.zip` is accessed at time 0 s, it expires in 60 s (the
+default for `zip_cache_expiration`). In the example below, if the archive is opened again after 15 s
+it is **not** refreshed because the time left for expiry (45 s) is greater than `zip_cache_refresh`
+(default 30 s). However, if the archive is accessed again after 45 s (from the first time it was
 opened) it's refreshed. This extends the time the archive remains in memory from
-`45s + zip_cache_expiration (60s)`, for a total of 105s.
+`45s + zip_cache_expiration (60s)`, for a total of 105 s.
 
 After an archive reaches `zip_cache_expiration`, it's marked as expired and removed on the next
 `zip_cache_cleanup` interval.
@@ -647,34 +631,6 @@ are stored.
 
 1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
 
-Alternatively, if you have existing Pages deployed you can follow
-the below steps to do a no downtime transfer to a new storage location.
-
-1. Pause Pages deployments by setting the following in `/etc/gitlab/gitlab.rb`:
-
-   ```ruby
-   sidekiq['queue_selector'] = true
-   sidekiq['queue_groups'] = [
-     "feature_category!=pages"
-   ]
-   ```
-
-1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-1. `rsync` contents from the current storage location to the new storage location: `sudo rsync -avzh --progress /var/opt/gitlab/gitlab-rails/shared/pages/ /mnt/storage/pages`
-1. Set the new storage location in `/etc/gitlab/gitlab.rb`:
-
-   ```ruby
-   gitlab_rails['pages_path'] = "/mnt/storage/pages"
-   ```
-
-1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-1. Verify Pages are still being served up as expected.
-1. Resume Pages deployments by removing from `/etc/gitlab/gitlab.rb` the `sidekiq` setting set above.
-1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
-1. Trigger a new Pages deployment and verify it's working as expected.
-1. Remove the old Pages storage location: `sudo rm -rf /var/opt/gitlab/gitlab-rails/shared/pages`
-1. Verify Pages are still being served up as expected.
-
 ## Configure listener for reverse proxy requests
 
 Follow the steps below to configure the proxy listener of GitLab Pages.
@@ -705,7 +661,7 @@ Prerequisites:
 
 To set the global maximum pages size for a project:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Pages**.
 1. Enter a value under **Maximum size of pages**.
@@ -719,7 +675,7 @@ Prerequisites:
 
 To set the maximum size of each GitLab Pages site in a group, overriding the inherited setting:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Pages**.
 1. Enter a value under **Maximum size** in MB.
@@ -733,15 +689,31 @@ Prerequisites:
 
 To set the maximum size of GitLab Pages site in a project, overriding the inherited setting:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Pages**.
-1. Enter a value under **Maximum size of pages** in MB.
+
+   If this path is not visible, select **Deployments > Pages**.
+   [This location is part of an experiment](../../user/project/pages/index.md#menu-position-test).
+1. In **Maximum size of pages**, enter the size in MB.
+1. Select **Save changes**.
+
+## Set maximum number of GitLab Pages custom domains for a project
+
+Prerequisite:
+
+- You must be an administrator of a self-managed GitLab instance.
+
+To set the maximum number of GitLab Pages custom domains for a project:
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > Preferences**, and expand **Pages**.
+1. Enter a value for **Maximum number of custom domains per project**. Use `0` for unlimited domains.
 1. Select **Save changes**.
 
 ## Running GitLab Pages on a separate server
 
 You can run the GitLab Pages daemon on a separate server to decrease the load on
-your main application server.
+your main application server. This configuration does not support mutual TLS (mTLS). See the [corresponding feature proposal](https://gitlab.com/gitlab-org/gitlab-pages/-/issues/548) for more information.
 
 To configure GitLab Pages on a separate server:
 
@@ -824,8 +796,8 @@ database encryption. Proceed with caution.
 
 It's possible to run GitLab Pages on multiple servers if you wish to distribute
 the load. You can do this through standard load balancing practices such as
-configuring your DNS server to return multiple IPs for your Pages server,
-configuring a load balancer to work at the IP level, and so on. If you wish to
+configuring your DNS server to return multiple IPs for your Pages server, or
+configuring a load balancer to work at the IP level. If you wish to
 set up GitLab Pages on multiple servers, perform the above procedure for each
 Pages server.
 
@@ -943,6 +915,10 @@ If you want to stop using and disconnect the NFS server, you need to
 [explicitly disable local storage](#disable-pages-local-storage), and it's only possible after upgrading to GitLab 13.11.
 
 #### S3-compatible connection settings
+
+In GitLab 13.2 and later, you should use the
+[consolidated object storage settings](../object_storage.md#consolidated-object-storage-configuration).
+This section describes the earlier configuration format.
 
 See [the available connection settings for different providers](../object_storage.md#connection-settings).
 
@@ -1077,7 +1053,8 @@ sudo gitlab-rake gitlab:pages:deployments:migrate_to_object_storage
 You can track progress and verify that all Pages deployments migrated successfully using the
 [PostgreSQL console](https://docs.gitlab.com/omnibus/settings/database.html#connecting-to-the-bundled-postgresql-database):
 
-- `sudo gitlab-rails dbconsole` for Omnibus GitLab instances.
+- `sudo gitlab-rails dbconsole` for Omnibus GitLab 14.1 and earlier.
+- `sudo gitlab-rails dbconsole --database main` for Omnibus GitLab 14.2 and later.
 - `sudo -u git -H psql -d gitlabhq_production` for source-installed instances.
 
 Verify `objectstg` below (where `store=2`) has count of all Pages deployments:
@@ -1217,7 +1194,7 @@ the section below.
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->
 
@@ -1385,7 +1362,7 @@ Upgrading to an [officially supported operating system](https://about.gitlab.com
 
 This problem comes from the permissions of the GitLab Pages OAuth application. To fix it:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Applications > GitLab Pages**.
 1. Edit the application.
 1. Under **Scopes**, ensure that the `api` scope is selected.
@@ -1426,7 +1403,7 @@ Once added, reconfigure with `sudo gitlab-ctl reconfigure` and restart GitLab wi
 
 You may see this error if `pages_external_url` was updated at some point of time. Verify the following:
 
-1. The **Callback URL**/Redirect URI in the GitLab Pages [System OAuth application](../../integration/oauth_provider.md#instance-wide-applications)
+1. The **Callback URL**/Redirect URI in the GitLab Pages [System OAuth application](../../integration/oauth_provider.md#create-an-instance-wide-application)
 is using the protocol (HTTP or HTTPS) that `pages_external_url` is configured to use.
 1. The domain and path components of `Redirect URI` are valid: they should look like `projects.<pages_external_url>/auth`.
 
@@ -1508,3 +1485,12 @@ To fix that:
    - Store your deployments locally, by commenting out that line.
 
 1. Save the changes you made to your `gitlab.rb` file, then [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
+
+### 404 error `The page you're looking for could not be found`
+
+If you get a `404 Page Not Found` response from GitLab Pages:
+
+1. Check `.gitlab-ci.yml` contains the job `pages:`.
+1. Check the current project's pipeline to confirm the job `pages:deploy` is being run.
+
+Without the `pages:deploy` job, the updates to your GitLab Pages site are never published.

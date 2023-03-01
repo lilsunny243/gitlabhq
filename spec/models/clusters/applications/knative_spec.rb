@@ -5,20 +5,24 @@ require 'spec_helper'
 RSpec.describe Clusters::Applications::Knative do
   let(:knative) { create(:clusters_applications_knative) }
 
-  include_examples 'cluster application core specs', :clusters_applications_knative
-  include_examples 'cluster application status specs', :clusters_applications_knative
-  include_examples 'cluster application helm specs', :clusters_applications_knative
-  include_examples 'cluster application version specs', :clusters_applications_knative
-  include_examples 'cluster application initial status specs'
-
   before do
     allow(ClusterWaitForIngressIpAddressWorker).to receive(:perform_in)
     allow(ClusterWaitForIngressIpAddressWorker).to receive(:perform_async)
     allow(ClusterConfigureIstioWorker).to receive(:perform_async)
   end
 
+  include_examples 'cluster application core specs', :clusters_applications_knative
+  include_examples 'cluster application status specs', :clusters_applications_knative
+  include_examples 'cluster application helm specs', :clusters_applications_knative
+  include_examples 'cluster application version specs', :clusters_applications_knative
+  include_examples 'cluster application initial status specs'
+
   describe 'associations' do
     it { is_expected.to have_one(:serverless_domain_cluster).class_name('::Serverless::DomainCluster').with_foreign_key('clusters_applications_knative_id').inverse_of(:knative) }
+  end
+
+  describe 'default values' do
+    it { expect(subject.version).to eq(described_class::VERSION) }
   end
 
   describe 'when cloud run is enabled' do

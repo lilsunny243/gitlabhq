@@ -58,7 +58,7 @@ describe('CompareApp component', () => {
   });
 
   it('render Source and Target BranchDropdown components', () => {
-    const revisionCards = wrapper.findAll(RevisionCard);
+    const revisionCards = wrapper.findAllComponents(RevisionCard);
 
     expect(revisionCards.length).toBe(2);
     expect(revisionCards.at(0).props('revisionText')).toBe('Source');
@@ -66,7 +66,7 @@ describe('CompareApp component', () => {
   });
 
   describe('compare button', () => {
-    const findCompareButton = () => wrapper.find(GlButton);
+    const findCompareButton = () => wrapper.findComponent(GlButton);
 
     it('renders button', () => {
       expect(findCompareButton().exists()).toBe(true);
@@ -131,6 +131,40 @@ describe('CompareApp component', () => {
 
       expect(findTargetRevisionCard().props('paramsBranch')).toBe(defaultProps.paramsTo);
       expect(findSourceRevisionCard().props('paramsBranch')).toBe(defaultProps.paramsFrom);
+    });
+  });
+
+  describe('mode dropdown', () => {
+    const findModeDropdownButton = () => wrapper.find('[data-testid="modeDropdown"]');
+    const findEnableStraightModeButton = () =>
+      wrapper.find('[data-testid="enableStraightModeButton"]');
+    const findDisableStraightModeButton = () =>
+      wrapper.find('[data-testid="disableStraightModeButton"]');
+
+    it('renders the mode dropdown button', () => {
+      expect(findModeDropdownButton().exists()).toBe(true);
+    });
+
+    it('has the correct text', () => {
+      expect(findEnableStraightModeButton().text()).toBe('...');
+      expect(findDisableStraightModeButton().text()).toBe('..');
+    });
+
+    it('straight mode button when clicked', async () => {
+      expect(wrapper.props('straight')).toBe(false);
+      expect(wrapper.find('input[name="straight"]').attributes('value')).toBe('false');
+
+      findEnableStraightModeButton().vm.$emit('click');
+
+      await nextTick();
+
+      expect(wrapper.find('input[name="straight"]').attributes('value')).toBe('true');
+
+      findDisableStraightModeButton().vm.$emit('click');
+
+      await nextTick();
+
+      expect(wrapper.find('input[name="straight"]').attributes('value')).toBe('false');
     });
   });
 

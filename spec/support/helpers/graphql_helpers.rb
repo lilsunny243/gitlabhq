@@ -17,6 +17,9 @@ module GraphqlHelpers
   # makes an underscored string look like a fieldname
   # "merge_request" => "mergeRequest"
   def self.fieldnamerize(underscored_field_name)
+    # Skip transformation for a field with leading underscore
+    return underscored_field_name.to_s if underscored_field_name.start_with?('_')
+
     underscored_field_name.to_s.camelize(:lower)
   end
 
@@ -130,11 +133,12 @@ module GraphqlHelpers
     current_user: :not_given,     # The current user (specified explicitly, overrides ctx[:current_user])
     schema: GitlabSchema,         # A specific schema instance
     object_type: described_class, # The `BaseObject` type this field belongs to
-    arg_style: :internal_prepared # Args are in internal format, but should use more rigorous processing
+    arg_style: :internal_prepared, # Args are in internal format, but should use more rigorous processing
+    query: nil                     # Query to evaluate the field
   )
     field = to_base_field(field, object_type)
     ctx[:current_user] = current_user unless current_user == :not_given
-    query = GraphQL::Query.new(schema, context: ctx.to_h)
+    query ||= GraphQL::Query.new(schema, context: ctx.to_h)
     extras[:lookahead] = negative_lookahead if extras[:lookahead] == :not_given && field.extras.include?(:lookahead)
     query_ctx = query.context
 
@@ -374,7 +378,7 @@ module GraphqlHelpers
 
   def field_with_params(name, attributes = {})
     namerized = GraphqlHelpers.fieldnamerize(name.to_s)
-    return "#{namerized}" if attributes.blank?
+    return namerized.to_s if attributes.blank?
 
     field_params = if attributes.is_a?(Hash)
                      "(#{attributes_to_graphql(attributes)})"
@@ -716,7 +720,7 @@ module GraphqlHelpers
   end
 
   def allow_high_graphql_transaction_threshold
-    stub_const("Gitlab::QueryLimiting::Transaction::THRESHOLD", 1000)
+    allow(Gitlab::QueryLimiting::Transaction).to receive(:threshold).and_return(1000)
   end
 
   def allow_high_graphql_query_size
@@ -855,7 +859,7 @@ module GraphqlHelpers
 
   # A lookahead that selects everything
   def positive_lookahead
-    double(selects?: true).tap do |selection|
+    double(selected?: true, selects?: true).tap do |selection|
       allow(selection).to receive(:selection).and_return(selection)
       allow(selection).to receive(:selections).and_return(selection)
       allow(selection).to receive(:map).and_return(double(include?: true))
@@ -864,7 +868,7 @@ module GraphqlHelpers
 
   # A lookahead that selects nothing
   def negative_lookahead
-    double(selects?: false).tap do |selection|
+    double(selected?: false, selects?: false, selections: []).tap do |selection|
       allow(selection).to receive(:selection).and_return(selection)
     end
   end

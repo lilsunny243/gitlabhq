@@ -5,6 +5,7 @@ class MergeRequests::PipelineEntity < Grape::Entity
 
   expose :id
   expose :active?, as: :active
+  expose :name
 
   expose :path do |pipeline|
     project_pipeline_path(pipeline.project, pipeline)
@@ -17,15 +18,15 @@ class MergeRequests::PipelineEntity < Grape::Entity
   expose :commit, using: CommitEntity
 
   expose :details do
-    expose :name do |pipeline|
-      pipeline.present.name
+    expose :event_type_name do |pipeline|
+      pipeline.present.event_type_name
     end
 
     expose :artifacts do |pipeline, options|
       rel = pipeline.downloadable_artifacts
 
       if Feature.enabled?(:non_public_artifacts, type: :development)
-        rel = rel.select { |artifact| can?(request.current_user, :read_job_artifacts, artifact.job) }
+        rel = rel.select { |artifact| can?(request.current_user, :read_job_artifacts, artifact) }
       end
 
       BuildArtifactEntity.represent(rel, options.merge(project: pipeline.project))

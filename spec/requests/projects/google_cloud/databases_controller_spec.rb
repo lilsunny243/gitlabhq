@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::GoogleCloud::DatabasesController, :snowplow do
+RSpec.describe Projects::GoogleCloud::DatabasesController, :snowplow, feature_category: :kubernetes_management do
   shared_examples 'shared examples for database controller endpoints' do
     include_examples 'requires `admin_project_google_cloud` role'
 
@@ -94,24 +94,33 @@ RSpec.describe Projects::GoogleCloud::DatabasesController, :snowplow do
         post project_google_cloud_databases_path(project)
       end
 
-      it 'calls EnableCloudsqlService and redirects on error' do
-        expect_next_instance_of(::GoogleCloud::EnableCloudsqlService) do |service|
-          expect(service).to receive(:execute)
-                               .and_return({ status: :error, message: 'error' })
+      context 'when EnableCloudsqlService fails' do
+        before do
+          allow_next_instance_of(::GoogleCloud::EnableCloudsqlService) do |service|
+            allow(service).to receive(:execute)
+                                 .and_return({ status: :error, message: 'error' })
+          end
         end
 
-        subject
+        it 'redirects and track event on error' do
+          subject
 
-        expect(response).to redirect_to(project_google_cloud_databases_path(project))
+          expect(response).to redirect_to(project_google_cloud_databases_path(project))
 
-        expect_snowplow_event(
-          category: 'Projects::GoogleCloud',
-          action: 'databases#cloudsql_create',
-          label: 'error_enable_cloudsql_service',
-          extra: { status: :error, message: 'error' },
-          project: project,
-          user: user
-        )
+          expect_snowplow_event(
+            category: 'Projects::GoogleCloud::DatabasesController',
+            action: 'error_enable_cloudsql_services',
+            label: nil,
+            project: project,
+            user: user
+          )
+        end
+
+        it 'shows a flash alert' do
+          subject
+
+          expect(flash[:alert]).to eq(s_('CloudSeed|Google Cloud Error - error'))
+        end
       end
 
       context 'when EnableCloudsqlService is successful' do
@@ -122,24 +131,33 @@ RSpec.describe Projects::GoogleCloud::DatabasesController, :snowplow do
           end
         end
 
-        it 'calls CreateCloudsqlInstanceService and redirects on error' do
-          expect_next_instance_of(::GoogleCloud::CreateCloudsqlInstanceService) do |service|
-            expect(service).to receive(:execute)
-                                 .and_return({ status: :error, message: 'error' })
+        context 'when CreateCloudsqlInstanceService fails' do
+          before do
+            allow_next_instance_of(::GoogleCloud::CreateCloudsqlInstanceService) do |service|
+              allow(service).to receive(:execute)
+                                   .and_return({ status: :error, message: 'error' })
+            end
           end
 
-          subject
+          it 'redirects and track event on error' do
+            subject
 
-          expect(response).to redirect_to(project_google_cloud_databases_path(project))
+            expect(response).to redirect_to(project_google_cloud_databases_path(project))
 
-          expect_snowplow_event(
-            category: 'Projects::GoogleCloud',
-            action: 'databases#cloudsql_create',
-            label: 'error_create_cloudsql_instance',
-            extra: { status: :error, message: 'error' },
-            project: project,
-            user: user
-          )
+            expect_snowplow_event(
+              category: 'Projects::GoogleCloud::DatabasesController',
+              action: 'error_create_cloudsql_instance',
+              label: nil,
+              project: project,
+              user: user
+            )
+          end
+
+          it 'shows a flash warning' do
+            subject
+
+            expect(flash[:warning]).to eq(s_('CloudSeed|Google Cloud Error - error'))
+          end
         end
 
         context 'when CreateCloudsqlInstanceService is successful' do
@@ -156,13 +174,24 @@ RSpec.describe Projects::GoogleCloud::DatabasesController, :snowplow do
             expect(response).to redirect_to(project_google_cloud_databases_path(project))
 
             expect_snowplow_event(
-              category: 'Projects::GoogleCloud',
-              action: 'databases#cloudsql_create',
-              label: 'success',
-              extra: nil,
+              category: 'Projects::GoogleCloud::DatabasesController',
+              action: 'create_cloudsql_instance',
+              label: "{}",
               project: project,
               user: user
             )
+          end
+
+          it 'shows a flash notice' do
+            subject
+
+            expect(flash[:notice])
+              .to eq(
+                s_(
+                  'CloudSeed|Cloud SQL instance creation request successful. ' \
+                  'Expected resolution time is ~5 minutes.'
+                )
+              )
           end
         end
       end

@@ -1,10 +1,10 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Bugzilla service **(FREE)**
+# Bugzilla **(FREE)**
 
 [Bugzilla](https://www.bugzilla.org/) is a web-based general-purpose bug tracking system and testing
 tool.
@@ -14,7 +14,7 @@ You can configure Bugzilla as an
 
 To enable the Bugzilla integration in a project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Bugzilla**.
 1. Select the checkbox under **Enable integration**.
@@ -37,8 +37,8 @@ After you configure and enable Bugzilla, a link appears on the GitLab
 project pages. This link takes you to the appropriate Bugzilla project.
 
 You can also disable [GitLab internal issue tracking](../issues/index.md) in this project.
-Learn more about the steps and consequences of disabling GitLab issues in
-[Sharing and permissions](../settings/index.md#configure-project-visibility-features-and-permissions).
+For more information about the steps and consequences of disabling GitLab issues, see
+[Configure project visibility, features, and permissions](../settings/index.md#configure-project-visibility-features-and-permissions).
 
 ## Reference Bugzilla issues in GitLab
 

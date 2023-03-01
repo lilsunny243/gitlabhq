@@ -3,7 +3,7 @@
 require 'parallel'
 
 module QA
-  RSpec.describe 'Systems' do
+  RSpec.describe 'Systems', product_group: :gitaly do
     describe 'Gitaly distributed reads', :orchestrated, :gitaly_cluster, :skip_live_env, :requires_admin do
       let(:number_of_reads_per_loop) { 9 }
       let(:praefect_manager) { Service::PraefectManager.new }
@@ -36,12 +36,12 @@ module QA
 
       context 'when a node is unhealthy' do
         before do
-          praefect_manager.stop_secondary_node
+          praefect_manager.stop_node(praefect_manager.secondary_node)
         end
 
         after do
           # Leave the cluster in a suitable state for subsequent tests
-          praefect_manager.start_secondary_node
+          praefect_manager.start_node(praefect_manager.secondary_node)
         end
 
         it 'does not read from the unhealthy node',

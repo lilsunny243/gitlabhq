@@ -52,6 +52,11 @@ export default {
       required: false,
       default: false,
     },
+    shouldScrollToNote: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
   },
   computed: {
     ...mapGetters(['userCanReply']),
@@ -133,6 +138,7 @@ export default {
           :discussion-root="true"
           :discussion-resolve-path="discussion.resolve_path"
           :is-overview-tab="isOverviewTab"
+          :should-scroll-to-note="shouldScrollToNote"
           @handleDeleteNote="$emit('deleteNote')"
           @startReplying="$emit('startReplying')"
         >
@@ -142,7 +148,7 @@ export default {
               :edited-at="discussion.resolved_at"
               :edited-by="discussion.resolved_by"
               :action-text="resolvedText"
-              class-name="discussion-headline-light js-discussion-headline discussion-resolved-text"
+              class-name="discussion-headline-light js-discussion-headline discussion-resolved-text gl-mb-2 gl-ml-3"
             />
           </template>
           <template #avatar-badge>
@@ -183,6 +189,7 @@ export default {
           :discussion-root="index === 0"
           :discussion-resolve-path="discussion.resolve_path"
           :is-overview-tab="isOverviewTab"
+          :should-scroll-to-note="shouldScrollToNote"
           @handleDeleteNote="$emit('deleteNote')"
         >
           <template #avatar-badge>

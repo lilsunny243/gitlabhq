@@ -4,16 +4,21 @@ module QA
   module Page
     module MergeRequest
       class New < Page::Issuable::New
+        include QA::Page::Component::Dropdown
+
         view 'app/views/shared/issuable/_form.html.haml' do
           element :issuable_create_button, required: true
         end
 
         view 'app/views/projects/merge_requests/creations/_new_compare.html.haml' do
           element :compare_branches_button
-          element :source_branch_dropdown
         end
 
-        view 'app/views/projects/merge_requests/show.html.haml' do
+        view 'app/assets/javascripts/merge_requests/components/compare_dropdown.vue' do
+          element :source_branch_dropdown, ':data-qa-selector="qaSelector"' # rubocop:disable QA/ElementWithPattern
+        end
+
+        view 'app/views/projects/merge_requests/_page.html.haml' do
           element :diffs_tab
         end
 
@@ -38,7 +43,6 @@ module QA
 
         def click_diffs_tab
           click_element(:diffs_tab)
-          click_element(:dismiss_popover_button) if has_element?(:dismiss_popover_button, wait: 1)
         end
 
         def has_file?(file_name)
@@ -47,8 +51,7 @@ module QA
 
         def select_source_branch(branch)
           click_element(:source_branch_dropdown)
-          fill_element(:dropdown_input_field, branch)
-          click_via_capybara(:click_on, branch)
+          search_and_select(branch)
         end
       end
     end

@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -11,7 +11,7 @@ GitLab provides Docker images with the libraries and tools you need to deploy
 to AWS. You can reference these images in your CI/CD pipeline.
 
 If you're using GitLab.com and deploying to the [Amazon Elastic Container Service](https://aws.amazon.com/ecs/) (ECS),
-read about [deploying to ECS](ecs/quick_start_guide.md).
+read about [deploying to ECS](ecs/deploy_to_aws_ecs.md).
 
 ## Authenticate GitLab with AWS
 
@@ -31,7 +31,7 @@ After you set up authentication, you can configure CI/CD to deploy.
    | `AWS_SECRET_ACCESS_KEY`        | Your secret access key. |
    | `AWS_DEFAULT_REGION`           | Your region code. You might want to confirm that the AWS service you intend to use is [available in the chosen region](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/). |
 
-1. Variables are [protected by default](../variables/index.md#protected-cicd-variables).
+1. Variables are [protected by default](../variables/index.md#protect-a-cicd-variable).
    To use GitLab CI/CD with branches or tags that are not protected,
    clear the **Protect variable** checkbox.
 
@@ -50,6 +50,7 @@ deploy:
   script:
    - aws s3 ...
    - aws create-deployment ...
+  environment: production
 ```
 
 GitLab provides a Docker image that includes the AWS CLI:
@@ -75,7 +76,7 @@ Prerequisites:
 
 - [Authenticate AWS with GitLab](#authenticate-gitlab-with-aws).
 - Create a cluster on Amazon ECS.
-- Create related components, like an ECS service, a database on Amazon RDS, and so on.
+- Create related components, like an ECS service or a database on Amazon RDS.
 - Create an ECS task definition, where the value for the `containerDefinitions[].name` attribute is
   the same as the `Container name` defined in your targeted ECS service. The task definition can be:
   - An existing task definition in ECS.
@@ -189,7 +190,7 @@ To deploy to EC2, complete the following steps.
      ```
 
    - If you do not want these JSON objects saved in your repository, add each object
-     as a separate [file type CI/CD variable](../variables/index.md#cicd-variable-types)
+     as a separate [file type CI/CD variable](../variables/index.md#use-file-type-cicd-variables)
      in the project settings. Use the same variable names as above.
 
 1. In your `.gitlab-ci.yml` file, create a CI/CD variable for the name of the stack. For example:

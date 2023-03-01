@@ -1,11 +1,11 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
-# Undo possibilities in Git **(FREE)**
+# Undo options in Git **(FREE)**
 
 [Nothing in Git is deleted](https://git-scm.com/book/en/v2/Git-Internals-Maintenance-and-Data-Recovery),
 so when you work in Git, you can undo your work.
@@ -209,7 +209,7 @@ To recover from multiple incorrect commits:
 The commits are now `A-B-C-D-E`.
 
 Alternatively, with GitLab,
-you can [cherry-pick](../../../user/project/merge_requests/cherry_pick_changes.md#cherry-pick-a-commit)
+you can [cherry-pick](../../../user/project/merge_requests/cherry_pick_changes.md#cherry-pick-a-single-commit)
 that commit into a new merge request.
 
 NOTE:
@@ -391,8 +391,8 @@ Tools are available to execute Git commands more quickly.
 These tools are faster because they do not provide the same
 feature set as `git filter-branch` does, but focus on specific use cases.
 
-Refer to [Reduce repository size](../../../user/project/repository/reducing_the_repo_size_using_git.md) to
-learn more about purging files from repository history and GitLab storage.
+For more information about purging files from the repository history and GitLab storage,
+see [Reduce repository size](../../../user/project/repository/reducing_the_repo_size_using_git.md).
 
 <!-- ## Troubleshooting
 
@@ -402,7 +402,7 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->
 

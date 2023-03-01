@@ -1,7 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gitlab.com/.gitlab-ci.yml",
-  "title": "Gitlab CI configuration",
   "markdownDescription": "Gitlab has a built-in solution for doing CI called Gitlab CI. It is configured by supplying a file called `.gitlab-ci.yml`, which will list all the jobs that are going to run for the project. A full list of all options can be found [here](https://docs.gitlab.com/ee/ci/yaml). [Learn More](https://docs.gitlab.com/ee/ci/index.html).",
   "type": "object",
   "properties": {
@@ -9,34 +8,77 @@
       "type": "string",
       "format": "uri"
     },
-    "image": { "$ref": "#/definitions/image" },
-    "services": { "$ref": "#/definitions/services" },
-    "before_script": { "$ref": "#/definitions/before_script" },
-    "after_script": { "$ref": "#/definitions/after_script" },
-    "variables": { "$ref": "#/definitions/globalVariables" },
-    "cache": { "$ref": "#/definitions/cache" },
-    "!reference": {"$ref" : "#/definitions/!reference"},
+    "image": {
+      "$ref": "#/definitions/image"
+    },
+    "services": {
+      "$ref": "#/definitions/services"
+    },
+    "before_script": {
+      "$ref": "#/definitions/before_script"
+    },
+    "after_script": {
+      "$ref": "#/definitions/after_script"
+    },
+    "variables": {
+      "$ref": "#/definitions/globalVariables"
+    },
+    "cache": {
+      "$ref": "#/definitions/cache"
+    },
+    "!reference": {
+      "$ref": "#/definitions/!reference"
+    },
     "default": {
       "type": "object",
       "properties": {
-        "after_script": { "$ref": "#/definitions/after_script" },
-        "artifacts": { "$ref": "#/definitions/artifacts" },
-        "before_script": { "$ref": "#/definitions/before_script" },
-        "cache": { "$ref": "#/definitions/cache" },
-        "image": { "$ref": "#/definitions/image" },
-        "interruptible": { "$ref": "#/definitions/interruptible" },
-        "retry": { "$ref": "#/definitions/retry" },
-        "services": { "$ref": "#/definitions/services" },
-        "tags": { "$ref": "#/definitions/tags" },
-        "timeout": { "$ref": "#/definitions/timeout" },
-        "!reference": {"$ref" : "#/definitions/!reference"}
+        "after_script": {
+          "$ref": "#/definitions/after_script"
+        },
+        "artifacts": {
+          "$ref": "#/definitions/artifacts"
+        },
+        "before_script": {
+          "$ref": "#/definitions/before_script"
+        },
+        "hooks": {
+          "$ref": "#/definitions/hooks"
+        },
+        "cache": {
+          "$ref": "#/definitions/cache"
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "interruptible": {
+          "$ref": "#/definitions/interruptible"
+        },
+        "retry": {
+          "$ref": "#/definitions/retry"
+        },
+        "services": {
+          "$ref": "#/definitions/services"
+        },
+        "tags": {
+          "$ref": "#/definitions/tags"
+        },
+        "timeout": {
+          "$ref": "#/definitions/timeout"
+        },
+        "!reference": {
+          "$ref": "#/definitions/!reference"
+        }
       },
       "additionalProperties": false
     },
     "stages": {
       "type": "array",
       "markdownDescription": "Groups jobs into stages. All jobs in one stage must complete before next stage is executed. Defaults to ['build', 'test', 'deploy']. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#stages).",
-      "default": ["build", "test", "deploy"],
+      "default": [
+        "build",
+        "test",
+        "deploy"
+      ],
       "items": {
         "type": "string"
       },
@@ -46,10 +88,14 @@
     "include": {
       "markdownDescription": "Can be `IncludeItem` or `IncludeItem[]`. Each `IncludeItem` will be a string, or an object with properties for the method if including external YAML file. The external content will be fetched, included and evaluated along the `.gitlab-ci.yml`. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#include).",
       "oneOf": [
-        { "$ref": "#/definitions/include_item" },
+        {
+          "$ref": "#/definitions/include_item"
+        },
         {
           "type": "array",
-          "items": { "$ref": "#/definitions/include_item" }
+          "items": {
+            "$ref": "#/definitions/include_item"
+          }
         }
       ]
     },
@@ -60,21 +106,43 @@
     "workflow": {
       "type": "object",
       "properties": {
+        "name": {
+          "$ref": "#/definitions/workflowName"
+        },
         "rules": {
           "type": "array",
           "items": {
             "anyOf": [
-              {"type": "object"},
-              {"type": "array", "minLength": 1, "items": { "type": "string" }}
+              {
+                "type": "object"
+              },
+              {
+                "type": "array",
+                "minLength": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
             ],
             "properties": {
-              "if": { "$ref": "#/definitions/if" },
-              "changes": { "$ref": "#/definitions/changes" },
-              "exists": { "$ref": "#/definitions/exists" },
-              "variables": { "$ref": "#/definitions/variables" },
+              "if": {
+                "$ref": "#/definitions/if"
+              },
+              "changes": {
+                "$ref": "#/definitions/changes"
+              },
+              "exists": {
+                "$ref": "#/definitions/exists"
+              },
+              "variables": {
+                "$ref": "#/definitions/rulesVariables"
+              },
               "when": {
                 "type": "string",
-                "enum": ["always", "never"]
+                "enum": [
+                  "always",
+                  "never"
+                ]
               }
             },
             "additionalProperties": false
@@ -87,8 +155,12 @@
     "^[.]": {
       "description": "Hidden keys.",
       "anyOf": [
-        { "$ref": "#/definitions/job_template" },
-        { "description": "Arbitrary YAML anchor." }
+        {
+          "$ref": "#/definitions/job_template"
+        },
+        {
+          "description": "Arbitrary YAML anchor."
+        }
       ]
     }
   },
@@ -133,19 +205,11 @@
         "when": {
           "markdownDescription": "Configure when artifacts are uploaded depended on job status. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#artifactswhen).",
           "default": "on_success",
-          "oneOf": [
-            {
-              "enum": ["on_success"],
-              "description": "Upload artifacts only when the job succeeds (this is the default)."
-            },
-            {
-              "enum": ["on_failure"],
-              "description": "Upload artifacts only when the job fails."
-            },
-            {
-              "enum": ["always"],
-              "description": "Upload artifacts regardless of job status."
-            }
+          "type": "string",
+          "enum": [
+            "on_success",
+            "on_failure",
+            "always"
           ]
         },
         "expire_in": {
@@ -175,13 +239,22 @@
                 }
               ]
             },
+            "browser_performance": {
+              "type": "string",
+              "description": "Path to a single file with browser performance metric report(s)."
+            },
             "coverage_report": {
-              "type": "object",
+              "type": [
+                "object",
+                "null"
+              ],
               "description": "Used to collect coverage reports from the job.",
               "properties": {
                 "coverage_format": {
                   "description": "Code coverage format used by the test framework.",
-                  "enum": ["cobertura"]
+                  "enum": [
+                    "cobertura"
+                  ]
                 },
                 "path": {
                   "description": "Path to the coverage report file that should be parsed.",
@@ -226,10 +299,6 @@
               "$ref": "#/definitions/string_file_list",
               "description": "Path to file or list of files with license report(s)."
             },
-            "performance": {
-              "$ref": "#/definitions/string_file_list",
-              "description": "Path to file or list of files with performance metrics report(s)."
-            },
             "requirements": {
               "$ref": "#/definitions/string_file_list",
               "description": "Path to file or list of files with requirements report(s)."
@@ -270,10 +339,10 @@
     "include_item": {
       "oneOf": [
         {
-          "description": "Will infer the method based on the value. E.g. `https://...` strings will be of type `include:remote`, and `/templates/...` will be of type `include:local`.",
+          "description": "Will infer the method based on the value. E.g. `https://...` strings will be of type `include:remote`, and `/templates/...` or `templates/...` will be of type `include:local`.",
           "type": "string",
           "format": "uri-reference",
-          "pattern": "^(https?://|/).+\\.ya?ml$"
+          "pattern": "^(https?://|/?.?-?(?!\\w+://)\\w).+\\.ya?ml$"
         },
         {
           "type": "object",
@@ -285,18 +354,22 @@
               "format": "uri-reference",
               "pattern": "\\.ya?ml$"
             },
-            "rules": { "$ref": "#/definitions/rules" }
+            "rules": {
+              "$ref": "#/definitions/rules"
+            }
           },
-          "required": ["local"]
+          "required": [
+            "local"
+          ]
         },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "project": {
-              "description": "Path to the project, e.g. `group/project`, or `group/sub-group/project`.",
+              "description": "Path to the project, e.g. `group/project`, or `group/sub-group/project` [Learn more](https://docs.gitlab.com/ee/ci/yaml/index.html#includefile).",
               "type": "string",
-              "pattern": "\\S/\\S|\\$(\\S+)"
+              "pattern": "(?:\\S/\\S|\\$\\S+)"
             },
             "ref": {
               "description": "Branch/Tag/Commit-hash for the target project.",
@@ -320,7 +393,10 @@
               ]
             }
           },
-          "required": ["project", "file"]
+          "required": [
+            "project",
+            "file"
+          ]
         },
         {
           "type": "object",
@@ -333,7 +409,23 @@
               "pattern": "\\.ya?ml$"
             }
           },
-          "required": ["template"]
+          "required": [
+            "template"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "description": "Local path to component directory or full path to external component directory.",
+              "type": "string",
+              "format": "uri-reference"
+            }
+          },
+          "required": [
+            "component"
+          ]
         },
         {
           "type": "object",
@@ -346,7 +438,9 @@
               "pattern": "^https?://.+\\.ya?ml$"
             }
           },
-          "required": ["remote"]
+          "required": [
+            "remote"
+          ]
         }
       ]
     },
@@ -407,7 +501,16 @@
               ]
             }
           },
-          "required": ["name"]
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "type": "array",
+          "minLength": 1,
+          "items": {
+            "type": "string"
+          }
         }
       ],
       "markdownDescription": "Specifies the docker image to use for the job or globally for all jobs. Job configuration takes precedence over global setting. Requires a certain kind of Gitlab runner executor. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#image)."
@@ -434,7 +537,7 @@
               },
               "entrypoint": {
                 "type": "array",
-                "description": "Command or script that should be executed as the container's entrypoint. It will be translated to Docker's --entrypoint option while creating the container. The syntax is similar to Dockerfile's ENTRYPOINT directive, where each shell token is a separate string in the array.",
+                "markdownDescription": "Command or script that should be executed as the container's entrypoint. It will be translated to Docker's --entrypoint option while creating the container. The syntax is similar to Dockerfile's ENTRYPOINT directive, where each shell token is a separate string in the array. [Learn More](https://docs.gitlab.com/ee/ci/services/index.html#available-settings-for-services)",
                 "minItems": 1,
                 "items": {
                   "type": "string"
@@ -469,7 +572,7 @@
               },
               "command": {
                 "type": "array",
-                "description": "Command or script that should be used as the container's command. It will be translated to arguments passed to Docker after the image's name. The syntax is similar to Dockerfile's CMD directive, where each shell token is a separate string in the array.",
+                "markdownDescription": "Command or script that should be used as the container's command. It will be translated to arguments passed to Docker after the image's name. The syntax is similar to Dockerfile's CMD directive, where each shell token is a separate string in the array. [Learn More](https://docs.gitlab.com/ee/ci/services/index.html#available-settings-for-services)",
                 "minItems": 1,
                 "items": {
                   "type": "string"
@@ -477,48 +580,113 @@
               },
               "alias": {
                 "type": "string",
-                "description": "Additional alias that can be used to access the service from the job's container. Read Accessing the services for more information.",
+                "markdownDescription": "Additional alias that can be used to access the service from the job's container. Read Accessing the services for more information. [Learn More](https://docs.gitlab.com/ee/ci/services/index.html#available-settings-for-services)",
                 "minLength": 1
+              },
+              "variables": {
+                "$ref": "#/definitions/jobVariables",
+                "markdownDescription": "Additional environment variables that are passed exclusively to the service. Service variables cannot reference themselves. [Learn More](https://docs.gitlab.com/ee/ci/services/index.html#available-settings-for-services)"
               }
             },
-            "required": ["name"]
+            "required": [
+              "name"
+            ]
           }
         ]
+      }
+    },
+    "id_tokens": {
+      "type": "object",
+      "markdownDescription": "Defines JWTs to be injected as environment variables.",
+      "patternProperties": {
+        ".*": {
+          "type": "object",
+          "properties": {
+            "aud": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              ]
+            }
+          },
+          "required": [
+            "aud"
+          ],
+          "additionalProperties": false
+        }
       }
     },
     "secrets": {
       "type": "object",
       "markdownDescription": "Defines secrets to be injected as environment variables. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#secrets).",
-      "additionalProperties": {
-        "type": "object",
-        "description": "Environment variable name",
-        "properties": {
-          "vault": {
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "The secret to be fetched from Vault (e.g. 'production/db/password@ops' translates to secret 'ops/data/production/db', field `password`)"
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "engine": {
-                    "type": "object",
-                    "properties": {
-                      "name": { "type": "string" },
-                      "path": { "type": "string" }
-                    },
-                    "required": ["name", "path"]
-                  },
-                  "path": { "type": "string" },
-                  "field": { "type": "string" }
+      "patternProperties": {
+        ".*": {
+          "type": "object",
+          "properties": {
+            "vault": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "markdownDescription": "The secret to be fetched from Vault (e.g. 'production/db/password@ops' translates to secret 'ops/data/production/db', field `password`). [Learn More](https://docs.gitlab.com/ee/ci/yaml/#secretsvault)"
                 },
-                "required": ["engine", "path", "field"]
-              }
-            ]
-          }
-        },
-        "required": ["vault"]
+                {
+                  "type": "object",
+                  "properties": {
+                    "engine": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "path"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "field": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "engine",
+                    "path",
+                    "field"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "file": {
+              "type": "boolean",
+              "default": true,
+              "markdownDescription": "Configures the secret to be stored as either a file or variable type CI/CD variable. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#secretsfile)"
+            },
+            "token": {
+              "type": "string",
+              "description": "Specifies the JWT variable that should be used to authenticate with Hashicorp Vault."
+            }
+          },
+          "required": [
+            "vault"
+          ],
+          "additionalProperties": false
+        }
       }
     },
     "before_script": {
@@ -556,7 +724,10 @@
       }
     },
     "rules": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "markdownDescription": "Rules allows for an array of individual rule objects to be evaluated in order, until one matches and dynamically provides attributes to the job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#rules).",
       "items": {
         "anyOf": [
@@ -564,45 +735,134 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "if": { "$ref": "#/definitions/if" },
-              "changes": { "$ref": "#/definitions/changes" },
-              "exists": { "$ref": "#/definitions/exists" },
-              "variables": { "$ref": "#/definitions/variables" },
-              "when": { "$ref": "#/definitions/when" },
-              "start_in": { "$ref": "#/definitions/start_in" },
-              "allow_failure": { "$ref": "#/definitions/allow_failure" }
+              "if": {
+                "$ref": "#/definitions/if"
+              },
+              "changes": {
+                "$ref": "#/definitions/changes"
+              },
+              "exists": {
+                "$ref": "#/definitions/exists"
+              },
+              "variables": {
+                "$ref": "#/definitions/rulesVariables"
+              },
+              "when": {
+                "$ref": "#/definitions/when"
+              },
+              "start_in": {
+                "$ref": "#/definitions/start_in"
+              },
+              "allow_failure": {
+                "$ref": "#/definitions/allow_failure"
+              }
             }
           },
-          {"type": "string", "minLength": 1},
-          {"type": "array", "minLength": 1, "items": { "type": "string" }}
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "array",
+            "minLength": 1,
+            "items": {
+              "type": "string"
+            }
+          }
         ]
       }
     },
+    "workflowName": {
+      "type": "string",
+      "markdownDescription": "Defines the pipeline name. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#workflowname).",
+      "minLength": 1,
+      "maxLength": 255
+    },
     "globalVariables": {
-      "markdownDescription": "Defines environment variables globally. Job level property overrides global variables. If a job sets `variables: {}`, all global variables are turned off. You can use the value and description keywords to define variables that are prefilled when running a pipeline manually. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variables).",
-      "anyOf": [
-        {"type": "object"},
-        {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      ],
-      "additionalProperties": {
-        "anyOf": [
-          {"type": ["string", "integer", "array"]},
-          {
-            "type": "object",
-            "properties": {
-              "value": { "type": "string" },
-              "description": {
-                "type": "string",
-                "description": "Explains what the variable is used for, what the acceptable values are."
-              }
+      "markdownDescription": "Defines default variables for all jobs. Job level property overrides global variables. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variables).",
+      "type": "object",
+      "patternProperties": {
+        ".*": {
+          "oneOf": [
+            {
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "markdownDescription": "Default value of the variable. If used with `options`, `value` must be included in the array. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variablesvalue)"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "markdownDescription": "A list of predefined values that users can select from in the **Run pipeline** page when running a pipeline manually. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variablesoptions)"
+                },
+                "description": {
+                  "type": "string",
+                  "markdownDescription": "Explains what the variable is used for, what the acceptable values are. Variables with `description` are prefilled when running a pipeline manually. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variablesdescription)."
+                },
+                "expand": {
+                  "type": "boolean",
+                  "markdownDescription": "If the variable is expandable or not. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variablesexpand)."
+                }
+              },
+              "additionalProperties": false
             }
-          }
-        ]
+          ]
+        },
+        "additionalProperties": false
+      }
+    },
+    "jobVariables": {
+      "markdownDescription": "Defines variables for a job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variables).",
+      "type": "object",
+      "patternProperties": {
+        ".*": {
+          "oneOf": [
+            {
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "expand": {
+                  "type": "boolean",
+                  "markdownDescription": "Defines if the variable is expandable or not. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#variablesexpand)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "additionalProperties": false
+      }
+    },
+    "rulesVariables": {
+      "markdownDescription": "Defines variables for a rule result. [Learn More](https://docs.gitlab.com/ee/ci/yaml/index.html#rulesvariables).",
+      "type": "object",
+      "patternProperties": {
+        ".*": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "additionalProperties": false
       }
     },
     "if": {
@@ -615,7 +875,9 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["paths"],
+          "required": [
+            "paths"
+          ],
           "properties": {
             "paths": {
               "type": "array",
@@ -645,23 +907,6 @@
         "type": "string"
       }
     },
-    "variables": {
-      "markdownDescription": "Defines environment variables for specific jobs. Job level property overrides global variables. If a job sets `variables: {}`, all global variables are turned off. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#rulesvariables).",
-      "anyOf": [
-        {
-          "type": "object",
-          "additionalProperties": {
-            "type": ["string", "integer", "array"]
-          }
-        },
-        {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      ]
-    },
     "timeout": {
       "type": "string",
       "markdownDescription": "Allows you to configure a timeout for a specific job (e.g. `1 minute`, `1h 30m 12s`). [Learn More](https://docs.gitlab.com/ee/ci/yaml/index.html#timeout).",
@@ -684,7 +929,9 @@
           "description": "Exit code that are not considered failure. The job fails for any other exit code.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["exit_codes"],
+          "required": [
+            "exit_codes"
+          ],
           "properties": {
             "exit_codes": {
               "type": "integer"
@@ -695,7 +942,9 @@
           "description": "You can list which exit codes are not considered failures. The job fails for any other exit code.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["exit_codes"],
+          "required": [
+            "exit_codes"
+          ],
           "properties": {
             "exit_codes": {
               "type": "array",
@@ -710,113 +959,83 @@
       ]
     },
     "when": {
-      "markdownDescription": "Describes the conditions for when to run the job. Defaults to 'on_success'.",
+      "markdownDescription": "Describes the conditions for when to run the job. Defaults to 'on_success'. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#when).",
       "default": "on_success",
-      "oneOf": [
-        {
-          "enum": ["on_success"],
-          "description": "Execute job only when all jobs from prior stages succeed."
-        },
-        {
-          "enum": ["on_failure"],
-          "description": "Execute job when at least one job from prior stages fails."
-        },
-        {
-          "enum": ["always"],
-          "description": "Execute job regardless of the status from prior stages."
-        },
-        {
-          "enum": ["manual"],
-          "markdownDescription": "Execute the job manually from Gitlab UI or API. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#when)."
-        },
-        {
-          "enum": ["delayed"],
-          "markdownDescription": "Execute a job after the time limit in 'start_in' expires. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#when)."
-        },
-        {
-          "enum": ["never"],
-          "description": "Never execute the job."
-        }
+      "type": "string",
+      "enum": [
+        "on_success",
+        "on_failure",
+        "always",
+        "never",
+        "manual",
+        "delayed"
       ]
     },
     "cache": {
+      "markdownDescription": "Use `cache` to specify a list of files and directories to cache between jobs. You can only use paths that are in the local working copy. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cache)",
       "properties": {
-        "when": {
-          "markdownDescription": "Defines when to save the cache, based on the status of the job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachewhen).",
-          "default": "on_success",
-          "oneOf": [
-            {
-              "enum": ["on_success"],
-              "description": "Save the cache only when the job succeeds."
-            },
-            {
-              "enum": ["on_failure"],
-              "description": "Save the cache only when the job fails. "
-            },
-            {
-              "enum": ["always"],
-              "description": "Always save the cache. "
-            }
-          ]
-        }
-      }
-    },
-    "cache_entry": {
-      "type": "object",
-      "description": "Specify files or directories to cache between jobs. Can be set globally or per job.",
-      "additionalProperties": false,
-      "properties": {
-        "paths": {
-          "type": "array",
-          "description": "List of files or paths to cache.",
-          "items": {
-            "type": "string"
-          }
-        },
         "key": {
+          "markdownDescription": "Use the `cache:key` keyword to give each cache a unique identifying key. All jobs that use the same cache key use the same cache, including in different pipelines. Must be used with `cache:path`, or nothing is cached. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachekey).",
           "oneOf": [
             {
               "type": "string",
-              "description": "Unique cache ID, to allow e.g. specific branch or job cache. Environment variables can be used to set up unique keys (e.g. \"$CI_COMMIT_REF_SLUG\" for per branch cache)."
+              "pattern": "^(?!.*\\/)^(.*[^.]+.*)$"
             },
             {
               "type": "object",
-              "description": "When you include cache:key:files, you must also list the project files that will be used to generate the key, up to a maximum of two files. The cache key will be a SHA checksum computed from the most recent commits (up to two, if two files are listed) that changed the given files.",
               "properties": {
                 "files": {
+                  "markdownDescription": "Use the `cache:key:files` keyword to generate a new key when one or two specific files change. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)",
                   "type": "array",
                   "items": {
                     "type": "string"
                   },
                   "minItems": 1,
                   "maxItems": 2
+                },
+                "prefix": {
+                  "markdownDescription": "Use `cache:key:prefix` to combine a prefix with the SHA computed for `cache:key:files`. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachekeyprefix)",
+                  "type": "string"
                 }
               }
             }
           ]
         },
-        "untracked": {
-          "type": "boolean",
-          "description": "Set to `true` to cache untracked files.",
-          "default": false
+        "paths": {
+          "type": "array",
+          "markdownDescription": "Use the `cache:paths` keyword to choose which files or directories to cache. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachepaths)",
+          "items": {
+            "type": "string"
+          }
         },
         "policy": {
           "type": "string",
-          "description": "Determines the strategy for downloading and updating the cache.",
+          "markdownDescription": "Determines the strategy for downloading and updating the cache. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachepolicy)",
           "default": "pull-push",
-          "oneOf": [
-            {
-              "enum": ["pull"],
-              "description": "Pull will download cache but skip uploading after job completes."
-            },
-            {
-              "enum": ["push"],
-              "description": "Push will skip downloading cache and always recreate cache after job completes."
-            },
-            {
-              "enum": ["pull-push"],
-              "description": "Pull-push will both download cache at job start and upload cache on job success."
-            }
+          "enum": [
+            "pull",
+            "push",
+            "pull-push"
+          ]
+        },
+        "unprotect": {
+          "type": "boolean",
+          "markdownDescription": "Use `unprotect: true` to set a cache to be shared between protected and unprotected branches.",
+          "default": false
+        },
+        "untracked": {
+          "type": "boolean",
+          "markdownDescription": "Use `untracked: true` to cache all files that are untracked in your Git repository. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cacheuntracked)",
+          "default": false
+        },
+        "when": {
+          "type": "string",
+          "markdownDescription": "Defines when to save the cache, based on the status of the job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#cachewhen).",
+          "default": "on_success",
+          "enum": [
+            "on_success",
+            "on_failure",
+            "always"
           ]
         }
       }
@@ -829,39 +1048,57 @@
           {
             "oneOf": [
               {
-                "enum": ["branches"],
+                "enum": [
+                  "branches"
+                ],
                 "description": "When a branch is pushed."
               },
               {
-                "enum": ["tags"],
+                "enum": [
+                  "tags"
+                ],
                 "description": "When a tag is pushed."
               },
               {
-                "enum": ["api"],
+                "enum": [
+                  "api"
+                ],
                 "description": "When a pipeline has been triggered by a second pipelines API (not triggers API)."
               },
               {
-                "enum": ["external"],
+                "enum": [
+                  "external"
+                ],
                 "description": "When using CI services other than Gitlab"
               },
               {
-                "enum": ["pipelines"],
+                "enum": [
+                  "pipelines"
+                ],
                 "description": "For multi-project triggers, created using the API with 'CI_JOB_TOKEN'."
               },
               {
-                "enum": ["pushes"],
+                "enum": [
+                  "pushes"
+                ],
                 "description": "Pipeline is triggered by a `git push` by the user"
               },
               {
-                "enum": ["schedules"],
+                "enum": [
+                  "schedules"
+                ],
                 "description": "For scheduled pipelines."
               },
               {
-                "enum": ["triggers"],
+                "enum": [
+                  "triggers"
+                ],
                 "description": "For pipelines created using a trigger token."
               },
               {
-                "enum": ["web"],
+                "enum": [
+                  "web"
+                ],
                 "description": "For pipelines created using *Run pipeline* button in Gitlab UI (under your project's *Pipelines*)."
               }
             ]
@@ -889,7 +1126,9 @@
               "$ref": "#/definitions/filter_refs"
             },
             "kubernetes": {
-              "enum": ["active"],
+              "enum": [
+                "active"
+              ],
               "description": "Filter job based on if Kubernetes integration is active."
             },
             "variables": {
@@ -913,16 +1152,22 @@
     "retry": {
       "markdownDescription": "Retry a job if it fails. Can be a simple integer or object definition. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#retry).",
       "oneOf": [
-        { "$ref": "#/definitions/retry_max" },
+        {
+          "$ref": "#/definitions/retry_max"
+        },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "max": { "$ref": "#/definitions/retry_max" },
+            "max": {
+              "$ref": "#/definitions/retry_max"
+            },
             "when": {
               "markdownDescription": "Either a single or array of error types to trigger job retry. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#retrywhen).",
               "oneOf": [
-                { "$ref": "#/definitions/retry_errors" },
+                {
+                  "$ref": "#/definitions/retry_errors"
+                },
                 {
                   "type": "array",
                   "items": {
@@ -1005,21 +1250,45 @@
     },
     "job": {
       "allOf": [
-        { "$ref": "#/definitions/job_template" }
+        {
+          "$ref": "#/definitions/job_template"
+        }
       ]
     },
     "job_template": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "image": { "$ref": "#/definitions/image" },
-        "services": { "$ref": "#/definitions/services" },
-        "before_script": { "$ref": "#/definitions/before_script" },
-        "after_script": { "$ref": "#/definitions/after_script" },
-        "rules": { "$ref": "#/definitions/rules" },
-        "variables": { "$ref": "#/definitions/variables" },
-        "cache": { "$ref": "#/definitions/cache" },
-        "secrets": { "$ref": "#/definitions/secrets" },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "services": {
+          "$ref": "#/definitions/services"
+        },
+        "before_script": {
+          "$ref": "#/definitions/before_script"
+        },
+        "after_script": {
+          "$ref": "#/definitions/after_script"
+        },
+        "hooks": {
+          "$ref": "#/definitions/hooks"
+        },
+        "rules": {
+          "$ref": "#/definitions/rules"
+        },
+        "variables": {
+          "$ref": "#/definitions/jobVariables"
+        },
+        "cache": {
+          "$ref": "#/definitions/cache"
+        },
+        "id_tokens": {
+          "$ref": "#/definitions/id_tokens"
+        },
+        "secrets": {
+          "$ref": "#/definitions/secrets"
+        },
         "script": {
           "markdownDescription": "Shell scripts executed by the Runner. The only required property of jobs. Be careful with special characters (e.g. `:`, `{`, `}`, `&`) and use single or double quotes to avoid issues. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#script)",
           "oneOf": [
@@ -1047,9 +1316,20 @@
           ]
         },
         "stage": {
-          "type": "string",
           "description": "Define what stage the job will run in.",
-          "minLength": 1
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minLength": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
         },
         "only": {
           "$ref": "#/definitions/filter",
@@ -1092,7 +1372,9 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["job"]
+                "required": [
+                  "job"
+                ]
               },
               {
                 "type": "object",
@@ -1108,7 +1390,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["job", "pipeline"]
+                "required": [
+                  "job",
+                  "pipeline"
+                ]
               },
               {
                 "type": "object",
@@ -1127,7 +1412,11 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["job", "project", "ref"]
+                "required": [
+                  "job",
+                  "project",
+                  "ref"
+                ]
               }
             ]
           }
@@ -1164,7 +1453,9 @@
         "environment": {
           "description": "Used to associate environment metadata with a deploy. Environment can have a name and URL attached to it, and will be displayed under /environments under the project.",
           "oneOf": [
-            { "type": "string" },
+            {
+              "type": "string"
+            },
             {
               "type": "object",
               "additionalProperties": false,
@@ -1185,7 +1476,13 @@
                   "description": "The name of a job to execute when the environment is about to be stopped."
                 },
                 "action": {
-                  "enum": ["start", "prepare", "stop", "verify", "access"],
+                  "enum": [
+                    "start",
+                    "prepare",
+                    "stop",
+                    "verify",
+                    "access"
+                  ],
                   "description": "Specifies what this job will do. 'start' (default) indicates the job will start the deployment. 'prepare'/'verify'/'access' indicates this will not affect the deployment. 'stop' indicates this will stop the deployment.",
                   "default": "start"
                 },
@@ -1216,7 +1513,9 @@
                   ]
                 }
               },
-              "required": ["name"]
+              "required": [
+                "name"
+              ]
             }
           ]
         },
@@ -1296,15 +1595,23 @@
                         ]
                       }
                     },
-                    "required": ["name", "url"]
+                    "required": [
+                      "name",
+                      "url"
+                    ]
                   },
                   "minItems": 1
                 }
               },
-              "required": ["links"]
+              "required": [
+                "links"
+              ]
             }
           },
-          "required": ["tag_name", "description"]
+          "required": [
+            "tag_name",
+            "description"
+          ]
         },
         "coverage": {
           "type": "string",
@@ -1323,7 +1630,7 @@
               "description": "Creates N instances of the same job that run in parallel.",
               "default": 0,
               "minimum": 2,
-              "maximum": 50
+              "maximum": 200
             },
             {
               "type": "object",
@@ -1335,14 +1642,20 @@
                     "type": "object",
                     "description": "Defines environment variables for specific job.",
                     "additionalProperties": {
-                      "type": ["string", "number", "array"]
+                      "type": [
+                        "string",
+                        "number",
+                        "array"
+                      ]
                     }
                   },
-                  "maxItems": 50
+                  "maxItems": 200
                 }
               },
               "additionalProperties": false,
-              "required": ["matrix"]
+              "required": [
+                "matrix"
+              ]
             }
           ]
         },
@@ -1364,7 +1677,7 @@
                 "project": {
                   "description": "Path to the project, e.g. `group/project`, or `group/sub-group/project`.",
                   "type": "string",
-                  "pattern": "\\S/\\S"
+                  "pattern": "(?:\\S/\\S|\\$\\S+)"
                 },
                 "branch": {
                   "description": "The branch name that a downstream pipeline will use",
@@ -1373,7 +1686,9 @@
                 "strategy": {
                   "description": "You can mirror the pipeline status from the triggered pipeline to the source bridge job by using strategy: depend",
                   "type": "string",
-                  "enum": ["depend"]
+                  "enum": [
+                    "depend"
+                  ]
                 },
                 "forward": {
                   "description": "Specify what to forward to the downstream pipeline.",
@@ -1393,9 +1708,13 @@
                   }
                 }
               },
-              "required": ["project"],
+              "required": [
+                "project"
+              ],
               "dependencies": {
-                "branch": ["project"]
+                "branch": [
+                  "project"
+                ]
               }
             },
             {
@@ -1456,7 +1775,10 @@
                                 "type": "string"
                               }
                             },
-                            "required": ["artifact", "job"]
+                            "required": [
+                              "artifact",
+                              "job"
+                            ]
                           },
                           {
                             "type": "object",
@@ -1465,7 +1787,7 @@
                               "project": {
                                 "description": "Path to another private project under the same GitLab instance, like `group/project` or `group/sub-group/project`.",
                                 "type": "string",
-                                "pattern": "\\S/\\S"
+                                "pattern": "(?:\\S/\\S|\\$\\S+)"
                               },
                               "ref": {
                                 "description": "Branch/Tag/Commit hash for the target project.",
@@ -1479,7 +1801,10 @@
                                 "pattern": "\\.ya?ml$"
                               }
                             },
-                            "required": ["project", "file"]
+                            "required": [
+                              "project",
+                              "file"
+                            ]
                           }
                         ]
                       }
@@ -1489,7 +1814,9 @@
                 "strategy": {
                   "description": "You can mirror the pipeline status from the triggered pipeline to the source bridge job by using strategy: depend",
                   "type": "string",
-                  "enum": ["depend"]
+                  "enum": [
+                    "depend"
+                  ]
                 },
                 "forward": {
                   "description": "Specify what to forward to the downstream pipeline.",
@@ -1511,9 +1838,9 @@
               }
             },
             {
-              "markdownDescription": "Path to the project, e.g. `group/project`, or `group/sub-group/project`. [Learn More](https://docs.gitlab.com/ee/ci/pipelines/multi_project_pipelines.html#define-multi-project-pipelines-in-your-gitlab-ciyml-file).",
+              "markdownDescription": "Path to the project, e.g. `group/project`, or `group/sub-group/project`. [Learn More](https://docs.gitlab.com/ee/ci/yaml/index.html#trigger).",
               "type": "string",
-              "pattern": "\\S/\\S"
+              "pattern": "(?:\\S/\\S|\\$\\S+)"
             }
           ]
         },
@@ -1550,7 +1877,9 @@
             "variables": {
               "markdownDescription": "Whether to inherit all globally-defined variables or not. Or subset of inherited variables. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#inheritvariables).",
               "oneOf": [
-                { "type": "boolean" },
+                {
+                  "type": "boolean"
+                },
                 {
                   "type": "array",
                   "items": {
@@ -1566,15 +1895,24 @@
       "oneOf": [
         {
           "properties": {
-            "when": { "enum": ["delayed"] }
+            "when": {
+              "enum": [
+                "delayed"
+              ]
+            }
           },
-          "required": ["when", "start_in"]
+          "required": [
+            "when",
+            "start_in"
+          ]
         },
         {
           "properties": {
             "when": {
               "not": {
-                "enum": ["delayed"]
+                "enum": [
+                  "delayed"
+                ]
               }
             }
           }
@@ -1583,10 +1921,56 @@
     },
     "tags": {
       "type": "array",
+      "minLength": 1,
       "markdownDescription": "Used to select runners from the list of available runners. A runner must have all tags listed here to run the job. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#tags).",
       "items": {
-        "type": "string"
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "array",
+            "minLength": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
       }
+    },
+    "hooks": {
+      "type": "object",
+      "markdownDescription": "Specifies lists of commands to execute on the runner at certain stages of job execution. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#hooks).",
+      "properties": {
+        "pre_get_sources_script": {
+          "markdownDescription": "Specifies a list of commands to execute on the runner before updating the Git repository and any submodules. [Learn More](https://docs.gitlab.com/ee/ci/yaml/#hookspre_get_sources_script).",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "minItems": 1
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Sign commits and tags with X.509 certificates **(FREE)**
@@ -48,7 +48,7 @@ GitLab checks certificate revocation lists on a daily basis with a background wo
 - Self-signed certificates without `authorityKeyIdentifier`,
   `subjectKeyIdentifier`, and `crlDistributionPoints` are not supported. We
   recommend using certificates from a PKI that are in line with
-  [RFC 5280](https://tools.ietf.org/html/rfc5280).
+  [RFC 5280](https://www.rfc-editor.org/rfc/rfc5280).
 - If you have more than one email in the Subject Alternative Name list in
   your signing certificate,
   [only the first one is used to verify commits](https://gitlab.com/gitlab-org/gitlab/-/issues/336677).
@@ -160,8 +160,15 @@ can start signing your tags:
 ## Related topics
 
 - [Rake task for X.509 signatures](../../../../raketasks/x509_signatures.md)
+- [Sign commits with GPG](../gpg_signed_commits/index.md)
+- [Sign commits with SSH keys](../ssh_signed_commits/index.md)
 
 ## Troubleshooting
+
+For committers without administrator access, review the list of
+[verification problems with signed commits](../gpg_signed_commits/index.md#fix-verification-problems-with-signed-commits)
+for possible fixes. The other troubleshooting suggestions on this page require
+administrator access.
 
 ### Re-verify commits
 

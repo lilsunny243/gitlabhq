@@ -1,7 +1,7 @@
 ---
 stage: Manage
-group: Workspace
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Organization
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Group badges API **(FREE)**
@@ -10,11 +10,13 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 ## Placeholder tokens
 
-Badges support placeholders that are replaced in real time in both the link and image URL. The allowed placeholders are:
+[Badges](../user/project/badges.md) support placeholders that are replaced in real time in both the link and image URL. The allowed placeholders are:
 
 <!-- vale gitlab.Spelling = NO -->
 
 - **%{project_path}**: replaced by the project path.
+- **%{project_title}**: replaced by the project title.
+- **%{project_name}**: replaced by the project name.
 - **%{project_id}**: replaced by the project ID.
 - **%{default_branch}**: replaced by the project default branch.
 - **%{commit_sha}**: replaced by the last project's commit SHA.
@@ -34,7 +36,7 @@ GET /groups/:id/badges
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `name`    | string         | no  | Name of the badges to return (case-sensitive). |
 
 ```shell
@@ -67,7 +69,7 @@ GET /groups/:id/badges/:badge_id
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `badge_id` | integer | yes   | The badge ID |
 
 ```shell
@@ -78,6 +80,7 @@ Example response:
 
 ```json
 {
+  "name": "Coverage",
   "id": 1,
   "link_url": "http://example.com/ci_status.svg?project=%{project_path}&ref=%{default_branch}",
   "image_url": "https://shields.io/my/badge",
@@ -97,13 +100,14 @@ POST /groups/:id/badges
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `link_url` | string         | yes | URL of the badge link |
 | `image_url` | string | yes | URL of the badge image |
+| `name` | string | no | Name of the badge |
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
-     --data "link_url=https://gitlab.com/gitlab-org/gitlab-foss/commits/master&image_url=https://shields.io/my/badge1&position=0" \
+     --data "link_url=https://gitlab.com/gitlab-org/gitlab-foss/commits/master&image_url=https://shields.io/my/badge1&name=mybadge&position=0" \
      "https://gitlab.example.com/api/v4/groups/:id/badges"
 ```
 
@@ -112,6 +116,7 @@ Example response:
 ```json
 {
   "id": 1,
+  "name": "mybadge",
   "link_url": "https://gitlab.com/gitlab-org/gitlab-foss/commits/master",
   "image_url": "https://shields.io/my/badge1",
   "rendered_link_url": "https://gitlab.com/gitlab-org/gitlab-foss/commits/master",
@@ -130,10 +135,11 @@ PUT /groups/:id/badges/:badge_id
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `badge_id` | integer | yes   | The badge ID |
 | `link_url` | string         | no | URL of the badge link |
 | `image_url` | string | no | URL of the badge image |
+| `name` | string | no | Name of the badge |
 
 ```shell
 curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" \
@@ -145,6 +151,7 @@ Example response:
 ```json
 {
   "id": 1,
+  "name": "mybadge",
   "link_url": "https://gitlab.com/gitlab-org/gitlab-foss/commits/master",
   "image_url": "https://shields.io/my/badge",
   "rendered_link_url": "https://gitlab.com/gitlab-org/gitlab-foss/commits/master",
@@ -163,7 +170,7 @@ DELETE /groups/:id/badges/:badge_id
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `badge_id` | integer | yes   | The badge ID |
 
 ```shell
@@ -180,7 +187,7 @@ GET /groups/:id/badges/render
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `link_url` | string         | yes | URL of the badge link|
 | `image_url` | string | yes | URL of the badge image |
 

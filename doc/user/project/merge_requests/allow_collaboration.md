@@ -1,12 +1,12 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Collaborate on merge requests across forks **(FREE)**
 
-When you open a merge request from your fork, you can allow upstream
+When you open a merge request from your [fork](../repository/forking_workflow.md), you can allow upstream
 members to collaborate with you on your branch.
 When you enable this option, members who have permission to merge to the target branch get
 permission to write to the merge request's source branch.
@@ -15,7 +15,7 @@ The members of the upstream project can then make small fixes or rebase branches
 before merging.
 
 This feature is available for merge requests across forked projects that are
-publicly accessible.
+[publicly accessible](../../public_access.md).
 
 ## Allow commits from upstream members
 
@@ -61,7 +61,7 @@ In the following example:
 To change or add a commit to the contributor's merge request:
 
 1. Go to the merge request.
-1. In the upper right corner, select **Code**, then select **Check out branch**.
+1. In the upper-right corner, select **Code**, then select **Check out branch**.
 1. In the modal window, select **Copy** (**{copy-to-clipboard}**).
 1. In your terminal, go to your cloned version of the repository, and
    paste the commands. For example:

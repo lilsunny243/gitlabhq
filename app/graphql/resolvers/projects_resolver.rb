@@ -2,49 +2,41 @@
 
 module Resolvers
   class ProjectsResolver < BaseResolver
+    include ProjectSearchArguments
+
     type Types::ProjectType, null: true
-
-    argument :membership, GraphQL::Types::Boolean,
-             required: false,
-             description: 'Limit projects that the current user is a member of.'
-
-    argument :search, GraphQL::Types::String,
-             required: false,
-             description: 'Search query for project name, path, or description.'
 
     argument :ids, [GraphQL::Types::ID],
              required: false,
              description: 'Filter projects by IDs.'
 
-    argument :search_namespaces, GraphQL::Types::Boolean,
-             required: false,
-             description: 'Include namespace in project search.'
-
     argument :sort, GraphQL::Types::String,
              required: false,
-             description: 'Sort order of results.'
+             description: "Sort order of results. Format: `<field_name>_<sort_direction>`, " \
+                 "for example: `id_desc` or `name_asc`"
 
-    argument :topics, type: [GraphQL::Types::String],
-                      required: false,
-                      description: 'Filters projects by topics.'
+    argument :with_issues_enabled, GraphQL::Types::Boolean,
+             required: false,
+             description: "Return only projects with issues enabled."
+
+    argument :with_merge_requests_enabled, GraphQL::Types::Boolean,
+             required: false,
+             description: "Return only projects with merge requests enabled."
 
     def resolve(**args)
       ProjectsFinder
-        .new(current_user: current_user, params: project_finder_params(args), project_ids_relation: parse_gids(args[:ids]))
+        .new(current_user: current_user, params: finder_params(args), project_ids_relation: parse_gids(args[:ids]))
         .execute
     end
 
     private
 
-    def project_finder_params(params)
+    def finder_params(args)
       {
-        without_deleted: true,
-        non_public: params[:membership],
-        search: params[:search],
-        search_namespaces: params[:search_namespaces],
-        sort: params[:sort],
-        topic: params[:topics]
-      }.compact
+        **project_finder_params(args),
+        with_issues_enabled: args[:with_issues_enabled],
+        with_merge_requests_enabled: args[:with_merge_requests_enabled]
+      }
     end
 
     def parse_gids(gids)

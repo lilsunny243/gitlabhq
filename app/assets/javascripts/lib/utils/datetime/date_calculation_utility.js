@@ -142,9 +142,16 @@ export const dayInQuarter = (date, quarter) => {
 
 export const millisecondsPerDay = 1000 * 60 * 60 * 24;
 
-export const getDayDifference = (a, b) => {
-  const date1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const date2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+/**
+ * Calculates the number of days between 2 specified dates, excluding the current date
+ *
+ * @param {Date} startDate the earlier date that we will substract from the end date
+ * @param {Date} endDate the last date in the range
+ * @return {Number} number of days in between
+ */
+export const getDayDifference = (startDate, endDate) => {
+  const date1 = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const date2 = Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
 
   return Math.floor((date2 - date1) / millisecondsPerDay);
 };
@@ -208,6 +215,19 @@ export const newDateAsLocaleTime = (date) => {
   return new Date(`${date}${suffix}`);
 };
 
+/**
+ * Takes a Date object (where timezone could be GMT or EST) and
+ * returns a Date object with the same date but in UTC.
+ *
+ * @param {Date} date A Date object
+ * @returns {Date|null} A Date object with the same date but in UTC
+ */
+export const getDateWithUTC = (date) => {
+  return date instanceof Date
+    ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    : null;
+};
+
 export const beginOfDayTime = 'T00:00:00Z';
 export const endOfDayTime = 'T23:59:59Z';
 
@@ -251,22 +271,23 @@ export const secondsToMilliseconds = (seconds) => seconds * 1000;
 export const secondsToDays = (seconds) => Math.round(seconds / 86400);
 
 /**
- * Converts a numeric utc offset in seconds to +/- hours
- * ie -32400 => -9 hours
- * ie -12600 => -3.5 hours
+ * Returns the date `n` seconds after the date provided
  *
- * @param {Number} offset UTC offset in seconds as a integer
- *
- * @return {String} the + or - offset in hours
+ * @param {Date} date the initial date
+ * @param {Number} numberOfSeconds number of seconds after
+ * @return {Date} A `Date` object `n` seconds after the provided `Date`
  */
-export const secondsToHours = (offset) => {
-  const parsed = parseInt(offset, 10);
-  if (Number.isNaN(parsed) || parsed === 0) {
-    return `0`;
-  }
-  const num = offset / 3600;
-  return parseInt(num, 10) !== num ? num.toFixed(1) : num;
-};
+export const nSecondsAfter = (date, numberOfSeconds) =>
+  new Date(date.getTime() + numberOfSeconds * 1000);
+
+/**
+ * Returns the date `n` seconds before the date provided
+ *
+ * @param {Date} date the initial date
+ * @param {Number} numberOfSeconds number of seconds before
+ * @return {Date} A `Date` object `n` seconds before the provided `Date`
+ */
+export const nSecondsBefore = (date, numberOfSeconds) => nSecondsAfter(date, -numberOfSeconds);
 
 /**
  * Returns the date `n` days after the date provided
@@ -510,7 +531,7 @@ export const getOverlappingDaysInPeriods = (givenPeriodLeft = {}, givenPeriodRig
 
 /**
  * Mimics the behaviour of the rails distance_of_time_in_words function
- * https://api.rubyonrails.org/v6.0.1/classes/ActionView/Helpers/DateHelper.html#method-i-distance_of_time_in_words
+ * https://api.rubyonrails.org/classes/ActionView/Helpers/DateHelper.html#method-i-distance_of_time_in_words
  * 0 < -> 29 secs                                         => less than a minute
  * 30 secs < -> 1 min, 29 secs                            => 1 minute
  * 1 min, 30 secs < -> 44 mins, 29 secs                   => [2..44] minutes

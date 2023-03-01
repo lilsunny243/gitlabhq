@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Milestone' do
+RSpec.describe 'Milestone', feature_category: :team_planning do
   let(:group) { create(:group, :public) }
   let(:project) { create(:project, :public, namespace: group) }
   let(:user) { create(:user) }
@@ -23,10 +23,16 @@ RSpec.describe 'Milestone' do
         fill_in "milestone_due_date", with: '2016-12-16'
       end
 
-      find('input[name="commit"]').click
+      click_button 'Create milestone'
 
       expect(find('[data-testid="no-issues-alert"]')).to have_content('Assign some issues to this milestone.')
       expect(page).to have_content('Nov 16, 2016–Dec 16, 2016')
+    end
+
+    it 'passes redirect_path through to form' do
+      visit new_project_milestone_path(project, redirect_path: 'new_release')
+
+      expect(find('#redirect_path', visible: :all)[:value]).to eq('new_release')
     end
   end
 
@@ -49,7 +55,7 @@ RSpec.describe 'Milestone' do
       page.within '.milestone-form' do
         fill_in "milestone_title", with: milestone.title
       end
-      find('input[name="commit"]').click
+      click_button 'Create milestone'
 
       expect(find('.gl-alert-danger')).to have_content('already being used for another group or project milestone.')
     end
@@ -62,7 +68,7 @@ RSpec.describe 'Milestone' do
       page.within '.milestone-form' do
         fill_in "milestone_title", with: milestone.title
       end
-      find('input[name="commit"]').click
+      click_button 'Create milestone'
 
       expect(find('.gl-alert-danger')).to have_content('already being used for another group or project milestone.')
     end
@@ -122,8 +128,8 @@ RSpec.describe 'Milestone' do
 
         click_link 'Reopen Milestone'
 
-        expect(page).not_to have_selector('.gl-bg-red-500')
-        expect(page).to have_selector('.gl-bg-green-500')
+        expect(page).not_to have_selector('.badge-danger')
+        expect(page).to have_selector('.badge-success')
       end
     end
 
@@ -133,8 +139,8 @@ RSpec.describe 'Milestone' do
 
         click_link 'Reopen Milestone'
 
-        expect(page).not_to have_selector('.gl-bg-red-500')
-        expect(page).to have_selector('.gl-bg-green-500')
+        expect(page).not_to have_selector('.badge-danger')
+        expect(page).to have_selector('.badge-success')
       end
     end
   end

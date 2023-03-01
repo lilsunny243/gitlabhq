@@ -3,7 +3,6 @@ import { GlTooltipDirective, GlIcon, GlSprintf, GlSkeletonLoader, GlButton } fro
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { n__ } from '~/locale';
 import Tracking from '~/tracking';
-import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import ClipboardButton from '~/vue_shared/components/clipboard_button.vue';
 import ListItem from '~/vue_shared/components/registry/list_item.vue';
 import { joinPaths } from '~/lib/utils/url_utility';
@@ -13,7 +12,6 @@ import {
   REMOVE_REPOSITORY_LABEL,
   ROW_SCHEDULED_FOR_DELETION,
   IMAGE_DELETE_SCHEDULED_STATUS,
-  IMAGE_FAILED_DELETED_STATUS,
   IMAGE_MIGRATING_STATE,
   COPY_IMAGE_PATH_TITLE,
   IMAGE_FULL_PATH_LABEL,
@@ -38,7 +36,7 @@ export default {
   directives: {
     GlTooltip: GlTooltipDirective,
   },
-  mixins: [Tracking.mixin(), glFeatureFlagsMixin()],
+  mixins: [Tracking.mixin()],
   inject: ['config'],
   props: {
     item: {
@@ -80,9 +78,6 @@ export default {
     migrating() {
       return this.item.migrationState === IMAGE_MIGRATING_STATE;
     },
-    failedDelete() {
-      return this.item.status === IMAGE_FAILED_DELETED_STATUS;
-    },
     tagsCountText() {
       return n__(
         'ContainerRegistry|%{count} Tag',
@@ -91,20 +86,14 @@ export default {
       );
     },
     imageName() {
-      if (this.glFeatures.containerRegistryShowShortenedPath) {
-        if (this.showFullPath) {
-          return this.item.path;
-        }
-        const projectPath = this.item?.project?.path?.toLowerCase() ?? '';
-        if (this.item.name) {
-          return joinPaths(projectPath, this.item.name);
-        }
-        return projectPath;
+      if (this.showFullPath) {
+        return this.item.path;
       }
-      return this.item.path;
-    },
-    routerLinkEvent() {
-      return this.deleting ? '' : 'click';
+      const projectPath = this.item?.project?.path?.toLowerCase() ?? '';
+      if (this.item.name) {
+        return joinPaths(projectPath, this.item.name);
+      }
+      return projectPath;
     },
     deleteButtonTooltipTitle() {
       return this.migrating
@@ -125,18 +114,10 @@ export default {
 </script>
 
 <template>
-  <list-item
-    v-gl-tooltip="{
-      placement: 'left',
-      disabled: !deleting,
-      title: $options.i18n.ROW_SCHEDULED_FOR_DELETION,
-    }"
-    v-bind="$attrs"
-    :disabled="deleting"
-  >
+  <list-item v-bind="$attrs">
     <template #left-primary>
       <gl-button
-        v-if="glFeatures.containerRegistryShowShortenedPath && !showFullPath"
+        v-if="!showFullPath"
         v-gl-tooltip="{
           placement: 'top',
           title: $options.i18n.IMAGE_FULL_PATH_LABEL,
@@ -147,12 +128,13 @@ export default {
         :aria-label="$options.i18n.IMAGE_FULL_PATH_LABEL"
         @click="hideButton"
       />
+      <span v-if="deleting" class="gl-text-gray-500">{{ imageName }}</span>
       <router-link
+        v-else
         ref="imageName"
         class="gl-text-body gl-font-weight-bold"
         data-testid="details-link"
         data-qa-selector="registry_image_content"
-        :event="routerLinkEvent"
         :to="{ name: 'details', params: { id } }"
       >
         {{ imageName }}
@@ -167,21 +149,24 @@ export default {
     </template>
     <template #left-secondary>
       <template v-if="!metadataLoading">
-        <span class="gl-display-flex gl-align-items-center" data-testid="tags-count">
-          <gl-icon name="tag" class="gl-mr-2" />
-          <gl-sprintf :message="tagsCountText">
-            <template #count>
-              {{ item.tagsCount }}
-            </template>
-          </gl-sprintf>
-        </span>
+        <span v-if="deleting">{{ $options.i18n.ROW_SCHEDULED_FOR_DELETION }}</span>
+        <template v-else>
+          <span class="gl-display-flex gl-align-items-center" data-testid="tags-count">
+            <gl-icon name="tag" class="gl-mr-2" />
+            <gl-sprintf :message="tagsCountText">
+              <template #count>
+                {{ item.tagsCount }}
+              </template>
+            </gl-sprintf>
+          </span>
 
-        <cleanup-status
-          v-if="item.expirationPolicyCleanupStatus"
-          class="ml-2"
-          :status="item.expirationPolicyCleanupStatus"
-          :expiration-policy="expirationPolicy"
-        />
+          <cleanup-status
+            v-if="item.expirationPolicyCleanupStatus"
+            class="gl-ml-2"
+            :status="item.expirationPolicyCleanupStatus"
+            :expiration-policy="expirationPolicy"
+          />
+        </template>
       </template>
 
       <div v-else class="gl-w-full">

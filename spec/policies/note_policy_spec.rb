@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe NotePolicy do
+RSpec.describe NotePolicy, feature_category: :team_planning do
   describe '#rules', :aggregate_failures do
     let(:user) { create(:user) }
     let(:project) { create(:project, :public) }
@@ -255,6 +255,29 @@ RSpec.describe NotePolicy do
 
             it_behaves_like 'user can read the note'
           end
+
+          context 'when notes widget is disabled for task' do
+            let(:policy) { described_class.new(developer, note) }
+
+            before do
+              WorkItems::Type.default_by_type(:task).widget_definitions.find_by_widget_type(:notes).update!(disabled: true)
+            end
+
+            context 'when noteable is task' do
+              let(:noteable) { create(:work_item, :task, project: project) }
+              let(:note) { create(:note, system: true, noteable: noteable, author: user, project: project) }
+
+              it_behaves_like 'user cannot read or act on the note'
+            end
+
+            context 'when noteable is issue' do
+              let(:noteable) { create(:work_item, :issue, project: project) }
+              let(:note) { create(:note, system: true, noteable: noteable, author: user, project: project) }
+
+              it_behaves_like 'user can read the note'
+              it_behaves_like 'user can act on the note'
+            end
+          end
         end
 
         context 'when it is a system note referencing a confidential issue' do
@@ -286,7 +309,7 @@ RSpec.describe NotePolicy do
         end
       end
 
-      context 'with confidential notes' do
+      context 'with internal notes' do
         def permissions(user, note)
           described_class.new(user, note)
         end
@@ -307,56 +330,54 @@ RSpec.describe NotePolicy do
           project.add_guest(guest)
         end
 
-        shared_examples_for 'confidential notes permissions' do
-          it 'does not allow non members to read confidential notes and replies' do
-            expect(permissions(non_member, confidential_note)).to be_disallowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji)
+        shared_examples_for 'internal notes permissions' do
+          it 'does not allow non members to read internal notes and replies' do
+            expect(permissions(non_member, internal_note)).to be_disallowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji, :mark_note_as_internal)
           end
 
-          it 'does not allow guests to read confidential notes and replies' do
-            expect(permissions(guest, confidential_note)).to be_disallowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji)
+          it 'does not allow guests to read internal notes and replies' do
+            expect(permissions(guest, internal_note)).to be_disallowed(:read_note, :read_internal_note, :admin_note, :reposition_note, :resolve_note, :award_emoji, :mark_note_as_internal)
           end
 
           it 'allows reporter to read all notes but not resolve and admin them' do
-            expect(permissions(reporter, confidential_note)).to be_allowed(:read_note, :award_emoji)
-            expect(permissions(reporter, confidential_note)).to be_disallowed(:admin_note, :reposition_note, :resolve_note)
+            expect(permissions(reporter, internal_note)).to be_allowed(:read_note, :award_emoji, :mark_note_as_internal)
+            expect(permissions(reporter, internal_note)).to be_disallowed(:admin_note, :reposition_note, :resolve_note)
           end
 
           it 'allows developer to read and resolve all notes' do
-            expect(permissions(developer, confidential_note)).to be_allowed(:read_note, :award_emoji, :resolve_note)
-            expect(permissions(developer, confidential_note)).to be_disallowed(:admin_note, :reposition_note)
+            expect(permissions(developer, internal_note)).to be_allowed(:read_note, :award_emoji, :resolve_note, :mark_note_as_internal)
+            expect(permissions(developer, internal_note)).to be_disallowed(:admin_note, :reposition_note)
           end
 
           it 'allows maintainers to read all notes and admin them' do
-            expect(permissions(maintainer, confidential_note)).to be_allowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji)
+            expect(permissions(maintainer, internal_note)).to be_allowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji, :mark_note_as_internal)
           end
 
           context 'when admin mode is enabled', :enable_admin_mode do
             it 'allows admins to read all notes and admin them' do
-              expect(permissions(admin, confidential_note)).to be_allowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji)
+              expect(permissions(admin, internal_note)).to be_allowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji, :mark_note_as_internal)
             end
           end
 
           context 'when admin mode is disabled' do
-            it 'does not allow non members to read confidential notes and replies' do
-              expect(permissions(admin, confidential_note)).to be_disallowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji)
+            it 'does not allow non members to read internal notes and replies' do
+              expect(permissions(admin, internal_note)).to be_disallowed(:read_note, :admin_note, :reposition_note, :resolve_note, :award_emoji, :mark_note_as_internal)
             end
           end
 
-          it 'allows noteable author to read and resolve all notes' do
-            expect(permissions(author, confidential_note)).to be_allowed(:read_note, :resolve_note, :award_emoji)
-            expect(permissions(author, confidential_note)).to be_disallowed(:admin_note, :reposition_note)
+          it 'disallows noteable author to read and resolve all notes' do
+            expect(permissions(author, internal_note)).to be_disallowed(:read_note, :resolve_note, :award_emoji, :mark_note_as_internal, :admin_note, :reposition_note)
           end
         end
 
         context 'for issues' do
           let(:issue) { create(:issue, project: project, author: author, assignees: [assignee]) }
-          let(:confidential_note) { create(:note, :confidential, project: project, noteable: issue) }
+          let(:internal_note) { create(:note, :confidential, project: project, noteable: issue) }
 
-          it_behaves_like 'confidential notes permissions'
+          it_behaves_like 'internal notes permissions'
 
-          it 'allows noteable assignees to read all notes' do
-            expect(permissions(assignee, confidential_note)).to be_allowed(:read_note, :award_emoji)
-            expect(permissions(assignee, confidential_note)).to be_disallowed(:admin_note, :reposition_note, :resolve_note)
+          it 'disallows noteable assignees to read all notes' do
+            expect(permissions(assignee, internal_note)).to be_disallowed(:read_note, :award_emoji, :mark_note_as_internal, :admin_note, :reposition_note, :resolve_note)
           end
         end
       end

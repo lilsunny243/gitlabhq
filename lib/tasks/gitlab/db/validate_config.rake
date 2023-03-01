@@ -64,15 +64,15 @@ namespace :gitlab do
         next unless identifier
 
         connections_with_tasks = connections.select { |connection| connection[:database_tasks?] }
-        if connections_with_tasks.many?
-          names = connections_with_tasks.pluck(:name)
+        next unless connections_with_tasks.many?
 
-          warnings << "- Many configurations (#{names.join(', ')}) " \
-            "share the same database (#{identifier}). " \
-            "This will result in failures provisioning or migrating this database. " \
-            "Ensure that additional databases are configured " \
-            "with 'database_tasks: false' or are pointing to a dedicated database host."
-        end
+        names = connections_with_tasks.pluck(:name)
+
+        warnings << "- Many configurations (#{names.join(', ')}) " \
+          "share the same database (#{identifier}). " \
+          "This will result in failures provisioning or migrating this database. " \
+          "Ensure that additional databases are configured " \
+          "with 'database_tasks: false' or are pointing to a dedicated database host."
       end
 
       # Each configuration with `database_tasks: false` should share the database with `main:`
@@ -144,7 +144,7 @@ namespace :gitlab do
     rescue ActiveRecord::StatementInvalid => err
       raise unless err.cause.is_a?(PG::ReadOnlySqlTransaction)
 
-      warn "WARNING: Could not write to the database #{db_config.name}: #{err.message}"
+      warn "WARNING: Could not write to the database #{db_config.name}: cannot execute UPSERT in a read-only transaction"
     end
 
     def get_db_identifier(db_config)

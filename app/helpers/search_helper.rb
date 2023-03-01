@@ -40,6 +40,7 @@ module SearchHelper
     [
       groups_autocomplete(term),
       projects_autocomplete(term),
+      users_autocomplete(term),
       issue_autocomplete(term)
     ].flatten
   end
@@ -48,7 +49,7 @@ module SearchHelper
     search_pattern = Regexp.new(Regexp.escape(term), "i")
 
     generic_results = project_autocomplete + default_autocomplete + help_autocomplete
-    generic_results.concat(default_autocomplete_admin) if current_user.admin?
+    generic_results.concat(default_autocomplete_admin) if current_user.can_read_all_resources?
     generic_results.select { |result| result[:label] =~ search_pattern }
   end
 
@@ -181,20 +182,51 @@ module SearchHelper
     options
   end
 
-  # search_context exposes a bit too much data to the frontend, this controls what data we share and when.
+  def search_group
+    # group gets derived from the Project in the project's scope
+    @group || @project&.group
+  end
+
+  def search_has_group?
+    search_group&.present? && search_group&.persisted?
+  end
+
+  def search_has_project?
+    @project&.present? && @project&.persisted?
+  end
+
   def header_search_context
     {}.tap do |hash|
-      hash[:group] = { id: search_context.group.id, name: search_context.group.name, full_name: search_context.group.full_name } if search_context.for_group?
-      hash[:group_metadata] = search_context.group_metadata if search_context.for_group?
+      if search_has_group?
+        hash[:group] = { id: search_group.id, name: search_group.name, full_name: search_group.full_name }
+        hash[:group_metadata] = { issues_path: issues_group_path(search_group), mr_path: merge_requests_group_path(search_group) }
+      end
 
-      hash[:project] = { id: search_context.project.id, name: search_context.project.name } if search_context.for_project?
-      hash[:project_metadata] = search_context.project_metadata if search_context.for_project?
+      if search_has_project?
+        hash[:project] = { id: @project.id, name: @project.name }
+        hash[:project_metadata] = { issues_path: project_issues_path(@project), mr_path: project_merge_requests_path(@project) }
+        hash[:code_search] = search_scope.nil?
+        hash[:ref] = @ref if @ref && can?(current_user, :read_code, @project)
+      end
 
-      hash[:scope] = search_context.scope if search_context.for_project? || search_context.for_group?
-      hash[:code_search] = search_context.code_search? if search_context.for_project? || search_context.for_group?
+      hash[:scope] = search_scope if search_has_project? || search_has_group?
+      hash[:for_snippets] = @snippet&.present? || @snippets&.any?
+    end
+  end
 
-      hash[:ref] = search_context.ref if can?(current_user, :download_code, search_context.project)
-      hash[:for_snippets] = search_context.for_snippets?
+  def search_scope
+    if current_controller?(:issues)
+      'issues'
+    elsif current_controller?(:merge_requests)
+      'merge_requests'
+    elsif current_controller?(:wikis)
+      'wiki_blobs'
+    elsif current_controller?(:commits)
+      'commits'
+    elsif current_controller?(:groups)
+      if %w(issues merge_requests).include?(controller.action_name)
+        controller.action_name
+      end
     end
   end
 
@@ -237,28 +269,28 @@ module SearchHelper
 
       result = []
 
-      if can?(current_user, :download_code, @project)
+      if can?(current_user, :read_code, @project)
         result.concat([
-          { category: "In this project", label: _("Files"),          url: project_tree_path(@project, ref) },
-          { category: "In this project", label: _("Commits"),        url: project_commits_path(@project, ref) }
-        ])
+                        { category: "In this project", label: _("Files"),          url: project_tree_path(@project, ref) },
+                        { category: "In this project", label: _("Commits"),        url: project_commits_path(@project, ref) }
+                      ])
       end
 
       if can?(current_user, :read_repository_graphs, @project)
         result.concat([
-          { category: "In this project", label: _("Network"),        url: project_network_path(@project, ref) },
-          { category: "In this project", label: _("Graph"),          url: project_graph_path(@project, ref) }
-        ])
+                        { category: "In this project", label: _("Network"),        url: project_network_path(@project, ref) },
+                        { category: "In this project", label: _("Graph"),          url: project_graph_path(@project, ref) }
+                      ])
       end
 
       result.concat([
-        { category: "In this project", label: _("Issues"),         url: project_issues_path(@project) },
-        { category: "In this project", label: _("Merge requests"), url: project_merge_requests_path(@project) },
-        { category: "In this project", label: _("Milestones"),     url: project_milestones_path(@project) },
-        { category: "In this project", label: _("Snippets"),       url: project_snippets_path(@project) },
-        { category: "In this project", label: _("Members"),        url: project_project_members_path(@project) },
-        { category: "In this project", label: _("Wiki"),           url: project_wikis_path(@project) }
-      ])
+                      { category: "In this project", label: _("Issues"), url: project_issues_path(@project) },
+                      { category: "In this project", label: _("Merge requests"), url: project_merge_requests_path(@project) },
+                      { category: "In this project", label: _("Milestones"),     url: project_milestones_path(@project) },
+                      { category: "In this project", label: _("Snippets"),       url: project_snippets_path(@project) },
+                      { category: "In this project", label: _("Members"),        url: project_project_members_path(@project) },
+                      { category: "In this project", label: _("Wiki"),           url: project_wikis_path(@project) }
+                    ])
 
       if can?(current_user, :read_feature_flag, @project)
         result << { category: "In this project", label: _("Feature Flags"), url: project_feature_flags_path(@project) }
@@ -277,8 +309,8 @@ module SearchHelper
       {
         category: "Groups",
         id: group.id,
-        value: "#{search_result_sanitize(group.name)}",
-        label: "#{search_result_sanitize(group.full_name)}",
+        value: search_result_sanitize(group.name),
+        label: search_result_sanitize(group.full_name),
         url: group_path(group),
         avatar_url: group.avatar_url || ''
       }
@@ -294,13 +326,13 @@ module SearchHelper
     return [] unless issue && Ability.allowed?(current_user, :read_issue, issue)
 
     [
-        {
-            category: 'In this project',
-            id: issue.id,
-            label: search_result_sanitize("#{issue.title} (#{issue.to_reference})"),
-            url: issue_path(issue),
-            avatar_url: issue.project.avatar_url || ''
-        }
+      {
+          category: 'In this project',
+          id: issue.id,
+          label: search_result_sanitize("#{issue.title} (#{issue.to_reference})"),
+          url: issue_path(issue),
+          avatar_url: issue.project.avatar_url || ''
+      }
     ]
   end
 
@@ -312,10 +344,28 @@ module SearchHelper
       {
         category: "Projects",
         id: p.id,
-        value: "#{search_result_sanitize(p.name)}",
-        label: "#{search_result_sanitize(p.full_name)}",
+        value: search_result_sanitize(p.name),
+        label: search_result_sanitize(p.full_name),
         url: project_path(p),
         avatar_url: p.avatar_url || ''
+      }
+    end
+  end
+
+  def users_autocomplete(term, limit = 5)
+    return [] unless current_user && Ability.allowed?(current_user, :read_users_list)
+
+    SearchService
+      .new(current_user, { scope: 'users', per_page: limit, search: term })
+      .search_objects
+      .map do |user|
+      {
+        category: "Users",
+        id: user.id,
+        value: search_result_sanitize(user.name),
+        label: search_result_sanitize(user.username),
+        url: user_path(user),
+        avatar_url: user.avatar_url || ''
       }
     end
   end
@@ -378,6 +428,65 @@ module SearchHelper
         concat gl_badge_tag(count, { size: :sm }, { class: badge_class, data: badge_data })
       end
     end
+  end
+
+  def search_filter_link_json(scope, label, data, search)
+    scope_name = scope.to_s
+    search_params = params.merge(search).merge({ scope: scope_name }).permit(SEARCH_GENERIC_PARAMS)
+    active_scope = @scope == scope_name
+
+    result = { label: label, scope: scope_name, data: data, link: search_path(search_params), active: active_scope }
+
+    if active_scope
+      result[:count] = !@timeout ? @search_results.formatted_count(scope_name) : "0"
+    end
+
+    result[:count_link] = search_count_path(search_params) unless active_scope
+
+    result
+  end
+
+  def code_tab_condition
+    return true if project_search_tabs?(:blobs)
+
+    @project.nil? && search_service.show_elasticsearch_tabs? && feature_flag_tab_enabled?(:global_search_code_tab)
+  end
+
+  def wiki_tab_condition
+    return true if project_search_tabs?(:wiki)
+
+    @project.nil? && search_service.show_elasticsearch_tabs? && feature_flag_tab_enabled?(:global_search_wiki_tab)
+  end
+
+  def commits_tab_condition
+    return true if project_search_tabs?(:commits)
+
+    @project.nil? && search_service.show_elasticsearch_tabs? && feature_flag_tab_enabled?(:global_search_commits_tab)
+  end
+
+  # search page scope navigation
+  def search_navigation
+    {
+      projects: {       sort: 1, label: _("Projects"),                 data: { qa_selector: 'projects_tab' }, condition: @project.nil? },
+      blobs: {          sort: 2, label: _("Code"),                     data: { qa_selector: 'code_tab' }, condition: code_tab_condition },
+      #  sort: 3 is reserved for EE items
+      issues: {         sort: 4, label: _("Issues"),                   condition: project_search_tabs?(:issues) || feature_flag_tab_enabled?(:global_search_issues_tab) },
+      merge_requests: { sort: 5, label: _("Merge requests"),           condition: project_search_tabs?(:merge_requests) || feature_flag_tab_enabled?(:global_search_merge_requests_tab) },
+      wiki_blobs: {     sort: 6, label: _("Wiki"),                     condition: wiki_tab_condition },
+      commits: {        sort: 7, label: _("Commits"),                  condition: commits_tab_condition },
+      notes: {          sort: 8, label: _("Comments"),                 condition: project_search_tabs?(:notes) || search_service.show_elasticsearch_tabs? },
+      milestones: {     sort: 9, label: _("Milestones"),               condition: project_search_tabs?(:milestones) || @project.nil? },
+      users: {          sort: 10, label: _("Users"),                   condition: show_user_search_tab? },
+      snippet_titles: { sort: 11, label: _("Titles and Descriptions"), search: { snippets: true, group_id: nil, project_id: nil }, condition: search_service.show_snippets? && @project.nil? }
+    }
+  end
+
+  def search_navigation_json
+    sorted_navigation = search_navigation.sort_by { |_, h| h[:sort] }
+
+    sorted_navigation.each_with_object({}) do |(key, value), hash|
+      hash[key] = search_filter_link_json(key, value[:label], value[:data], value[:search]) if value[:condition]
+    end.to_json
   end
 
   def search_filter_input_options(type, placeholder = _('Search or filter results...'))
@@ -473,12 +582,10 @@ module SearchHelper
       else
         :success
       end
+    elsif issuable.closed?
+      :info
     else
-      if issuable.closed?
-        :info
-      else
-        :success
-      end
+      :success
     end
   end
 
@@ -494,7 +601,7 @@ module SearchHelper
   end
 
   def feature_flag_tab_enabled?(flag)
-    @group || Feature.enabled?(flag, current_user, type: :ops)
+    @group.present? || Feature.enabled?(flag, current_user, type: :ops)
   end
 
   def sanitized_search_params

@@ -3,7 +3,7 @@
 # Set default values for object_store settings
 class ObjectStoreSettings
   SUPPORTED_TYPES = %w(artifacts external_diffs lfs uploads packages dependency_proxy terraform_state pages secure_files).freeze
-  ALLOWED_OBJECT_STORE_OVERRIDES = %w(bucket enabled proxy_download).freeze
+  ALLOWED_OBJECT_STORE_OVERRIDES = %w(bucket enabled proxy_download cdn).freeze
 
   # To ensure the one Workhorse credential matches the Rails config, we
   # enforce consolidated settings on those accelerated
@@ -16,10 +16,6 @@ class ObjectStoreSettings
   # we don't need to raise an error in that case
   ALLOWED_INCOMPLETE_TYPES = %w(pages).freeze
 
-  # A fallback switch in case anyone gets a trouble with background upload removal
-  # Epic: https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/734
-  LEGACY_BACKGROUND_UPLOADS_ENV = "GITLAB_LEGACY_BACKGROUND_UPLOADS"
-
   attr_accessor :settings
 
   # Legacy parser
@@ -30,13 +26,7 @@ class ObjectStoreSettings
       object_store['remote_directory']
     )
 
-    if support_legacy_background_upload?(object_store_type)
-      object_store['direct_upload'] = false
-      object_store['background_upload'] = true
-    else
-      object_store['direct_upload'] = true
-      object_store['background_upload'] = false
-    end
+    object_store['direct_upload'] = true
 
     object_store['proxy_download'] = false if object_store['proxy_download'].nil?
     object_store['storage_options'] ||= {}
@@ -44,10 +34,6 @@ class ObjectStoreSettings
     # Convert upload connection settings to use string keys, to make Fog happy
     object_store['connection']&.deep_stringify_keys!
     object_store
-  end
-
-  def self.support_legacy_background_upload?(object_store_type)
-    ENV[LEGACY_BACKGROUND_UPLOADS_ENV].to_s.split(',').map(&:strip).include?(object_store_type)
   end
 
   def self.split_bucket_prefix(bucket)
@@ -110,7 +96,6 @@ class ObjectStoreSettings
   #     "server_side_encryption" => "AES256"
   #   },
   #   "direct_upload" => true,
-  #   "background_upload" => false,
   #   "proxy_download" => false,
   #   "remote_directory" => "artifacts"
   # }
@@ -129,7 +114,6 @@ class ObjectStoreSettings
   #     "server_side_encryption" => "AES256"
   #   },
   #   "direct_upload" => true,
-  #   "background_upload" => false,
   #   "proxy_download" => true,
   #   "remote_directory" => "lfs-objects"
   # }
@@ -141,7 +125,7 @@ class ObjectStoreSettings
   # 2. However, a bucket has to be specified for each object
   #    type. Reusing buckets is not really supported, but we don't
   #    enforce that yet.
-  # 3. direct_upload and background_upload cannot be configured anymore.
+  # 3. direct_upload cannot be configured anymore.
   def parse!
     return unless use_consolidated_settings?
 
@@ -151,7 +135,6 @@ class ObjectStoreSettings
     common_config['connection']&.deep_stringify_keys!
     # These are no longer configurable if common config is used
     common_config['direct_upload'] = true
-    common_config['background_upload'] = false
     common_config['storage_options'] ||= {}
 
     SUPPORTED_TYPES.each do |store_type|
@@ -195,8 +178,12 @@ class ObjectStoreSettings
   # 1. The common settings are defined
   # 2. The legacy settings are not defined
   def use_consolidated_settings?
-    return false unless settings.dig('object_store', 'enabled')
-    return false unless settings.dig('object_store', 'connection').present?
+    # to_h is needed because we define `default` as a Gitaly storage name
+    # in stub_storage_settings. This causes Settingslogic to redefine Hash#default,
+    # which causes Hash#dig to fail when the key doesn't exist: https://gitlab.com/gitlab-org/gitlab/-/issues/286873
+    settings_h = settings.to_h
+    return false unless settings_h.dig('object_store', 'enabled')
+    return false unless settings_h.dig('object_store', 'connection').present?
 
     WORKHORSE_ACCELERATED_TYPES.each do |store|
       # to_h is needed because we define `default` as a Gitaly storage name

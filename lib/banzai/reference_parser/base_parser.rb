@@ -47,6 +47,14 @@ module Banzai
         @data_attribute ||= "data-#{reference_type.to_s.dasherize}"
       end
 
+      # Returns a model class to use as a reference.
+      # By default, the method does not take namespaces into account,
+      # thus parser classes can customize the reference class to use
+      # a model name with a namespace
+      def self.reference_class
+        reference_type.to_s.classify.constantize
+      end
+
       # context - An instance of `Banzai::RenderContext`.
       def initialize(context)
         @context = context
@@ -65,6 +73,8 @@ module Banzai
       def nodes_visible_to_user(user, nodes)
         projects = lazy { projects_for_nodes(nodes) }
         project_attr = 'data-project'
+
+        preload_associations(projects, user)
 
         nodes.select do |node|
           if node.has_attribute?(project_attr)
@@ -260,6 +270,14 @@ module Banzai
         Gitlab::SafeRequestStore[:banzai_collection_cache] ||= Hash.new do |hash, key|
           hash[key] = {}
         end
+      end
+
+      # For any preloading of project associations
+      # needed to avoid N+1s.
+      # Note: `projects` param is a hash of { node => project }.
+      # See #projects_for_nodes for more information.
+      def preload_associations(projects, user)
+        ::Preloaders::ProjectPolicyPreloader.new(projects.values, user).execute
       end
     end
   end

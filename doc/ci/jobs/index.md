@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Authoring
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Jobs **(FREE)**
@@ -37,17 +37,18 @@ independently from each other.
 
 When you access a pipeline, you can see the related jobs for that pipeline.
 
-Clicking an individual job shows you its job log, and allows you to:
+Selecting an individual job shows you its job log, and allows you to:
 
 - Cancel the job.
-- Retry the job.
+- Retry the job, if it failed.
+- Run the job again, if it passed.
 - Erase the job log.
 
 ### View all jobs in a project
 
 To view the full list of jobs that ran in a project:
 
-1. On the top bar, select **Menu > Projects** and find the project.
+1. On the top bar, select **Main menu > Projects** and find the project.
 1. On the left sidebar, select **CI/CD > Jobs**.
 
 You can filter the list by [job status](#the-order-of-jobs-in-a-pipeline).
@@ -110,11 +111,14 @@ You can't use these keywords as job names:
 - `true`
 - `false`
 - `nil`
+- `pages:deploy` configured for a `deploy` stage
 
 Job names must be 255 characters or fewer.
 
-Use unique names for your jobs. If multiple jobs have the same name,
+Use unique names for your jobs. If multiple jobs have the same name in a file,
 only one is added to the pipeline, and it's difficult to predict which one is chosen.
+If the same job name is used in one or more included files,
+[parameters are merged](../yaml/includes.md#override-included-configuration-values).
 
 ## Group jobs in a pipeline
 
@@ -266,11 +270,13 @@ You can do this from the job page of the manual job you want to run with
 additional variables. To access this page, select the **name** of the manual job in
 the pipeline view, *not* the play (**{play}**) button.
 
-This is useful when you want to alter the execution of a job that uses
-[custom CI/CD variables](../variables/index.md#custom-cicd-variables).
-Add a variable name (key) and value here to override the value defined in
-[the UI or `.gitlab-ci.yml`](../variables/index.md#custom-cicd-variables),
-for a single run of the manual job.
+Define CI/CD variables here when you want to alter the execution of a job that uses
+[CI/CD variables](../variables/index.md).
+
+If you add a variable that is already defined in the CI/CD settings or `.gitlab-ci.yml` file,
+the [variable is overridden](../variables/index.md#override-a-defined-cicd-variable) with the new value.
+Any variables overridden by using this process are [expanded](../variables/index.md#prevent-cicd-variable-expansion)
+and not [masked](../variables/index.md#mask-a-cicd-variable).
 
 ![Manual job variables](img/manual_job_variables_v13_10.png)
 
@@ -333,8 +339,8 @@ In the example above:
 - `date +%s`: The Unix timestamp (for example `1560896352`).
 - `my_first_section`: The name given to the section.
 - `\r\e[0K`: Prevents the section markers from displaying in the rendered (colored)
-  job log, but they are displayed in the raw job log. To see them, in the top right
-  of the job log, select **{doc-text}** (**Show complete raw**).
+  job log, but they are displayed in the raw job log. To see them, in the upper-right corner
+  of the job log, select **Show complete raw** (**{doc-text}**).
   - `\r`: carriage return.
   - `\e[0K`: clear line ANSI escape code.
 
@@ -389,5 +395,5 @@ deploy me:
 
 The behavior of deployment jobs can be controlled with
 [deployment safety](../environments/deployment_safety.md) settings like
-[skipping outdated deployment jobs](../environments/deployment_safety.md#skip-outdated-deployment-jobs)
+[preventing outdated deployment jobs](../environments/deployment_safety.md#prevent-outdated-deployment-jobs)
 and [ensuring only one deployment job runs at a time](../environments/deployment_safety.md#ensure-only-one-deployment-job-runs-at-a-time).

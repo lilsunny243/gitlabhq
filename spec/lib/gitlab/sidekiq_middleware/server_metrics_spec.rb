@@ -10,7 +10,7 @@ RSpec.describe Gitlab::SidekiqMiddleware::ServerMetrics do
 
       describe '.initialize_process_metrics' do
         it 'sets concurrency metrics' do
-          expect(concurrency_metric).to receive(:set).with({}, Sidekiq.options[:concurrency].to_i)
+          expect(concurrency_metric).to receive(:set).with({}, Sidekiq[:concurrency].to_i)
 
           described_class.initialize_process_metrics
         end
@@ -65,7 +65,7 @@ RSpec.describe Gitlab::SidekiqMiddleware::ServerMetrics do
           end
 
           it 'sets the concurrency metric' do
-            expect(concurrency_metric).to receive(:set).with({}, Sidekiq.options[:concurrency].to_i)
+            expect(concurrency_metric).to receive(:set).with({}, Sidekiq[:concurrency].to_i)
 
             described_class.initialize_process_metrics
           end
@@ -231,8 +231,7 @@ RSpec.describe Gitlab::SidekiqMiddleware::ServerMetrics do
         include Sidekiq::Worker
         include WorkerAttributes
 
-        def perform(*args)
-        end
+        def perform(*args); end
       end
 
       allow(::Gitlab::Database::LoadBalancing).to receive_message_chain(:proxy, :load_balancer).and_return(load_balancer)
@@ -306,8 +305,7 @@ RSpec.describe Gitlab::SidekiqMiddleware::ServerMetrics do
           feature_category :not_owned
         end
 
-        def perform
-        end
+        def perform; end
       end
     end
 
@@ -322,8 +320,7 @@ RSpec.describe Gitlab::SidekiqMiddleware::ServerMetrics do
       with_sidekiq_server_middleware do |chain|
         Gitlab::SidekiqMiddleware.server_configurator(
           metrics: true,
-          arguments_logger: false,
-          memory_killer: false
+          arguments_logger: false
         ).call(chain)
 
         Sidekiq::Testing.inline! { example.run }

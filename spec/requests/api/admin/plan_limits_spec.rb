@@ -2,26 +2,19 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
-  let_it_be(:user) { create(:user) }
+RSpec.describe API::Admin::PlanLimits, 'PlanLimits', feature_category: :not_owned do
   let_it_be(:admin) { create(:admin) }
   let_it_be(:plan) { create(:plan, name: 'default') }
+  let_it_be(:path) { '/application/plan_limits' }
 
   describe 'GET /application/plan_limits' do
-    context 'as a non-admin user' do
-      it 'returns 403' do
-        get api('/application/plan_limits', user)
-
-        expect(response).to have_gitlab_http_status(:forbidden)
-      end
-    end
+    it_behaves_like 'GET request permissions for admin mode'
 
     context 'as an admin user' do
       context 'no params' do
-        it 'returns plan limits' do
-          get api('/application/plan_limits', admin)
+        it 'returns plan limits', :aggregate_failures do
+          get api(path, admin, admin_mode: true)
 
-          expect(response).to have_gitlab_http_status(:ok)
           expect(json_response).to be_an Hash
           expect(json_response['ci_pipeline_size']).to eq(Plan.default.actual_limits.ci_pipeline_size)
           expect(json_response['ci_active_jobs']).to eq(Plan.default.actual_limits.ci_active_jobs)
@@ -40,6 +33,7 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
           expect(json_response['pypi_max_file_size']).to eq(Plan.default.actual_limits.pypi_max_file_size)
           expect(json_response['terraform_module_max_file_size']).to eq(Plan.default.actual_limits.terraform_module_max_file_size)
           expect(json_response['storage_size_limit']).to eq(Plan.default.actual_limits.storage_size_limit)
+          expect(json_response['pipeline_hierarchy_size']).to eq(Plan.default.actual_limits.pipeline_hierarchy_size)
         end
       end
 
@@ -48,8 +42,8 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
           @params = { plan_name: 'default' }
         end
 
-        it 'returns plan limits' do
-          get api('/application/plan_limits', admin), params: @params
+        it 'returns plan limits', :aggregate_failures do
+          get api(path, admin, admin_mode: true), params: @params
 
           expect(response).to have_gitlab_http_status(:ok)
           expect(json_response).to be_an Hash
@@ -70,6 +64,7 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
           expect(json_response['pypi_max_file_size']).to eq(Plan.default.actual_limits.pypi_max_file_size)
           expect(json_response['terraform_module_max_file_size']).to eq(Plan.default.actual_limits.terraform_module_max_file_size)
           expect(json_response['storage_size_limit']).to eq(Plan.default.actual_limits.storage_size_limit)
+          expect(json_response['pipeline_hierarchy_size']).to eq(Plan.default.actual_limits.pipeline_hierarchy_size)
         end
       end
 
@@ -78,8 +73,8 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
           @params = { plan_name: 'my-plan' }
         end
 
-        it 'returns validation error' do
-          get api('/application/plan_limits', admin), params: @params
+        it 'returns validation error', :aggregate_failures do
+          get api(path, admin, admin_mode: true), params: @params
 
           expect(response).to have_gitlab_http_status(:bad_request)
           expect(json_response['error']).to eq('plan_name does not have a valid value')
@@ -89,18 +84,12 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
   end
 
   describe 'PUT /application/plan_limits' do
-    context 'as a non-admin user' do
-      it 'returns 403' do
-        put api('/application/plan_limits', user), params: { plan_name: 'default' }
-
-        expect(response).to have_gitlab_http_status(:forbidden)
-      end
-    end
+    it_behaves_like 'PUT request permissions for admin mode', { 'plan_name': 'default' }
 
     context 'as an admin user' do
       context 'correct params' do
-        it 'updates multiple plan limits' do
-          put api('/application/plan_limits', admin), params: {
+        it 'updates multiple plan limits', :aggregate_failures do
+          put api(path, admin, admin_mode: true), params: {
             'plan_name': 'default',
             'ci_pipeline_size': 101,
             'ci_active_jobs': 102,
@@ -118,10 +107,10 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
             'nuget_max_file_size': 50,
             'pypi_max_file_size': 60,
             'terraform_module_max_file_size': 70,
-            'storage_size_limit': 80
+            'storage_size_limit': 80,
+            'pipeline_hierarchy_size': 250
           }
 
-          expect(response).to have_gitlab_http_status(:ok)
           expect(json_response).to be_an Hash
           expect(json_response['ci_pipeline_size']).to eq(101)
           expect(json_response['ci_active_jobs']).to eq(102)
@@ -140,10 +129,11 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
           expect(json_response['pypi_max_file_size']).to eq(60)
           expect(json_response['terraform_module_max_file_size']).to eq(70)
           expect(json_response['storage_size_limit']).to eq(80)
+          expect(json_response['pipeline_hierarchy_size']).to eq(250)
         end
 
-        it 'updates single plan limits' do
-          put api('/application/plan_limits', admin), params: {
+        it 'updates single plan limits', :aggregate_failures do
+          put api(path, admin, admin_mode: true), params: {
             'plan_name': 'default',
             'maven_max_file_size': 100
           }
@@ -155,8 +145,8 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
       end
 
       context 'empty params' do
-        it 'fails to update plan limits' do
-          put api('/application/plan_limits', admin), params: {}
+        it 'fails to update plan limits', :aggregate_failures do
+          put api(path, admin, admin_mode: true), params: {}
 
           expect(response).to have_gitlab_http_status(:bad_request)
           expect(json_response['error']).to match('plan_name is missing')
@@ -164,8 +154,8 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
       end
 
       context 'params with wrong type' do
-        it 'fails to update plan limits' do
-          put api('/application/plan_limits', admin), params: {
+        it 'fails to update plan limits', :aggregate_failures do
+          put api(path, admin, admin_mode: true), params: {
             'plan_name': 'default',
             'ci_pipeline_size': 'z',
             'ci_active_jobs': 'y',
@@ -183,7 +173,8 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
             'nuget_max_file_size': 'e',
             'pypi_max_file_size': 'f',
             'terraform_module_max_file_size': 'g',
-            'storage_size_limit': 'j'
+            'storage_size_limit': 'j',
+            'pipeline_hierarchy_size': 'r'
           }
 
           expect(response).to have_gitlab_http_status(:bad_request)
@@ -204,14 +195,15 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
             'nuget_max_file_size is invalid',
             'pypi_max_file_size is invalid',
             'terraform_module_max_file_size is invalid',
-            'storage_size_limit is invalid'
+            'storage_size_limit is invalid',
+            'pipeline_hierarchy_size is invalid'
           )
         end
       end
 
       context 'missing plan_name in params' do
-        it 'fails to update plan limits' do
-          put api('/application/plan_limits', admin), params: { 'conan_max_file_size': 0 }
+        it 'fails to update plan limits', :aggregate_failures do
+          put api(path, admin, admin_mode: true), params: { 'conan_max_file_size': 0 }
 
           expect(response).to have_gitlab_http_status(:bad_request)
           expect(json_response['error']).to match('plan_name is missing')
@@ -223,8 +215,8 @@ RSpec.describe API::Admin::PlanLimits, 'PlanLimits' do
           Plan.default.actual_limits.update!({ 'golang_max_file_size': 1000 })
         end
 
-        it 'updates only declared plan limits' do
-          put api('/application/plan_limits', admin), params: {
+        it 'updates only declared plan limits', :aggregate_failures do
+          put api(path, admin, admin_mode: true), params: {
             'plan_name': 'default',
             'pypi_max_file_size': 200,
             'golang_max_file_size': 999

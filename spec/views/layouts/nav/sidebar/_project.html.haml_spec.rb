@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'layouts/nav/sidebar/_project' do
+RSpec.describe 'layouts/nav/sidebar/_project', feature_category: :navigation do
   let_it_be_with_reload(:project) { create(:project, :repository) }
 
   let(:user) { project.first_owner }
@@ -67,19 +67,6 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
     end
   end
 
-  describe 'Learn GitLab' do
-    it 'has a link to the learn GitLab' do
-      allow(view).to receive(:learn_gitlab_enabled?).and_return(true)
-      allow_next_instance_of(LearnGitlab::Onboarding) do |onboarding|
-        expect(onboarding).to receive(:completed_percentage).and_return(20)
-      end
-
-      render
-
-      expect(rendered).to have_link('Learn GitLab', href: project_learn_gitlab_path(project))
-    end
-  end
-
   describe 'Repository' do
     it 'has a link to the project tree path' do
       render
@@ -96,10 +83,10 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
     end
 
     describe 'Commits' do
-      it 'has a link to the project commits path' do
+      it 'has a link to the fully qualified project commits path' do
         render
 
-        expect(rendered).to have_link('Commits', href: project_commits_path(project, current_ref), id: 'js-onboarding-commits-link')
+        expect(rendered).to have_link('Commits', href: project_commits_path(project, current_ref, ref_type: 'heads'), id: 'js-onboarding-commits-link')
       end
     end
 
@@ -123,7 +110,7 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
       it 'has a link to the project contributors path' do
         render
 
-        expect(rendered).to have_link('Contributors', href: project_graph_path(project, current_ref))
+        expect(rendered).to have_link('Contributors', href: project_graph_path(project, current_ref, ref_type: 'heads'))
       end
     end
 
@@ -323,7 +310,7 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
       it 'top level navigation link is not visible' do
         render
 
-        expect(rendered).not_to have_link('Security & Compliance')
+        expect(rendered).not_to have_link('Security and Compliance')
       end
     end
 
@@ -335,7 +322,7 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
       end
 
       it 'top level navigation link is visible' do
-        expect(rendered).to have_link('Security & Compliance')
+        expect(rendered).to have_link('Security and Compliance')
       end
 
       it 'security configuration link is visible' do
@@ -472,24 +459,6 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
         end
       end
     end
-
-    describe 'Product Analytics' do
-      it 'has a link to the product analytics page' do
-        render
-
-        expect(rendered).to have_link('Product Analytics', href: project_product_analytics_path(project))
-      end
-
-      describe 'when feature flag :product_analytics is disabled' do
-        it 'does not have a link to the feature flags page' do
-          stub_feature_flags(product_analytics: false)
-
-          render
-
-          expect(rendered).not_to have_link('Product Analytics')
-        end
-      end
-    end
   end
 
   describe 'Infrastructure' do
@@ -559,7 +528,7 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
     it 'top level navigation link is visible and points to package registry page' do
       render
 
-      expect(rendered).to have_link('Packages & Registries', href: project_packages_path(project))
+      expect(rendered).to have_link('Packages and registries', href: project_packages_path(project))
     end
 
     describe 'Packages Registry' do
@@ -817,7 +786,7 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
         end
       end
 
-      context 'gitlab.com' do
+      context 'gitlab.com', :with_license do
         before do
           allow(Gitlab).to receive(:com?).and_return(true)
         end
@@ -908,7 +877,7 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
       end
     end
 
-    describe 'Packages & Registries' do
+    describe 'Packages and registries' do
       let(:packages_enabled) { false }
 
       before do
@@ -919,20 +888,20 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
       context 'when registry is enabled' do
         let(:registry_enabled) { true }
 
-        it 'has a link to the Packages & Registries settings' do
+        it 'has a link to the Package and registry settings' do
           render
 
-          expect(rendered).to have_link('Packages & Registries', href: project_settings_packages_and_registries_path(project))
+          expect(rendered).to have_link('Packages and registries', href: project_settings_packages_and_registries_path(project))
         end
       end
 
       context 'when registry is not enabled' do
         let(:registry_enabled) { false }
 
-        it 'does not have a link to the Packages & Registries settings' do
+        it 'does not have a link to the Package and registry settings' do
           render
 
-          expect(rendered).not_to have_link('Packages & Registries', href: project_settings_packages_and_registries_path(project))
+          expect(rendered).not_to have_link('Packages and registries', href: project_settings_packages_and_registries_path(project))
         end
       end
 
@@ -940,10 +909,10 @@ RSpec.describe 'layouts/nav/sidebar/_project' do
         let(:registry_enabled) { false }
         let(:packages_enabled) { true }
 
-        it 'has a link to the Packages & Registries settings' do
+        it 'has a link to the Package and registry settings' do
           render
 
-          expect(rendered).to have_link('Packages & Registries', href: project_settings_packages_and_registries_path(project))
+          expect(rendered).to have_link('Packages and registries', href: project_settings_packages_and_registries_path(project))
         end
       end
     end

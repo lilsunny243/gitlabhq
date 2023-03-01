@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -31,7 +31,7 @@ You can also [revoke](#revoke-a-users-personal-access-token) and [delete](#delet
 
 To access the Credentials inventory:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Credentials**.
 
 ## Revoke a user's personal access token
@@ -54,10 +54,10 @@ When a PAT is revoked from the credentials inventory, the instance notifies the 
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/243833) in GitLab 14.8.
 
-The **Revoke** button next to a project access token can be selected to revoke that particular project access token. This will both:
+The **Revoke** button next to a project access token can be selected to revoke that particular project access token. This both:
 
-- Revoke the token project access token.
-- Enqueue a background worker to delete the project bot user.
+- Revokes the token project access token.
+- Enqueues a background worker to delete the project bot user.
 
 ![Credentials inventory page - Project access tokens](img/credentials_inventory_project_access_tokens_v14_9.png)
 

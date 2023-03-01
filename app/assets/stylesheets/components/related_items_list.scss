@@ -6,6 +6,8 @@ $item-remove-button-space: 42px;
 .related-items-list {
   padding: $gl-padding-4;
   padding-right: $gl-padding-6;
+  border-bottom-left-radius: $gl-border-size-3;
+  border-bottom-right-radius: $gl-border-size-3;
 
   &,
   .list-item:last-child {
@@ -72,19 +74,6 @@ $item-remove-button-space: 42px;
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
-  }
-}
-
-.item-body,
-.card-header {
-  .health-label-short {
-    max-width: 0;
-  }
-}
-
-.card-header {
-  .health-label-short {
-    display: initial;
   }
 }
 
@@ -212,11 +201,6 @@ $item-remove-button-space: 42px;
     max-width: 90%;
   }
 
-  .card-header {
-    .health-label-short {
-      max-width: 30px;
-    }
-  }
 }
 
 /* Small devices (landscape phones, 768px and up) */
@@ -239,11 +223,6 @@ $item-remove-button-space: 42px;
     }
   }
 
-  .card-header {
-    .health-label-short {
-      max-width: 60px;
-    }
-  }
 }
 
 /* Medium devices (desktops, 992px and up) */
@@ -255,12 +234,6 @@ $item-remove-button-space: 42px;
 
     .item-meta .item-path-id {
       font-size: inherit; // Base size given to `item-meta` is `$gl-font-size-small`
-    }
-  }
-
-  .card-header {
-    .health-label-short {
-      max-width: 100px;
     }
   }
 }
@@ -307,17 +280,5 @@ $item-remove-button-space: 42px;
 
   .item-info-area {
     flex-basis: auto;
-  }
-}
-
-@media only screen and (min-width: 1500px) {
-  .card-header {
-    .health-label-short {
-      display: none;
-    }
-
-    .health-label-long {
-      display: block;
-    }
   }
 }

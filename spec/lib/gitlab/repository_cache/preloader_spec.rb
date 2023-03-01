@@ -2,9 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::RepositoryCache::Preloader, :use_clean_rails_redis_caching do
+RSpec.describe Gitlab::RepositoryCache::Preloader, :use_clean_rails_redis_caching,
+                                                   feature_category: :source_code_management do
   let(:projects) { create_list(:project, 2, :repository) }
   let(:repositories) { projects.map(&:repository) }
+  let(:cache) { Gitlab::RepositoryCache.store }
 
   describe '#preload' do
     context 'when the values are already cached' do
@@ -20,14 +22,14 @@ RSpec.describe Gitlab::RepositoryCache::Preloader, :use_clean_rails_redis_cachin
       end
 
       it 'prevents individual cache reads for cached methods' do
-        expect(Rails.cache).to receive(:read_multi).once.and_call_original
+        expect(cache).to receive(:read_multi).once.and_call_original
 
         described_class.new(repositories).preload(
           %i[exists? readme_path]
         )
 
-        expect(Rails.cache).not_to receive(:read)
-        expect(Rails.cache).not_to receive(:write)
+        expect(cache).not_to receive(:read)
+        expect(cache).not_to receive(:write)
 
         expect(repositories[0].exists?).to eq(true)
         expect(repositories[0].readme_path).to eq('README.txt')
@@ -43,8 +45,8 @@ RSpec.describe Gitlab::RepositoryCache::Preloader, :use_clean_rails_redis_cachin
           %i[exists? has_visible_content?]
         )
 
-        expect(Rails.cache).to receive(:read).exactly(4).times
-        expect(Rails.cache).to receive(:write).exactly(4).times
+        expect(cache).to receive(:read).exactly(4).times
+        expect(cache).to receive(:write).exactly(4).times
 
         repositories.each(&:exists?)
         repositories.each(&:has_visible_content?)

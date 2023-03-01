@@ -2,6 +2,7 @@
 
 require './spec/support/sidekiq_middleware'
 require './spec/support/helpers/test_env'
+require 'active_support/testing/time_helpers'
 
 # Usage:
 #
@@ -18,6 +19,8 @@ require './spec/support/helpers/test_env'
 # VSA_SEED_PROJECT_ID=10 FILTER=cycle_analytics SEED_VSA=1 bundle exec rake db:seed_fu
 
 class Gitlab::Seeder::CycleAnalytics
+  include ActiveSupport::Testing::TimeHelpers
+
   attr_reader :project, :issues, :merge_requests, :developers
 
   FLAG = 'SEED_VSA'
@@ -47,6 +50,17 @@ class Gitlab::Seeder::CycleAnalytics
   end
 
   def seed!
+    unless project.repository_exists?
+      puts
+      puts 'WARNING'
+      puts '======='
+      puts "Seeding #{self.class} is not possible because the given project (#{project.full_path}) doesn't have a repository."
+      puts 'Try specifying a project with working repository or omit the VSA_SEED_PROJECT_ID parameter so the seed script will automatically create one.'
+      puts
+
+      return
+    end
+
     create_developers!
     create_issues!
 
@@ -104,7 +118,7 @@ class Gitlab::Seeder::CycleAnalytics
 
   def seed_test_stage!
     merge_requests.each do |merge_request|
-      pipeline = FactoryBot.create(:ci_pipeline, :success, project: project)
+      pipeline = FactoryBot.create(:ci_pipeline, :success, project: project, partition_id: Ci::Pipeline.current_partition_value)
       build = FactoryBot.create(:ci_build, pipeline: pipeline, project: project, user: developers.sample)
 
       # Required because seeds run in a transaction and these are now
@@ -133,7 +147,7 @@ class Gitlab::Seeder::CycleAnalytics
 
   def create_issues!
     @issue_count.times do
-      Timecop.travel start_time + rand(5).days do
+      travel_to(start_time + rand(5).days) do
         title = "#{FFaker::Product.brand}-#{suffix}"
         @issues << Issue.create!(project: project, title: title, author: developers.sample)
       end
@@ -154,6 +168,8 @@ class Gitlab::Seeder::CycleAnalytics
 
       @developers << user
     end
+
+    AuthorizedProjectUpdate::ProjectRecalculateService.new(project).execute
   end
 
   def create_new_vsm_project
@@ -164,6 +180,7 @@ class Gitlab::Seeder::CycleAnalytics
     )
     project = FactoryBot.create(
       :project,
+      :repository,
       name: "Value Stream Management Project #{suffix}",
       path: "vsmp-#{suffix}",
       creator: admin,

@@ -1,12 +1,13 @@
 <script>
 import { GlLoadingIcon, GlTableLite, GlButton, GlTooltipDirective } from '@gitlab/ui';
-import createFlash from '~/flash';
-import { TYPE_ISSUE, TYPE_MERGE_REQUEST } from '~/graphql_shared/constants';
+import { createAlert } from '~/flash';
+import { TYPENAME_ISSUE, TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
+import { TYPE_ISSUE } from '~/issues/constants';
 import { formatDate, parseSeconds, stringifyTime } from '~/lib/utils/datetime_utility';
 import { __, s__ } from '~/locale';
-import { timelogQueries } from '~/sidebar/constants';
-import deleteTimelogMutation from './graphql/mutations/delete_timelog.mutation.graphql';
+import { timelogQueries } from '../../constants';
+import deleteTimelogMutation from '../../queries/delete_timelog.mutation.graphql';
 
 const TIME_DATE_FORMAT = 'mmmm d, yyyy, HH:MM ("UTC:" o)';
 
@@ -47,7 +48,7 @@ export default {
         return this.extractTimelogs(data);
       },
       error() {
-        createFlash({ message: __('Something went wrong. Please try again.') });
+        createAlert({ message: __('Something went wrong. Please try again.') });
       },
     },
   },
@@ -61,7 +62,7 @@ export default {
       return this.removingIds.includes(timelogId);
     },
     isIssue() {
-      return this.issuableType === 'issue';
+      return this.issuableType === TYPE_ISSUE;
     },
     getQueryVariables() {
       return {
@@ -69,7 +70,7 @@ export default {
       };
     },
     getGraphQLEntityType() {
-      return this.isIssue() ? TYPE_ISSUE : TYPE_MERGE_REQUEST;
+      return this.isIssue() ? TYPENAME_ISSUE : TYPENAME_MERGE_REQUEST;
     },
     extractTimelogs(data) {
       const timelogs = data?.issuable?.timelogs?.nodes || [];
@@ -105,7 +106,7 @@ export default {
           }
         })
         .catch((error) => {
-          createFlash({
+          createAlert({
             message: s__('TimeTracking|An error occurred while removing the timelog.'),
             captureError: true,
             error,

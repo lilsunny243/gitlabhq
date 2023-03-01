@@ -1,4 +1,5 @@
 <script>
+import { TYPE_ISSUE } from '~/issues/constants';
 import CollapsedAssigneeList from './collapsed_assignee_list.vue';
 import UncollapsedAssigneeList from './uncollapsed_assignee_list.vue';
 
@@ -22,7 +23,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: 'issue',
+      default: TYPE_ISSUE,
     },
   },
   computed: {
@@ -56,6 +57,7 @@ export default {
             type="button"
             class="gl-button btn-link gl-reset-color!"
             data-testid="assign-yourself"
+            data-qa-selector="assign_yourself_button"
             @click="assignSelf"
           >
             {{ __('assign yourself') }}

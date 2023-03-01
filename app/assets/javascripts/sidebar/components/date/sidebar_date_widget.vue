@@ -1,17 +1,11 @@
 <script>
 import { GlIcon, GlDatepicker, GlTooltipDirective, GlLink, GlPopover } from '@gitlab/ui';
-import createFlash from '~/flash';
-import { IssuableType } from '~/issues/constants';
+import { createAlert } from '~/flash';
+import { TYPE_ISSUE } from '~/issues/constants';
 import { dateInWords, formatDate, parsePikadayDate } from '~/lib/utils/datetime_utility';
 import { __, sprintf } from '~/locale';
-import SidebarEditableItem from '~/sidebar/components/sidebar_editable_item.vue';
-import {
-  dateFields,
-  dateTypes,
-  dueDateQueries,
-  startDateQueries,
-  Tracking,
-} from '~/sidebar/constants';
+import { dateFields, dateTypes, dueDateQueries, startDateQueries, Tracking } from '../../constants';
+import SidebarEditableItem from '../sidebar_editable_item.vue';
 import SidebarFormattedDate from './sidebar_formatted_date.vue';
 import SidebarInheritDate from './sidebar_inherit_date.vue';
 
@@ -92,7 +86,7 @@ export default {
         this.$emit(`${this.dateType}Updated`, data.workspace?.issuable?.[this.dateType]);
       },
       error() {
-        createFlash({
+        createAlert({
           message: sprintf(
             __('Something went wrong while setting %{issuableType} %{dateType} date.'),
             {
@@ -148,7 +142,7 @@ export default {
       return dateInWords(this.parsedDate, true);
     },
     workspacePath() {
-      return this.issuableType === IssuableType.Issue
+      return this.issuableType === TYPE_ISSUE
         ? {
             projectPath: this.fullPath,
           }
@@ -170,7 +164,7 @@ export default {
       this.$emit('closeForm');
     },
     openDatePicker() {
-      this.$refs.datePicker.calendar.show();
+      this.$refs.datePicker.show();
     },
     setFixedDate(isFixed) {
       const date = this.issuable[dateFields[this.dateType].dateFixed];
@@ -205,7 +199,7 @@ export default {
             },
           }) => {
             if (errors.length) {
-              createFlash({
+              createAlert({
                 message: errors[0],
               });
             } else {
@@ -214,7 +208,7 @@ export default {
           },
         )
         .catch(() => {
-          createFlash({
+          createAlert({
             message: sprintf(
               __('Something went wrong while setting %{issuableType} %{dateType} date.'),
               {
@@ -241,7 +235,7 @@ export default {
     help: __('Help'),
     learnMore: __('Learn more'),
   },
-  dateHelpUrl: '/help/user/group/epics/index.md#start-date-and-due-date',
+  dateHelpUrl: '/help/user/group/epics/manage_epics.md#start-and-due-date-inheritance',
 };
 </script>
 

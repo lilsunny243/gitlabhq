@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Zero downtime upgrades **(FREE SELF)**
@@ -54,12 +54,12 @@ Certain major/minor releases may require a set of background migrations to be
 finished. To guarantee this, such a release processes any remaining jobs
 before continuing the upgrading procedure. While this doesn't require downtime
 (if the above conditions are met) we require that you
-[wait for background migrations to complete](index.md#checking-for-background-migrations-before-upgrading)
+[wait for background migrations to complete](background_migrations.md)
 between each major/minor release upgrade.
 The time necessary to complete these migrations can be reduced by
 increasing the number of Sidekiq workers that can process jobs in the
 `background_migration` queue. To see the size of this queue,
-[Check for background migrations before upgrading](index.md#checking-for-background-migrations-before-upgrading).
+[Check for background migrations before upgrading](background_migrations.md).
 
 As a guideline, any database smaller than 10 GB doesn't take too much time to
 upgrade; perhaps an hour at most per minor release. Larger databases however may
@@ -132,18 +132,7 @@ load balancer to latest GitLab version.
         sudo touch /etc/gitlab/skip-auto-reconfigure
         ```
 
-    1. Update the GitLab package:
-
-       ```shell
-       # Debian/Ubuntu
-       sudo apt-get update && sudo apt-get install gitlab-ee
-
-       # Centos/RHEL
-       sudo yum install gitlab-ee
-       ```
-
-       If you are a Community Edition user, replace `gitlab-ee` with
-       `gitlab-ce` in the above command.
+    1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
     1. Get the regular migrations and latest code in place. Before running this step,
        the deploy node's `/etc/gitlab/gitlab.rb` configuration file must have
@@ -193,17 +182,7 @@ Before you update the main GitLab application you must (in order):
 
 #### Upgrade Gitaly nodes
 
-Upgrade the Gitaly nodes one at a time to ensure access to Git repositories is maintained:
-
-```shell
-# Debian/Ubuntu
-sudo apt-get update && sudo apt-get install gitlab-ee
-
-# Centos/RHEL
-sudo yum install gitlab-ee
-```
-
-If you are a Community Edition user, replace `gitlab-ee` with `gitlab-ce` in the above command.
+[Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories) on the Gitaly nodes one at a time to ensure access to Git repositories is maintained.
 
 #### Upgrade Praefect
 
@@ -226,17 +205,7 @@ node first and run database migrations.
 
 1. On the **Praefect deploy node**:
 
-   1. Upgrade the GitLab package:
-
-      ```shell
-      # Debian/Ubuntu
-      sudo apt-get update && sudo apt-get install gitlab-ee
-
-      # Centos/RHEL
-      sudo yum install gitlab-ee
-      ```
-
-      If you are a Community Edition user, replace `gitlab-ee` with `gitlab-ce` in the command above.
+   1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
    1. To apply the Praefect database migrations and restart Praefect, run:
 
@@ -246,13 +215,7 @@ node first and run database migrations.
 
 1. On all **remaining Praefect nodes**:
 
-   1. Upgrade the GitLab package:
-
-      ```shell
-      sudo apt-get update && sudo apt-get install gitlab-ee
-      ```
-
-      If you are a Community Edition user, replace `gitlab-ee` with `gitlab-ce` in the command above.
+   1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
    1. Ensure nodes are running the latest code:
 
@@ -279,17 +242,7 @@ node throughout the process.
 
 **PostgreSQL only nodes**
 
-- Update the GitLab package
-
-  ```shell
-  # Debian/Ubuntu
-  sudo apt-get update && sudo apt-get install gitlab-ee
-
-  # Centos/RHEL
-  sudo yum install gitlab-ee
-  ```
-
-  If you are a Community Edition user, replace `gitlab-ee` with `gitlab-ce` in the above command.
+- [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 - Ensure nodes are running the latest code
 
@@ -299,21 +252,11 @@ node throughout the process.
 
 **Deploy node**
 
-- Update the GitLab package
-
-  ```shell
-  # Debian/Ubuntu
-  sudo apt-get update && sudo apt-get install gitlab-ee
-
-  # Centos/RHEL
-  sudo yum install gitlab-ee
-  ```
-
-  If you are a Community Edition user, replace `gitlab-ee` with `gitlab-ce` in the above command.
+- [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 - If you're using PgBouncer:
 
-  You must bypass PgBouncer and connect directly to the database leader
+  You must [bypass PgBouncer](../administration/postgresql/pgbouncer.md#procedure-for-bypassing-pgbouncer) and connect directly to the database leader
   before running migrations.
 
   Rails uses an advisory lock when attempting to run a migration to prevent
@@ -341,13 +284,7 @@ node throughout the process.
 
 **All nodes _excluding_ the Deploy node**
 
-- Update the GitLab package
-
-  ```shell
-  sudo apt-get update && sudo apt-get install gitlab-ee
-  ```
-
-  If you are a Community Edition user, replace `gitlab-ee` with `gitlab-ce` in the above command.
+- [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 - Ensure nodes are running the latest code
 
@@ -395,7 +332,7 @@ HA.
 
 #### In the application node
 
-According to [official Redis documentation](https://redis.io/docs/manual/admin/#upgrading-or-restarting-a-redis-instance-without-downtime),
+According to [official Redis documentation](https://redis.io/docs/management/admin/#upgrading-or-restarting-a-redis-instance-without-downtime),
 the easiest way to update an HA instance using Sentinel is to upgrade the
 secondaries one after the other, perform a manual failover from current
 primary (running old version) to a recently upgraded secondary (running a new
@@ -514,21 +451,21 @@ Log in to your **primary** node, executing the following:
    sudo gitlab-ctl reconfigure
    ```
 
-1. Update the GitLab package:
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. To get the database migrations and latest code in place, run:
 
    ```shell
-   sudo SKIP_POST_DEPLOYMENT_MIGRATIONS=true gitlab-ctl reconfigure
+   sudo gitlab-ctl reconfigure
    ```
+
+1. After the node is updated and reconfigure finished successfully, complete the migrations:
+
+   ```shell
+   sudo SKIP_POST_DEPLOYMENT_MIGRATIONS=true gitlab-rake db:migrate
+   ```
+
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the primary site to the secondary site if they're different. The file must be the same on all of a site’s nodes.
 
 ### Update the Geo secondary site
 
@@ -552,20 +489,12 @@ On each **secondary** node, executing the following:
    sudo gitlab-ctl reconfigure
    ```
 
-1. Update the GitLab package:
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. To get the database migrations and latest code in place, run:
 
    ```shell
-   sudo SKIP_POST_DEPLOYMENT_MIGRATIONS=true gitlab-ctl reconfigure
+   sudo gitlab-ctl reconfigure
    ```
 
 1. Run post-deployment database migrations, specific to the Geo database:
@@ -669,15 +598,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
 
 **On primary Gitaly only nodes**
 
-1. Update the GitLab package
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. Ensure nodes are running the latest code
 
@@ -687,19 +608,11 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
 
 **On the primary "deploy node"**
 
-1. Update the GitLab package
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. If you're using PgBouncer:
 
-   You must bypass PgBouncer and connect directly to the database leader
+   You must [bypass PgBouncer](../administration/postgresql/pgbouncer.md#procedure-for-bypassing-pgbouncer) and connect directly to the database leader
    before running migrations.
 
    Rails uses an advisory lock when attempting to run a migration to prevent
@@ -725,7 +638,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
    sudo SKIP_POST_DEPLOYMENT_MIGRATIONS=true gitlab-rake db:migrate
    ```
 
-1. If this deploy node is normally used to serve requests or process jobs,
+1. If this deploy node is used to serve requests or process jobs,
    then you may return it to service at this point.
 
    - To serve requests, add the deploy node to the load balancer.
@@ -737,15 +650,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
 
 **On all primary nodes _excluding_ the primary "deploy node"**
 
-1. Update the GitLab package
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. Ensure nodes are running the latest code
 
@@ -761,6 +666,8 @@ Hot reload `puma` and `sidekiq` services:
 sudo gitlab-ctl hup puma
 sudo gitlab-ctl restart sidekiq
 ```
+
+1. Copy the `/etc/gitlab/gitlab-secrets.json` file from the primary site to the secondary site if they're different. The file must be the same on all of a site’s nodes.
 
 ### Step 3: Update each Geo secondary multi-node deployment
 
@@ -784,15 +691,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
 
 **On secondary Gitaly only nodes**
 
-1. Update the GitLab package
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. Ensure nodes are running the latest code
 
@@ -802,15 +701,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
 
 **On the secondary "deploy node"**
 
-1. Update the GitLab package
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. To get the regular database migrations and latest code in place, run
 
@@ -819,7 +710,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
    sudo SKIP_POST_DEPLOYMENT_MIGRATIONS=true gitlab-rake db:migrate:geo
    ```
 
-1. If this deploy node is normally used to serve requests or perform
+1. If this deploy node is used to serve requests or perform
    background processing, then you may return it to service at this point.
 
    - To serve requests, add the deploy node to the load balancer.
@@ -837,15 +728,7 @@ sudo touch /etc/gitlab/skip-auto-reconfigure
 
 **On all secondary nodes _excluding_ the secondary "deploy node"**
 
-1. Update the GitLab package
-
-   ```shell
-   # Debian/Ubuntu
-   sudo apt-get update && sudo apt-get install gitlab-ee
-
-   # Centos/RHEL
-   sudo yum install gitlab-ee
-   ```
+1. [Upgrade the GitLab package](package/index.md#upgrade-to-a-specific-version-using-the-official-repositories).
 
 1. Ensure nodes are running the latest code
 

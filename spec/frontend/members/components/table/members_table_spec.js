@@ -5,12 +5,12 @@ import setWindowLocation from 'helpers/set_window_location_helper';
 import { mountExtended, extendedWrapper } from 'helpers/vue_test_utils_helper';
 import CreatedAt from '~/members/components/table/created_at.vue';
 import ExpirationDatepicker from '~/members/components/table/expiration_datepicker.vue';
-import MemberActionButtons from '~/members/components/table/member_action_buttons.vue';
+import MemberActions from '~/members/components/table/member_actions.vue';
 import MemberAvatar from '~/members/components/table/member_avatar.vue';
 import MemberSource from '~/members/components/table/member_source.vue';
+import MemberActivity from '~/members/components/table/member_activity.vue';
 import MembersTable from '~/members/components/table/members_table.vue';
 import RoleDropdown from '~/members/components/table/role_dropdown.vue';
-import UserDate from '~/vue_shared/components/user_date.vue';
 import {
   MEMBER_TYPES,
   MEMBER_STATE_CREATED,
@@ -63,6 +63,7 @@ describe('MembersTable', () => {
       provide: {
         sourceId: 1,
         currentUserId: 1,
+        canManageMembers: true,
         namespace: MEMBER_TYPES.invite,
         ...provide,
       },
@@ -70,7 +71,7 @@ describe('MembersTable', () => {
         'member-avatar',
         'member-source',
         'created-at',
-        'member-action-buttons',
+        'member-actions',
         'role-dropdown',
         'remove-group-link-modal',
         'remove-member-modal',
@@ -106,16 +107,14 @@ describe('MembersTable', () => {
     };
 
     it.each`
-      field               | label               | member             | expectedComponent
-      ${'account'}        | ${'Account'}        | ${memberMock}      | ${MemberAvatar}
-      ${'source'}         | ${'Source'}         | ${memberMock}      | ${MemberSource}
-      ${'granted'}        | ${'Access granted'} | ${memberMock}      | ${CreatedAt}
-      ${'invited'}        | ${'Invited'}        | ${invite}          | ${CreatedAt}
-      ${'requested'}      | ${'Requested'}      | ${accessRequest}   | ${CreatedAt}
-      ${'maxRole'}        | ${'Max role'}       | ${memberCanUpdate} | ${RoleDropdown}
-      ${'expiration'}     | ${'Expiration'}     | ${memberMock}      | ${ExpirationDatepicker}
-      ${'userCreatedAt'}  | ${'Created on'}     | ${memberMock}      | ${UserDate}
-      ${'lastActivityOn'} | ${'Last activity'}  | ${memberMock}      | ${UserDate}
+      field           | label           | member             | expectedComponent
+      ${'account'}    | ${'Account'}    | ${memberMock}      | ${MemberAvatar}
+      ${'source'}     | ${'Source'}     | ${memberMock}      | ${MemberSource}
+      ${'invited'}    | ${'Invited'}    | ${invite}          | ${CreatedAt}
+      ${'requested'}  | ${'Requested'}  | ${accessRequest}   | ${CreatedAt}
+      ${'maxRole'}    | ${'Max role'}   | ${memberCanUpdate} | ${RoleDropdown}
+      ${'expiration'} | ${'Expiration'} | ${memberMock}      | ${ExpirationDatepicker}
+      ${'activity'}   | ${'Activity'}   | ${memberMock}      | ${MemberActivity}
     `('renders the $label field', ({ field, label, member, expectedComponent }) => {
       createComponent({
         members: [member],
@@ -182,10 +181,7 @@ describe('MembersTable', () => {
         expect(actionField.exists()).toBe(true);
         expect(actionField.classes('gl-sr-only')).toBe(true);
         expect(
-          wrapper
-            .find(`[data-label="Actions"][role="cell"]`)
-            .findComponent(MemberActionButtons)
-            .exists(),
+          wrapper.find(`[data-label="Actions"][role="cell"]`).findComponent(MemberActions).exists(),
         ).toBe(true);
       });
 
@@ -202,16 +198,23 @@ describe('MembersTable', () => {
         canRemove: true,
       };
 
+      const memberCanRemoveBlockedLastOwner = {
+        ...directMember,
+        canRemove: false,
+        isLastOwner: true,
+      };
+
       const memberNoPermissions = {
         ...memberMock,
         id: 2,
       };
 
       describe.each`
-        permission     | members
-        ${'canUpdate'} | ${[memberNoPermissions, memberCanUpdate]}
-        ${'canRemove'} | ${[memberNoPermissions, memberCanRemove]}
-        ${'canResend'} | ${[memberNoPermissions, invite]}
+        permission                       | members
+        ${'canUpdate'}                   | ${[memberNoPermissions, memberCanUpdate]}
+        ${'canRemove'}                   | ${[memberNoPermissions, memberCanRemove]}
+        ${'canRemoveBlockedByLastOwner'} | ${[memberNoPermissions, memberCanRemoveBlockedLastOwner]}
+        ${'canResend'}                   | ${[memberNoPermissions, invite]}
       `('when one of the members has $permission permissions', ({ members }) => {
         it('renders the "Actions" field', () => {
           createComponent({ members, tableFields: ['actions'] });
@@ -230,10 +233,11 @@ describe('MembersTable', () => {
       });
 
       describe.each`
-        permission     | members
-        ${'canUpdate'} | ${[memberMock]}
-        ${'canRemove'} | ${[memberMock]}
-        ${'canResend'} | ${[{ ...invite, invite: { ...invite.invite, canResend: false } }]}
+        permission                       | members
+        ${'canUpdate'}                   | ${[memberMock]}
+        ${'canRemove'}                   | ${[memberMock]}
+        ${'canRemoveBlockedByLastOwner'} | ${[memberMock]}
+        ${'canResend'}                   | ${[{ ...invite, invite: { ...invite.invite, canResend: false } }]}
       `('when none of the members have $permission permissions', ({ members }) => {
         it('does not render the "Actions" field', () => {
           createComponent({ members, tableFields: ['actions'] });

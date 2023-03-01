@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Commits' do
+RSpec.describe 'Commits', feature_category: :source_code_management do
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:user) { create(:user) }
 
@@ -24,7 +24,8 @@ RSpec.describe 'Commits' do
     end
 
     context 'commit status is Generic Commit Status' do
-      let!(:status) { create(:generic_commit_status, pipeline: pipeline, ref: pipeline.ref) }
+      let(:stage) { create(:ci_stage, pipeline: pipeline, name: 'external') }
+      let!(:status) { create(:generic_commit_status, pipeline: pipeline, ref: pipeline.ref, ci_stage: stage) }
 
       before do
         project.add_reporter(user)
@@ -183,7 +184,7 @@ RSpec.describe 'Commits' do
       set_cookie('new_repo', 'true')
       visit project_commits_path(project, branch_name)
 
-      expect(find('.js-project-refs-dropdown')).to have_content branch_name
+      expect(find('.ref-selector')).to have_content branch_name
     end
   end
 
@@ -212,13 +213,13 @@ RSpec.describe 'Commits' do
     end
 
     context 'author is just a name' do
-      let(:author) { "#{author_commit.author_name}" }
+      let(:author) { author_commit.author_name.to_s }
 
       it_behaves_like 'show commits by author'
     end
 
     context 'author is just an email' do
-      let(:author) { "#{author_commit.author_email}" }
+      let(:author) { author_commit.author_email.to_s }
 
       it_behaves_like 'show commits by author'
     end

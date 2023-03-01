@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/file_finder.html'
 ---
 
@@ -11,7 +11,7 @@ The file finder feature allows you to search for a file in a repository using th
 GitLab UI. To use it:
 
 1. Go to your project's **Repository > Files**.
-1. In the upper right corner, select **Find File**.
+1. In the upper-right corner, select **Find File**.
 
 If you prefer to keep your fingers on the keyboard, use the
 [shortcut button](../../shortcuts.md), which you can invoke from anywhere

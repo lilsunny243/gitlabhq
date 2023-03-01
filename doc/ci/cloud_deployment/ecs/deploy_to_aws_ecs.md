@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Deploy to Amazon Elastic Container Service **(FREE)**
@@ -79,7 +79,7 @@ and [Container Registry](../../../user/packages/container_registry/index.md).
 
    ![Create project](img/initial-pipeline.png)
 
-1. Visit **Packages & Registries > Container Registry**. Make sure the application image has been
+1. Visit **Packages and registries > Container Registry**. Make sure the application image has been
    pushed.
 
    ![Create project](img/registry.png)
@@ -210,7 +210,7 @@ Do not share the secret access key in a public place. You must save it in a secu
 
 ### Setup credentials in GitLab to let pipeline jobs access to ECS
 
-You can register the access information in [GitLab Environment Variables](../../variables/index.md#custom-cicd-variables).
+You can register the access information in [GitLab CI/CD Variables](../../variables/index.md).
 These variables are injected into the pipeline jobs and can access the ECS API.
 
 1. Go to **ecs-demo** project on GitLab.

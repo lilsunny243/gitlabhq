@@ -11,6 +11,7 @@ import {
 import * as types from '~/feature_flags/store/new/mutation_types';
 import state from '~/feature_flags/store/new/state';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 
 jest.mock('~/lib/utils/url_utility');
 
@@ -33,7 +34,7 @@ describe('Feature flags New Module Actions', () => {
     });
 
     describe('success', () => {
-      it('dispatches requestCreateFeatureFlag and receiveCreateFeatureFlagSuccess ', () => {
+      it('dispatches requestCreateFeatureFlag and receiveCreateFeatureFlagSuccess', () => {
         const actionParams = {
           name: 'name',
           description: 'description',
@@ -48,7 +49,9 @@ describe('Feature flags New Module Actions', () => {
             },
           ],
         };
-        mock.onPost(mockedState.endpoint, mapStrategiesToRails(actionParams)).replyOnce(200);
+        mock
+          .onPost(mockedState.endpoint, mapStrategiesToRails(actionParams))
+          .replyOnce(HTTP_STATUS_OK);
 
         return testAction(
           createFeatureFlag,
@@ -68,7 +71,7 @@ describe('Feature flags New Module Actions', () => {
     });
 
     describe('error', () => {
-      it('dispatches requestCreateFeatureFlag and receiveCreateFeatureFlagError ', () => {
+      it('dispatches requestCreateFeatureFlag and receiveCreateFeatureFlagError', () => {
         const actionParams = {
           name: 'name',
           description: 'description',
@@ -85,7 +88,7 @@ describe('Feature flags New Module Actions', () => {
         };
         mock
           .onPost(mockedState.endpoint, mapStrategiesToRails(actionParams))
-          .replyOnce(500, { message: [] });
+          .replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR, { message: [] });
 
         return testAction(
           createFeatureFlag,

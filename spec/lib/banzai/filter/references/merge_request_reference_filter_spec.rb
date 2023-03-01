@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Filter::References::MergeRequestReferenceFilter do
+RSpec.describe Banzai::Filter::References::MergeRequestReferenceFilter, feature_category: :code_review_workflow do
   include FilterSpecHelper
 
   let(:project) { create(:project, :public) }
@@ -125,6 +125,15 @@ RSpec.describe Banzai::Filter::References::MergeRequestReferenceFilter do
 
       expect(link).to have_attribute('data-reference-format')
       expect(link.attr('data-reference-format')).to eq('+')
+      expect(link.attr('href')).to eq(merge_request_url)
+    end
+
+    it 'includes a data-reference-format attribute for extended summary URL references' do
+      doc = reference_filter("Merge #{merge_request_url}+s")
+      link = doc.css('a').first
+
+      expect(link).to have_attribute('data-reference-format')
+      expect(link.attr('data-reference-format')).to eq('+s')
       expect(link.attr('href')).to eq(merge_request_url)
     end
 

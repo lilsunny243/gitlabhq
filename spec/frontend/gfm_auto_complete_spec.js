@@ -3,14 +3,39 @@ import MockAdapter from 'axios-mock-adapter';
 import $ from 'jquery';
 import labelsFixture from 'test_fixtures/autocomplete_sources/labels.json';
 import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
-import GfmAutoComplete, { membersBeforeSave, highlighter } from 'ee_else_ce/gfm_auto_complete';
+import GfmAutoComplete, {
+  escape,
+  membersBeforeSave,
+  highlighter,
+  CONTACT_STATE_ACTIVE,
+  CONTACTS_ADD_COMMAND,
+  CONTACTS_REMOVE_COMMAND,
+} from 'ee_else_ce/gfm_auto_complete';
 import { initEmojiMock, clearEmojiMock } from 'helpers/emoji';
 import '~/lib/utils/jquery_at_who';
 import { TEST_HOST } from 'helpers/test_constants';
 import waitForPromises from 'helpers/wait_for_promises';
 import AjaxCache from '~/lib/utils/ajax_cache';
 import axios from '~/lib/utils/axios_utils';
-import { eventlistenersMockDefaultMap } from 'ee_else_ce_jest/gfm_auto_complete/mock_data';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
+import {
+  eventlistenersMockDefaultMap,
+  crmContactsMock,
+} from 'ee_else_ce_jest/gfm_auto_complete/mock_data';
+
+describe('escape', () => {
+  it.each`
+    xssPayload                                           | escapedPayload
+    ${'<script>alert(1)</script>'}                       | ${'&lt;script&gt;alert(1)&lt;/script&gt;'}
+    ${'%3Cscript%3E alert(1) %3C%2Fscript%3E'}           | ${'&lt;script&gt; alert(1) &lt;/script&gt;'}
+    ${'%253Cscript%253E alert(1) %253C%252Fscript%253E'} | ${'&lt;script&gt; alert(1) &lt;/script&gt;'}
+  `(
+    'escapes the input string correctly accounting for multiple encoding',
+    ({ xssPayload, escapedPayload }) => {
+      expect(escape(xssPayload)).toBe(escapedPayload);
+    },
+  );
+});
 
 describe('GfmAutoComplete', () => {
   const fetchDataMock = { fetchData: jest.fn() };
@@ -160,17 +185,20 @@ describe('GfmAutoComplete', () => {
           });
         });
 
-        it.each([200, 500])('should set the loading state', async (responseStatus) => {
-          mock.onGet('vulnerabilities_autocomplete_url').replyOnce(responseStatus);
+        it.each([HTTP_STATUS_OK, HTTP_STATUS_INTERNAL_SERVER_ERROR])(
+          'should set the loading state',
+          async (responseStatus) => {
+            mock.onGet('vulnerabilities_autocomplete_url').replyOnce(responseStatus);
 
-          fetchData.call(context, {}, '[vulnerability:', 'query');
+            fetchData.call(context, {}, '[vulnerability:', 'query');
 
-          expect(context.isLoadingData['[vulnerability:']).toBe(true);
+            expect(context.isLoadingData['[vulnerability:']).toBe(true);
 
-          await waitForPromises();
+            await waitForPromises();
 
-          expect(context.isLoadingData['[vulnerability:']).toBe(false);
-        });
+            expect(context.isLoadingData['[vulnerability:']).toBe(false);
+          },
+        );
       });
 
       describe('data is in cache', () => {
@@ -581,7 +609,7 @@ describe('GfmAutoComplete', () => {
           id: 5,
           title: '${search}<script>oh no $', // eslint-disable-line no-template-curly-in-string
         }),
-      ).toBe('<li><small>5</small> &dollar;{search}&lt;script&gt;oh no &dollar;</li>');
+      ).toBe('<li><small>5</small> &amp;dollar;{search}&lt;script&gt;oh no &amp;dollar;</li>');
     });
   });
 
@@ -627,7 +655,7 @@ describe('GfmAutoComplete', () => {
             availabilityStatus: '',
           }),
         ).toBe(
-          '<li>IMG my-group <small>&dollar;{search}&lt;script&gt;oh no &dollar;</small> <i class="icon"/></li>',
+          '<li>IMG my-group <small>&amp;dollar;{search}&lt;script&gt;oh no &amp;dollar;</small> <i class="icon"/></li>',
         );
       });
 
@@ -763,6 +791,7 @@ describe('GfmAutoComplete', () => {
         input           | output
         ${'~'}          | ${unassignedLabels}
         ${'/label ~'}   | ${unassignedLabels}
+        ${'/labels ~'}  | ${unassignedLabels}
         ${'/relabel ~'} | ${unassignedLabels}
         ${'/unlabel ~'} | ${[]}
       `('$input shows $output.length labels', expectLabels);
@@ -777,6 +806,7 @@ describe('GfmAutoComplete', () => {
         input           | output
         ${'~'}          | ${allLabels}
         ${'/label ~'}   | ${unassignedLabels}
+        ${'/labels ~'}  | ${unassignedLabels}
         ${'/relabel ~'} | ${allLabels}
         ${'/unlabel ~'} | ${assignedLabels}
       `('$input shows $output.length labels', expectLabels);
@@ -791,6 +821,7 @@ describe('GfmAutoComplete', () => {
         input           | output
         ${'~'}          | ${assignedLabels}
         ${'/label ~'}   | ${[]}
+        ${'/labels ~'}  | ${[]}
         ${'/relabel ~'} | ${assignedLabels}
         ${'/unlabel ~'} | ${assignedLabels}
       `('$input shows $output.length labels', expectLabels);
@@ -801,7 +832,7 @@ describe('GfmAutoComplete', () => {
       const title = '${search}<script>oh no $'; // eslint-disable-line no-template-curly-in-string
 
       expect(GfmAutoComplete.Labels.templateFunction(color, title)).toBe(
-        '<li><span class="dropdown-label-box" style="background: #123456"></span> &dollar;{search}&lt;script&gt;oh no &dollar;</li>',
+        '<li><span class="dropdown-label-box" style="background: #123456"></span> &amp;dollar;{search}&lt;script&gt;oh no &amp;dollar;</li>',
       );
     });
   });
@@ -856,7 +887,7 @@ describe('GfmAutoComplete', () => {
       const title = '${search}<script>oh no $'; // eslint-disable-line no-template-curly-in-string
 
       expect(GfmAutoComplete.Milestones.templateFunction(title, expired)).toBe(
-        '<li>&dollar;{search}&lt;script&gt;oh no &dollar;</li>',
+        '<li>&amp;dollar;{search}&lt;script&gt;oh no &amp;dollar;</li>',
       );
     });
   });
@@ -871,7 +902,89 @@ describe('GfmAutoComplete', () => {
     });
   });
 
-  describe('Contacts', () => {
+  describe('CRM Contacts', () => {
+    const dataSources = {
+      contacts: `${TEST_HOST}/autocomplete_sources/contacts`,
+    };
+
+    const allContacts = crmContactsMock;
+    const assignedContacts = allContacts.filter((contact) => contact.set);
+    const unassignedContacts = allContacts.filter(
+      (contact) => contact.state === CONTACT_STATE_ACTIVE && !contact.set,
+    );
+
+    let autocomplete;
+    let $textarea;
+
+    beforeEach(() => {
+      setHTMLFixture('<textarea></textarea>');
+      autocomplete = new GfmAutoComplete(dataSources);
+      $textarea = $('textarea');
+      autocomplete.setup($textarea, { contacts: true });
+    });
+
+    afterEach(() => {
+      autocomplete.destroy();
+      resetHTMLFixture();
+    });
+
+    const triggerDropdown = (text) => {
+      $textarea.trigger('focus').val(text).caret('pos', -1);
+      $textarea.trigger('keyup');
+
+      jest.runOnlyPendingTimers();
+    };
+
+    const getDropdownItems = () => {
+      const dropdown = document.getElementById('at-view-contacts');
+      const items = dropdown.getElementsByTagName('li');
+      return [].map.call(items, (item) => item.textContent.trim());
+    };
+
+    const expectContacts = ({ input, output }) => {
+      triggerDropdown(input);
+
+      expect(getDropdownItems()).toEqual(
+        output.map((contact) => `${contact.first_name} ${contact.last_name} ${contact.email}`),
+      );
+    };
+
+    describe('with no contacts assigned', () => {
+      beforeEach(() => {
+        autocomplete.cachedData['[contact:'] = [...unassignedContacts];
+      });
+
+      it.each`
+        input                                     | output
+        ${`${CONTACTS_ADD_COMMAND} [contact:`}    | ${unassignedContacts}
+        ${`${CONTACTS_REMOVE_COMMAND} [contact:`} | ${[]}
+      `('$input shows $output.length contacts', expectContacts);
+    });
+
+    describe('with some contacts assigned', () => {
+      beforeEach(() => {
+        autocomplete.cachedData['[contact:'] = allContacts;
+      });
+
+      it.each`
+        input                                     | output
+        ${`${CONTACTS_ADD_COMMAND} [contact:`}    | ${unassignedContacts}
+        ${`${CONTACTS_REMOVE_COMMAND} [contact:`} | ${assignedContacts}
+      `('$input shows $output.length contacts', expectContacts);
+    });
+
+    describe('with all contacts assigned', () => {
+      beforeEach(() => {
+        autocomplete.cachedData['[contact:'] = [...assignedContacts];
+      });
+
+      it.each`
+        input                                     | output
+        ${`${CONTACTS_ADD_COMMAND} [contact:`}    | ${[]}
+        ${`${CONTACTS_REMOVE_COMMAND} [contact:`} | ${assignedContacts}
+      `('$input shows $output.length contacts', expectContacts);
+    });
+
     it('escapes name and email correct', () => {
       const xssPayload = '<script>alert(1)</script>';
       const escapedPayload = '&lt;script&gt;alert(1)&lt;/script&gt;';

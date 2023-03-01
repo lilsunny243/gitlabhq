@@ -1,14 +1,14 @@
 ---
 stage: Verify
-group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Runner SaaS
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
 # Runner SaaS **(FREE SAAS)**
 
-If you use GitLab SaaS (GitLab.com), your CI jobs automatically run on runners provided by GitLab.
-No configuration is required. Your jobs can run on:
+If you use GitLab SaaS (GitLab.com), your [untagged](../../ci/runners/configure_runners.md#use-tags-to-control-which-jobs-a-runner-can-run) CI jobs automatically run in containers on the Linux Runners.
+As long as shared runners are enabled for your project, no configuration is required. Your jobs can run on:
 
 - [Linux runners](saas/linux_saas_runner.md).
 - [Windows runners](saas/windows_saas_runner.md) ([Beta](../../policy/alpha-beta-support.md#beta-features)).
@@ -20,7 +20,7 @@ in your [subscription plan](https://about.gitlab.com/pricing/).
 
 ## Security for GitLab SaaS runners
 
-GitLab SaaS runners on Linux and Windows run on Google Compute Platform. The [Google Infrastructure Security Design Overview whitepaper](https://cloud.google.com/docs/security/infrastructure/design/resources/google_infrastructure_whitepaper_fa.pdf) provides an overview of how Google designs security into its technical infrastructure. The GitLab [Trust Center](https://about.gitlab.com/security/) and [GitLab Security Compliance Controls](https://about.staging.gitlab.com/handbook/engineering/security/security-assurance/security-compliance/sec-controls.html) pages provide an overview of the Security and Compliance controls that govern the GitLab SaaS runners.
+GitLab SaaS runners on Linux and Windows run on Google Compute Platform. The [Google Infrastructure Security Design Overview whitepaper](https://cloud.google.com/docs/security/infrastructure/design/resources/google_infrastructure_whitepaper_fa.pdf) provides an overview of how Google designs security into its technical infrastructure. The GitLab [Trust Center](https://about.gitlab.com/security/) and [GitLab Security Compliance Controls](https://about.staging.gitlab.com/handbook/engineering/security/security-assurance/security-compliance/sec-controls.html) pages provide an overview of the security and compliance controls that govern the GitLab SaaS runners.
 
 The runner that serves as a Runner Manager automatically initiates the creation and deletion of the virtual machines (VMs) used for CI jobs. When the Runner Manager picks up a GitLab SaaS CI job, it automatically executes that job on a new VM. There is no human or manual intervention in this process. The following section provides an overview of the additional built-in layers that harden the security of the GitLab Runner SaaS CI build environment.
 

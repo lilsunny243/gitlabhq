@@ -3,7 +3,7 @@
 require 'spec_helper'
 require Rails.root.join('config', 'object_store_settings.rb')
 
-RSpec.describe ObjectStoreSettings do
+RSpec.describe ObjectStoreSettings, feature_category: :not_owned do
   describe '#parse!' do
     let(:settings) { Settingslogic.new(config) }
 
@@ -70,7 +70,6 @@ RSpec.describe ObjectStoreSettings do
         expect(settings.artifacts['object_store']['enabled']).to be true
         expect(settings.artifacts['object_store']['connection']).to eq(connection)
         expect(settings.artifacts['object_store']['direct_upload']).to be true
-        expect(settings.artifacts['object_store']['background_upload']).to be false
         expect(settings.artifacts['object_store']['proxy_download']).to be false
         expect(settings.artifacts['object_store']['remote_directory']).to eq('artifacts')
         expect(settings.artifacts['object_store']['bucket_prefix']).to eq(nil)
@@ -81,7 +80,6 @@ RSpec.describe ObjectStoreSettings do
         expect(settings.lfs['object_store']['enabled']).to be true
         expect(settings.lfs['object_store']['connection']).to eq(connection)
         expect(settings.lfs['object_store']['direct_upload']).to be true
-        expect(settings.lfs['object_store']['background_upload']).to be false
         expect(settings.lfs['object_store']['proxy_download']).to be true
         expect(settings.lfs['object_store']['remote_directory']).to eq('lfs-objects')
         expect(settings.lfs['object_store']['bucket_prefix']).to eq(nil)
@@ -111,6 +109,27 @@ RSpec.describe ObjectStoreSettings do
         expect(settings.artifacts['object_store']['bucket_prefix']).to eq('artifacts')
         expect(settings.lfs['object_store']['remote_directory']).to eq('gitlab')
         expect(settings.lfs['object_store']['bucket_prefix']).to eq('lfs')
+      end
+
+      context 'with Google CDN enabled' do
+        let(:cdn_config) do
+          {
+            'provider' => 'Google',
+            'url' => 'https://cdn.example.org',
+            'key_name' => 'stanhu-key',
+            'key' => Base64.urlsafe_encode64(SecureRandom.hex)
+          }
+        end
+
+        before do
+          config['object_store']['objects']['artifacts']['cdn'] = cdn_config
+        end
+
+        it 'populates artifacts CDN config' do
+          subject
+
+          expect(settings.artifacts['object_store']['cdn']).to eq(cdn_config)
+        end
       end
 
       it 'raises an error when a bucket is missing' do
@@ -179,7 +198,6 @@ RSpec.describe ObjectStoreSettings do
             'enabled' => true,
             'remote_directory' => 'some-bucket',
             'direct_upload' => false,
-            'background_upload' => true,
             'proxy_download' => false
           }
         end
@@ -194,36 +212,7 @@ RSpec.describe ObjectStoreSettings do
           expect(settings.artifacts['object_store']).to be_nil
           expect(settings.lfs['object_store']['remote_directory']).to eq('some-bucket')
           expect(settings.lfs['object_store']['bucket_prefix']).to eq(nil)
-          # Disable background_upload, regardless of the input config
           expect(settings.lfs['object_store']['direct_upload']).to eq(true)
-          expect(settings.lfs['object_store']['background_upload']).to eq(false)
-          expect(settings.external_diffs['object_store']).to be_nil
-        end
-      end
-
-      context 'with legacy config and legacy background upload is enabled' do
-        let(:legacy_settings) do
-          {
-            'enabled' => true,
-            'remote_directory' => 'some-bucket',
-            'proxy_download' => false
-          }
-        end
-
-        before do
-          stub_env(ObjectStoreSettings::LEGACY_BACKGROUND_UPLOADS_ENV, 'lfs')
-          settings.lfs['object_store'] = described_class.legacy_parse(legacy_settings, 'lfs')
-        end
-
-        it 'enables background_upload and disables direct_upload' do
-          subject
-
-          expect(settings.artifacts['object_store']).to be_nil
-          expect(settings.lfs['object_store']['remote_directory']).to eq('some-bucket')
-          expect(settings.lfs['object_store']['bucket_prefix']).to eq(nil)
-          # Enable background_upload if the environment variable is available
-          expect(settings.lfs['object_store']['direct_upload']).to eq(false)
-          expect(settings.lfs['object_store']['background_upload']).to eq(true)
           expect(settings.external_diffs['object_store']).to be_nil
         end
       end
@@ -236,7 +225,6 @@ RSpec.describe ObjectStoreSettings do
 
       expect(settings['enabled']).to be false
       expect(settings['direct_upload']).to be true
-      expect(settings['background_upload']).to be false
       expect(settings['remote_directory']).to be nil
       expect(settings['bucket_prefix']).to be nil
     end
@@ -251,7 +239,6 @@ RSpec.describe ObjectStoreSettings do
 
       expect(settings['enabled']).to be true
       expect(settings['direct_upload']).to be true
-      expect(settings['background_upload']).to be false
       expect(settings['remote_directory']).to eq 'artifacts'
       expect(settings['bucket_prefix']).to be nil
     end
@@ -265,48 +252,6 @@ RSpec.describe ObjectStoreSettings do
       settings = described_class.legacy_parse(original_settings, 'artifacts')
       expect(settings['remote_directory']).to eq 'gitlab'
       expect(settings['bucket_prefix']).to eq 'artifacts'
-    end
-
-    context 'legacy background upload environment variable is enabled' do
-      before do
-        stub_env(ObjectStoreSettings::LEGACY_BACKGROUND_UPLOADS_ENV, 'artifacts,lfs')
-      end
-
-      it 'enables background_upload and disables direct_upload' do
-        original_settings = Settingslogic.new({
-          'enabled' => true,
-          'remote_directory' => 'artifacts'
-        })
-
-        settings = described_class.legacy_parse(original_settings, 'artifacts')
-
-        expect(settings['enabled']).to be true
-        expect(settings['direct_upload']).to be false
-        expect(settings['background_upload']).to be true
-        expect(settings['remote_directory']).to eq 'artifacts'
-        expect(settings['bucket_prefix']).to eq nil
-      end
-    end
-
-    context 'legacy background upload environment variable is enabled for other types' do
-      before do
-        stub_env(ObjectStoreSettings::LEGACY_BACKGROUND_UPLOADS_ENV, 'uploads,lfs')
-      end
-
-      it 'enables direct_upload and disables background_upload' do
-        original_settings = Settingslogic.new({
-          'enabled' => true,
-          'remote_directory' => 'artifacts'
-        })
-
-        settings = described_class.legacy_parse(original_settings, 'artifacts')
-
-        expect(settings['enabled']).to be true
-        expect(settings['direct_upload']).to be true
-        expect(settings['background_upload']).to be false
-        expect(settings['remote_directory']).to eq 'artifacts'
-        expect(settings['bucket_prefix']).to eq nil
-      end
     end
   end
 

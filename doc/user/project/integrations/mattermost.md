@@ -1,12 +1,12 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Mattermost notifications service **(FREE)**
+# Mattermost notifications **(FREE)**
 
-Use the Mattermost notifications service to send notifications for GitLab events
+Use the Mattermost notifications integration to send notifications for GitLab events
 (for example, `issue created`) to Mattermost. You must configure both [Mattermost](#configure-mattermost-to-receive-gitlab-notifications)
 and [GitLab](#configure-gitlab-to-send-notifications-to-mattermost).
 
@@ -36,10 +36,12 @@ Display name override is not enabled by default, you need to ask your administra
 
 ## Configure GitLab to send notifications to Mattermost
 
+> [Changed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106760) in GitLab 15.9 to limit Mattermost channels to 10 per event.
+
 After the Mattermost instance has an incoming webhook set up, you can set up GitLab
 to send the notifications:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Mattermost notifications**.
 1. Select the GitLab events to generate notifications for. For each event you select, input the Mattermost channel

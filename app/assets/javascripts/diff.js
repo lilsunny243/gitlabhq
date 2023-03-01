@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import { merge } from 'lodash';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { __ } from '~/locale';
 import FilesCommentButton from './files_comment_button';
@@ -12,8 +12,12 @@ const UNFOLD_COUNT = 20;
 let isBound = false;
 
 export default class Diff {
-  constructor() {
+  constructor({ mergeRequestEventHub } = {}) {
     const $diffFile = $('.files .diff-file');
+
+    if (mergeRequestEventHub) {
+      this.mrHub = mergeRequestEventHub;
+    }
 
     $diffFile.each((index, file) => {
       if (!$.data(file, 'singleFileDiff')) {
@@ -34,7 +38,8 @@ export default class Diff {
       $(document)
         .on('click', '.js-unfold', this.handleClickUnfold.bind(this))
         .on('click', '.diff-line-num a', this.handleClickLineNum.bind(this))
-        .on('mousedown', 'td.line_content.parallel', this.handleParallelLineDown.bind(this));
+        .on('mousedown', 'td.line_content.parallel', this.handleParallelLineDown.bind(this))
+        .on('click', '.inline-parallel-buttons a', ($e) => this.viewTypeSwitch($e));
       isBound = true;
     }
 
@@ -82,7 +87,7 @@ export default class Diff {
       .get(link, { params })
       .then(({ data }) => $target.parent().replaceWith(data))
       .catch(() =>
-        createFlash({
+        createAlert({
           message: __('An error occurred while loading diff'),
         }),
       );
@@ -135,6 +140,20 @@ export default class Diff {
   diffViewType() {
     return $('.inline-parallel-buttons a.active').data('viewType');
   }
+  viewTypeSwitch(event) {
+    const click = event.originalEvent;
+    const diffSource = new URL(click.target.getAttribute('href'), document.location.href);
+
+    if (this.mrHub) {
+      click.preventDefault();
+      click.stopPropagation();
+
+      diffSource.pathname = `${diffSource.pathname}.json`;
+
+      this.mrHub.$emit('diff:switch-view-type', { source: diffSource.toString() });
+    }
+  }
+
   // eslint-disable-next-line class-methods-use-this
   lineNumbers(line) {
     const children = line.find('.diff-line-num').toArray();

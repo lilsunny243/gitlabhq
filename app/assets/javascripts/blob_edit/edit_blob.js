@@ -1,9 +1,10 @@
 import $ from 'jquery';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import { SourceEditorExtension } from '~/editor/extensions/source_editor_extension_base';
 import { FileTemplateExtension } from '~/editor/extensions/source_editor_file_template_ext';
 import { ToolbarExtension } from '~/editor/extensions/source_editor_toolbar_ext';
 import SourceEditor from '~/editor/source_editor';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { addEditorMarkdownListeners } from '~/lib/utils/text_markdown';
 import { insertFinalNewline } from '~/lib/utils/text_utility';
@@ -16,8 +17,10 @@ export default class EditBlob {
   constructor(options) {
     this.options = options;
     this.configureMonacoEditor();
+    this.isMarkdown = this.options.isMarkdown;
+    this.markdownLivePreviewOpened = false;
 
-    if (this.options.isMarkdown) {
+    if (this.isMarkdown) {
       this.fetchMarkdownExtension();
     }
 
@@ -44,7 +47,7 @@ export default class EditBlob {
         },
       ]);
     } catch (e) {
-      createFlash({
+      createAlert({
         message: `${BLOB_EDITOR_ERROR}: ${e}`,
       });
     }
@@ -65,9 +68,9 @@ export default class EditBlob {
       blobContent: editorEl.innerText,
     });
     this.editor.use([
+      { definition: ToolbarExtension },
       { definition: SourceEditorExtension },
       { definition: FileTemplateExtension },
-      { definition: ToolbarExtension },
     ]);
 
     fileNameEl.addEventListener('change', () => {
@@ -104,6 +107,13 @@ export default class EditBlob {
     this.$editModeLinks.on('click', (e) => this.editModeLinkClickHandler(e));
   }
 
+  toggleMarkdownPreview(toOpen) {
+    if (toOpen !== this.markdownLivePreviewOpened) {
+      this.editor.markdownPreview?.eventEmitter.fire();
+      this.markdownLivePreviewOpened = !this.markdownLivePreviewOpened;
+    }
+  }
+
   editModeLinkClickHandler(e) {
     e.preventDefault();
 
@@ -115,25 +125,29 @@ export default class EditBlob {
 
     currentLink.parent().addClass('active hover');
 
-    this.$editModePanes.hide();
+    if (this.isMarkdown) {
+      this.toggleMarkdownPreview(paneId === '#preview');
+    } else {
+      this.$editModePanes.hide();
 
-    currentPane.show();
+      currentPane.show();
 
-    if (paneId === '#preview') {
-      this.$toggleButton.hide();
-      axios
-        .post(currentLink.data('previewUrl'), {
-          content: this.editor.getValue(),
-        })
-        .then(({ data }) => {
-          currentPane.empty().append(data);
-          currentPane.renderGFM();
-        })
-        .catch(() =>
-          createFlash({
-            message: BLOB_PREVIEW_ERROR,
-          }),
-        );
+      if (paneId === '#preview') {
+        this.$toggleButton.hide();
+        axios
+          .post(currentLink.data('previewUrl'), {
+            content: this.editor.getValue(),
+          })
+          .then(({ data }) => {
+            currentPane.empty().append(data);
+            renderGFM(currentPane.get(0));
+          })
+          .catch(() =>
+            createAlert({
+              message: BLOB_PREVIEW_ERROR,
+            }),
+          );
+      }
     }
 
     this.$toggleButton.show();

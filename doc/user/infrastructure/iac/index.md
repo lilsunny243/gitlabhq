@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Infrastructure as Code with Terraform and GitLab **(FREE)**
@@ -19,7 +19,7 @@ Terraform to define resources that you can version, reuse, and share:
 
 ## Integrate your project with Terraform
 
-> SAST test was [introduced](https://gitlab.com/groups/gitlab-org/-/epics/6655) in GitLab 14.6.
+> IaC Scanning was [introduced](https://gitlab.com/groups/gitlab-org/-/epics/6655) in GitLab 14.6.
 
 The integration with GitLab and Terraform happens through GitLab CI/CD.
 Use an `include` attribute to add the Terraform template to your project and
@@ -35,7 +35,7 @@ All templates:
 - Use the [GitLab-managed Terraform state](terraform_state.md) as the Terraform state storage backend.
 - Trigger four pipeline stages: `test`, `validate`, `build`, and `deploy`.
 - Run Terraform commands: `test`, `validate`, `plan`, and `plan-json`. It also runs the `apply` only on the default branch.
-- Run the [Terraform SAST scanner](../../application_security/iac_scanning/index.md#configure-iac-scanning-manually).
+- Check for security problems using [IaC Scanning](../../application_security/iac_scanning/index.md#configure-iac-scanning-manually).
 
 ### Latest Terraform template
 
@@ -64,7 +64,7 @@ In each GitLab major release (for example, 15.0), the latest templates replace t
 
 To use a Terraform template:
 
-1. On the top bar, select **Menu > Projects** and find the project you want to integrate with Terraform.
+1. On the top bar, select **Main menu > Projects** and find the project you want to integrate with Terraform.
 1. On the left sidebar, select **Repository > Files**.
 1. Edit your `.gitlab-ci.yml` file, use the `include` attribute to fetch the Terraform template:
 
@@ -72,10 +72,12 @@ To use a Terraform template:
    include:
     # To fetch the latest template, use:
      - template: Terraform.latest.gitlab-ci.yml
+    # To fetch the advanced latest template, use:
+     - template: Terraform/Base.latest.gitlab-ci.yml 
     # To fetch the stable template, use:
+     - template: Terraform.gitlab-ci.yml
+    # To fetch the advanced stable template, use:
      - template: Terraform/Base.gitlab-ci.yml
-    # To fetch the advanced template, use:
-     - template: Terraform/Base.latest.gitlab-ci.yml
    ```
 
 1. Add the variables as described below:
@@ -91,6 +93,10 @@ To use a Terraform template:
 1. Optional. Override in your `.gitlab-ci.yml` file the attributes present
 in the template you fetched to customize your configuration.
 
+### Terraform template recipes
+
+For GitLab-curated template recipes, see [Terraform template recipes](terraform_template_recipes.md).
+
 ## Related topics
 
 - View [the images that contain the `gitlab-terraform` shell script](https://gitlab.com/gitlab-org/terraform-images).
@@ -99,8 +105,8 @@ in the template you fetched to customize your configuration.
 - To collaborate on Terraform code changes and Infrastructure-as-Code workflows, use the
   [Terraform integration in merge requests](mr_integration.md).
 - To manage GitLab resources like users, groups, and projects, use the
-  [GitLab Terraform provider](https://github.com/gitlabhq/terraform-provider-gitlab). It is released separately from GitLab
-  and its documentation is available on [the Terraform docs site](https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs).
+  [GitLab Terraform provider](https://gitlab.com/gitlab-org/terraform-provider-gitlab).
+  The GitLab Terraform provider documentation is available on [the Terraform docs site](https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs).
 - [Create a new cluster on Amazon Elastic Kubernetes Service (EKS)](../clusters/connect/new_eks_cluster.md).
 - [Create a new cluster on Google Kubernetes Engine (GKE)](../clusters/connect/new_gke_cluster.md).
 - [Troubleshoot](troubleshooting.md) issues with GitLab and Terraform.

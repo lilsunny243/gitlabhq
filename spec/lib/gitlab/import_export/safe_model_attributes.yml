@@ -86,6 +86,7 @@ Note:
 - original_discussion_id
 - confidential
 - last_edited_at
+- internal
 LabelLink:
 - id
 - target_type
@@ -332,6 +333,11 @@ Ci::Pipeline:
 - iid
 - merge_request_id
 - external_pull_request_id
+Ci::PipelineMetadata:
+- id
+- project_id
+- pipeline_id
+- name
 Ci::Stage:
 - id
 - name
@@ -342,7 +348,111 @@ Ci::Stage:
 - pipeline_id
 - created_at
 - updated_at
-CommitStatus:
+Ci::Build:
+- id
+- project_id
+- status
+- finished_at
+- trace
+- created_at
+- updated_at
+- started_at
+- runner_id
+- coverage
+- commit_id
+- commands
+- job_id
+- name
+- deploy
+- options
+- allow_failure
+- stage
+- trigger_request_id
+- stage_idx
+- stage_id
+- tag
+- ref
+- user_id
+- type
+- target_url
+- description
+- artifacts_file
+- artifacts_file_store
+- artifacts_metadata
+- artifacts_metadata_store
+- erased_by_id
+- erased_at
+- artifacts_expire_at
+- environment
+- artifacts_size
+- when
+- yaml_variables
+- queued_at
+- token
+- lock_version
+- coverage_regex
+- auto_canceled_by_id
+- retried
+- protected
+- failure_reason
+- scheduled_at
+- upstream_pipeline_id
+- interruptible
+- processed
+- scheduling_type
+Ci::Bridge:
+- id
+- project_id
+- status
+- finished_at
+- trace
+- created_at
+- updated_at
+- started_at
+- runner_id
+- coverage
+- commit_id
+- commands
+- job_id
+- name
+- deploy
+- options
+- allow_failure
+- stage
+- trigger_request_id
+- stage_idx
+- stage_id
+- tag
+- ref
+- user_id
+- type
+- target_url
+- description
+- artifacts_file
+- artifacts_file_store
+- artifacts_metadata
+- artifacts_metadata_store
+- erased_by_id
+- erased_at
+- artifacts_expire_at
+- environment
+- artifacts_size
+- when
+- yaml_variables
+- queued_at
+- token
+- lock_version
+- coverage_regex
+- auto_canceled_by_id
+- retried
+- protected
+- failure_reason
+- scheduled_at
+- upstream_pipeline_id
+- interruptible
+- processed
+- scheduling_type
+GenericCommitStatus:
 - id
 - project_id
 - status
@@ -563,6 +673,7 @@ Project:
 - suggestion_commit_message
 - merge_commit_template
 - squash_commit_template
+- issue_branch_template
 Author:
 - name
 ProjectFeature:
@@ -586,6 +697,8 @@ ProjectFeature:
 - environments_access_level
 - feature_flags_access_level
 - releases_access_level
+- monitor_access_level
+- infrastructure_access_level
 - created_at
 - updated_at
 ProtectedBranch::MergeAccessLevel:
@@ -694,8 +807,11 @@ Badge:
 ProjectCiCdSetting:
 - group_runners_enabled
 - runner_token_expiration_interval
+- default_git_depth
 ProjectSetting:
+- squash_option
 - allow_merge_on_skipped_pipeline
+- only_allow_merge_if_all_status_checks_passed
 - has_confluence
 - has_shimo
 - has_vulnerabilities
@@ -907,6 +1023,7 @@ PushRule:
   - reject_unsigned_commits
   - commit_committer_check
   - regexp_uses_re2
+  - reject_non_dco_commits
 MergeRequest::CleanupSchedule:
 - id
 - scheduled_at
@@ -929,3 +1046,17 @@ ResourceStateEvent:
   - source_commit
   - close_after_error_tracking_resolve
   - close_auto_resolve_prometheus_alert
+Iteration:
+  - created_at
+  - updated_at
+  - start_date
+  - due_date
+  - group_id
+  - iid
+  - description
+ResourceIterationEvent:
+  - user_id
+  - created_at
+  - action
+Iterations::Cadence:
+  - title

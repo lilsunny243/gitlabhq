@@ -1,13 +1,16 @@
 import { setHTMLFixture, resetHTMLFixture } from 'helpers/fixtures';
+
 import {
   addClassIfElementExists,
   canScrollUp,
   canScrollDown,
+  getContentWrapperHeight,
   parseBooleanDataAttributes,
   isElementVisible,
   getParents,
   getParentByTagName,
   setAttributes,
+  replaceCommentsWith,
 } from '~/lib/utils/dom_utils';
 
 const TEST_MARGIN = 5;
@@ -233,6 +236,49 @@ describe('DOM Utils', () => {
 
       expect(div.getAttribute('class')).toBe('test');
       expect(div.getAttribute('title')).toBe('another test');
+    });
+  });
+
+  describe('getContentWrapperHeight', () => {
+    const fixture = `
+      <div>
+        <div class="content-wrapper">
+          <div class="content"></div>
+        </div>
+      </div>
+    `;
+
+    beforeEach(() => {
+      setHTMLFixture(fixture);
+    });
+
+    afterEach(() => {
+      resetHTMLFixture();
+    });
+
+    it('returns the height of an element that exists', () => {
+      expect(getContentWrapperHeight('.content-wrapper')).toBe('0px');
+    });
+
+    it('returns an empty string for a class that does not exist', () => {
+      expect(getContentWrapperHeight('.does-not-exist')).toBe('');
+    });
+  });
+
+  describe('replaceCommentsWith', () => {
+    let div;
+    beforeEach(() => {
+      div = document.createElement('div');
+    });
+
+    it('replaces the comments in a DOM node with an element', () => {
+      div.innerHTML = '<h1> hi there <!-- some comment --> <p> <!-- another comment -->';
+
+      replaceCommentsWith(div, 'comment');
+
+      expect(div.innerHTML).toBe(
+        '<h1> hi there <comment> some comment </comment> <p> <comment> another comment </comment></p></h1>',
+      );
     });
   });
 });

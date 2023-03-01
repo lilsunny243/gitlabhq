@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Metrics::Subscribers::LoadBalancing, :request_store do
+RSpec.describe Gitlab::Metrics::Subscribers::LoadBalancing, :request_store, feature_category: :pods do
   let(:subscriber) { described_class.new }
 
   describe '#caught_up_replica_pick' do
@@ -15,7 +15,7 @@ RSpec.describe Gitlab::Metrics::Subscribers::LoadBalancing, :request_store do
         double(
           :event,
           name: 'load_balancing.caught_up_replica_pick',
-          payload:  payload
+          payload: payload
         )
       end
 
@@ -37,7 +37,7 @@ RSpec.describe Gitlab::Metrics::Subscribers::LoadBalancing, :request_store do
       double(
         :event,
         name: 'load_balancing.web_transaction_completed',
-        payload:  {}
+        payload: {}
       )
     end
 

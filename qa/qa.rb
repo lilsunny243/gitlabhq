@@ -13,9 +13,10 @@ Bundler.require(:default)
 
 require 'securerandom'
 require 'pathname'
+require 'rainbow/refinement'
 require 'active_support/core_ext/hash'
 require 'active_support/core_ext/object/blank'
-require 'rainbow/refinement'
+require 'active_support/core_ext/module/delegation'
 
 module QA
   root = "#{__dir__}/qa"
@@ -29,6 +30,22 @@ module QA
 
   loader.ignore("#{root}/specs/features")
   loader.ignore("#{root}/specs/spec_helper.rb")
+
+  # we need to eager load scenario classes
+  # zeitwerk does not have option to configure what to eager load, so all exceptions have to be defined
+  loader.do_not_eager_load("#{root}/ce")
+  loader.do_not_eager_load("#{root}/ee")
+  loader.do_not_eager_load("#{root}/flow")
+  loader.do_not_eager_load("#{root}/git")
+  loader.do_not_eager_load("#{root}/mobile")
+  loader.do_not_eager_load("#{root}/page")
+  loader.do_not_eager_load("#{root}/resource")
+  loader.do_not_eager_load("#{root}/runtime")
+  loader.do_not_eager_load("#{root}/service")
+  loader.do_not_eager_load("#{root}/specs")
+  loader.do_not_eager_load("#{root}/support")
+  loader.do_not_eager_load("#{root}/tools")
+  loader.do_not_eager_load("#{root}/vendor")
 
   loader.inflector.inflect(
     "ce" => "CE",
@@ -68,12 +85,8 @@ module QA
     "fips" => "FIPS"
   )
 
-  # Configure knapsack at the very begining of the setup
-  loader.on_setup do
-    QA::Support::KnapsackReport.configure!
-  end
-
   loader.setup
+  loader.eager_load
 end
 
 # Custom warning processing

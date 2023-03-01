@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::DeployTokens do
+RSpec.describe API::DeployTokens, feature_category: :continuous_delivery do
   let_it_be(:user)          { create(:user) }
   let_it_be(:creator)       { create(:user) }
   let_it_be(:project)       { create(:project, creator_id: creator.id) }
@@ -44,14 +44,15 @@ RSpec.describe API::DeployTokens do
         token_ids = json_response.map { |token| token['id'] }
         expect(response).to include_pagination_headers
         expect(response).to match_response_schema('public_api/v4/deploy_tokens')
-        expect(token_ids).to match_array([
-          deploy_token.id,
-          revoked_deploy_token.id,
-          expired_deploy_token.id,
-          group_deploy_token.id,
-          revoked_group_deploy_token.id,
-          expired_group_deploy_token.id
-        ])
+        expect(token_ids).to match_array(
+          [
+            deploy_token.id,
+            revoked_deploy_token.id,
+            expired_deploy_token.id,
+            group_deploy_token.id,
+            revoked_group_deploy_token.id,
+            expired_group_deploy_token.id
+          ])
       end
 
       context 'and active=true' do
@@ -61,10 +62,11 @@ RSpec.describe API::DeployTokens do
           token_ids = json_response.map { |token| token['id'] }
           expect(response).to have_gitlab_http_status(:ok)
           expect(response).to include_pagination_headers
-          expect(token_ids).to match_array([
-            deploy_token.id,
-            group_deploy_token.id
-          ])
+          expect(token_ids).to match_array(
+            [
+              deploy_token.id,
+              group_deploy_token.id
+            ])
         end
       end
     end
@@ -110,11 +112,12 @@ RSpec.describe API::DeployTokens do
         subject
 
         token_ids = json_response.map { |token| token['id'] }
-        expect(token_ids).to match_array([
-          deploy_token.id,
-          expired_deploy_token.id,
-          revoked_deploy_token.id
-        ])
+        expect(token_ids).to match_array(
+          [
+            deploy_token.id,
+            expired_deploy_token.id,
+            revoked_deploy_token.id
+          ])
       end
 
       context 'and active=true' do
@@ -343,7 +346,7 @@ RSpec.describe API::DeployTokens do
 
   context 'deploy token creation' do
     shared_examples 'creating a deploy token' do |entity, unauthenticated_response, authorized_role|
-      let(:expires_time) { 1.year.from_now }
+      let(:expires_time) { 1.year.from_now.to_datetime }
       let(:params) do
         {
           name: 'Foo',
@@ -407,6 +410,14 @@ RSpec.describe API::DeployTokens do
         context 'with an invalid scope' do
           before do
             params[:scopes] = %w[read_repository all_access]
+          end
+
+          it { is_expected.to have_gitlab_http_status(:bad_request) }
+        end
+
+        context 'with an invalid expires_at date' do
+          before do
+            params[:expires_at] = 'foo'
           end
 
           it { is_expected.to have_gitlab_http_status(:bad_request) }

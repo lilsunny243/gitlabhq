@@ -93,6 +93,12 @@ export const GO_TO_YOUR_MERGE_REQUESTS = {
   defaultKeys: ['shift+m'],
 };
 
+export const GO_TO_YOUR_REVIEW_REQUESTS = {
+  id: 'globalShortcuts.goToYourReviewRequests',
+  description: __('Go to your review requests'),
+  defaultKeys: ['shift+r'],
+};
+
 export const GO_TO_YOUR_TODO_LIST = {
   id: 'globalShortcuts.goToYourTodoList',
   description: __('Go to your To-Do list'),
@@ -142,6 +148,20 @@ export const LINK_TEXT = {
   id: 'editing.linkText',
   description: __('Link text'),
   defaultKeys: ['mod+k'],
+  customizable: false,
+};
+
+export const INDENT_LINE = {
+  id: 'editing.indentLine',
+  description: __('Indent line'),
+  defaultKeys: ['mod+]'], // eslint-disable-line @gitlab/require-i18n-strings
+  customizable: false,
+};
+
+export const OUTDENT_LINE = {
+  id: 'editing.outdentLine',
+  description: __('Outdent line'),
+  defaultKeys: ['mod+['], // eslint-disable-line @gitlab/require-i18n-strings
   customizable: false,
 };
 
@@ -509,6 +529,7 @@ export const GLOBAL_SHORTCUTS_GROUP = {
     FOCUS_FILTER_BAR,
     GO_TO_YOUR_ISSUES,
     GO_TO_YOUR_MERGE_REQUESTS,
+    GO_TO_YOUR_REVIEW_REQUESTS,
     GO_TO_YOUR_TODO_LIST,
     TOGGLE_PERFORMANCE_BAR,
     HIDE_APPEARING_CONTENT,

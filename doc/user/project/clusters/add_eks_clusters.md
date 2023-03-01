@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Connect EKS clusters through cluster certificates (DEPRECATED) **(FREE)**
@@ -56,7 +56,7 @@ cluster certificates:
 1. Go to your:
    - Project's **Infrastructure > Kubernetes clusters** page, for a project-level cluster.
    - Group's **Kubernetes** page, for a group-level cluster.
-   - **Menu > Admin > Kubernetes**, for an instance-level cluster.
+   - **Main menu > Admin > Kubernetes**, for an instance-level cluster.
 1. Select **Integrate with a cluster certificate**.
 1. Under the **Create new cluster** tab, select **Amazon EKS** to display an
    `Account ID` and `External ID` needed for later steps.
@@ -195,7 +195,7 @@ If a default Storage Class doesn't already exist and is desired, follow Amazon's
 to create one.
 
 Alternatively, disable PostgreSQL by setting the project variable
-[`POSTGRES_ENABLED`](../../../topics/autodevops/customize.md#cicd-variables) to `false`.
+[`POSTGRES_ENABLED`](../../../topics/autodevops/cicd_variables.md#cicd-variables) to `false`.
 
 ## Deploy the app to EKS
 
@@ -248,7 +248,7 @@ For example, the following policy document allows assuming a role whose name sta
 To configure Amazon authentication in GitLab, generate an access key for the
 IAM user in the Amazon AWS console, and follow these steps:
 
-1. In GitLab, on the top bar, select **Menu > Admin > Settings > General** and expand the **Amazon EKS** section.
+1. In GitLab, on the top bar, select **Main menu > Admin > Settings > General** and expand the **Amazon EKS** section.
 1. Check **Enable Amazon EKS integration**.
 1. Enter your **Account ID**.
 1. Enter your [access key and ID](#eks-access-key-and-id).

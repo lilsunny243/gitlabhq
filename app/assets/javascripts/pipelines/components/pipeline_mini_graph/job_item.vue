@@ -2,7 +2,7 @@
 import { GlTooltipDirective, GlLink } from '@gitlab/ui';
 import delayedJobMixin from '~/jobs/mixins/delayed_job_mixin';
 import { BV_HIDE_TOOLTIP } from '~/lib/utils/constants';
-import { sprintf } from '~/locale';
+import { __, sprintf } from '~/locale';
 import { reportToSentry } from '../../utils';
 import ActionComponent from '../jobs_shared/action_component.vue';
 import JobNameComponent from '../jobs_shared/job_name_component.vue';
@@ -33,6 +33,9 @@ import JobNameComponent from '../jobs_shared/job_name_component.vue';
  */
 
 export default {
+  i18n: {
+    runAgainTooltipText: __('Run again'),
+  },
   hoverClass: 'gl-shadow-x0-y0-b3-s1-blue-500',
   components: {
     ActionComponent,
@@ -129,6 +132,14 @@ export default {
         ? `${this.$options.hoverClass} ${this.cssClassJobName}`
         : this.cssClassJobName;
     },
+    jobActionTooltipText() {
+      const { group } = this.status;
+      const { title, icon } = this.status.action;
+
+      return icon === 'retry' && group === 'success'
+        ? this.$options.i18n.runAgainTooltipText
+        : title;
+    },
   },
   errorCaptured(err, _vm, info) {
     reportToSentry('pipelines_job_item', `pipelines_job_item error: ${err}, info: ${info}`);
@@ -136,9 +147,6 @@ export default {
   methods: {
     hideTooltips() {
       this.$root.$emit(BV_HIDE_TOOLTIP);
-    },
-    pipelineActionRequestComplete() {
-      this.$emit('pipelineActionRequestComplete');
     },
   },
 };
@@ -163,7 +171,7 @@ export default {
       @click.stop="hideTooltips"
       @mouseout="hideTooltips"
     >
-      <job-name-component :name="job.name" :status="job.status" :icon-size="24" />
+      <job-name-component :name="job.name" :status="job.status" />
     </gl-link>
 
     <div
@@ -175,16 +183,15 @@ export default {
       data-testid="job-without-link"
       @mouseout="hideTooltips"
     >
-      <job-name-component :name="job.name" :status="job.status" :icon-size="24" />
+      <job-name-component :name="job.name" :status="job.status" />
     </div>
 
     <action-component
       v-if="hasAction"
-      :tooltip-text="status.action.title"
+      :tooltip-text="jobActionTooltipText"
       :link="status.action.path"
       :action-icon="status.action.icon"
       data-qa-selector="action_button"
-      @pipelineActionRequestComplete="pipelineActionRequestComplete"
     />
   </div>
 </template>

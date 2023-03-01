@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Application Performance
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Application cache interval **(FREE SELF)**
@@ -20,7 +20,7 @@ To change the expiry value:
 
 ::Tabs
 
-:::TabTitle Omnibus package
+:::TabTitle Linux package (Omnibus)
 
 1. Edit `/etc/gitlab/gitlab.rb`:
 
@@ -36,7 +36,7 @@ To change the expiry value:
    gitlab-ctl restart
    ```
 
-:::TabTitle Source
+:::TabTitle Self-compiled (Source)
 
 1. Edit `config/gitlab.yml`:
 

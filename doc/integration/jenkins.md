@@ -1,10 +1,10 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Jenkins integration **(FREE)**
+# Jenkins **(FREE)**
 
 > [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/246756) to GitLab Free in 13.7.
 
@@ -33,31 +33,20 @@ The Jenkins integration requires configuration in both GitLab and Jenkins.
 
 ## Grant Jenkins access to the GitLab project
 
-Grant a GitLab user access to the relevant GitLab projects.
+To grant Jenkins access to the GitLab project:
 
-1. Create a new GitLab user, or choose an existing GitLab user.
+1. Create a personal, project, or group access token.
 
-   This account is used by Jenkins to access the GitLab projects. We recommend creating a GitLab
-   user for only this purpose. If you use a person's account, and their account is deactivated or
-   deleted, the Jenkins integration stops working.
+   - [Create a personal access token](../user/profile/personal_access_tokens.md#create-a-personal-access-token)
+     to use the token for all Jenkins integrations of that user.
+   - [Create a project access token](../user/project/settings/project_access_tokens.md#create-a-project-access-token)
+     to use the token at the project level only. For instance, you can revoke
+     the token in a project without affecting Jenkins integrations in other projects.
+   - [Create a group access token](../user/group/settings/group_access_tokens.md#create-a-group-access-token-using-ui)
+     to use the token for all Jenkins integrations in all projects of that group.
 
-1. Grant the user permission to the GitLab projects.
-
-   If you're integrating Jenkins with many GitLab projects, consider granting the
-   user administrator access. Otherwise, add the user to each project
-   and grant the Maintainer role.
-
-## Grant Jenkins access to the GitLab API
-
-Create a personal access token to authorize Jenkins to access GitLab.
-
-1. Sign in to GitLab as the user to be used with Jenkins.
-1. On the top bar, in the top right corner, select your avatar.
-1. Select **Edit profile**.
-1. On the left sidebar, select **Access Tokens**.
-1. Create a [personal access token](../user/profile/personal_access_tokens.md) and
-   select the **API** scope.
-1. Copy the personal access token. You need it to [configure the Jenkins server](#configure-the-jenkins-server).
+1. Set the access token scope to **API**.
+1. Copy the access token value to [configure the Jenkins server](#configure-the-jenkins-server).
 
 ## Configure the Jenkins server
 
@@ -70,7 +59,7 @@ authorize the connection to GitLab.
 1. In the **GitLab** section, select **Enable authentication for '/project' end-point**.
 1. Select **Add**, then choose **Jenkins Credential Provider**.
 1. Select **GitLab API token** as the token type.
-1. Enter the GitLab personal access token's value in **API Token** and select **Add**.
+1. In **API Token**, [paste the value you copied from GitLab](#grant-jenkins-access-to-the-gitlab-project) and select **Add**.
 1. Enter the GitLab server's URL in **GitLab host URL**.
 1. To test the connection, select **Test Connection**.
 
@@ -128,7 +117,7 @@ Configure the GitLab integration with Jenkins in one of the following ways.
 GitLab recommends this approach for Jenkins integrations because it is easier to configure
 than the [webhook integration](#configure-a-webhook).
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Jenkins**.
 1. Select the **Active** checkbox.
@@ -179,7 +168,7 @@ If you get this error message while configuring GitLab, the following are possib
 - The Jenkins instance is at a local address and is not included in the
   [GitLab installation's allowlist](../security/webhooks.md#create-an-allowlist-for-local-requests).
 - The credentials for the Jenkins instance do not have sufficient access or are invalid.
-- The **Enable authentication for `/project` end-point** checkbox is not selected in your [Jenkin's plugin configuration](#configure-the-jenkins-server).
+- The **Enable authentication for `/project` end-point** checkbox is not selected in your [Jenkins plugin configuration](#configure-the-jenkins-server).
 
 ### Error in merge requests - "Could not connect to the CI server"
 
@@ -222,15 +211,7 @@ Or check for duplicate messages in `/var/log/gitlab/gitlab-rail`, like:
 2019-10-25_04:22:41.25630 2019-10-25T04:22:41.256Z 1584 TID-ovowh4tek WebHookWorker JID-941fb7f40b69dff3d833c99b INFO: start
 ```
 
-To fix this issue:
-
-1. Increase the `gitlab_rails['webhook_timeout']` value in the `gitlab.rb`
-   configuration file.
-1. [Restart](../administration/restart_gitlab.md) GitLab:
-
-   ```shell
-   gitlab-ctl reconfigure
-   ```
+On self-managed GitLab instances, you can fix this issue by [increasing the webhook timeout value](../administration/instance_limits.md#webhook-timeout).
 
 ### Enable job logs in Jenkins
 

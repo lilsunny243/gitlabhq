@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 RSpec.shared_examples 'an update storage move worker' do
+  it 'has the `until_executed` deduplicate strategy' do
+    expect(described_class.get_deduplicate_strategy).to eq(:until_executed)
+  end
+
   describe '#perform' do
     let(:service) { double(:update_repository_storage_service) }
 
@@ -15,7 +19,7 @@ RSpec.shared_examples 'an update storage move worker' do
 
         expect do
           subject.perform(container.id, 'test_second_storage')
-        end.to change(repository_storage_move_klass, :count).by(1)
+        end.to change { repository_storage_move_klass.count }.by(1)
 
         storage_move = container.repository_storage_moves.last
         expect(storage_move).to have_attributes(
@@ -32,7 +36,7 @@ RSpec.shared_examples 'an update storage move worker' do
 
         expect do
           subject.perform(nil, nil, repository_storage_move.id)
-        end.not_to change(repository_storage_move_klass, :count)
+        end.not_to change { repository_storage_move_klass.count }
       end
     end
   end

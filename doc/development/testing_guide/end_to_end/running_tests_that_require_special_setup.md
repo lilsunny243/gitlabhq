@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Running tests that require special setup
@@ -15,8 +15,8 @@ The project also has instructions for forking and building the images automatica
 
 Some extra environment variables for the location of the forked repository are also needed.
 
-- `QA_THIRD_PARTY_DOCKER_REGISTRY` (the container registry where the repository/images are hosted, eg `registry.gitlab.com`)
-- `QA_THIRD_PARTY_DOCKER_REPOSITORY` (the base repository path where the images are hosted, eg `registry.gitlab.com/<project path>`)
+- `QA_THIRD_PARTY_DOCKER_REGISTRY` (the container registry where the repository/images are hosted, for example `registry.gitlab.com`)
+- `QA_THIRD_PARTY_DOCKER_REPOSITORY` (the base repository path where the images are hosted, for example `registry.gitlab.com/<project path>`)
 - `QA_THIRD_PARTY_DOCKER_USER` (a username that has access to the container registry for this repository)
 - `QA_THIRD_PARTY_DOCKER_PASSWORD` (a password/token for the username to authenticate with)
 

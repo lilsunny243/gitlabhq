@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::RetryJobService do
+RSpec.describe Ci::RetryJobService, feature_category: :continuous_integration do
+  using RSpec::Parameterized::TableSyntax
   let_it_be(:reporter) { create(:user) }
   let_it_be(:developer) { create(:user) }
   let_it_be(:project) { create(:project, :repository) }
@@ -11,10 +12,10 @@ RSpec.describe Ci::RetryJobService do
   end
 
   let_it_be(:stage) do
-    create(:ci_stage, project: project,
-                      pipeline: pipeline,
-                      name: 'test')
+    create(:ci_stage, pipeline: pipeline, name: 'test')
   end
+
+  let_it_be(:deploy_stage) { create(:ci_stage, pipeline: pipeline, name: 'deploy', position: stage.position + 1) }
 
   let(:job_variables_attributes) { [{ key: 'MANUAL_VAR', value: 'manual test var' }] }
   let(:user) { developer }
@@ -31,7 +32,7 @@ RSpec.describe Ci::RetryJobService do
 
     let_it_be_with_refind(:job) do
       create(:ci_bridge, :success,
-        pipeline: pipeline, downstream: downstream_project, description: 'a trigger job', stage_id: stage.id
+        pipeline: pipeline, downstream: downstream_project, description: 'a trigger job', ci_stage: stage
       )
     end
 
@@ -43,13 +44,16 @@ RSpec.describe Ci::RetryJobService do
   end
 
   shared_context 'retryable build' do
-    let_it_be_with_refind(:job) { create(:ci_build, :success, pipeline: pipeline, stage_id: stage.id) }
+    let_it_be_with_reload(:job) do
+      create(:ci_build, :success, pipeline: pipeline, ci_stage: stage)
+    end
+
     let_it_be(:another_pipeline) { create(:ci_empty_pipeline, project: project) }
 
     let_it_be(:job_to_clone) do
       create(:ci_build, :failed, :picked, :expired, :erased, :queued, :coverage, :tags,
             :allowed_to_fail, :on_tag, :triggered, :teardown_environment, :resource_group,
-            description: 'my-job', stage: 'test', stage_id: stage.id,
+            description: 'my-job', ci_stage: stage,
             pipeline: pipeline, auto_canceled_by: another_pipeline,
             scheduled_at: 10.seconds.since)
     end
@@ -64,8 +68,7 @@ RSpec.describe Ci::RetryJobService do
     let(:job) { job_to_clone }
 
     before_all do
-      # Make sure that job has both `stage_id` and `stage`
-      job_to_clone.update!(stage: 'test', stage_id: stage.id)
+      job_to_clone.update!(ci_stage: stage)
 
       create(:ci_build_need, build: job_to_clone)
     end
@@ -88,8 +91,7 @@ RSpec.describe Ci::RetryJobService do
 
       context 'when the job has needs' do
         before do
-          create(:ci_build_need, build: job, name: 'build1')
-          create(:ci_build_need, build: job, name: 'build2')
+          create_list(:ci_build_need, 2, build: job)
         end
 
         it 'bulk inserts all the needs' do
@@ -116,6 +118,14 @@ RSpec.describe Ci::RetryJobService do
     end
   end
 
+  shared_examples_for 'does not retry the job' do
+    it 'returns :not_retryable and :unprocessable_entity' do
+      expect(subject.message).to be('Job cannot be retried')
+      expect(subject.payload[:reason]).to eq(:not_retryable)
+      expect(subject.payload[:job]).to eq(job)
+    end
+  end
+
   shared_examples_for 'retries the job' do
     it_behaves_like 'clones the job'
 
@@ -125,13 +135,11 @@ RSpec.describe Ci::RetryJobService do
 
     context 'when there are subsequent processables that are skipped' do
       let!(:subsequent_build) do
-        create(:ci_build, :skipped, stage_idx: 2,
-                                    pipeline: pipeline,
-                                    stage: 'deploy')
+        create(:ci_build, :skipped, pipeline: pipeline, ci_stage: deploy_stage)
       end
 
       let!(:subsequent_bridge) do
-        create(:ci_bridge, :skipped, stage_idx: 2, pipeline: pipeline, stage: 'deploy')
+        create(:ci_bridge, :skipped, pipeline: pipeline, ci_stage: deploy_stage)
       end
 
       it 'resumes pipeline processing in the subsequent stage' do
@@ -151,10 +159,9 @@ RSpec.describe Ci::RetryJobService do
     end
 
     context 'when the pipeline has other jobs' do
-      let!(:stage2) { create(:ci_stage, project: project, pipeline: pipeline, name: 'deploy') }
-      let!(:build2) { create(:ci_build, pipeline: pipeline, stage_id: stage.id ) }
-      let!(:deploy) { create(:ci_build, pipeline: pipeline, stage_id: stage2.id) }
-      let!(:deploy_needs_build2) { create(:ci_build_need, build: deploy, name: build2.name) }
+      let!(:other_test_build) { create(:ci_build, pipeline: pipeline, ci_stage: stage) }
+      let!(:deploy) { create(:ci_build, pipeline: pipeline, ci_stage: deploy_stage) }
+      let!(:deploy_needs_build2) { create(:ci_build_need, build: deploy, name: other_test_build.name) }
 
       context 'when job has a nil scheduling_type' do
         before do
@@ -165,7 +172,7 @@ RSpec.describe Ci::RetryJobService do
         it 'populates scheduling_type of processables' do
           expect(new_job.scheduling_type).to eq('stage')
           expect(job.reload.scheduling_type).to eq('stage')
-          expect(build2.reload.scheduling_type).to eq('stage')
+          expect(other_test_build.reload.scheduling_type).to eq('stage')
           expect(deploy.reload.scheduling_type).to eq('dag')
         end
       end
@@ -189,6 +196,13 @@ RSpec.describe Ci::RetryJobService do
 
         expect(bridge.reload).to be_pending
       end
+    end
+  end
+
+  shared_examples_for 'checks enqueue_immediately?' do
+    it "returns enqueue_immediately" do
+      subject
+      expect(new_job.enqueue_immediately?).to eq enqueue_immediately
     end
   end
 
@@ -223,7 +237,7 @@ RSpec.describe Ci::RetryJobService do
       context 'when a build with a deployment is retried' do
         let!(:job) do
           create(:ci_build, :with_deployment, :deploy_to_production,
-                  pipeline: pipeline, stage_id: stage.id, project: project)
+                  pipeline: pipeline, ci_stage: stage)
         end
 
         it 'creates a new deployment' do
@@ -245,8 +259,7 @@ RSpec.describe Ci::RetryJobService do
             environment: environment_name,
             options: { environment: { name: environment_name } },
             pipeline: pipeline,
-            stage_id: stage.id,
-            project: project,
+            ci_stage: stage,
             user: other_developer)
         end
 
@@ -281,12 +294,44 @@ RSpec.describe Ci::RetryJobService do
         end
       end
     end
+
+    context 'when enqueue_if_actionable is provided' do
+      let!(:job) do
+        create(:ci_build, *[trait].compact, :failed, pipeline: pipeline, ci_stage: stage)
+      end
+
+      let(:new_job) { subject }
+
+      subject { service.clone!(job, enqueue_if_actionable: enqueue_if_actionable) }
+
+      where(:enqueue_if_actionable, :trait, :enqueue_immediately) do
+        true  | nil                | false
+        true  | :manual            | true
+        true  | :expired_scheduled | true
+
+        false | nil                | false
+        false | :manual            | false
+        false | :expired_scheduled | false
+      end
+
+      with_them do
+        it_behaves_like 'checks enqueue_immediately?'
+      end
+    end
   end
 
   describe '#execute' do
-    let(:new_job) { service.execute(job)[:job] }
+    let(:new_job) { subject[:job] }
+
+    subject { service.execute(job) }
 
     context 'when the job to be retried is a bridge' do
+      context 'and it is not retryable' do
+        let_it_be(:job) { create(:ci_bridge, :failed, :reached_max_descendant_pipelines_depth) }
+
+        it_behaves_like 'does not retry the job'
+      end
+
       include_context 'retryable bridge'
 
       it_behaves_like 'retries the job'
@@ -301,27 +346,29 @@ RSpec.describe Ci::RetryJobService do
     end
 
     context 'when the job to be retried is a build' do
+      context 'and it is not retryable' do
+        let_it_be(:job) { create(:ci_build, :deployment_rejected, pipeline: pipeline) }
+
+        it_behaves_like 'does not retry the job'
+      end
+
       include_context 'retryable build'
 
       it_behaves_like 'retries the job'
 
       context 'when there are subsequent jobs that are skipped' do
         let!(:subsequent_build) do
-          create(:ci_build, :skipped, stage_idx: 2,
-                                      pipeline: pipeline,
-                                      stage: 'deploy')
+          create(:ci_build, :skipped, pipeline: pipeline, ci_stage: deploy_stage)
         end
 
         let!(:subsequent_bridge) do
-          create(:ci_bridge, :skipped, stage_idx: 2,
-                                       pipeline: pipeline,
-                                       stage: 'deploy')
+          create(:ci_bridge, :skipped, pipeline: pipeline, ci_stage: deploy_stage)
         end
 
         it 'does not cause an N+1 when updating the job ownership' do
           control_count = ActiveRecord::QueryRecorder.new(skip_cached: false) { service.execute(job) }.count
 
-          create_list(:ci_build, 2, :skipped, stage_idx: job.stage_idx + 1, pipeline: pipeline, stage: 'deploy')
+          create_list(:ci_build, 2, :skipped, pipeline: pipeline, ci_stage: deploy_stage)
 
           expect { service.execute(job) }.not_to exceed_all_query_limit(control_count)
         end
@@ -347,6 +394,131 @@ RSpec.describe Ci::RetryJobService do
             expect(new_job.job_variables.count).to be_zero
           end
         end
+      end
+    end
+
+    context 'when job being retried has jobs in previous stages' do
+      let!(:job) do
+        create(
+          :ci_build,
+          :failed,
+          name: 'deploy_a',
+          pipeline: pipeline,
+          ci_stage: deploy_stage
+        )
+      end
+
+      before do
+        create(
+          :ci_build,
+          previous_stage_job_status,
+          name: 'test_a',
+          pipeline: pipeline,
+          ci_stage: stage
+        )
+      end
+
+      where(:previous_stage_job_status, :after_status) do
+        :created   | 'created'
+        :pending   | 'created'
+        :running   | 'created'
+        :manual    | 'created'
+        :scheduled | 'created'
+        :success   | 'pending'
+        :failed    | 'skipped'
+        :skipped   | 'pending'
+      end
+
+      with_them do
+        it 'updates the new job status to after_status' do
+          expect(subject).to be_success
+          expect(new_job.status).to eq after_status
+        end
+      end
+    end
+
+    context 'when job being retried has DAG dependencies' do
+      let!(:job) do
+        create(
+          :ci_build,
+          :failed,
+          :dependent,
+          name: 'deploy_a',
+          pipeline: pipeline,
+          ci_stage: deploy_stage,
+          needed: dependency
+        )
+      end
+
+      let(:dependency) do
+        create(
+          :ci_build,
+          dag_dependency_status,
+          name: 'test_a',
+          pipeline: pipeline,
+          ci_stage: stage
+        )
+      end
+
+      where(:dag_dependency_status, :after_status) do
+        :created   | 'created'
+        :pending   | 'created'
+        :running   | 'created'
+        :manual    | 'created'
+        :scheduled | 'created'
+        :success   | 'pending'
+        :failed    | 'skipped'
+        :skipped   | 'skipped'
+      end
+
+      with_them do
+        it 'updates the new job status to after_status' do
+          expect(subject).to be_success
+          expect(new_job.status).to eq after_status
+        end
+      end
+    end
+
+    context 'when there are other manual/scheduled jobs' do
+      let_it_be(:test_manual_build) do
+        create(:ci_build, :manual, pipeline: pipeline, ci_stage: stage)
+      end
+
+      let_it_be(:subsequent_manual_build) do
+        create(:ci_build, :manual, pipeline: pipeline, ci_stage: deploy_stage)
+      end
+
+      let_it_be(:test_scheduled_build) do
+        create(:ci_build, :scheduled, pipeline: pipeline, ci_stage: stage)
+      end
+
+      let_it_be(:subsequent_scheduled_build) do
+        create(:ci_build, :scheduled, pipeline: pipeline, ci_stage: deploy_stage)
+      end
+
+      let!(:job) do
+        create(:ci_build, *[trait].compact, :failed, pipeline: pipeline, ci_stage: stage)
+      end
+
+      where(:trait, :enqueue_immediately) do
+        nil                | false
+        :manual            | true
+        :expired_scheduled | true
+      end
+
+      with_them do
+        it 'retries the given job but not the other manual/scheduled jobs' do
+          expect { subject }
+            .to change { Ci::Build.count }.by(1)
+            .and not_change { test_manual_build.reload.status }
+            .and not_change { subsequent_manual_build.reload.status }
+            .and not_change { test_scheduled_build.reload.status }
+            .and not_change { subsequent_scheduled_build.reload.status }
+
+          expect(new_job).to be_pending
+        end
+
+        it_behaves_like 'checks enqueue_immediately?'
       end
     end
   end

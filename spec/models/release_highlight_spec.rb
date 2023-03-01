@@ -2,11 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe ReleaseHighlight, :clean_gitlab_redis_cache do
-  let(:fixture_dir_glob) { Dir.glob(File.join(Rails.root, 'spec', 'fixtures', 'whats_new', '*.yml')).grep(/\d*\_(\d*\_\d*)\.yml$/) }
+RSpec.describe ReleaseHighlight, :clean_gitlab_redis_cache, feature_category: :release_orchestration do
+  let(:fixture_dir_glob) { Dir.glob(File.join(Rails.root, 'spec', 'fixtures', 'whats_new', '*.yml')).grep(/\d*_(\d*_\d*)\.yml$/) }
 
   before do
-    allow(Dir).to receive(:glob).with(Rails.root.join('data', 'whats_new', '*.yml')).and_return(fixture_dir_glob)
+    allow(Dir).to receive(:glob).and_call_original
+    allow(Dir).to receive(:glob).with(described_class.whats_new_path).and_return(fixture_dir_glob)
     Gitlab::CurrentSettings.update!(whats_new_variant: ApplicationSetting.whats_new_variants[:all_tiers])
   end
 

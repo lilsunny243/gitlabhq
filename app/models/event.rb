@@ -10,9 +10,6 @@ class Event < ApplicationRecord
   include UsageStatistics
   include ShaAttribute
 
-  # TODO https://gitlab.com/gitlab-org/gitlab/-/issues/358088
-  default_scope { reorder(nil) } # rubocop:disable Cop/DefaultScope
-
   ACTIONS = HashWithIndifferentAccess.new(
     created: 1,
     updated: 2,
@@ -34,6 +31,7 @@ class Event < ApplicationRecord
   DESIGN_ACTIONS = [:created, :updated, :destroyed].freeze
   TEAM_ACTIONS = [:joined, :left, :expired].freeze
   ISSUE_ACTIONS = [:created, :updated, :closed, :reopened].freeze
+  ISSUE_TYPES = [Issue.name, WorkItem.name].freeze
 
   TARGET_TYPES = HashWithIndifferentAccess.new(
     issue: Issue,
@@ -86,6 +84,7 @@ class Event < ApplicationRecord
   scope :recent, -> { reorder(id: :desc) }
   scope :for_wiki_page, -> { where(target_type: 'WikiPage::Meta') }
   scope :for_design, -> { where(target_type: 'DesignManagement::Design') }
+  scope :for_issue, -> { where(target_type: ISSUE_TYPES) }
   scope :for_fingerprint, ->(fingerprint) do
     fingerprint.present? ? where(fingerprint: fingerprint) : none
   end
@@ -135,7 +134,7 @@ class Event < ApplicationRecord
       where(
         'action IN (?) OR (target_type IN (?) AND action IN (?))',
         [actions[:pushed], actions[:commented]],
-        %w(MergeRequest Issue), [actions[:created], actions[:closed], actions[:merged]]
+        %w(MergeRequest Issue WorkItem), [actions[:created], actions[:closed], actions[:merged]]
       )
     end
 
@@ -281,6 +280,7 @@ class Event < ApplicationRecord
       "opened"
     end
   end
+
   # rubocop: enable Metrics/CyclomaticComplexity
   # rubocop: enable Metrics/PerceivedComplexity
 
@@ -360,7 +360,7 @@ class Event < ApplicationRecord
     # hence we add the extra WHERE clause for last_activity_at.
     Project.unscoped.where(id: project_id)
       .where('last_activity_at <= ?', RESET_PROJECT_ACTIVITY_INTERVAL.ago)
-      .touch_all(:last_activity_at, time: created_at) # rubocop: disable Rails/SkipsModelValidations
+      .touch_all(:last_activity_at, time: created_at)
 
     Gitlab::InactiveProjectsDeletionWarningTracker.new(project.id).reset
   end
@@ -382,13 +382,11 @@ class Event < ApplicationRecord
   protected
 
   def capability
-    @capability ||= begin
-      capabilities.flat_map do |ability, syms|
-        if syms.any? { |sym| send(sym) } # rubocop: disable GitlabSecurity/PublicSend
-          [ability]
-        else
-          []
-        end
+    @capability ||= capabilities.flat_map do |ability, syms|
+      if syms.any? { |sym| send(sym) } # rubocop: disable GitlabSecurity/PublicSend
+        [ability]
+      else
+        []
       end
     end
   end
@@ -443,14 +441,14 @@ class Event < ApplicationRecord
   def set_last_repository_updated_at
     Project.unscoped.where(id: project_id)
       .where("last_repository_updated_at < ? OR last_repository_updated_at IS NULL", REPOSITORY_UPDATED_AT_INTERVAL.ago)
-      .touch_all(:last_repository_updated_at, time: created_at) # rubocop: disable Rails/SkipsModelValidations
+      .touch_all(:last_repository_updated_at, time: created_at)
   end
 
   def design_action_names
     {
-      created: _('added'),
-      updated: _('updated'),
-      destroyed: _('removed')
+      created: 'added',
+      updated: 'updated',
+      destroyed: 'removed'
     }
   end
 

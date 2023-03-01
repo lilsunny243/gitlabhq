@@ -32,6 +32,8 @@ export const integrationFormSections = {
   JIRA_TRIGGER: 'jira_trigger',
   JIRA_ISSUES: 'jira_issues',
   TRIGGER: 'trigger',
+  APPLE_APP_STORE: 'apple_app_store',
+  GOOGLE_PLAY: 'google_play',
 };
 
 export const integrationFormSectionComponents = {
@@ -40,6 +42,8 @@ export const integrationFormSectionComponents = {
   [integrationFormSections.JIRA_TRIGGER]: 'IntegrationSectionJiraTrigger',
   [integrationFormSections.JIRA_ISSUES]: 'IntegrationSectionJiraIssues',
   [integrationFormSections.TRIGGER]: 'IntegrationSectionTrigger',
+  [integrationFormSections.APPLE_APP_STORE]: 'IntegrationSectionAppleAppStore',
+  [integrationFormSections.GOOGLE_PLAY]: 'IntegrationSectionGooglePlay',
 };
 
 export const integrationTriggerEvents = {
@@ -52,26 +56,32 @@ export const integrationTriggerEvents = {
   TAG_PUSH: 'tag_push_events',
   PIPELINE: 'pipeline_events',
   WIKI_PAGE: 'wiki_page_events',
+  DEPLOYMENT: 'deployment_events',
 };
 
 export const integrationTriggerEventTitles = {
   [integrationTriggerEvents.PUSH]: s__('IntegrationEvents|A push is made to the repository'),
   [integrationTriggerEvents.ISSUE]: s__(
-    'IntegrationEvents|An issue is created, updated, or closed',
+    'IntegrationEvents|An issue is created, closed, or reopened',
   ),
   [integrationTriggerEvents.CONFIDENTIAL_ISSUE]: s__(
-    'IntegrationEvents|A confidential issue is created, updated, or closed',
+    'IntegrationEvents|A confidential issue is created, closed, or reopened',
   ),
   [integrationTriggerEvents.MERGE_REQUEST]: s__(
-    'IntegrationEvents|A merge request is created, updated, or merged',
+    'IntegrationEvents|A merge request is created, merged, closed, or reopened',
   ),
-  [integrationTriggerEvents.NOTE]: s__('IntegrationEvents|A comment is added on an issue'),
+  [integrationTriggerEvents.NOTE]: s__('IntegrationEvents|A comment is added'),
   [integrationTriggerEvents.CONFIDENTIAL_NOTE]: s__(
-    'IntegrationEvents|A comment is added on a confidential issue',
+    'IntegrationEvents|An internal note or comment on a confidential issue is added',
   ),
-  [integrationTriggerEvents.TAG_PUSH]: s__('IntegrationEvents|A tag is pushed to the repository'),
+  [integrationTriggerEvents.TAG_PUSH]: s__(
+    'IntegrationEvents|A tag is pushed to the repository or removed',
+  ),
   [integrationTriggerEvents.PIPELINE]: s__('IntegrationEvents|A pipeline status changes'),
   [integrationTriggerEvents.WIKI_PAGE]: s__('IntegrationEvents|A wiki page is created or updated'),
+  [integrationTriggerEvents.DEPLOYMENT]: s__(
+    'IntegrationEvents|A deployment is started or finished',
+  ),
 };
 
 export const billingPlans = {
@@ -85,9 +95,13 @@ export const billingPlanNames = {
 };
 
 const INTEGRATION_TYPE_SLACK = 'slack';
+const INTEGRATION_TYPE_SLACK_APPLICATION = 'gitlab_slack_application';
 const INTEGRATION_TYPE_MATTERMOST = 'mattermost';
 
 export const placeholderForType = {
   [INTEGRATION_TYPE_SLACK]: __('#general, #development'),
+  [INTEGRATION_TYPE_SLACK_APPLICATION]: __('#general, #development'),
   [INTEGRATION_TYPE_MATTERMOST]: __('my-channel'),
 };
+
+export const INTEGRATION_FORM_TYPE_SLACK = 'gitlab_slack_application';

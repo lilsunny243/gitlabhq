@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectness do
+RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectness, :clean_gitlab_redis_cache, feature_category: :continuous_integration do
   include ProjectForksHelper
 
   let_it_be_with_refind(:project) { create(:project, :repository) }
@@ -79,11 +79,11 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
         let(:accepted_n_plus_ones) do
           1 + # SELECT "ci_instance_variables"
-          1 + # INSERT INTO "ci_stages"
-          1 + # SELECT "ci_builds".* FROM "ci_builds"
-          1 + # INSERT INTO "ci_builds"
-          1 + # INSERT INTO "ci_builds_metadata"
-          1   # SELECT "taggings".* FROM "taggings"
+            1 + # INSERT INTO "ci_stages"
+            1 + # SELECT "ci_builds".* FROM "ci_builds"
+            1 + # INSERT INTO "ci_builds"
+            1 + # INSERT INTO "ci_builds_metadata"
+            1   # SELECT "taggings".* FROM "taggings"
         end
       end
     end
@@ -135,7 +135,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         execute_service
 
         expect(histogram).to have_received(:observe)
-          .with({ source: 'push' }, 5)
+          .with({ source: 'push', plan: project.actual_plan_name }, 5)
       end
 
       it 'tracks included template usage' do
@@ -293,7 +293,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
               pipeline_on_previous_commit
                 .builds
                 .joins(:metadata)
-                .pluck(:name, 'ci_builds_metadata.interruptible')
+                .pluck(:name, "#{Ci::BuildMetadata.quoted_table_name}.interruptible")
 
             expect(interruptible_status).to contain_exactly(
               ['build_1_1', true],
@@ -423,7 +423,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
       expect(response.message).to eq('Missing CI config file')
       expect(response.payload).not_to be_persisted
       expect(Ci::Pipeline.count).to eq(0)
-      expect(Namespaces::OnboardingPipelineCreatedWorker).not_to receive(:perform_async)
+      expect(Onboarding::PipelineCreatedWorker).not_to receive(:perform_async)
     end
 
     shared_examples 'a failed pipeline' do
@@ -463,7 +463,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         it 'pull it from Auto-DevOps' do
           pipeline = execute_service.payload
           expect(pipeline).to be_auto_devops_source
-          expect(pipeline.builds.map(&:name)).to match_array(%w[brakeman-sast build code_quality container_scanning eslint-sast secret_detection semgrep-sast test])
+          expect(pipeline.builds.map(&:name)).to match_array(%w[brakeman-sast build code_quality container_scanning secret_detection semgrep-sast test])
         end
       end
 
@@ -684,7 +684,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         result = execute_service
 
         expect(result).to be_error
-        expect(result.message).to eq('No stages / jobs for this pipeline.')
+        expect(result.message).to eq('Pipeline will not run for the selected trigger. ' \
+          'The rules configuration prevented any jobs from being added to the pipeline.')
         expect(result.payload).not_to be_persisted
         expect(Ci::Build.all).to be_empty
         expect(Ci::Pipeline.count).to eq(0)
@@ -707,6 +708,29 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
           expect(result.payload).not_to be_persisted
           expect(internal_id.last_value).to eq(0)
         end
+      end
+    end
+
+    context 'when the configuration includes ID tokens' do
+      it 'creates variables for the ID tokens' do
+        config = YAML.dump({
+          job_with_id_tokens: {
+            script: 'ls',
+            id_tokens: {
+              'TEST_ID_TOKEN' => {
+                aud: 'https://gitlab.com'
+              }
+            }
+          }
+        })
+        stub_ci_pipeline_yaml_file(config)
+
+        result = execute_service.payload
+
+        expect(result).to be_persisted
+        expect(result.builds.first.id_tokens).to eq({
+          'TEST_ID_TOKEN' => { 'aud' => 'https://gitlab.com' }
+        })
       end
     end
 
@@ -736,7 +760,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         stub_ci_pipeline_yaml_file(config)
       end
 
-      it 'creates the environment with tags' do
+      it 'creates the environment with tags', :sidekiq_inline do
         result = execute_service.payload
 
         expect(result).to be_persisted
@@ -839,7 +863,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         stub_ci_pipeline_yaml_file(YAML.dump(ci_yaml))
       end
 
-      it 'creates a pipeline with the environment' do
+      it 'creates a pipeline with the environment', :sidekiq_inline do
         result = execute_service.payload
 
         expect(result).to be_persisted
@@ -1288,8 +1312,9 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
           }
         end
 
-        it 'has a job with environment' do
+        it 'has a job with environment', :sidekiq_inline do
           expect(pipeline.builds.count).to eq(1)
+          expect(pipeline.builds.first.persisted_environment.name).to eq('review/master')
           expect(pipeline.builds.first.persisted_environment.name).to eq('review/master')
           expect(pipeline.builds.first.deployment).to be_created
         end
@@ -1400,9 +1425,11 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
               it 'does not create a detached merge request pipeline', :aggregate_failures do
                 expect(response).to be_error
-                expect(response.message).to eq('No stages / jobs for this pipeline.')
+                expect(response.message).to eq('Pipeline will not run for the selected trigger. ' \
+                  'The rules configuration prevented any jobs from being added to the pipeline.')
                 expect(pipeline).not_to be_persisted
-                expect(pipeline.errors[:base]).to eq(['No stages / jobs for this pipeline.'])
+                expect(pipeline.errors[:base]).to eq(['Pipeline will not run for the selected trigger. ' \
+                  'The rules configuration prevented any jobs from being added to the pipeline.'])
               end
             end
           end
@@ -1547,7 +1574,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
             end
 
             it 'schedules a namespace onboarding create action worker' do
-              expect(Namespaces::OnboardingPipelineCreatedWorker)
+              expect(Onboarding::PipelineCreatedWorker)
                 .to receive(:perform_async).with(project.namespace_id)
 
               pipeline
@@ -1610,7 +1637,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
               it 'does not create a detached merge request pipeline', :aggregate_failures do
                 expect(response).to be_error
-                expect(response.message).to eq('No stages / jobs for this pipeline.')
+                expect(response.message).to eq('Pipeline will not run for the selected trigger. ' \
+                  'The rules configuration prevented any jobs from being added to the pipeline.')
                 expect(pipeline).not_to be_persisted
               end
             end
@@ -1646,7 +1674,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
             it 'does not create a detached merge request pipeline', :aggregate_failures do
               expect(response).to be_error
-              expect(response.message).to eq('No stages / jobs for this pipeline.')
+              expect(response.message).to eq('Pipeline will not run for the selected trigger. ' \
+                'The rules configuration prevented any jobs from being added to the pipeline.')
               expect(pipeline).not_to be_persisted
             end
           end
@@ -1674,7 +1703,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
             it 'does not create a detached merge request pipeline', :aggregate_failures do
               expect(response).to be_error
-              expect(response.message).to eq('No stages / jobs for this pipeline.')
+              expect(response.message).to eq('Pipeline will not run for the selected trigger. ' \
+                'The rules configuration prevented any jobs from being added to the pipeline.')
               expect(pipeline).not_to be_persisted
             end
           end
@@ -1704,7 +1734,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
             it 'does not create a detached merge request pipeline', :aggregate_failures do
               expect(response).to be_error
-              expect(response.message).to eq('No stages / jobs for this pipeline.')
+              expect(response.message).to eq('Pipeline will not run for the selected trigger. ' \
+                'The rules configuration prevented any jobs from being added to the pipeline.')
               expect(pipeline).not_to be_persisted
             end
           end
@@ -1732,7 +1763,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
             it 'does not create a detached merge request pipeline', :aggregate_failures do
               expect(response).to be_error
-              expect(response.message).to eq('No stages / jobs for this pipeline.')
+              expect(response.message).to eq('Pipeline will not run for the selected trigger. ' \
+                'The rules configuration prevented any jobs from being added to the pipeline.')
               expect(pipeline).not_to be_persisted
             end
           end
@@ -1864,51 +1896,6 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
           expect(pipeline).to be_persisted
           expect(pipeline.builds.pluck(:name)).to contain_exactly("deploy")
         end
-      end
-    end
-  end
-
-  describe '#execute!' do
-    subject { service.execute!(*args) }
-
-    let(:service) { described_class.new(project, user, ref: ref_name) }
-    let(:args) { [:push] }
-
-    context 'when user has a permission to create a pipeline' do
-      let(:user) { create(:user) }
-
-      before do
-        project.add_developer(user)
-      end
-
-      it 'does not raise an error' do
-        expect { subject }.not_to raise_error
-      end
-
-      it 'creates a pipeline' do
-        expect { subject }.to change { Ci::Pipeline.count }.by(1)
-      end
-    end
-
-    context 'when user does not have a permission to create a pipeline' do
-      let(:user) { create(:user) }
-
-      it 'raises an error' do
-        expect { subject }
-          .to raise_error(described_class::CreateError)
-          .with_message('Insufficient permissions to create a new pipeline')
-      end
-    end
-
-    context 'when a user with permissions has been blocked' do
-      before do
-        user.block!
-      end
-
-      it 'raises an error' do
-        expect { subject }
-          .to raise_error(described_class::CreateError)
-          .with_message('Insufficient permissions to create a new pipeline')
       end
     end
   end

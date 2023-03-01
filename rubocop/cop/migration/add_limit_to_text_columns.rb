@@ -10,7 +10,7 @@ module RuboCop
       # Text columns starting with `encrypted_` are very likely used
       # by `attr_encrypted` which controls the text length. Those columns
       # should not add a text limit.
-      class AddLimitToTextColumns < RuboCop::Cop::Cop
+      class AddLimitToTextColumns < RuboCop::Cop::Base
         include MigrationHelpers
 
         TEXT_LIMIT_ATTRIBUTE_ALLOWED_SINCE = 2021_09_10_00_00_00
@@ -43,12 +43,10 @@ module RuboCop
             next unless text_operation?(send_node)
 
             if text_operation_with_limit?(send_node)
-              add_offense(send_node, location: :selector, message: TEXT_LIMIT_ATTRIBUTE_NOT_ALLOWED) if version(node) < TEXT_LIMIT_ATTRIBUTE_ALLOWED_SINCE
-            else
+              add_offense(send_node.loc.selector, message: TEXT_LIMIT_ATTRIBUTE_NOT_ALLOWED) if version(node) < TEXT_LIMIT_ATTRIBUTE_ALLOWED_SINCE
+            elsif text_limit_missing?(node, *table_and_attribute_name(send_node))
               # We require a limit for the same table and attribute name
-              if text_limit_missing?(node, *table_and_attribute_name(send_node))
-                add_offense(send_node, location: :selector)
-              end
+              add_offense(send_node.loc.selector)
             end
           end
         end

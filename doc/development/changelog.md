@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Changelog entries
@@ -40,6 +40,10 @@ vendor field to be `gitlab` to avoid cve matching old versions.
 
 Changelog: changed
 ```
+
+If your merge request has multiple commits,
+[make sure to add the `Changelog` entry to the first commit](changelog.md#how-to-generate-a-changelog-entry).
+This ensures that the correct entry is generated when commits are squashed.
 
 ### Overriding the associated merge request
 
@@ -90,7 +94,7 @@ EE: true
   uses system fonts for all text."
 - Any client-facing change to our REST and GraphQL APIs **must** have a changelog entry.
   See the [complete list what comprises a GraphQL breaking change](api_graphql_styleguide.md#breaking-changes).
-- Any change that introduces an [Advanced Search migration](elasticsearch.md#creating-a-new-advanced-search-migration)
+- Any change that introduces an [Advanced Search migration](search/advanced_search_migration_styleguide.md#creating-a-new-advanced-search-migration)
   **must** have a changelog entry.
 - A fix for a regression introduced and then fixed in the same release (such as
   fixing a bug introduced during a monthly release candidate) **should not**
@@ -114,7 +118,7 @@ making it both concise and descriptive, err on the side of descriptive.
 
 - **Bad:** Go to a project order.
 - **Good:** Show a user's starred projects at the top of the "Go to project"
-  dropdown.
+  dropdown list.
 
 The first example provides no context of where the change was made, or why, or
 how it benefits the user.
@@ -126,9 +130,9 @@ how it benefits the user.
 Again, the first example is too vague and provides no context.
 
 - **Bad:** Fixes and Improves CSS and HTML problems in mini pipeline graph and
-  builds dropdown.
+  builds dropdown list.
 - **Good:** Fix tooltips and hover states in mini pipeline graph and builds
-  dropdown.
+  dropdown list.
 
 The first example is too focused on implementation details. The user doesn't
 care that we changed CSS and HTML, they care about the _end result_ of those

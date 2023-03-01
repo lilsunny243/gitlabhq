@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::AlertManagementAlerts do
+RSpec.describe API::AlertManagementAlerts, feature_category: :incident_management do
   let_it_be(:creator) { create(:user) }
   let_it_be(:project) do
     create(:project, :public, creator_id: creator.id, namespace: creator.namespace)
@@ -140,7 +140,7 @@ RSpec.describe API::AlertManagementAlerts do
         project.send("add_#{user_role}", user)
       end
 
-      it_behaves_like "#{params[:expected_status]}"
+      it_behaves_like params[:expected_status].to_s
     end
 
     context 'file size too large' do
@@ -245,7 +245,7 @@ RSpec.describe API::AlertManagementAlerts do
         project.update!(visibility_level: Gitlab::VisibilityLevel::PRIVATE) unless public_project
       end
 
-      it_behaves_like "#{params[:expected_status]}"
+      it_behaves_like params[:expected_status].to_s
     end
   end
 
@@ -293,7 +293,7 @@ RSpec.describe API::AlertManagementAlerts do
         project.update!(visibility_level: Gitlab::VisibilityLevel::PRIVATE) unless public_project
       end
 
-      it_behaves_like "#{params[:expected_status]}"
+      it_behaves_like params[:expected_status].to_s
     end
 
     context 'when user has access' do
@@ -368,7 +368,7 @@ RSpec.describe API::AlertManagementAlerts do
         project.update!(visibility_level: Gitlab::VisibilityLevel::PRIVATE) unless public_project
       end
 
-      it_behaves_like "#{params[:expected_status]}"
+      it_behaves_like params[:expected_status].to_s
     end
 
     context 'when user has access' do

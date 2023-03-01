@@ -15,7 +15,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     stub_env('IN_MEMORY_APPLICATION_SETTINGS', 'false')
   end
 
-  describe 'GET #integrations' do
+  describe 'GET #integrations', feature_category: :integrations do
     before do
       sign_in(admin)
     end
@@ -46,7 +46,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     end
   end
 
-  describe 'GET #usage_data with no access' do
+  describe 'GET #usage_data with no access', feature_category: :service_ping do
     before do
       stub_usage_data_connections
       sign_in(user)
@@ -59,7 +59,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     end
   end
 
-  describe 'GET #usage_data' do
+  describe 'GET #usage_data', feature_category: :service_ping do
     before do
       stub_usage_data_connections
       stub_database_flavor_check
@@ -120,13 +120,6 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
       sign_in(admin)
     end
 
-    it 'updates the require_admin_approval_after_user_signup setting' do
-      put :update, params: { application_setting: { require_admin_approval_after_user_signup: true } }
-
-      expect(response).to redirect_to(general_admin_application_settings_path)
-      expect(ApplicationSetting.current.require_admin_approval_after_user_signup).to eq(true)
-    end
-
     it 'updates the password_authentication_enabled_for_git setting' do
       put :update, params: { application_setting: { password_authentication_enabled_for_git: "0" } }
 
@@ -160,6 +153,13 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
 
       expect(response).to redirect_to(general_admin_application_settings_path)
       expect(ApplicationSetting.current.receive_max_input_size).to eq(1024)
+    end
+
+    it 'updates the default_preferred_language for string value' do
+      put :update, params: { application_setting: { default_preferred_language: 'zh_CN' } }
+
+      expect(response).to redirect_to(general_admin_application_settings_path)
+      expect(ApplicationSetting.current.default_preferred_language).to eq('zh_CN')
     end
 
     it 'updates the default_project_creation for string value' do
@@ -197,18 +197,30 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
       expect(ApplicationSetting.current.default_branch_name).to eq("example_branch_name")
     end
 
-    it "updates admin_mode setting" do
-      put :update, params: { application_setting: { admin_mode: true } }
-
-      expect(response).to redirect_to(general_admin_application_settings_path)
-      expect(ApplicationSetting.current.admin_mode).to be(true)
-    end
-
     it 'updates valid_runner_registrars setting' do
       put :update, params: { application_setting: { valid_runner_registrars: ['project', ''] } }
 
       expect(response).to redirect_to(general_admin_application_settings_path)
       expect(ApplicationSetting.current.valid_runner_registrars).to eq(['project'])
+    end
+
+    context 'boolean attributes' do
+      shared_examples_for 'updates booolean attribute' do |attribute|
+        specify do
+          existing_value = ApplicationSetting.current.public_send(attribute)
+          new_value = !existing_value
+
+          put :update, params: { application_setting: { attribute => new_value } }
+
+          expect(response).to redirect_to(general_admin_application_settings_path)
+          expect(ApplicationSetting.current.public_send(attribute)).to eq(new_value)
+        end
+      end
+
+      it_behaves_like 'updates booolean attribute', :user_defaults_to_private_profile
+      it_behaves_like 'updates booolean attribute', :can_create_group
+      it_behaves_like 'updates booolean attribute', :admin_mode
+      it_behaves_like 'updates booolean attribute', :require_admin_approval_after_user_signup
     end
 
     context "personal access token prefix settings" do
@@ -312,6 +324,19 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
       end
     end
 
+    describe 'Terraform settings' do
+      let(:application_setting) { ApplicationSetting.current }
+
+      context 'max_terraform_state_size_bytes' do
+        it 'updates the receive_max_input_size setting' do
+          put :update, params: { application_setting: { max_terraform_state_size_bytes: '123' } }
+
+          expect(response).to redirect_to(general_admin_application_settings_path)
+          expect(application_setting.max_terraform_state_size_bytes).to eq(123)
+        end
+      end
+    end
+
     describe 'user_email_lookup_limit aliasing' do
       let(:application_setting) { ApplicationSetting.current }
       let(:user_email_lookup_limit) { 8675 }
@@ -375,7 +400,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     end
   end
 
-  describe 'PUT #reset_registration_token' do
+  describe 'PUT #reset_registration_token', feature_category: :user_management do
     before do
       sign_in(admin)
     end
@@ -393,7 +418,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     end
   end
 
-  describe 'PUT #reset_error_tracking_access_token' do
+  describe 'PUT #reset_error_tracking_access_token', feature_category: :error_tracking do
     before do
       sign_in(admin)
     end
@@ -429,7 +454,7 @@ RSpec.describe Admin::ApplicationSettingsController, :do_not_mock_admin_mode_set
     end
   end
 
-  describe 'GET #service_usage_data' do
+  describe 'GET #service_usage_data', feature_category: :service_ping do
     before do
       stub_usage_data_connections
       stub_database_flavor_check

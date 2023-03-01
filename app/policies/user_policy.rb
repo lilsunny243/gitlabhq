@@ -30,12 +30,14 @@ class UserPolicy < BasePolicy
     enable :read_group_count
     enable :read_user_groups
     enable :read_saved_replies
+    enable :read_user_email_address
   end
 
   rule { default }.enable :read_user_profile
   rule { (private_profile | blocked_user | unconfirmed_user) & ~(user_is_self | admin) }.prevent :read_user_profile
   rule { user_is_self | admin }.enable :disable_two_factor
   rule { (user_is_self | admin) & ~blocked }.enable :create_user_personal_access_token
+  rule { (user_is_self | admin) & ~blocked }.enable :get_user_associations_count
 end
 
 UserPolicy.prepend_mod_with('UserPolicy')

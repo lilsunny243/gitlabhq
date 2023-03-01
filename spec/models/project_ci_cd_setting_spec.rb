@@ -21,6 +21,16 @@ RSpec.describe ProjectCiCdSetting do
     end
   end
 
+  describe '#separated_caches' do
+    it 'is true by default' do
+      expect(described_class.new.separated_caches).to be_truthy
+    end
+  end
+
+  describe '#default_for_inbound_job_token_scope_enabled' do
+    it { is_expected.to be_inbound_job_token_scope_enabled }
+  end
+
   describe '#default_git_depth' do
     let(:default_value) { described_class::DEFAULT_GIT_DEPTH }
 

@@ -45,9 +45,10 @@ describe('BoardSettingsSidebar', () => {
         provide: {
           canAdminList,
           scopedLabelsAvailable: false,
+          isIssueBoard: true,
         },
         directives: {
-          GlModal: createMockDirective(),
+          GlModal: createMockDirective('gl-modal'),
         },
         stubs: {
           GlDrawer: stubComponent(GlDrawer, {

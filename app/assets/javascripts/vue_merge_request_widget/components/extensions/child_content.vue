@@ -1,5 +1,7 @@
 <script>
-import { GlBadge, GlLink, GlSafeHtmlDirective, GlModalDirective } from '@gitlab/ui';
+import { GlBadge, GlLink, GlModalDirective } from '@gitlab/ui';
+import { isArray } from 'lodash';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import Actions from '../action_buttons.vue';
 import StatusIcon from './status_icon.vue';
 import { generateText } from './utils';
@@ -13,7 +15,7 @@ export default {
     Actions,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
     GlModal: GlModalDirective,
   },
   props: {
@@ -33,6 +35,20 @@ export default {
     level: {
       type: Number,
       required: true,
+    },
+  },
+  computed: {
+    subtext() {
+      const { subtext } = this.data;
+      if (subtext) {
+        if (isArray(subtext)) {
+          return subtext.map((t) => generateText(t)).join('<br />');
+        }
+
+        return generateText(subtext);
+      }
+
+      return null;
     },
   },
   methods: {
@@ -62,7 +78,9 @@ export default {
       <strong v-else v-safe-html="generateText(data.header)"></strong>
     </div>
     <div class="gl-display-flex">
-      <status-icon v-if="data.icon" :icon-name="data.icon.name" :size="12" class="gl-pl-0" />
+      <div v-if="data.icon" class="report-block-child-icon gl-display-flex">
+        <status-icon :icon-name="data.icon.name" :size="12" class="gl-m-auto" />
+      </div>
       <div class="gl-w-full">
         <div class="gl-display-flex gl-flex-nowrap">
           <div class="gl-flex-wrap gl-display-flex gl-w-full">
@@ -80,7 +98,12 @@ export default {
             <div v-if="data.supportingText">
               <p v-safe-html="generateText(data.supportingText)" class="gl-m-0"></p>
             </div>
-            <gl-badge v-if="data.badge" :variant="data.badge.variant || 'info'">
+            <gl-badge
+              v-if="data.badge"
+              :variant="data.badge.variant || 'info'"
+              size="sm"
+              class="gl-ml-2"
+            >
               {{ data.badge.text }}
             </gl-badge>
           </div>
@@ -91,11 +114,7 @@ export default {
             @clickedAction="onClickedAction"
           />
         </div>
-        <p
-          v-if="data.subtext"
-          v-safe-html="generateText(data.subtext)"
-          class="gl-m-0 gl-font-sm"
-        ></p>
+        <p v-if="subtext" v-safe-html="subtext" class="gl-m-0 gl-font-sm"></p>
       </div>
     </div>
     <template v-if="data.children && level === 2">

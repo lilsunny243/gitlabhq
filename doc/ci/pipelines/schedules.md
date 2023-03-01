@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/user/project/pipelines/schedules.html'
 type: reference, howto
 ---
@@ -27,7 +27,7 @@ Otherwise, the pipeline is not created. No error message is displayed.
 
 To add a pipeline schedule:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **CI/CD > Schedules**.
 1. Select **New schedule** and fill in the form.
    - **Interval Pattern**: Select one of the preconfigured intervals, or enter a custom
@@ -39,13 +39,16 @@ To add a pipeline schedule:
      These variables are available only when the scheduled pipeline runs,
      and not in any other pipeline run.
 
+If the project already has the [maximum number of pipeline schedules](../../administration/instance_limits.md#number-of-pipeline-schedules),
+you must delete unused schedules before you can add another.
+
 ## Edit a pipeline schedule
 
 > Introduced in GitLab 14.8, only a pipeline schedule owner can edit the schedule.
 
 The owner of a pipeline schedule can edit it:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. In the left sidebar, select **CI/CD > Schedules**.
 1. Next to the schedule, select **Edit** (**{pencil}**) and fill in the form.
 
@@ -58,7 +61,7 @@ of the schedule.
 To trigger a pipeline schedule manually, so that it runs immediately instead of
 the next scheduled time:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **CI/CD > Schedules**.
 1. On the right of the list, for
    the pipeline you want to run, select **Play** (**{play}**).
@@ -74,7 +77,7 @@ including [protected environments](../environments/protected_environments.md) an
 
 To take ownership of a pipeline created by a different user:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **CI/CD > Schedules**.
 1. On the right of the list, for
    the pipeline you want to become owner of, select **Take ownership**.
@@ -92,6 +95,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

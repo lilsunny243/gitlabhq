@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -156,14 +156,21 @@ Set the limit to `0` to disable it.
 
 ### Search rate limit
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80631) in GitLab 14.9.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80631) in GitLab 14.9.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/104208) to include issue, merge request, and epic searches to the rate limit in GitLab 15.9.
 
-This setting limits global search requests.
+This setting limits search requests as follows:
 
 | Limit                   | Default (requests per minute) |
 |-------------------------|-------------------------------|
 | Authenticated user      | 30 |
 | Unauthenticated user    | 10 |
+
+Depending on the number of enabled [scopes](../user/search/index.md#global-search-scopes), a global search request can consume two to seven requests per minute. You may want to disable one or more scopes to use fewer requests. Search requests that exceed the search rate limit per minute return the following error:
+
+```plaintext
+This endpoint has been requested too many times. Try again later.
+```
 
 ### Pipeline creation rate limit
 
@@ -175,7 +182,7 @@ Read more about [pipeline creation rate limits](../user/admin_area/settings/rate
 
 ## Gitaly concurrency limit
 
-Clone traffic can put a large strain on your Gitaly service. To prevent such workloads from overwhelming your Gitaly server, you can set concurrency limits in Gitaly's configuration file.
+Clone traffic can put a large strain on your Gitaly service. To prevent such workloads from overwhelming your Gitaly server, you can set concurrency limits in the Gitaly configuration file.
 
 Read more about [Gitaly concurrency limits](gitaly/configure_gitaly.md#limit-rpc-concurrency).
 
@@ -206,12 +213,20 @@ It's possible that this limit changes to a lower number in the future.
 
 ## Size of commit titles and descriptions
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/292039) in GitLab 13.9
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/292039) in GitLab 13.9.
 
-Commits with arbitrarily large messages may be pushed to GitLab, but when
-displaying commits, titles (the first line of the commit message)
-limits to 1KiB, and descriptions (the rest of the message) limits to
-1MiB.
+Commits with arbitrarily large messages may be pushed to GitLab, but the following
+display limits apply:
+
+- **Title** - The first line of the commit message. Limited to 1 KiB.
+- **Description** - The rest of the commit message. Limited to 1 MiB.
+
+When a commit is pushed, GitLab processes the title and description to replace
+references to issues (`#123`) and merge requests (`!123`) with links to the
+issues and merge requests.
+
+When a branch with a large number of commits is pushed, only the last 100 commits
+are processed.
 
 ## Number of issues in the milestone overview
 
@@ -283,6 +298,29 @@ For GitLab.com, see the [webhook limits for GitLab.com](../user/gitlab_com/index
 
 The maximum webhook payload size is 25 MB.
 
+### Webhook timeout
+
+The number of seconds GitLab waits for an HTTP response after sending a webhook.
+
+To change the webhook timeout value:
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   gitlab_rails['webhook_timeout'] = 60
+   ```
+
+1. Save the file.
+1. Reconfigure and restart GitLab for the changes to
+   take effect:
+
+   ```shell
+   gitlab-ctl reconfigure
+   gitlab-ctl restart
+   ```
+
+See also [webhook limits for GitLab.com](../user/gitlab_com/index.md#other-limits).
+
 ### Recursive webhooks
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/329743) in GitLab 14.8.
@@ -330,7 +368,7 @@ header. Such emails don't create comments on issues or merge requests.
 
 ## Amount of data sent from Sentry through Error Tracking
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/14926) in GitLab 12.6.
+> [Limiting all Sentry responses](https://gitlab.com/gitlab-org/gitlab/-/issues/356448) introduced in GitLab 15.6.
 
 Sentry payloads sent to GitLab have a 1 MB maximum limit, both for security reasons
 and to limit memory consumption.
@@ -341,8 +379,8 @@ and to limit memory consumption.
 
 When using offset-based pagination in the REST API, there is a limit to the maximum
 requested offset into the set of results. This limit is only applied to endpoints that
-support keyset-based pagination. More information about pagination options can be
-found in the [API documentation section on pagination](../api/index.md#pagination).
+also support keyset-based pagination. More information about pagination options can be
+found in the [API documentation section on pagination](../api/rest/index.md#pagination).
 
 To set this limit for a self-managed installation, run the following in the
 [GitLab Rails console](operations/rails_console.md#starting-a-rails-console-session):
@@ -544,7 +582,8 @@ limit value. For example, for a maximum frequency of:
 - Once per 10 minutes, the limit must be `144`.
 - Once per 60 minutes, the limit must be `24`
 
-There is no limit for self-managed instances by default.
+The minimum value is `24`, or one pipeline per 60 minutes.
+There is no maximum value.
 
 To set this limit to `1440` on a self-managed installation, run the following in the
 [GitLab Rails console](operations/rails_console.md#starting-a-rails-console-session):
@@ -616,7 +655,6 @@ setting is used:
 | `ci_max_artifact_size_archive`                    | 0             |
 | `ci_max_artifact_size_browser_performance`        | 0             |
 | `ci_max_artifact_size_cluster_applications`       | 0             |
-| `ci_max_artifact_size_cluster_image_scanning`     | 0             |
 | `ci_max_artifact_size_cobertura`                  | 0             |
 | `ci_max_artifact_size_codequality`                | 0             |
 | `ci_max_artifact_size_container_scanning`         | 0             |
@@ -635,6 +673,7 @@ setting is used:
 | `ci_max_artifact_size_network_referee`            | 0             |
 | `ci_max_artifact_size_performance`                | 0             |
 | `ci_max_artifact_size_requirements`               | 0             |
+| `ci_max_artifact_size_requirements_v2`            | 0             |
 | `ci_max_artifact_size_sast`                       | 0             |
 | `ci_max_artifact_size_secret_detection`           | 0             |
 | `ci_max_artifact_size_terraform`                  | 5 MB ([introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/37018) in GitLab 13.3) |
@@ -648,7 +687,7 @@ installation, run the following in the [GitLab Rails console](operations/rails_c
 Plan.default.actual_limits.update!(ci_max_artifact_size_junit: 10)
 ```
 
-### Number of files per GitLab Pages web-site
+### Number of files per GitLab Pages website
 
 The total number of file entries (including directories and symlinks) is limited to `200,000` per
 GitLab Pages website.
@@ -662,6 +701,14 @@ For example, to change the limit to `100`:
 ```ruby
 Plan.default.actual_limits.update!(pages_file_entries: 100)
 ```
+
+### Number of custom domains per GitLab Pages website
+
+The total number of custom domains per GitLab Pages website is limited to `150` for [GitLab SaaS](../subscriptions/gitlab_com/index.md).
+
+The default limit for [GitLab self-managed](../subscriptions/self_managed/index.md) is `0` (unlimited).
+To set a limit on your self-managed instance, use the
+[Admin Area](pages/index.md#set-maximum-number-of-gitlab-pages-custom-domains-for-a-project).
 
 ### Number of registered runners per scope
 
@@ -773,9 +820,9 @@ This limit is [enabled on GitLab.com](../user/gitlab_com/index.md#gitlab-cicd).
 You can set a limit on the maximum size of a dotenv artifact. This limit is checked
 every time a dotenv file is exported as an artifact.
 
-Set the limit to `0` to disable it. Defaults to 5KB.
+Set the limit to `0` to disable it. Defaults to 5 KB.
 
-To set this limit to 5KB on a self-managed installation, run the following in the
+To set this limit to 5 KB on a self-managed installation, run the following in the
 [GitLab Rails console](operations/rails_console.md#starting-a-rails-console-session):
 
 ```ruby
@@ -865,7 +912,7 @@ An upper and lower limit applies to each of these:
 
 The lower limits result in additional diffs being collapsed. The higher limits
 prevent any more changes from rendering. For more information about these limits,
-[read the development documentation](../development/diffs.md#diff-limits).
+[read the development documentation](../development/merge_request_concepts/diffs/index.md#diff-limits).
 
 ### Merge request reports size limit
 
@@ -1026,8 +1073,18 @@ varies by file type:
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/320902) in GitLab 13.9.
 
 If a branch is merged while open merge requests still point to it, GitLab can
-retarget merge requests pointing to the now-merged branch. To learn more, read
+retarget merge requests pointing to the now-merged branch. For more information, see
 [Update merge requests when target branch merges](../user/project/merge_requests/index.md#update-merge-requests-when-target-branch-merges).
+
+## Maximum number of assignees and reviewers
+
+> - Maximum assignees [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368936) in GitLab 15.6.
+> - Maximum reviewers [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/366485) in GitLab 15.9.
+
+Issues and merge requests enforce these maximums:
+
+- Maximum assignees: 200
+- Maximum reviewers: 200
 
 ## CDN-based limits on GitLab.com
 

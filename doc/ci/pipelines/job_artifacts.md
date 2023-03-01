@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Insights
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Security
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/user/project/pipelines/job_artifacts.html'
 ---
 
@@ -264,7 +264,7 @@ artifacts and log. You must be:
 To delete a job:
 
 1. Go to a job's detail page.
-1. On the top right of the job's log, select **Erase job log** (**{remove}**).
+1. In the upper-right corner of the job's log, select **Erase job log** (**{remove}**).
 1. On the confirmation dialog, select **OK**.
 
 ## Expose job artifacts in the merge request UI
@@ -305,64 +305,53 @@ the artifact.
 ## How searching for job artifacts works
 
 In [GitLab 13.5 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/201784), artifacts
-for [parent and child pipelines](parent_child_pipelines.md) are searched in hierarchical
+for [parent and child pipelines](downstream_pipelines.md#parent-child-pipelines) are searched in hierarchical
 order from parent to child. For example, if both parent and child pipelines have a
 job with the same name, the job artifact from the parent pipeline is returned.
 
-## Access the latest job artifacts by URL
+## Access the latest job artifacts
 
-You can download job artifacts from the latest successful pipeline by using a URL.
+You can download job artifacts from the latest successful pipeline by using [the job artifacts API](../../api/job_artifacts.md).
+You cannot download [artifact reports](../yaml/artifacts_reports.md) with the job artifacts API,
+unless the report is added as a regular artifact with `artifacts:paths`.
 
-To download the whole artifacts archive:
+### Download the whole artifacts archive for a specific job
 
-```plaintext
-https://example.com/<namespace>/<project>/-/jobs/artifacts/<ref>/download?job=<job_name>
-```
+You can download the artifacts archive for a specific job with [the job artifacts API](../../api/job_artifacts.md#download-the-artifacts-archive).
 
-To download a single file from the artifacts:
-
-```plaintext
-https://example.com/<namespace>/<project>/-/jobs/artifacts/<ref>/raw/<path_to_file>?job=<job_name>
-```
-
-For example, to download the latest artifacts of the job named `coverage` in
-the `main` branch of the `gitlab` project in the `gitlab-org`
-namespace:
+For example, to download the latest artifacts of a job named `build` in the `main` branch of a project on GitLab.com:
 
 ```plaintext
-https://gitlab.com/gitlab-org/gitlab/-/jobs/artifacts/main/download?job=coverage
+https://gitlab.com/api/v4/projects/<project-id>/jobs/artifacts/main/download?job=build
 ```
 
-To download the file `review/index.html` from the same artifacts:
+Replace `<project-id>` with a valid project ID, found at the top of the project details page.
+
+### Download a single file from the artifacts
+
+You can download a specific file from the artifacts archive for a specific job with [the job artifacts API](../../api/job_artifacts.md#download-a-single-artifact-file-by-job-id).
+
+For example, to download the file `review/index.html` from the latest job named `build` in the `main` branch of the `gitlab` project in the `gitlab-org` namespace:
 
 ```plaintext
-https://gitlab.com/gitlab-org/gitlab/-/jobs/artifacts/main/raw/review/index.html?job=coverage
+https://gitlab.com/api/v4/projects/27456355/jobs/artifacts/main/raw/review/index.html?job=build
 ```
 
-To browse the latest job artifacts:
+### Browse job artifacts
+
+To browse the job artifacts of the latest successful pipeline for a specific job you can use the following URL:
 
 ```plaintext
 https://example.com/<namespace>/<project>/-/jobs/artifacts/<ref>/browse?job=<job_name>
 ```
 
-For example:
+For example, to browse the latest artifacts of a job named `build` in the `main` branch of a project on GitLab.com:
 
 ```plaintext
-https://gitlab.com/gitlab-org/gitlab/-/jobs/artifacts/main/browse?job=coverage
+https://gitlab.com/<full-project-path>/-/jobs/artifacts/main/browse?job=build
 ```
 
-To download specific files, including HTML files that
-are shown in [GitLab Pages](../../administration/pages/index.md):
-
-```plaintext
-https://example.com/<namespace>/<project>/-/jobs/artifacts/<ref>/file/<path>?job=<job_name>
-```
-
-For example, when a job `coverage` creates the artifact `htmlcov/index.html`:
-
-```plaintext
-https://gitlab.com/gitlab-org/gitlab/-/jobs/artifacts/main/file/htmlcov/index.html?job=coverage
-```
+Replace `<full-project-path>` with a valid project path, you can find it in the URL for your project.
 
 ## When job artifacts are deleted
 
@@ -388,7 +377,7 @@ Keeping the latest artifacts can use a large amount of storage space in projects
 with a lot of jobs or large artifacts. If the latest artifacts are not needed in
 a project, you can disable this behavior to save space:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Artifacts**.
 1. Clear the **Keep artifacts from most recent successful jobs** checkbox.
@@ -396,7 +385,28 @@ a project, you can disable this behavior to save space:
 You can disable this behavior for all projects on a self-managed instance in the
 [instance's CI/CD settings](../../user/admin_area/settings/continuous_integration.md#keep-the-latest-artifacts-for-all-jobs-in-the-latest-successful-pipelines).
 
-## Troubleshooting job artifacts
+When **Keep artifacts from most recent successful jobs** is enabled, artifacts are always kept for [blocked](../jobs/job_control.md#types-of-manual-jobs)
+pipelines. These artifacts expire only after the blocking job is triggered and the pipeline completes.
+For more information, see [issue 387087](https://gitlab.com/gitlab-org/gitlab/-/issues/387087).
+
+## Troubleshooting
+
+### Job does not retrieve certain artifacts
+
+By default, jobs fetch all artifacts from previous stages, but jobs using `dependencies`
+or `needs` do not fetch artifacts from all jobs by default.
+
+If you use these keywords, artifacts are fetched from only a subset of jobs. Review
+the keyword reference for information on how to fetch artifacts with these keywords:
+
+- [`dependencies`](../yaml/index.md#dependencies)
+- [`needs`](../yaml/index.md#needs)
+- [`needs:artifacts`](../yaml/index.md#needsartifacts)
+
+### Job artifacts using too much disk space
+
+There are a number of potential causes for this.
+[Read more in the job artifacts administration documentation](../../administration/job_artifacts.md#job-artifacts-using-too-much-disk-space).
 
 ### Error message `No files to upload`
 
@@ -404,7 +414,7 @@ This message is often preceded by other errors or warnings that specify the file
 generated. Check the job log for these messages.
 
 If you find no helpful messages, retry the failed job after activating
-[CI/CD debug logging](../variables/index.md#debug-logging).
+[CI/CD debug logging](../variables/index.md#enable-debug-logging).
 This logging should provide information to help you investigate further.
 
 ### Error message `Missing /usr/bin/gitlab-runner-helper. Uploading artifacts is disabled.`

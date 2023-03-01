@@ -23,6 +23,12 @@ RSpec.shared_examples 'routable resource' do
       end.not_to exceed_all_query_limit(control_count)
     end
 
+    context 'when path is a negative number' do
+      it 'returns nil' do
+        expect(described_class.find_by_full_path(-1)).to be_nil
+      end
+    end
+
     context 'with redirect routes' do
       let_it_be(:redirect_route) { create(:redirect_route, source: record) }
 
@@ -67,6 +73,17 @@ RSpec.shared_examples 'routable resource with parent' do
 
   describe '#full_name' do
     it { expect(record.full_name).to eq "#{record.parent.human_name} / #{record.name}" }
+
+    context 'without route name' do
+      before do
+        stub_feature_flags(cached_route_lookups: true)
+        record.route.update_attribute(:name, nil)
+      end
+
+      it 'builds full name' do
+        expect(record.full_name).to eq("#{record.parent.human_name} / #{record.name}")
+      end
+    end
 
     it 'hits the cache when not preloaded' do
       forcibly_hit_cached_lookup(record, :full_name)

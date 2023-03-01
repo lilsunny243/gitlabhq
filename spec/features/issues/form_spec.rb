@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'New/edit issue', :js do
+RSpec.describe 'New/edit issue', :js, feature_category: :team_planning do
   include ActionView::Helpers::JavaScriptHelper
 
   let_it_be(:project)   { create(:project, :repository) }
@@ -43,7 +43,7 @@ RSpec.describe 'New/edit issue', :js do
         # To work around this, we have to hold on to and call to the original implementation manually.
         original_issue_dropdown_options = FormHelper.instance_method(:assignees_dropdown_options)
         allow_any_instance_of(FormHelper).to receive(:assignees_dropdown_options).and_wrap_original do |original, *args|
-          options = original_issue_dropdown_options.bind(original.receiver).call(*args)
+          options = original_issue_dropdown_options.bind_call(original.receiver, *args)
           options[:data][:per_page] = 2
 
           options
@@ -140,14 +140,10 @@ RSpec.describe 'New/edit issue', :js do
       end
       expect(find('a', text: 'Assign to me', visible: false)).not_to be_visible
 
-      click_button 'Milestone'
-      page.within '.issue-milestone' do
-        click_link milestone.title
-      end
+      click_button 'Select milestone'
+      click_button milestone.title
       expect(find('input[name="issue[milestone_id]"]', visible: false).value).to match(milestone.id.to_s)
-      page.within '.js-milestone-select' do
-        expect(page).to have_content milestone.title
-      end
+      expect(page).to have_button milestone.title
 
       click_button 'Labels'
       page.within '.dropdown-menu-labels' do
@@ -307,14 +303,11 @@ RSpec.describe 'New/edit issue', :js do
       end
 
       it 'escapes milestone' do
-        click_button 'Milestone'
+        click_button 'Select milestone'
+        click_button milestone.title
 
         page.within '.issue-milestone' do
-          click_link milestone.title
-        end
-
-        page.within '.js-milestone-select' do
-          expect(page).to have_content milestone.title
+          expect(page).to have_button milestone.title
           expect(page).not_to have_selector 'img'
         end
       end
@@ -360,14 +353,14 @@ RSpec.describe 'New/edit issue', :js do
       expect(find('#issue_description').value).to match('description from query parameter')
     end
 
-    it 'fills the description from the issuable_template query parameter' do
+    it 'fills the description from the issuable_template query parameter', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/388728' do
       visit new_project_issue_path(project, issuable_template: 'test_template')
       wait_for_requests
 
       expect(find('#issue_description').value).to match('description from template')
     end
 
-    it 'fills the description from the issuable_template and issue[description] query parameters' do
+    it 'fills the description from the issuable_template and issue[description] query parameters', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/388728' do
       visit new_project_issue_path(project, issuable_template: 'test_template', issue: { description: 'description from query parameter' })
       wait_for_requests
 
@@ -444,9 +437,7 @@ RSpec.describe 'New/edit issue', :js do
         expect(page).to have_content user.name
       end
 
-      page.within '.js-milestone-select' do
-        expect(page).to have_content milestone.title
-      end
+      expect(page).to have_button milestone.title
 
       click_button 'Labels'
       page.within '.dropdown-menu-labels' do

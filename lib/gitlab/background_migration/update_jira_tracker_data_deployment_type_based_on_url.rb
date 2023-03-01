@@ -4,6 +4,8 @@
 module Gitlab
   module BackgroundMigration
     class UpdateJiraTrackerDataDeploymentTypeBasedOnUrl < Gitlab::BackgroundMigration::BatchedMigrationJob
+      feature_category :database
+
       # rubocop: disable Gitlab/NamespacedClass
       class JiraTrackerData < ActiveRecord::Base
         self.table_name = "jira_tracker_data"
@@ -37,16 +39,16 @@ module Gitlab
           end
         end
 
-        cloud_mappings = cloud.each_with_object({}) do |tracker_data, hash|
-          hash[tracker_data] = { deployment_type: 2 }
+        cloud_mappings = cloud.index_with do
+          { deployment_type: 2 }
         end
 
-        server_mappings = server.each_with_object({}) do |tracker_data, hash|
-          hash[tracker_data] = { deployment_type: 1 }
+        server_mappings = server.index_with do
+          { deployment_type: 1 }
         end
 
-        unknown_mappings = unknown.each_with_object({}) do |tracker_data, hash|
-          hash[tracker_data] = { deployment_type: 0 }
+        unknown_mappings = unknown.index_with do
+          { deployment_type: 0 }
         end
 
         mappings = cloud_mappings.merge(server_mappings, unknown_mappings)

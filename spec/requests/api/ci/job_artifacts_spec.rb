@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::JobArtifacts do
+RSpec.describe API::Ci::JobArtifacts, feature_category: :build_artifacts do
   include HttpBasicAuthHelpers
   include DependencyProxyHelpers
+  include Ci::JobTokenScopeHelpers
 
   include HttpIOHelpers
 
@@ -312,7 +313,7 @@ RSpec.describe API::Ci::JobArtifacts do
     context 'normal authentication' do
       context 'job with artifacts' do
         context 'when artifacts are stored locally' do
-          let(:job) { create(:ci_build, :artifacts, pipeline: pipeline) }
+          let(:job) { create(:ci_build, :artifacts, pipeline: pipeline, project: project) }
 
           subject { get api("/projects/#{project.id}/jobs/#{job.id}/artifacts", api_user) }
 
@@ -329,11 +330,12 @@ RSpec.describe API::Ci::JobArtifacts do
               stub_licensed_features(cross_project_pipelines: true)
             end
 
-            it_behaves_like 'downloads artifact'
-
             context 'when job token scope is enabled' do
               before do
-                other_job.project.ci_cd_settings.update!(job_token_scope_enabled: true)
+                other_job.project.ci_cd_settings.update!(
+                  job_token_scope_enabled: true,
+                  inbound_job_token_scope_enabled: true
+                )
               end
 
               it 'does not allow downloading artifacts' do
@@ -343,7 +345,9 @@ RSpec.describe API::Ci::JobArtifacts do
               end
 
               context 'when project is added to the job token scope' do
-                let!(:link) { create(:ci_job_token_project_scope_link, source_project: other_job.project, target_project: job.project) }
+                before do
+                  make_project_fully_accessible(other_job.project, job.project)
+                end
 
                 it_behaves_like 'downloads artifact'
               end
@@ -386,6 +390,35 @@ RSpec.describe API::Ci::JobArtifacts do
           context 'when proxy download is disabled' do
             it 'returns location redirect' do
               expect(response).to have_gitlab_http_status(:found)
+            end
+          end
+
+          context 'when Google CDN is configured' do
+            let(:cdn_config) do
+              {
+                'provider' => 'Google',
+                'url' => 'https://cdn.example.org',
+                'key_name' => 'stanhu-key',
+                'key' => Base64.urlsafe_encode64(SecureRandom.hex)
+              }
+            end
+
+            before do
+              stub_object_storage_uploader(config: Gitlab.config.artifacts.object_store,
+                                           uploader: JobArtifactUploader,
+                                           proxy_download: proxy_download,
+                                           cdn: cdn_config)
+              allow(Gitlab::ApplicationContext).to receive(:push).and_call_original
+            end
+
+            subject { get api("/projects/#{project.id}/jobs/#{job.id}/artifacts", api_user), env: { 'REMOTE_ADDR': '18.245.0.1' } }
+
+            it 'returns CDN-signed URL' do
+              expect(Gitlab::ApplicationContext).to receive(:push).with(artifact_used_cdn: true).and_call_original
+
+              subject
+
+              expect(response.redirect_url).to start_with("https://cdn.example.org/#{artifact.file.path}")
             end
           end
 

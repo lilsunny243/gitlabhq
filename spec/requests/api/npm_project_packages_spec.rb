@@ -2,19 +2,32 @@
 
 require 'spec_helper'
 
-RSpec.describe API::NpmProjectPackages do
+RSpec.describe API::NpmProjectPackages, feature_category: :package_registry do
   include_context 'npm api setup'
 
-  describe 'GET /api/v4/projects/:id/packages/npm/*package_name' do
-    it_behaves_like 'handling get metadata requests', scope: :project do
-      let(:url) { api("/projects/#{project.id}/packages/npm/#{package_name}") }
+  shared_examples 'accept get request on private project with access to package registry for everyone' do
+    subject { get(url) }
+
+    before do
+      project.update!(visibility_level: Gitlab::VisibilityLevel::PRIVATE)
+      project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
     end
+
+    it_behaves_like 'returning response status', :ok
+  end
+
+  describe 'GET /api/v4/projects/:id/packages/npm/*package_name' do
+    let(:url) { api("/projects/#{project.id}/packages/npm/#{package_name}") }
+
+    it_behaves_like 'handling get metadata requests', scope: :project
+    it_behaves_like 'accept get request on private project with access to package registry for everyone'
   end
 
   describe 'GET /api/v4/projects/:id/packages/npm/-/package/*package_name/dist-tags' do
-    it_behaves_like 'handling get dist tags requests', scope: :project do
-      let(:url) { api("/projects/#{project.id}/packages/npm/-/package/#{package_name}/dist-tags") }
-    end
+    let(:url) { api("/projects/#{project.id}/packages/npm/-/package/#{package_name}/dist-tags") }
+
+    it_behaves_like 'handling get dist tags requests', scope: :project
+    it_behaves_like 'accept get request on private project with access to package registry for everyone'
   end
 
   describe 'PUT /api/v4/projects/:id/packages/npm/-/package/*package_name/dist-tags/:tag' do
@@ -29,8 +42,19 @@ RSpec.describe API::NpmProjectPackages do
     end
   end
 
+  describe 'POST /api/v4/projects/:id/packages/npm/-/npm/v1/security/advisories/bulk' do
+    it_behaves_like 'handling audit request', path: 'advisories/bulk', scope: :project do
+      let(:url) { api("/projects/#{project.id}/packages/npm/-/npm/v1/security/advisories/bulk") }
+    end
+  end
+
+  describe 'POST /api/v4/projects/:id/packages/npm/-/npm/v1/security/audits/quick' do
+    it_behaves_like 'handling audit request', path: 'audits/quick', scope: :project do
+      let(:url) { api("/projects/#{project.id}/packages/npm/-/npm/v1/security/audits/quick") }
+    end
+  end
+
   describe 'GET /api/v4/projects/:id/packages/npm/*package_name/-/*file_name' do
-    let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace } }
     let(:package_file) { package.package_files.first }
 
     let(:headers) { {} }
@@ -63,6 +87,7 @@ RSpec.describe API::NpmProjectPackages do
 
         it_behaves_like 'successfully downloads the file'
         it_behaves_like 'a package tracking event', 'API::NpmPackages', 'pull_package'
+        it_behaves_like 'bumping the package last downloaded at field'
       end
 
       context 'with job token' do
@@ -70,12 +95,14 @@ RSpec.describe API::NpmProjectPackages do
 
         it_behaves_like 'successfully downloads the file'
         it_behaves_like 'a package tracking event', 'API::NpmPackages', 'pull_package'
+        it_behaves_like 'bumping the package last downloaded at field'
       end
     end
 
     context 'a public project' do
       it_behaves_like 'successfully downloads the file'
       it_behaves_like 'a package tracking event', 'API::NpmPackages', 'pull_package'
+      it_behaves_like 'bumping the package last downloaded at field'
 
       context 'with a job token for a different user' do
         let_it_be(:other_user) { create(:user) }
@@ -104,6 +131,14 @@ RSpec.describe API::NpmProjectPackages do
 
           expect(response).to have_gitlab_http_status(:forbidden)
         end
+      end
+
+      context 'with access to package registry for everyone' do
+        before do
+          project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+        end
+
+        it_behaves_like 'successfully downloads the file'
       end
     end
 
@@ -179,7 +214,7 @@ RSpec.describe API::NpmProjectPackages do
         let_it_be(:version) { '1.2.3' }
 
         let(:params) { upload_params(package_name: package_name, package_version: version) }
-        let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, user: user } }
+        let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace, user: user, property: 'i_package_npm_user' } }
 
         shared_examples 'handling upload with different authentications' do
           context 'with access token' do

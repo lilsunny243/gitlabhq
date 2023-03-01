@@ -216,7 +216,7 @@ RSpec.describe UploadsController do
       end
 
       context 'for PDF files' do
-        let(:filename) { 'git-cheat-sheet.pdf' }
+        let(:filename) { 'sample.pdf' }
         let(:expected_disposition) { 'inline;' }
         let(:note) { create(:note, :with_pdf_attachment, project: project) }
 
@@ -268,17 +268,35 @@ RSpec.describe UploadsController do
       end
 
       context "when not signed in" do
-        it "responds with status 200" do
-          get :show, params: { model: "user", mounted_as: "avatar", id: user.id, filename: "dk.png" }
+        context "when restricted visibility level is not set to public" do
+          before do
+            stub_application_setting(restricted_visibility_levels: [])
+          end
 
-          expect(response).to have_gitlab_http_status(:ok)
+          it "responds with status 200" do
+            get :show, params: { model: "user", mounted_as: "avatar", id: user.id, filename: "dk.png" }
+
+            expect(response).to have_gitlab_http_status(:ok)
+          end
+
+          it_behaves_like 'content publicly cached' do
+            subject do
+              get :show, params: { model: 'user', mounted_as: 'avatar', id: user.id, filename: 'dk.png' }
+
+              response
+            end
+          end
         end
 
-        it_behaves_like 'content publicly cached' do
-          subject do
-            get :show, params: { model: 'user', mounted_as: 'avatar', id: user.id, filename: 'dk.png' }
+        context "when restricted visibility level is set to public" do
+          before do
+            stub_application_setting(restricted_visibility_levels: [Gitlab::VisibilityLevel::PUBLIC])
+          end
 
-            response
+          it "responds with status 401" do
+            get :show, params: { model: "user", mounted_as: "avatar", id: user.id, filename: "dk.png" }
+
+            expect(response).to have_gitlab_http_status(:unauthorized)
           end
         end
       end
@@ -640,19 +658,17 @@ RSpec.describe UploadsController do
     end
 
     context 'Appearance' do
-      context 'when viewing a custom header logo' do
-        let!(:appearance) { create :appearance, header_logo: fixture_file_upload('spec/fixtures/dk.png', 'image/png') }
-
+      shared_examples 'view custom logo' do |mounted_as|
         context 'when not signed in' do
           it 'responds with status 200' do
-            get :show, params: { model: 'appearance', mounted_as: 'header_logo', id: appearance.id, filename: 'dk.png' }
+            get :show, params: { model: 'appearance', mounted_as: mounted_as, id: appearance.id, filename: 'dk.png' }
 
             expect(response).to have_gitlab_http_status(:ok)
           end
 
           it_behaves_like 'content publicly cached' do
             subject do
-              get :show, params: { model: 'appearance', mounted_as: 'header_logo', id: appearance.id, filename: 'dk.png' }
+              get :show, params: { model: 'appearance', mounted_as: mounted_as, id: appearance.id, filename: 'dk.png' }
 
               response
             end
@@ -660,24 +676,22 @@ RSpec.describe UploadsController do
         end
       end
 
+      context 'when viewing a custom pwa icon' do
+        let!(:appearance) { create :appearance, pwa_icon: fixture_file_upload('spec/fixtures/dk.png', 'image/png') }
+
+        it_behaves_like 'view custom logo', 'pwa_icon'
+      end
+
+      context 'when viewing a custom header logo' do
+        let!(:appearance) { create :appearance, header_logo: fixture_file_upload('spec/fixtures/dk.png', 'image/png') }
+
+        it_behaves_like 'view custom logo', 'header_logo'
+      end
+
       context 'when viewing a custom logo' do
         let!(:appearance) { create :appearance, logo: fixture_file_upload('spec/fixtures/dk.png', 'image/png') }
 
-        context 'when not signed in' do
-          it 'responds with status 200' do
-            get :show, params: { model: 'appearance', mounted_as: 'logo', id: appearance.id, filename: 'dk.png' }
-
-            expect(response).to have_gitlab_http_status(:ok)
-          end
-
-          it_behaves_like 'content publicly cached' do
-            subject do
-              get :show, params: { model: 'appearance', mounted_as: 'logo', id: appearance.id, filename: 'dk.png' }
-
-              response
-            end
-          end
-        end
+        it_behaves_like 'view custom logo', 'logo'
       end
     end
 
@@ -720,6 +734,46 @@ RSpec.describe UploadsController do
         get :show, params: { model: "alert_management_metric_image", mounted_as: 'file', id: metric_image.id, filename: metric_image.filename }
 
         expect(response).to have_gitlab_http_status(:ok)
+      end
+    end
+
+    context "when viewing an achievement" do
+      let!(:achievement) { create(:achievement, avatar: fixture_file_upload("spec/fixtures/dk.png", "image/png")) }
+
+      context "when signed in" do
+        before do
+          sign_in(user)
+        end
+
+        it "responds with status 200" do
+          get :show, params: { model: "achievements/achievement", mounted_as: "avatar", id: achievement.id, filename: "dk.png" }
+
+          expect(response).to have_gitlab_http_status(:ok)
+        end
+
+        it_behaves_like 'content publicly cached' do
+          subject do
+            get :show, params: { model: "achievements/achievement", mounted_as: "avatar", id: achievement.id, filename: "dk.png" }
+
+            response
+          end
+        end
+      end
+
+      context "when not signed in" do
+        it "responds with status 200" do
+          get :show, params: { model: "achievements/achievement", mounted_as: "avatar", id: achievement.id, filename: "dk.png" }
+
+          expect(response).to have_gitlab_http_status(:ok)
+        end
+
+        it_behaves_like 'content publicly cached' do
+          subject do
+            get :show, params: { model: "achievements/achievement", mounted_as: "avatar", id: achievement.id, filename: "dk.png" }
+
+            response
+          end
+        end
       end
     end
   end

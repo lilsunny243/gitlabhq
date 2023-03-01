@@ -33,8 +33,11 @@ module Ci
     end
 
     def runner_variables
-      stop_expanding_file_vars = ::Feature.enabled?(:ci_stop_expanding_file_vars_for_runners, project)
-      variables.sort_and_expand_all(keep_undefined: true, expand_file_vars: !stop_expanding_file_vars).to_runner_variables
+      variables
+        .sort_and_expand_all(keep_undefined: true,
+                             expand_file_refs: false,
+                             expand_raw_refs: false)
+        .to_runner_variables
     end
 
     def refspecs
@@ -55,7 +58,7 @@ module Ci
     # rubocop: disable CodeReuse/ActiveRecord
     def all_dependencies
       dependencies = super
-      ActiveRecord::Associations::Preloader.new.preload(dependencies, :job_artifacts_archive)
+      ActiveRecord::Associations::Preloader.new(records: dependencies, associations: :job_artifacts_archive).call
       dependencies
     end
     # rubocop: enable CodeReuse/ActiveRecord

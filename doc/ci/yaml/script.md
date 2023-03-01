@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Format scripts and job logs **(FREE)**
@@ -203,7 +203,7 @@ job:
     - echo -e "\e[31mThis text is red,\e[0m but this text isn't\e[31m however this text is red again."
 ```
 
-You can define the color codes in Shell environment variables, or even [custom CI/CD variables](../variables/index.md#custom-cicd-variables),
+You can define the color codes in Shell environment variables, or even [CI/CD variables](../variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file),
 which makes the commands easier to read and reusable.
 
 For example, using the same example as above and environment variables defined in a `before_script`:
@@ -244,6 +244,7 @@ pages-job:
   stage: deploy
   script:
     - curl --header 'PRIVATE-TOKEN: ${PRIVATE_TOKEN}' "https://gitlab.example.com/api/v4/projects"
+  environment: production
 ```
 
 The YAML parser thinks the `:` defines a YAML keyword, and outputs the
@@ -257,6 +258,7 @@ pages-job:
   stage: deploy
   script:
     - 'curl --header "PRIVATE-TOKEN: ${PRIVATE_TOKEN}" "https://gitlab.example.com/api/v4/projects"'
+  environment: production
 ```
 
 ### Job does not fail when using `&&` in a script
@@ -282,3 +284,59 @@ job-fails:
     - (invalid-command xyz && invalid-command abc)
     - echo "The job failed already, and this is not executed."
 ```
+
+### Multiline commands not preserved by folded YAML multiline block scalar
+
+If you use the `- >` folded YAML multiline block scalar to split long commands,
+additional indentation causes the lines to be processed as individual commands.
+
+For example:
+
+```yaml
+script:
+  - >
+    RESULT=$(curl --silent
+      --header
+        "Authorization: Bearer $CI_JOB_TOKEN"
+      "${CI_API_V4_URL}/job"
+    )
+```
+
+This fails as the indentation causes the line breaks to be preserved:
+
+<!-- vale gitlab.CurlStringsQuoted = NO -->
+
+```plaintext
+$ RESULT=$(curl --silent # collapsed multi-line command
+curl: no URL specified!
+curl: try 'curl --help' or 'curl --manual' for more information
+/bin/bash: line 149: --header: command not found
+/bin/bash: line 150: https://gitlab.example.com/api/v4/job: No such file or directory
+```
+
+<!-- vale gitlab.CurlStringsQuoted = YES -->
+
+Resolve this by either:
+
+- Removing the extra indentation:
+
+  ```yaml
+  script:
+    - >
+      RESULT=$(curl --silent
+      --header
+      "Authorization: Bearer $CI_JOB_TOKEN"
+      "${CI_API_V4_URL}/job"
+      )
+  ```
+
+- Modifying the script so the extra line breaks are handled, for example using shell line continuation:
+
+  ```yaml
+  script:
+    - >
+      RESULT=$(curl --silent \
+        --header \
+          "Authorization: Bearer $CI_JOB_TOKEN" \
+        "${CI_API_V4_URL}/job")
+  ```

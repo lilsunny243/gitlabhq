@@ -82,7 +82,7 @@ RSpec.describe RuboCop::Formatter::TodoFormatter do
 
       expect(todo_yml('B/AutoCorrect')).to eq(<<~YAML)
         ---
-        # Cop supports --auto-correct.
+        # Cop supports --autocorrect.
         B/AutoCorrect:
           Exclude:
             - 'd.rb'
@@ -176,6 +176,98 @@ RSpec.describe RuboCop::Formatter::TodoFormatter do
       end
     end
 
+    context 'with grace period' do
+      let(:yaml) do
+        <<~YAML
+          ---
+          B/TooManyOffenses:
+            Details: grace period
+            Exclude:
+              - 'x.rb'
+        YAML
+      end
+
+      shared_examples 'keeps grace period' do
+        it 'keeps Details: grace period' do
+          run_formatter
+
+          expect(todo_yml('B/TooManyOffenses')).to eq(<<~YAML)
+            ---
+            B/TooManyOffenses:
+              Details: grace period
+              Exclude:
+                - 'a.rb'
+                - 'c.rb'
+          YAML
+        end
+      end
+
+      context 'in rubocop_todo/' do
+        before do
+          todo_dir.write('B/TooManyOffenses', yaml)
+          todo_dir.inspect_all
+        end
+
+        it_behaves_like 'keeps grace period'
+      end
+
+      context 'in rubocop_todo.yml' do
+        before do
+          File.write('.rubocop_todo.yml', yaml)
+        end
+
+        it_behaves_like 'keeps grace period'
+      end
+
+      context 'with invalid details value' do
+        let(:yaml) do
+          <<~YAML
+            ---
+            B/TooManyOffenses:
+              Details: something unknown
+              Exclude:
+                - 'x.rb'
+          YAML
+        end
+
+        it 'ignores the details and warns' do
+          File.write('.rubocop_todo.yml', yaml)
+
+          expect { run_formatter }
+            .to output(%r{B/TooManyOffenses: Unhandled value "something unknown" for `Details` key.})
+            .to_stderr
+
+          expect(todo_yml('B/TooManyOffenses')).to eq(<<~YAML)
+            ---
+            B/TooManyOffenses:
+              Exclude:
+                - 'a.rb'
+                - 'c.rb'
+          YAML
+        end
+      end
+
+      context 'and previously disabled' do
+        let(:yaml) do
+          <<~YAML
+            ---
+            B/TooManyOffenses:
+              Enabled: false
+              Details: grace period
+              Exclude:
+                - 'x.rb'
+          YAML
+        end
+
+        it 'raises an exception' do
+          File.write('.rubocop_todo.yml', yaml)
+
+          expect { run_formatter }
+            .to raise_error(RuntimeError, 'B/TooManyOffenses: Cop must be enabled to use `Details: grace period`.')
+        end
+      end
+    end
+
     context 'with cop configuration in both .rubocop_todo/ and .rubocop_todo.yml' do
       before do
         todo_dir.write('B/TooManyOffenses', <<~YAML)
@@ -217,18 +309,78 @@ RSpec.describe RuboCop::Formatter::TodoFormatter do
 
   context 'without offenses detected' do
     before do
+      todo_dir.write('A/Cop', yaml) if yaml
+      todo_dir.inspect_all
+
       formatter.started(%w[a.rb b.rb])
       formatter.file_finished('a.rb', [])
       formatter.file_finished('b.rb', [])
       formatter.finished(%w[a.rb b.rb])
+
+      todo_dir.delete_inspected
     end
 
-    it 'does not output anything' do
-      expect(stdout.string).to eq('')
+    context 'without existing TODOs' do
+      let(:yaml) { nil }
+
+      it 'does not output anything' do
+        expect(stdout.string).to eq('')
+      end
+
+      it 'does not write any YAML files' do
+        expect(rubocop_todo_dir_listing).to be_empty
+      end
     end
 
-    it 'does not write any YAML files' do
-      expect(rubocop_todo_dir_listing).to be_empty
+    context 'with existing TODOs' do
+      context 'when existing offenses only' do
+        let(:yaml) do
+          <<~YAML
+            ---
+            A/Cop:
+              Exclude:
+                - x.rb
+          YAML
+        end
+
+        it 'does not output anything' do
+          expect(stdout.string).to eq('')
+        end
+
+        it 'does not write any YAML files' do
+          expect(rubocop_todo_dir_listing).to be_empty
+        end
+      end
+
+      context 'when in grace period' do
+        let(:yaml) do
+          <<~YAML
+            ---
+            A/Cop:
+              Details: grace period
+              Exclude:
+                - x.rb
+          YAML
+        end
+
+        it 'outputs its actions' do
+          expect(stdout.string).to eq(<<~OUTPUT)
+            Written to .rubocop_todo/a/cop.yml
+          OUTPUT
+        end
+
+        it 'creates YAML file with Details only', :aggregate_failures do
+          expect(rubocop_todo_dir_listing).to contain_exactly(
+            'a/cop.yml'
+          )
+
+          expect(todo_yml('A/Cop')).to eq(<<~YAML)
+            ---
+            A/Cop:
+              Details: grace period
+          YAML
+        end
+      end
     end
   end
 

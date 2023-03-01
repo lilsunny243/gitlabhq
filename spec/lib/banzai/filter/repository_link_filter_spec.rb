@@ -2,20 +2,19 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Filter::RepositoryLinkFilter do
-  include GitHelpers
+RSpec.describe Banzai::Filter::RepositoryLinkFilter, feature_category: :team_planning do
   include RepoHelpers
 
   def filter(doc, contexts = {})
     contexts.reverse_merge!({
-      commit:         commit,
-      project:        project,
-      current_user:   user,
-      group:          group,
-      wiki:           wiki,
-      ref:            ref,
+      commit: commit,
+      project: project,
+      current_user: user,
+      group: group,
+      wiki: wiki,
+      ref: ref,
       requested_path: requested_path,
-      only_path:      only_path
+      only_path: only_path
     })
 
     described_class.call(doc, contexts)
@@ -70,7 +69,7 @@ RSpec.describe Banzai::Filter::RepositoryLinkFilter do
     expect { filter(raw_doc) }.to change { Gitlab::GitalyClient.get_request_count }.by(2)
   end
 
-  shared_examples :preserve_unchanged do
+  shared_examples 'preserve unchanged' do
     it 'does not modify any relative URL in anchor' do
       doc = filter(link('README.md'))
       expect(doc.at_css('a')['href']).to eq 'README.md'
@@ -97,25 +96,25 @@ RSpec.describe Banzai::Filter::RepositoryLinkFilter do
   context 'with a wiki' do
     let(:wiki) { double('ProjectWiki') }
 
-    include_examples :preserve_unchanged
+    include_examples 'preserve unchanged'
   end
 
   context 'without a repository' do
     let(:project) { create(:project) }
 
-    include_examples :preserve_unchanged
+    include_examples 'preserve unchanged'
   end
 
   context 'with an empty repository' do
     let(:project) { create(:project_empty_repo) }
 
-    include_examples :preserve_unchanged
+    include_examples 'preserve unchanged'
   end
 
   context 'without project repository access' do
     let(:project) { create(:project, :repository, repository_access_level: ProjectFeature::PRIVATE) }
 
-    include_examples :preserve_unchanged
+    include_examples 'preserve unchanged'
   end
 
   it 'does not raise an exception on invalid URIs' do
@@ -148,7 +147,7 @@ RSpec.describe Banzai::Filter::RepositoryLinkFilter do
       .to eq "/#{project_path}/-/blob/#{ref}/non/existent.file"
   end
 
-  shared_examples :valid_repository do
+  shared_examples 'valid repository' do
     it 'handles Gitaly unavailable exceptions gracefully' do
       allow_next_instance_of(Gitlab::GitalyClient::BlobService) do |blob_service|
         allow(blob_service).to receive(:get_blob_types).and_raise(GRPC::Unavailable)
@@ -304,6 +303,12 @@ RSpec.describe Banzai::Filter::RepositoryLinkFilter do
       expect(doc.at_css('img')['src']).to eq "/#{project_path}/-/raw/#{Addressable::URI.escape(ref)}/#{escaped}"
     end
 
+    it 'supports percent sign in filenames' do
+      doc = filter(link('doc/api/README%.md'))
+      expect(doc.at_css('a')['href'])
+        .to eq "/#{project_path}/-/blob/#{ref}/doc/api/README%25.md"
+    end
+
     context 'when requested path is a file in the repo' do
       let(:requested_path) { 'doc/api/README.md' }
 
@@ -365,13 +370,13 @@ RSpec.describe Banzai::Filter::RepositoryLinkFilter do
   end
 
   context 'with a valid commit' do
-    include_examples :valid_repository
+    include_examples 'valid repository'
   end
 
   context 'with a valid ref' do
     # force filter to use ref instead of commit
     let(:commit) { nil }
 
-    include_examples :valid_repository
+    include_examples 'valid repository'
   end
 end

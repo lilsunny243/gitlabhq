@@ -12,6 +12,7 @@ module Routing
         tab
         glm_source
         glm_content
+        _gl
       ].freeze
 
       def initialize(request_object, group, project)
@@ -43,11 +44,12 @@ module Routing
       private
 
       def mask_id(value)
-        if @request.path_parameters[:controller] == 'projects/blob'
+        case @request.path_parameters[:controller]
+        when 'projects/blob'
           ':repository_path'
-        elsif @request.path_parameters[:controller] == 'projects'
+        when 'projects'
           "project#{@project&.id}"
-        elsif @request.path_parameters[:controller] == 'groups'
+        when 'groups'
           "namespace#{@group&.id}"
         else
           value

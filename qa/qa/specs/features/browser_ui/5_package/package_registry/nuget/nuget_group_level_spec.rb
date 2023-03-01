@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, :reliable do
+  RSpec.describe 'Package', :skip_live_env, :orchestrated, :packages, :object_storage, :reliable, product_group: :package_registry do
     describe 'NuGet group level endpoint' do
       using RSpec::Parameterized::TableSyntax
       include Runtime::Fixtures
@@ -51,11 +51,11 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::GroupRunner.fabricate! do |runner|
           runner.name = "qa-runner-#{Time.now.to_i}"
           runner.tags = ["runner-for-#{project.group.name}"]
           runner.executor = :docker
-          runner.token = project.group.reload!.runners_token
+          runner.group = project.group
         end
       end
 
@@ -97,7 +97,10 @@ module QA
           end
         end
 
-        it 'publishes a nuget package at the project endpoint and installs it from the group endpoint', testcase: params[:testcase] do
+        it 'publishes a nuget package at the project endpoint and installs it from the group endpoint', testcase: params[:testcase], quarantine: {
+          type: :stale,
+          issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391648'
+        } do
           Flow::Login.sign_in
 
           Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
@@ -105,14 +108,7 @@ module QA
               nuget_upload_yaml = ERB.new(read_fixture('package_managers/nuget', 'nuget_upload_package.yaml.erb')).result(binding)
               commit.project = project
               commit.commit_message = 'Add .gitlab-ci.yml'
-              commit.update_files(
-                [
-                    {
-                        file_path: '.gitlab-ci.yml',
-                        content: nuget_upload_yaml
-                    }
-                ]
-              )
+              commit.update_files([{ file_path: '.gitlab-ci.yml', content: nuget_upload_yaml }])
             end
           end
 
@@ -137,29 +133,22 @@ module QA
               commit.commit_message = 'Add new csproj file'
               commit.add_files(
                 [
-                    {
-                        file_path: 'otherdotnet.csproj',
-                        content: <<~EOF
-                            <Project Sdk="Microsoft.NET.Sdk">
+                  {
+                      file_path: 'otherdotnet.csproj',
+                      content: <<~EOF
+                      <Project Sdk="Microsoft.NET.Sdk">
 
-                              <PropertyGroup>
-                                <OutputType>Exe</OutputType>
-                                <TargetFramework>net5.0</TargetFramework>
-                              </PropertyGroup>
+                        <PropertyGroup>
+                          <OutputType>Exe</OutputType>
+                          <TargetFramework>net7.0</TargetFramework>
+                        </PropertyGroup>
 
-                            </Project>
-                        EOF
-                    }
+                      </Project>
+                      EOF
+                  }
                 ]
               )
-              commit.update_files(
-                [
-                    {
-                        file_path: '.gitlab-ci.yml',
-                        content: nuget_install_yaml
-                    }
-                ]
-              )
+              commit.update_files([{ file_path: '.gitlab-ci.yml', content: nuget_install_yaml }])
             end
           end
 

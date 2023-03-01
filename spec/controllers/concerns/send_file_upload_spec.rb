@@ -18,6 +18,12 @@ RSpec.describe SendFileUpload do
     end
   end
 
+  let(:cdn_uploader_class) do
+    Class.new(uploader_class) do
+      include ObjectStorage::CDN::Concern
+    end
+  end
+
   let(:controller_class) do
     Class.new do
       include SendFileUpload
@@ -48,17 +54,18 @@ RSpec.describe SendFileUpload do
       FileUtils.rm_f(temp_file)
     end
 
-    shared_examples 'handles image resize requests' do
+    shared_examples 'handles image resize requests' do |mount|
       let(:headers) { double }
       let(:image_requester) { build(:user) }
       let(:image_owner) { build(:user) }
+      let(:width) { mount == :pwa_icon ? 192 : 64 }
       let(:params) do
         { attachment: 'avatar.png' }
       end
 
       before do
         allow(uploader).to receive(:image_safe_for_scaling?).and_return(true)
-        allow(uploader).to receive(:mounted_as).and_return(:avatar)
+        allow(uploader).to receive(:mounted_as).and_return(mount)
 
         allow(controller).to receive(:headers).and_return(headers)
         # both of these are valid cases, depending on whether we are dealing with
@@ -93,12 +100,13 @@ RSpec.describe SendFileUpload do
       context 'with valid width parameter' do
         it 'renders OK with workhorse command header' do
           expect(controller).not_to receive(:send_file)
-          expect(controller).to receive(:params).at_least(:once).and_return(width: '64')
+          expect(controller).to receive(:params).at_least(:once).and_return(width: width.to_s)
           expect(controller).to receive(:head).with(:ok)
 
-          expect(Gitlab::Workhorse).to receive(:send_scaled_image).with(a_string_matching('^(/.+|https://.+)'), 64, 'image/png').and_return([
-            Gitlab::Workhorse::SEND_DATA_HEADER, "send-scaled-img:faux"
-          ])
+          expect(Gitlab::Workhorse).to receive(:send_scaled_image)
+           .with(a_string_matching('^(/.+|https://.+)'), width, 'image/png')
+           .and_return([Gitlab::Workhorse::SEND_DATA_HEADER, "send-scaled-img:faux"])
+
           expect(headers).to receive(:store).with(Gitlab::Workhorse::SEND_DATA_HEADER, "send-scaled-img:faux")
 
           subject
@@ -161,7 +169,8 @@ RSpec.describe SendFileUpload do
         subject
       end
 
-      it_behaves_like 'handles image resize requests'
+      it_behaves_like 'handles image resize requests', :avatar
+      it_behaves_like 'handles image resize requests', :pwa_icon
     end
 
     context 'with inline image' do
@@ -266,7 +275,31 @@ RSpec.describe SendFileUpload do
         end
       end
 
-      it_behaves_like 'handles image resize requests'
+      it_behaves_like 'handles image resize requests', :avatar
+      it_behaves_like 'handles image resize requests', :pwa_icon
+    end
+
+    context 'when CDN-enabled remote file is used' do
+      let(:uploader) { cdn_uploader_class.new(object, :file) }
+      let(:request) { instance_double('ActionDispatch::Request', remote_ip: '18.245.0.42') }
+      let(:signed_url) { 'https://cdn.example.org.test' }
+      let(:cdn_provider) { instance_double('ObjectStorage::CDN::GoogleCDN', signed_url: signed_url) }
+
+      before do
+        stub_uploads_object_storage(uploader: cdn_uploader_class)
+        uploader.object_store = ObjectStorage::Store::REMOTE
+        uploader.store!(temp_file)
+        allow(Gitlab.config.uploads.object_store).to receive(:proxy_download) { false }
+      end
+
+      it 'sends a file when CDN URL' do
+        expect(uploader).to receive(:use_cdn?).and_return(true)
+        expect(uploader).to receive(:cdn_provider).and_return(cdn_provider)
+        expect(controller).to receive(:request).and_return(request)
+        expect(controller).to receive(:redirect_to).with(signed_url)
+
+        subject
+      end
     end
   end
 end

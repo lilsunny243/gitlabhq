@@ -1,21 +1,46 @@
 ---
 stage: Manage
-group: Workspace
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Organization
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Share projects with other groups **(FREE)**
+# Share a project with a group **(FREE)**
 
-You can share projects with other [groups](../../group/index.md). This makes it
-possible to add a group of users to a project with a single action.
+When you want a group to have access to your project,
+you can invite [a group](../../group/index.md) to the project.
+The group's members get access to the project, which becomes a *shared project*.
 
-## Groups as collections of users
+## Example
 
-Groups are used primarily to [create collections of projects](../../group/index.md), but you can also
-take advantage of the fact that groups define collections of _users_, namely the group
-members.
+For a project that was created by `Group 1`:
 
-## Share a project with a group of users
+- The members of `Group 1` have access to the project.
+- The owner of `Group 1` can invite `Group 2` to the project.
+This way, members of both `Group 1` and `Group 2` have access to the shared project.
+
+## Prerequisites
+
+To invite a group to a project, you must be at least one of the following:
+
+- Explicitly defined as a [member](index.md) of the project.
+- Explicitly defined as a member of a group or subgroup that has access to the project.
+- An administrator.
+
+In addition:
+
+- The group you're inviting must have a more restrictive
+ [visibility level](../../public_access.md#project-and-group-visibility)
+  than the project. For example, you can invite:
+  - A private group to a public project.
+  - An internal group to a public project.
+  - A private group to an internal project.
+
+- The group or subgroup must be in the project's [namespace](../../namespace/index.md).
+  For example, a project in the namespace `group/subgroup01/project`:
+  - Can be shared with `group/subgroup02` or `group/subgroup01/subgroup03`.
+  - Cannot be shared with `group`.
+
+## Share a project with a group
 
 > - [Changed](https://gitlab.com/gitlab-org/gitlab/-/issues/247208) in GitLab 13.11 from a form to a modal
     window [with a flag](../../feature_flags.md). Disabled by default.
@@ -24,68 +49,61 @@ members.
 > - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/352526) in GitLab 14.9.
     [Feature flag `invite_members_group_modal`](https://gitlab.com/gitlab-org/gitlab/-/issues/352526) removed.
 
-You can share a project only with:
+You can share a project with a group by inviting that group to the project.
 
-- Groups for which you have an explicitly defined [membership](index.md).
-- Groups that contain a nested subgroup or project for which you have an explicitly defined role.
+To invite a group to a project:
 
-Administrators can share projects with any group in the instance.
-
-The primary mechanism to give a group of users, say 'Engineering', access to a project,
-say 'Project Acme', in GitLab is to make the 'Engineering' group the owner of 'Project
-Acme'. But what if 'Project Acme' already belongs to another group, say 'Open Source'?
-This is where the group sharing feature can be of use.
-
-To share 'Project Acme' with the 'Engineering' group:
-
-1. For 'Project Acme' use the left navigation menu to go to **Project information > Members**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Project information > Members**.
 1. Select **Invite a group**.
-1. Add the 'Engineering' group with the maximum access level of your choice.
+1. **Select a group** you want to add to the project.
+1. **Select a role** you want to assign to the group.
 1. Optional. Select an **Access expiration date**.
 1. Select **Invite**.
 
-After sharing 'Project Acme' with 'Engineering':
+All group members, members of subgroups, and members of other projects the group has access to
+are given access to the project. In addition:
 
-- The group is listed in the **Groups** tab.
-- The project is listed on the group dashboard.
-- All members, including members from the ancestors of the 'Engineering' group, gain access to 'Project Acme' with an access level based on the outcome of [maximum access level](#maximum-access-level).
+- On the group's page, the project is listed on the **Shared projects** tab.
+- On the project's **Members** page, the group is listed on the **Groups** tab.
+- Each user is assigned a maximum role.
 
-When you share a project, be aware of the following restrictions and outcomes:
+## Maximum role
 
-- [Maximum access level](#maximum-access-level)
-- [Sharing projects with groups of a higher restrictive visibility level](#sharing-projects-with-groups-of-a-higher-restrictive-visibility-level)
-- [Sharing project with group lock](#share-project-with-group-lock)
+When you invite a group to a project, the maximum role is the highest level of access the invited group members are allowed to have in the project.
 
-## Maximum access level
+When multiple groups contain the same members, and the groups
+have access to the same project, the group members are
+given the highest access level of the two for the project.
 
-In the example above, the maximum access level of 'Developer' for members from 'Engineering' means that users with higher access levels in 'Engineering' ('Maintainer' or 'Owner') only have 'Developer' access to 'Project Acme'.
+The member's **Max role** is the more restrictive of:
 
-### Share a project with a subgroup
+- The role the user is assigned for the group.
+- The role you chose when you invited the group to the project.
 
-You can't share a project with a group that's an ancestor of a [subgroup](../../group/subgroups/index.md) the project is
-in. That means you can only share down the hierarchy. For example, `group/subgroup01/project`:
+NOTE:
+The Max role does not elevate the privileges of users.
+For example, if a group member has the role of Developer, and the group is invited to a project with a Max role of Maintainer, the member's role is not elevated to Maintainer.
 
-- Can not be shared with `group`.
-- Can be shared with `group/subgroup02` or  `group/subgroup01/subgroup03`.
+### View the member's Max role
 
-## Sharing projects with groups of a higher restrictive visibility level
+To view the maximum role assigned to a member:
 
-There are several outcomes you must be aware of when you share a project with a group that has a more restrictive [visibility level](../../public_access.md#project-and-group-visibility) than the project. For example, when you:
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Project information > Members**.
+1. In the **Max role** column, view the user's maximum assigned role.
 
-- Share a public project with a private group.
-- Share a public project with an internal group.
-- Share an internal project with a private group.
+## View a group's shared projects
 
-The following outcomes occur:
+In a group, a shared project is a project to which the group members gained access through the [**Invite group**](#share-a-project-with-a-group) action.
 
-- The group name is visible to all users that can view the project members page.
-- Owners of the project have access to members of the group when they mention them in issues or merge requests.
-- Project members who are direct or indirect members of the group can see group members listed in addition to members of the project.
+To view a group's shared projects:
 
-## Share project with group lock
+1. On the top bar, select **Main menu > Group** and find your group.
+1. On the group page, select the **Shared projects** tab.
 
-It is possible to prevent projects in a group from
-[sharing a project with another group](../members/share_project_with_groups.md).
-This allows for tighter control over project access.
+A list of shared projects is displayed.
 
-Learn more about [Share with group lock](../../group/access_and_permissions.md#prevent-a-project-from-being-shared-with-groups).
+## Related topics
+
+- [Prevent a project from being shared with groups](../../group/access_and_permissions.md#prevent-a-project-from-being-shared-with-groups).

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User creates snippet', :js do
+RSpec.describe 'User creates snippet', :js, feature_category: :source_code_management do
   include DropzoneHelper
   include Spec::Support::Helpers::Features::SnippetSpecHelpers
 
@@ -20,6 +20,8 @@ RSpec.describe 'User creates snippet', :js do
 
     visit new_snippet_path
   end
+
+  it_behaves_like 'a dashboard page with sidebar', :new_snippet_path, :snippets
 
   def fill_form
     snippet_fill_in_form(title: title, content: file_content, description: md_description)

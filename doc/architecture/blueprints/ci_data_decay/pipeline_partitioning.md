@@ -1,23 +1,15 @@
 ---
-stage: none
-group: unassigned
 comments: false
+status: ongoing
+creation-date: "2022-05-31"
+authors: [ "@grzesiek" ]
+coach: [ "@ayufan", "@grzesiek" ]
+approvers: [ "@jreporter", "@cheryl.li" ]
+owning-stage: "~devops::verify"
 description: 'Pipeline data partitioning design'
 ---
 
 # Pipeline data partitioning design
-
-_Disclaimer: The following contains information related to upcoming products,
-features, and functionality._
-
-_It is important to note that the information presented is for informational
-purposes only. Please do not rely on this information for purchasing or
-planning purposes._
-
-_As with all projects, the items mentioned in this document and linked pages
-are subject to change or delay. The development, release and timing of any
-products, features, or functionality remain at the sole discretion of GitLab
-Inc._
 
 ## What problem are we trying to solve?
 
@@ -60,7 +52,7 @@ out of a database to a different place when data is no longer relevant or
 needed. Our dataset is extremely large (tens of terabytes), so moving such a
 high volume of data is challenging. When time-decay is implemented using
 partitioning, we can archive the entire partition (or set of partitions) by
-simply updating a single record in one of our database tables. It is one of the
+updating a single record in one of our database tables. It is one of the
 least expensive ways to implement time-decay patterns at a database level.
 
 ![decomposition_partitioning_comparison.png](decomposition_partitioning_comparison.png)
@@ -74,7 +66,12 @@ violates our [principle of 100 GB max size](../database_scaling/size-limits.md).
 We also want to [build alerting](https://gitlab.com/gitlab-com/gl-infra/tamland/-/issues/5)
 to notify us when this number is exceeded.
 
-We’ve seen numerous S1 and S2 database-related production environment
+Large SQL tables increase index maintenance time, during which freshly deleted tuples
+cannot be cleaned by `autovacuum`. This highlight the need for small tables.
+We will measure how much bloat we accumulate when (re)indexing huge tables. Base on this analysis,
+we will be able to set up SLO (dead tuples / bloat), associated with (re)indexing.
+
+We've seen numerous S1 and S2 database-related production environment
 incidents, over the last couple of months, for example:
 
 - S1: 2022-03-17 [Increase in writes in `ci_builds` table](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/6625)
@@ -82,6 +79,7 @@ incidents, over the last couple of months, for example:
 - S2: 2022-04-12 [Transactions detected that have been running for more than 10m](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/6821)
 - S2: 2022-04-06 [Database contention plausibly caused by excessive `ci_builds` reads](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/6773)
 - S2: 2022-03-18 [Unable to remove a foreign key on `ci_builds`](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/6642)
+- S2: 2022-10-10 [The `queuing_queries_duration` SLI apdex violating SLO](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/7852#note_1130123525)
 
 We have approximately 50 `ci_*` prefixed database tables, and some of them
 would benefit from partitioning.
@@ -130,7 +128,7 @@ remaining database tables when it becomes necessary.
 It is also important to avoid large data migrations. We store almost 6
 terabytes of data in the biggest CI/CD tables, in many different columns and
 indexes. Migrating this amount of data might be challenging and could cause
-instability in the production environment. Due to this concern, we’ve developed
+instability in the production environment. Due to this concern, we've developed
 a way to attach an existing database table as a partition zero without downtime
 and excessive database locking, what has been demonstrated in one of the
 [first proofs of concept](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/80186).
@@ -145,7 +143,7 @@ Our plan is to use logical partition IDs. We want to start with the
 `ci_pipelines` table and create a `partition_id` column with a `DEFAULT` value
 of `100` or `1000`. Using a `DEFAULT` value avoids the challenge of backfilling
 this value for every row. Adding a `CHECK` constraint prior to attaching the
-first partition tells PostgreSQL that we’ve already ensured consistency and
+first partition tells PostgreSQL that we've already ensured consistency and
 there is no need to check it while holding an exclusive table lock when
 attaching this table as a partition to the routing table (partitioned schema
 definition). We will increment this value every time we create a new partition
@@ -185,6 +183,49 @@ respective database tables. Using `RANGE` partitioning works similarly to using
 `LIST` partitioning in database tables, but because we can guarantee continuity
 of `partition_id` values, using `RANGE` partitioning might be a better
 strategy.
+
+### Multi-project pipelines
+
+Parent-child pipeline will always be part of the same partition because child
+pipelines are considered a resource of the parent pipeline. They can't be
+viewed individually in the project pipeline list page.
+
+On the other hand, multi-project pipelines can be viewed in the pipeline list page.
+They can also be accessed from the pipeline graph as downstream/upstream links
+when created via the `trigger` token or the API using a job token.
+They can also be created from other pipelines by using trigger tokens, but in this
+case we don't store the source pipeline.
+
+While partitioning `ci_builds` we need to update the foreign keys to the
+`ci_sources_pipelines` table:
+
+```plain
+Foreign-key constraints:
+    "fk_be5624bf37" FOREIGN KEY (source_job_id) REFERENCES ci_builds(id) ON DELETE CASCADE
+    "fk_d4e29af7d7" FOREIGN KEY (source_pipeline_id) REFERENCES ci_pipelines(id) ON DELETE CASCADE
+    "fk_e1bad85861" FOREIGN KEY (pipeline_id) REFERENCES ci_pipelines(id) ON DELETE CASCADE
+```
+
+A `ci_sources_pipelines` record references two `ci_pipelines` rows (parent and
+the child). Our usual strategy has been to add a `partition_id` to the
+table, but if we do it here we will force all multi-project
+pipelines to be part of the same partition.
+
+We should add two `partition_id` columns for this table, a
+`partition_id` and a `source_partition_id`:
+
+```plain
+Foreign-key constraints:
+    "fk_be5624bf37" FOREIGN KEY (source_job_id, source_partition_id) REFERENCES ci_builds(id, source_partition_id) ON DELETE CASCADE
+    "fk_d4e29af7d7" FOREIGN KEY (source_pipeline_id, source_partition_id) REFERENCES ci_pipelines(id, source_partition_id) ON DELETE CASCADE
+    "fk_e1bad85861" FOREIGN KEY (pipeline_id, partition_id) REFERENCES ci_pipelines(id, partition_id) ON DELETE CASCADE
+```
+
+This solution is the closest to a two way door decision because:
+
+- We retain the ability to reference pipelines in different partitions.
+- If we later decide that we want to force multi-project pipelines in the same partition
+  we could add a constraint to validate that both columns have the same value.
 
 ## Why do we want to use explicit logical partition ids?
 
@@ -251,27 +292,89 @@ smart enough to move rows between partitions on its own.
 
 ### Naming conventions
 
-A partitioned table is called a __routing__ table and it will use the `p_`
+A partitioned table is called a **routing** table and it will use the `p_`
 prefix which should help us with building automated tooling for query analysis.
 
-A table partition will be simply called __partition__ and it can use the a
-physical partition ID as suffix, leaded by a `p` letter, for example
-`ci_builds_p101`. Existing CI tables will become __zero partitions__ of the
-new routing tables. Depending on the chosen
+A table partition will be called **partition** and it can use the a physical
+partition ID as suffix, for example `ci_builds_101`. Existing CI tables will
+become **zero partitions** of the new routing tables. Depending on the chosen
 [partitioning strategy](#how-do-we-want-to-partition-cicd-data) for a given
 table, it is possible to have many logical partitions per one physical partition.
 
+### Attaching first partition and acquiring locks
+
+We learned when [partitioning](https://gitlab.com/gitlab-org/gitlab/-/issues/378644)
+the first table that `PostgreSQL` requires an `AccessExclusiveLock` on the table and
+all of the other tables that it references through foreign keys. This can cause a deadlock
+if the migration tries to acquire the locks in a different order from the application
+business logic.
+
+To solve this problem, we introduced a **priority locking strategy** to avoid
+further deadlock errors. This allows us to define the locking order and
+then try keep retrying aggressively until we acquire the locks or run out of retries.
+This process can take up to 40 minutes.
+
+With this strategy, we successfully acquired a lock on `ci_builds` table after 15 retries
+during a low traffic period([after `00:00 UTC`](https://dashboards.gitlab.net/d/web-main/web-overview?orgId=1&viewPanel=537181794&from=now-2d&to=now)).
+
+See an example of this strategy in our [partition tooling](../../../development/database/table_partitioning.md#step-6---create-parent-table-and-attach-existing-table-as-the-initial-partition)).
+
+### Partitioning steps
+
+The database [partition tooling](../../../development/database/table_partitioning.md#partitioning-a-table-list)
+docs contain a list of steps to partition a table, but the steps are not enough
+for our iterative strategy. As our dataset continues to grow we want to take
+advantage of partitioning performance right away and not wait until all tables
+are partitioned. For example, after partitioning the `ci_builds_metadata` table
+we want to start writing and reading data to/from a new partition. This means
+that we will increase the `partition_id` value from `100`, the default value,
+to `101`. Now all of the new resources for the pipeline hierarchy will be
+persisted with `partition_id = 101`. We can continue following the database
+tooling instructions for the next table that will be partitioned, but we require
+a few extra steps:
+
+- add `partition_id` column for the FK references with default value of `100`
+  since the majority of records should have that value.
+- change application logic to cascade the `partition_id` value
+- correct `partition_id` values for recent records with a post deploy/background
+  migration, similar to this:
+
+  ```sql
+  UPDATE ci_pipeline_metadata
+         SET partition_id = ci_pipelines.partition_id
+         FROM ci_pipelines
+              WHERE ci_pipelines.id = ci_pipeline_metadata.pipeline_id
+                AND ci_pipelines.partition_id in (101, 102);
+  ```
+
+- change the foreign key definitions
+- ...
+
 ## Storing partitions metadata in the database
 
-In order to build an efficient mechanism that will be responsible for creating
+To build an efficient mechanism that will be responsible for creating
 new partitions, and to implement time decay we want to introduce a partitioning
 metadata table, called `ci_partitions`. In that table we would store metadata
 about all the logical partitions, with many pipelines per partition. We may
 need to store a range of pipeline ids per logical partition. Using it we will
 be able to find the `partition_id` number for a given pipeline ID and we will
-also find information about which logical partitions are “active” or
-“archived”, which will help us to implement a time-decay pattern using database
+also find information about which logical partitions are "active" or
+"archived", which will help us to implement a time-decay pattern using database
 declarative partitioning.
+
+Doing that will also allow us to use a Unified Resource Identifier for
+partitioned resources, that will contain a pointer to a pipeline ID, we could
+then use to efficiently lookup a partition the resource is stored in. It might
+be important when a resources can be directly referenced by an URL, in UI or
+API. We could use an ID like `1e240-5ba0` for pipeline `123456`, build `23456`.
+Using a dash `-` can prevent an identifier from being highlighted and copied
+with a mouse double-click. If we want to avoid this problem, we can use any
+character of written representation that is not present in base-16 numeral
+system - any letter from `g` to `z` in Latin alphabet, for example `x`. In that
+case an example of an URI would look like `1e240x5ba0`. If we decide to update
+the primary identifier of a partitioned resource (today it is just a big
+integer) it is important to design a system that is resilient to migrating data
+between partitions, to avoid changing identifiers when rebalancing happens.
 
 `ci_partitions` table will store information about a partition identifier,
 pipeline ids range it is valid for and whether the partitions have been
@@ -299,7 +402,7 @@ of storing archived data in PostgreSQL will be reduced significantly this way.
 
 There are some technical details here that are out of the scope of this
 description, but by using this strategy we can "archive" data, and make it much
-less expensive to reside in our PostgreSQL cluster by simply toggling a boolean
+less expensive to reside in our PostgreSQL cluster by toggling a boolean
 column value.
 
 ## Accessing partitioned data
@@ -312,7 +415,7 @@ with its `partition_id`, and we will be able to find the partition that the
 pipeline data is stored in.
 
 We will need to constrain access to searching through pipelines, builds,
-artifacts etc. Search can not be done through all partitions, as it would not
+artifacts etc. Search cannot be done through all partitions, as it would not
 be efficient enough, hence we will need to find a better way of searching
 through archived pipelines data. It will be necessary to have different access
 patterns to access archived data in the UI and API.
@@ -338,13 +441,54 @@ has_many :builds, -> (pipeline) { where(partition_id: pipeline.partition_id) }
 ```
 
 The problem with this approach is that it makes preloading much more difficult
-as instance dependent associations can not be used with preloads:
+as instance dependent associations cannot be used with preloads:
 
 ```plaintext
 ArgumentError: The association scope 'builds' is instance dependent (the
 scope block takes an argument). Preloading instance dependent scopes is not
 supported.
 ```
+
+### Query analyzers
+
+We implemented 2 query analyzers to detect queries that need to be fixed so that everything
+keeps working with partitioned tables:
+
+- One analyzer to detect queries not going through a routing table.
+- One analyzer to detect queries that use routing tables without specifying the `partition_id` in the `WHERE` clauses.
+
+We started by enabling our first analyzer in `test` environment to detect existing broken
+queries. It is also enabled on `production` environment, but for a small subset of the traffic (`0.1%`)
+because of scalability concerns.
+
+The second analyzer will be enabled in a future iteration.
+
+### Primary key
+
+Primary key must include the partitioning key column to partition the table.
+
+We first create a unique index including the `(id, partition_id)`.
+Then, we drop the primary key constraint and use the new index created to set
+the new primary key constraint.
+
+`ActiveRecord` [does not support](https://github.com/rails/rails/blob/6-1-stable/activerecord/lib/active_record/attribute_methods/primary_key.rb#L126)
+composite primary keys, so we must force it to treat the `id` column as a primary key:
+
+```ruby
+class Model < ApplicationRecord
+  self.primary_key = 'id'
+end
+```
+
+The application layer is now ignorant of the database structure and all of the
+existing queries from `ActiveRecord` continue to use the `id` column to access
+the data. There is some risk to this approach because it is possible to
+construct application code that results in duplicate models with the same `id`
+value, but on a different `partition_id`. To mitigate this risk we must ensure
+that all inserts use the database sequence to populate the `id` since they are
+[guaranteed](https://www.postgresql.org/docs/12/sql-createsequence.html#id-1.9.3.81.7)
+to allocate distinct values and rewrite the access patterns to include the
+`partition_id` value. Manually assigning the ids during inserts must be avoided.
 
 ### Foreign keys
 
@@ -398,7 +542,7 @@ partition, `auto_canceled_by_partition_id`, and the FK becomes:
 
 ```sql
 ALTER TABLE ONLY p_ci_pipelines
-    ADD CONSTRAINT fk_cancel_redundant_pieplines
+    ADD CONSTRAINT fk_cancel_redundant_pipelines
     FOREIGN KEY (auto_canceled_by_id, auto_canceled_by_partition_id)
     REFERENCES p_ci_pipelines(id, partition_id) ON DELETE SET NULL;
 ```
@@ -605,6 +749,40 @@ application-wide outage.
    1. Make it possible to create partitions in an automatic way.
    1. Deliver the new architecture to self-managed instances.
 
+The diagram below visualizes this plan on Gantt chart. The dates
+on the chart below are just estimates to visualize the plan better, these are
+not deadlines and can change at any time.
+
+```mermaid
+gantt
+  title CI Data Partitioning Timeline
+  dateFormat  YYYY-MM-DD
+  axisFormat  %m-%y
+
+  section Phase 0
+    Build data partitioning strategy :done, 0_1, 2022-06-01, 90d
+  section Phase 1
+    Partition biggest CI tables :1_1, after 0_1, 200d
+    Biggest table partitioned :milestone, metadata, 2023-03-01, 1min
+    Tables larger than 100GB partitioned :milestone, 100gb, after 1_1, 1min
+  section Phase 2
+    Add paritioning keys to SQL queries :2_1, 2023-01-01, 120d
+    Emergency partition detachment possible :milestone, detachment, 2023-04-01, 1min
+    All SQL queries are routed to partitions :milestone, routing, after 2_1, 1min
+  section Phase 3
+    Build new data access patterns :3_1, 2023-05-01, 120d
+    New API endpoint created for inactive data :milestone, api1, 2023-07-01, 1min
+    Filtering added to existing API endpoints :milestone, api2, 2023-09-01, 1min
+  section Phase 4
+    Introduce time-decay mechanisms :4_1, 2023-08-01, 120d
+    Inactive partitions are not being read :milestone, part1, 2023-10-01, 1min
+    Performance of the database cluster improves :milestone, part2, 2023-11-01, 1min
+  section Phase 5
+    Introduce auto-partitioning mechanisms :5_1, 2023-09-01, 120d
+    New partitions are being created automatically :milestone, part3, 2023-12-01, 1min
+    Partitioning is made available on self-managed :milestone, part4, 2024-01-01, 1min
+```
+
 ## Conclusions
 
 We want to build a solid strategy for partitioning CI/CD data. We are aware of
@@ -616,24 +794,24 @@ strategy. The strategy, described in this document, is subject to iteration as
 well. Whenever we find a better way to reduce the risk and improve our plan, we
 should update this document as well.
 
-We’ve managed to find a way to avoid large-scale data migrations, and we are
+We've managed to find a way to avoid large-scale data migrations, and we are
 building an iterative strategy for partitioning CI/CD data. We documented our
 strategy here to share knowledge and solicit feedback from other team members.
 
 ## Who
 
-Authors:
+DRIs:
 
 <!-- vale gitlab.Spelling = NO -->
 
-| Role   | Who            |
-|--------|----------------|
-| Author | Grzegorz Bizon |
-
-Recommenders:
-
-| Role                   | Who             |
-|------------------------|-----------------|
-| Distingiushed Engineer | Kamil Trzciński |
+| Role                | Who                                            |
+|---------------------|------------------------------------------------|
+| Author              | Grzegorz Bizon, Principal Engineer             |
+| Recommender         | Kamil Trzciński, Senior Distinguished Engineer |
+| Product Leadership     | Jackie Porter, Director of Product Management         |
+| Engineering Leadership | Caroline Simpson, Engineering Manager / Cheryl Li, Senior Engineering Manager  |
+| Lead Engineer       | Marius Bobin, Senior Backend Engineer          |
+| Senior Engineer     | Maxime Orefice, Senior Backend Engineer        |
+| Senior Engineer     | Tianwen Chen, Senior Backend Engineer        |
 
 <!-- vale gitlab.Spelling = YES -->

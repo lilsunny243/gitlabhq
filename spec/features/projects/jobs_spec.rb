@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'tempfile'
 
-RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
+RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state, feature_category: :projects do
   include Gitlab::Routing
   include ProjectForksHelper
 
@@ -215,10 +215,6 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
         visit project_job_path(project, job)
       end
 
-      it 'shows retry button' do
-        expect(page).to have_link('Retry')
-      end
-
       context 'if job passed' do
         it 'does not show New issue button' do
           expect(page).not_to have_link('New issue')
@@ -306,7 +302,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
           click_link 'Download'
         end
 
-        artifact_request = requests.find { |req| req.url.match(%r{artifacts/download}) }
+        artifact_request = requests.find { |req| req.url.include?('artifacts/download') }
 
         expect(artifact_request.response_headers['Content-Disposition']).to eq(%Q{attachment; filename="#{job.artifacts_file.filename}"; filename*=UTF-8''#{job.artifacts_file.filename}})
         expect(artifact_request.response_headers['Content-Transfer-Encoding']).to eq("binary")
@@ -463,7 +459,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
 
         context 'when variables are stored in trigger_request' do
           before do
-            trigger_request.update_attribute(:variables, { 'TRIGGER_KEY_1' => 'TRIGGER_VALUE_1' } )
+            trigger_request.update_attribute(:variables, { 'TRIGGER_KEY_1' => 'TRIGGER_VALUE_1' })
 
             visit project_job_path(project, job)
           end
@@ -508,7 +504,7 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
 
         context 'when variables are stored in trigger_request' do
           before do
-            trigger_request.update_attribute(:variables, { 'TRIGGER_KEY_1' => 'TRIGGER_VALUE_1' } )
+            trigger_request.update_attribute(:variables, { 'TRIGGER_KEY_1' => 'TRIGGER_VALUE_1' })
 
             visit project_job_path(project, job)
           end
@@ -743,12 +739,17 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
       it 'shows manual action empty state', :js do
         expect(page).to have_content(job.detailed_status(user).illustration[:title])
         expect(page).to have_content('This job requires a manual action')
-        expect(page).to have_content('This job requires manual intervention to start. Before starting this job, you can add variables below for last-minute configuration changes.')
-        expect(page).to have_button('Trigger this manual action')
+        expect(page).to have_content(
+          _(
+            'This job does not start automatically and must be started manually. ' \
+            'You can add CI/CD variables below for last-minute configuration changes before starting the job.'
+          )
+        )
+        expect(page).to have_button('Run job')
       end
 
       it 'plays manual action and shows pending status', :js do
-        click_button 'Trigger this manual action'
+        click_button 'Run job'
 
         wait_for_requests
         expect(page).to have_content('This job has not started yet')
@@ -776,8 +777,13 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
 
         wait_for_requests
         expect(page).to have_content('This job requires a manual action')
-        expect(page).to have_content('This job requires manual intervention to start. Before starting this job, you can add variables below for last-minute configuration changes.')
-        expect(page).to have_button('Trigger this manual action')
+        expect(page).to have_content(
+          _(
+            'This job does not start automatically and must be started manually. ' \
+            'You can add CI/CD variables below for last-minute configuration changes before starting the job.'
+          )
+        )
+        expect(page).to have_button('Run job')
       end
     end
 
@@ -1059,16 +1065,19 @@ RSpec.describe 'Jobs', :clean_gitlab_redis_shared_state do
     end
 
     context "Build from other project" do
+      let(:other_job_download_path) { download_project_job_artifacts_path(project, job2) }
+
       before do
         create(:ci_job_artifact, :archive, file: artifacts_file, job: job2)
       end
 
       it do
-        requests = inspect_requests do
-          visit download_project_job_artifacts_path(project, job2)
-        end
+        requests = inspect_requests { visit other_job_download_path }
 
-        expect(requests.first.status_code).to eq(404)
+        request = requests.find { |request| request.url == other_job_download_path }
+
+        expect(request).to be_present
+        expect(request.status_code).to eq(404)
       end
     end
   end

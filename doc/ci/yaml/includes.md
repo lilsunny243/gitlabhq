@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -13,25 +13,19 @@ You can use [`include`](index.md#include) to include external YAML files in your
 
 To include a single configuration file, use either of these syntax options:
 
-- `include` by itself with a single file, which is the same as
-  [`include:local`](index.md#includelocal):
+- `include` by itself with a single file. If this is a local file, it is the same as [`include:local`](index.md#includelocal).
+  If this is a remote file, it is the same as [`include:remote`](index.md#includeremote).
 
   ```yaml
   include: '/templates/.after-script-template.yml'
-  ```
-
-- `include` with a single file, and you specify the `include` type:
-
-  ```yaml
-  include:
-    remote: 'https://gitlab.com/awesome-project/raw/main/.before-script-template.yml'
   ```
 
 ## Include an array of configuration files
 
 You can include an array of configuration files:
 
-- If you do not specify an `include` type, the type defaults to [`include:local`](index.md#includelocal):
+- If you do not specify an `include` type, each array item defaults to [`include:local`](index.md#includelocal)
+  or [`include:remote`](index.md#includeremote), as needed:
 
   ```yaml
   include:
@@ -55,7 +49,7 @@ You can include an array of configuration files:
     - template: Auto-DevOps.gitlab-ci.yml
   ```
 
-- You can define an array that combines both default and specific `include` type:
+- You can define an array that combines both default and specific `include` types:
 
   ```yaml
   include:
@@ -155,6 +149,91 @@ The `POSTGRES_USER` and `POSTGRES_PASSWORD` variables
 and the `environment:url` of the `production` job defined in the `.gitlab-ci.yml` file
 override the values defined in the `autodevops-template.yml` file. The other keywords
 do not change. This method is called *merging*.
+
+### Merge method for `include`
+
+The `include` configuration merges with the main configuration file with this process:
+
+- Included files are read in the order defined in the configuration file, and
+  the included configuration is merged together in the same order.
+- If an included file also uses `include`, that nested `include` configuration is merged first (recursively).
+- If parameters overlap, the last included file takes precedence when merging the configuration
+  from the included files.
+- After all configuration added with `include` is merged together, the main configuration
+  is merged with the included configuration.
+
+This merge method is a _deep merge_, where hash maps are merged at any depth in the
+configuration. To merge hash map "A" (that contains the configuration merged so far) and "B" (the next piece
+of configuration), the keys and values are processed as follows:
+
+- When the key only exists in A, use the key and value from A.
+- When the key exists in both A and B, and their values are both hash maps, merge those hash maps.
+- When the key exists in both A and B, and one of the values is not a hash map, use the value from B.
+- Otherwise, use the key and value from B.
+
+For example, with a configuration that consists of two files:
+
+- The `.gitlab-ci.yml` file:
+
+  ```yaml
+  include: 'common.yml'
+
+  variables:
+    POSTGRES_USER: username
+
+  test:
+    rules:
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+        when: manual
+    artifacts:
+      reports:
+        junit: rspec.xml
+  ```
+
+- The `common.yml` file:
+
+  ```yaml
+  variables:
+    POSTGRES_USER: common_username
+    POSTGRES_PASSWORD: testing_password
+
+  test:
+    rules:
+      - when: never
+    script:
+      - echo LOGIN=${POSTGRES_USER} > deploy.env
+      - rake spec
+    artifacts:
+      reports:
+        dotenv: deploy.env
+  ```
+
+The merged result is:
+
+```yaml
+variables:
+  POSTGRES_USER: username
+  POSTGRES_PASSWORD: testing_password
+
+test:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+  script:
+    - echo LOGIN=${POSTGRES_USER} > deploy.env
+    - rake spec
+  artifacts:
+    reports:
+      junit: rspec.xml
+      dotenv: deploy.env
+```
+
+In this example:
+
+- Variables are only evaluated after all the files are merged together. A job in an included file
+  might end up using a variable value defined in a different file.
+- `rules` is an array so it cannot be merged. The top-level file takes precedence.
+- `artifacts` is a hash map so it can be deep merged.
 
 ## Override included configuration arrays
 
@@ -289,9 +368,9 @@ smoke-test-job:
 
 In `include` sections in your `.gitlab-ci.yml` file, you can use:
 
-- [Project variables](../variables/index.md#add-a-cicd-variable-to-a-project).
-- [Group variables](../variables/index.md#add-a-cicd-variable-to-a-group).
-- [Instance variables](../variables/index.md#add-a-cicd-variable-to-an-instance).
+- [Project variables](../variables/index.md#for-a-project).
+- [Group variables](../variables/index.md#for-a-group).
+- [Instance variables](../variables/index.md#for-an-instance).
 - Project [predefined variables](../variables/predefined_variables.md).
 - In GitLab 14.2 and later, the `$CI_COMMIT_REF_NAME` [predefined variable](../variables/predefined_variables.md).
 
@@ -303,7 +382,7 @@ In GitLab 14.5 and later, you can also use:
 
 - [Trigger variables](../triggers/index.md#pass-cicd-variables-in-the-api-call).
 - [Scheduled pipeline variables](../pipelines/schedules.md#add-a-pipeline-schedule).
-- [Manual pipeline run variables](../variables/index.md#override-a-variable-when-running-a-pipeline-manually).
+- [Manual pipeline run variables](../pipelines/index.md#run-a-pipeline-manually).
 - Pipeline [predefined variables](../variables/predefined_variables.md).
 
   YAML files are parsed before the pipeline is created, so the following pipeline predefined variables
@@ -332,52 +411,82 @@ see this [CI/CD variable demo](https://youtu.be/4XR8gw3Pkos).
 ## Use `rules` with `include`
 
 > - Introduced in GitLab 14.2 [with a flag](../../administration/feature_flags.md) named `ci_include_rules`. Disabled by default.
-> - [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.3.
-> - [Enabled on self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) GitLab 14.3.
-> - [Feature flag `ci_include_rules` removed](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.4.
-> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.4.
+> - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.3.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/issues/337507) in GitLab 14.4. Feature flag `ci_include_rules` removed.
 > - [Support for `exists` keyword added](https://gitlab.com/gitlab-org/gitlab/-/issues/341511) in GitLab 14.5.
 
 You can use [`rules`](index.md#rules) with `include` to conditionally include other configuration files.
 
-You can only use the following rules with `include` (and only with [certain variables](#use-variables-with-include)):
+You can only use `rules` with [certain variables](#use-variables-with-include), and
+these keywords:
 
-- [`if` rules](index.md#rulesif). For example:
-
-  ```yaml
-  include:
-    - local: builds.yml
-      rules:
-        - if: $INCLUDE_BUILDS == "true"
-    - local: deploys.yml
-      rules:
-        - if: $CI_COMMIT_BRANCH == "main"
-
-  test:
-    stage: test
-    script: exit 0
-  ```
-
-- [`exists` rules](index.md#rulesexists). For example:
-
-  ```yaml
-  include:
-    - local: builds.yml
-      rules:
-        - exists:
-            - file.md
-
-  test:
-    stage: test
-    script: exit 0
-  ```
-
-`rules` keyword `changes` is not supported.
+- [`rules:if`](index.md#rulesif).
+- [`rules:exists`](index.md#rulesexists).
 
 You cannot use [`needs:`](index.md#needs) to create a job dependency that points to
-a job added with `include:local:rules`. When the configuration is checked for validity,
-GitLab returns `undefined need: <job-name>`. An [issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/345377)
-to improve this behavior.
+a job added with `include:local:rules`. When the configuration is validated,
+GitLab returns `undefined need: <job-name>`. [Issue 345377](https://gitlab.com/gitlab-org/gitlab/-/issues/345377)
+proposes improving this behavior.
+
+### `include` with `rules:if`
+
+Use [`rules:if`](index.md#rulesif) to conditionally include other configuration files
+based on the status of CI/CD variables. For example:
+
+```yaml
+include:
+  - local: builds.yml
+    rules:
+      - if: $INCLUDE_BUILDS == "true"
+  - local: deploys.yml
+    rules:
+      - if: $CI_COMMIT_BRANCH == "main"
+
+test:
+  stage: test
+  script: exit 0
+```
+
+### `include` with `rules:exists`
+
+Use [`rules:exists`](index.md#rulesexists) to conditionally include other configuration files
+based on the existence of files. For example:
+
+```yaml
+include:
+  - local: builds.yml
+    rules:
+      - exists:
+          - file.md
+
+test:
+  stage: test
+  script: exit 0
+```
+
+In this example, GitLab checks for the existence of `file.md` in the current project.
+
+There is a known issue if you configure `include` with `rules:exists` to add a configuration file
+from a different project. GitLab checks for the existence of the file in the _other_ project.
+For example:
+
+```yaml
+include:
+- project: my-group/my-project-2
+  ref: main
+  file: test-file.yml
+  rules:
+    - exists:
+        - file.md
+
+test:
+  stage: test
+  script: exit 0
+```
+
+In this example, GitLab checks for the existence of `test-file.yml` in `my-group/my-project-2`,
+not the current project. Follow [issue 386040](https://gitlab.com/gitlab-org/gitlab/-/issues/386040)
+for information about work to improve this behavior.
 
 ## Use `include:local` with wildcard file paths
 

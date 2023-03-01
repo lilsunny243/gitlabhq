@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User uploads avatar to profile' do
+RSpec.describe 'User uploads avatar to profile', feature_category: :user_profile do
   let!(:user) { create(:user) }
   let(:avatar_file_path) { Rails.root.join('spec', 'fixtures', 'dk.png') }
 
@@ -31,7 +31,7 @@ RSpec.describe 'User uploads avatar to profile' do
 
     wait_for_all_requests
 
-    data_uri = find('.avatar-image .avatar')['src']
+    data_uri = find('.avatar-image .gl-avatar')['src']
     expect(page.find('.header-user-avatar')['src']).to eq data_uri
     expect(page.find('[data-testid="sidebar-user-avatar"]')['src']).to eq data_uri
   end

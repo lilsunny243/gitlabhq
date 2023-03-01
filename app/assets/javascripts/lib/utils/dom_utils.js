@@ -106,3 +106,36 @@ export const setAttributes = (el, attributes) => {
     el.setAttribute(key, attributes[key]);
   });
 };
+
+/**
+ * Get the height of the wrapper page element
+ * This height can be used to determine where the highest element goes in a page
+ * Useful for gl-drawer's header-height prop
+ * @param {String} contentWrapperClass the content wrapper class
+ * @returns {String} height in px
+ */
+export const getContentWrapperHeight = (contentWrapperClass) => {
+  const wrapperEl = document.querySelector(contentWrapperClass);
+  return wrapperEl ? `${wrapperEl.offsetTop}px` : '';
+};
+
+/**
+ * Replaces comment nodes in a DOM tree with a different element
+ * containing the text of the comment.
+ *
+ * @param {*} el
+ * @param {*} tagName
+ */
+export const replaceCommentsWith = (el, tagName) => {
+  const iterator = document.createNodeIterator(el, NodeFilter.SHOW_COMMENT);
+  let commentNode = iterator.nextNode();
+
+  while (commentNode) {
+    const newNode = document.createElement(tagName);
+    newNode.textContent = commentNode.textContent;
+
+    commentNode.parentNode.replaceChild(newNode, commentNode);
+
+    commentNode = iterator.nextNode();
+  }
+};

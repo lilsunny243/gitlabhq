@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: "Learn how GitLab docs' global navigation works and how to add new items."
 ---
 
@@ -18,11 +18,13 @@ Global navigation is the left-most pane in the documentation. You can use the
 Research shows that people use Google to search for GitLab product documentation. When they land on a result,
 we want them to find topics nearby that are related to the content they're reading. The global nav provides this information.
 
-At the highest level, our global nav is workflow-based. Navigation needs to help users build a mental model of how to use GitLab.
+At the highest level, our global nav is **workflow-based**. Navigation needs to help users build a mental model of how to use GitLab.
 The levels under each of the higher workflow-based topics are the names of features.
 For example:
 
 **Use GitLab** (_workflow_) **> Build your application** (_workflow_) **> CI/CD** (_feature_) **> Pipelines** (_feature_)
+
+While some older sections of the nav are alphabetical, the nav should primarily be workflow-based.
 
 ## Choose the right words for your navigation entry
 
@@ -234,7 +236,7 @@ below the doc link:
   external_url: true
 ```
 
-All nav links are clickable. If the higher-level link does not have a link
+All nav links are selectable. If the higher-level link does not have a link
 of its own, it must link to its first sub-item link, mimicking the navigation in GitLab.
 This must be avoided so that we don't have duplicated links nor two `.active` links
 at the same time.

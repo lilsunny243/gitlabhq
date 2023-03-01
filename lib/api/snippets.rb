@@ -5,7 +5,8 @@ module API
   class Snippets < ::API::Base
     include PaginationParams
 
-    feature_category :snippets
+    feature_category :source_code_management
+    urgency :low
 
     resource :snippets do
       helpers Helpers::SnippetsHelpers
@@ -27,6 +28,11 @@ module API
       desc 'Get a snippets list for an authenticated user' do
         detail 'This feature was introduced in GitLab 8.15.'
         success Entities::Snippet
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
+        is_array true
       end
       params do
         optional :created_after, type: DateTime, desc: 'Return snippets created after the specified time'
@@ -44,6 +50,11 @@ module API
       desc 'List all public personal snippets current_user has access to' do
         detail 'This feature was introduced in GitLab 8.15.'
         success Entities::PersonalSnippet
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
+        is_array true
       end
       params do
         optional :created_after, type: DateTime, desc: 'Return snippets created after the specified time'
@@ -51,7 +62,7 @@ module API
 
         use :pagination
       end
-      get 'public', urgency: :low do
+      get 'public' do
         authenticate!
 
         filter_params = declared_params(include_missing: false).merge(only_personal: true)
@@ -61,6 +72,10 @@ module API
       desc 'Get a single snippet' do
         detail 'This feature was introduced in GitLab 8.15.'
         success Entities::PersonalSnippet
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
       end
       params do
         requires :id, type: Integer, desc: 'The ID of a snippet'
@@ -76,6 +91,12 @@ module API
       desc 'Create new snippet' do
         detail 'This feature was introduced in GitLab 8.15.'
         success Entities::PersonalSnippet
+        failure [
+          { code: 400, message: 'Validation error' },
+          { code: 404, message: 'Not found' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[snippets]
       end
       params do
         requires :title, type: String, allow_blank: false, desc: 'The title of a snippet'
@@ -109,6 +130,12 @@ module API
       desc 'Update an existing snippet' do
         detail 'This feature was introduced in GitLab 8.15.'
         success Entities::PersonalSnippet
+        failure [
+          { code: 400, message: 'Validation error' },
+          { code: 404, message: 'Not found' },
+          { code: 422, message: 'Unprocessable entity' }
+        ]
+        tags %w[snippets]
       end
 
       params do
@@ -153,6 +180,11 @@ module API
       desc 'Remove snippet' do
         detail 'This feature was introduced in GitLab 8.15.'
         success Entities::PersonalSnippet
+        failure [
+          { code: 400, message: 'Validation error' },
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
       end
       params do
         requires :id, type: Integer, desc: 'The ID of a snippet'
@@ -177,6 +209,10 @@ module API
 
       desc 'Get a raw snippet' do
         detail 'This feature was introduced in GitLab 8.15.'
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
       end
       params do
         requires :id, type: Integer, desc: 'The ID of a snippet'
@@ -188,11 +224,16 @@ module API
         present content_for(snippet)
       end
 
-      desc 'Get raw snippet file contents from the repository'
+      desc 'Get raw snippet file contents from the repository' do
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
+      end
       params do
         use :raw_file_params
       end
-      get ":id/files/:ref/:file_path/raw", urgency: :low, requirements: { file_path: API::NO_SLASH_URL_PART_REGEX } do
+      get ":id/files/:ref/:file_path/raw", requirements: { file_path: API::NO_SLASH_URL_PART_REGEX } do
         snippet = snippets.find_by_id(params.delete(:id))
         not_found!('Snippet') unless snippet&.repo_exists?
 
@@ -201,6 +242,10 @@ module API
 
       desc 'Get the user agent details for a snippet' do
         success Entities::UserAgentDetail
+        failure [
+          { code: 404, message: 'Not found' }
+        ]
+        tags %w[snippets]
       end
       params do
         requires :id, type: Integer, desc: 'The ID of a snippet'

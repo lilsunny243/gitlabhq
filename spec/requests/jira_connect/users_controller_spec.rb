@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe JiraConnect::UsersController do
+RSpec.describe JiraConnect::UsersController, feature_category: :integrations do
   describe 'GET /-/jira_connect/users' do
     let_it_be(:user) { create(:user) }
 
@@ -23,6 +23,17 @@ RSpec.describe JiraConnect::UsersController do
 
     context 'with an invalid host' do
       let(:return_to) { 'https://evil.com' }
+
+      it 'does not include a return url' do
+        get '/-/jira_connect/users', params: { return_to: return_to }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(response.body).not_to include('Return to GitLab')
+      end
+    end
+
+    context 'with a script injected' do
+      let(:return_to) { 'javascript://test.atlassian.net/%250dalert(document.domain)' }
 
       it 'does not include a return url' do
         get '/-/jira_connect/users', params: { return_to: return_to }

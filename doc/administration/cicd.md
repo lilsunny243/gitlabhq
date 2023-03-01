@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -69,7 +69,8 @@ can choose a custom limit. For example, to set the limit to `100`:
 Plan.default.actual_limits.update!(ci_needs_size_limit: 100)
 ```
 
-To disable directed acyclic graphs (DAG), set the limit to `0`.
+To disable directed acyclic graphs (DAG), set the limit to `0`. Pipelines with jobs
+configured to use `needs` then return the error `job can only need 0 others`.
 
 ## Change maximum scheduled pipeline frequency
 
@@ -100,6 +101,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

@@ -1,6 +1,6 @@
 <script>
 import { GlButton } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { historyPushState } from '~/lib/utils/common_utils';
 import { scrollUp } from '~/lib/utils/scroll_utils';
 import { setUrlParams, getParameterByName } from '~/lib/utils/url_utility';
@@ -71,7 +71,7 @@ export default {
       error(error) {
         this.fullRequestError = true;
 
-        createFlash({
+        createAlert({
           message: this.$options.i18n.errorMessage,
           captureError: true,
           error,
@@ -244,25 +244,24 @@ export default {
 </script>
 <template>
   <div class="gl-display-flex gl-flex-direction-column gl-mt-3">
-    <div class="gl-align-self-end gl-mb-3">
+    <releases-empty-state v-if="shouldRenderEmptyState" />
+    <div v-else class="gl-align-self-end gl-mb-3">
       <releases-sort :value="sort" class="gl-mr-2" @input="onSortChanged" />
 
       <gl-button
         v-if="newReleasePath"
         :href="newReleasePath"
-        :aria-describedby="shouldRenderEmptyState && 'releases-description'"
         category="primary"
         variant="confirm"
         >{{ $options.i18n.newRelease }}</gl-button
       >
     </div>
 
-    <releases-empty-state v-if="shouldRenderEmptyState" />
-
     <release-block
       v-for="(release, index) in releases"
       :key="getReleaseKey(release, index)"
       :release="release"
+      :sort="sort"
       :class="{ 'linked-card': releases.length > 1 && index !== releases.length - 1 }"
     />
 

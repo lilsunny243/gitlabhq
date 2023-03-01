@@ -4,10 +4,11 @@ module Gitlab
   module Database
     module Migrations
       class BaseBackgroundRunner
-        attr_reader :result_dir
+        attr_reader :result_dir, :connection
 
-        def initialize(result_dir:)
+        def initialize(result_dir:, connection:)
           @result_dir = result_dir
+          @connection = connection
         end
 
         def jobs_by_migration_name
@@ -37,18 +38,31 @@ module Gitlab
         def run_jobs_for_migration(migration_name:, jobs:, run_until:)
           per_background_migration_result_dir = File.join(@result_dir, migration_name)
 
-          instrumentation = Instrumentation.new(result_dir: per_background_migration_result_dir)
+          instrumentation = Instrumentation.new(result_dir: per_background_migration_result_dir,
+                                                observer_classes: observers)
+
           batch_names = (1..).each.lazy.map { |i| "batch_#{i}" }
 
           jobs.each do |j|
             break if run_until <= Time.current
 
+            meta = { job_meta: job_meta(j) }
+
             instrumentation.observe(version: nil,
                                     name: batch_names.next,
-                                    connection: ActiveRecord::Migration.connection) do
+                                    connection: connection,
+                                    meta: meta) do
               run_job(j)
             end
           end
+        end
+
+        def job_meta(_job)
+          {}
+        end
+
+        def observers
+          ::Gitlab::Database::Migrations::Observers.all_observers
         end
       end
     end

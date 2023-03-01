@@ -1,8 +1,10 @@
+import mockJobsCount from 'test_fixtures/graphql/jobs/get_jobs_count.query.graphql.json';
 import mockJobsEmpty from 'test_fixtures/graphql/jobs/get_jobs.query.graphql.empty.json';
 import mockJobsPaginated from 'test_fixtures/graphql/jobs/get_jobs.query.graphql.paginated.json';
 import mockJobs from 'test_fixtures/graphql/jobs/get_jobs.query.graphql.json';
 import mockJobsAsGuest from 'test_fixtures/graphql/jobs/get_jobs.query.graphql.as_guest.json';
 import { TEST_HOST } from 'spec/test_constants';
+import { TOKEN_TYPE_STATUS } from '~/vue_shared/components/filtered_search_bar/constants';
 
 const threeWeeksAgo = new Date();
 threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
@@ -12,6 +14,7 @@ export const mockJobsResponsePaginated = mockJobsPaginated;
 export const mockJobsResponseEmpty = mockJobsEmpty;
 export const mockJobsNodes = mockJobs.data.project.jobs.nodes;
 export const mockJobsNodesAsGuest = mockJobsAsGuest.data.project.jobs.nodes;
+export const mockJobsCountResponse = mockJobsCount;
 
 export const stages = [
   {
@@ -925,6 +928,7 @@ export default {
     locked: false,
   },
   name: 'test',
+  stage: 'build',
   build_path: '/root/ci-mock/-/jobs/4757',
   retry_path: '/root/ci-mock/-/jobs/4757/retry',
   cancel_path: '/root/ci-mock/-/jobs/4757/cancel',
@@ -1083,6 +1087,29 @@ export default {
   },
   raw_path: '/root/ci-mock/builds/4757/raw',
   has_trace: true,
+};
+
+export const failedJobStatus = {
+  icon: 'status_warning',
+  text: 'failed',
+  label: 'failed (allowed to fail)',
+  group: 'failed-with-warnings',
+  tooltip: 'failed - (unknown failure) (allowed to fail)',
+  has_details: true,
+  details_path: '/gitlab-org/gitlab-shell/-/jobs/454',
+  illustration: {
+    image: 'illustrations/skipped-job_empty.svg',
+    size: 'svg-430',
+    title: 'This job does not have a trace.',
+  },
+  favicon:
+    '/assets/ci_favicons/favicon_status_failed-41304d7f7e3828808b0c26771f0309e55296819a9beea3ea9fbf6689d9857c12.png',
+  action: {
+    icon: 'retry',
+    title: 'Retry',
+    path: '/gitlab-org/gitlab-shell/-/jobs/454/retry',
+    method: 'post',
+  },
 };
 
 export const jobsInStage = {
@@ -1341,7 +1368,10 @@ export const CIJobConnectionExistingCache = {
   statuses: 'PENDING',
 };
 
-export const mockFailedSearchToken = { type: 'status', value: { data: 'FAILED', operator: '=' } };
+export const mockFailedSearchToken = {
+  type: TOKEN_TYPE_STATUS,
+  value: { data: 'FAILED', operator: '=' },
+};
 
 export const retryMutationResponse = {
   data: {

@@ -3,7 +3,6 @@
 # Accessible as Project#external_issue_tracker
 module Integrations
   class Jira < BaseIssueTracker
-    extend ::Gitlab::Utils::Override
     include Gitlab::Routing
     include ApplicationHelper
     include ActionView::Helpers::AssetUrlHelper
@@ -49,21 +48,21 @@ module Integrations
           section: SECTION_TYPE_CONNECTION,
           required: true,
           title: -> { s_('JiraService|Web URL') },
-          help: -> { s_('JiraService|Base URL of the Jira instance.') },
+          help: -> { s_('JiraService|Base URL of the Jira instance') },
           placeholder: 'https://jira.example.com',
           exposes_secrets: true
 
     field :api_url,
           section: SECTION_TYPE_CONNECTION,
           title: -> { s_('JiraService|Jira API URL') },
-          help: -> { s_('JiraService|If different from Web URL.') },
+          help: -> { s_('JiraService|If different from the Web URL') },
           exposes_secrets: true
 
     field :username,
           section: SECTION_TYPE_CONNECTION,
           required: true,
-          title: -> { s_('JiraService|Username or Email') },
-          help: -> { s_('JiraService|Use a username for server version and an email for cloud version.') }
+          title: -> { s_('JiraService|Username or email') },
+          help: -> { s_('JiraService|Username for the server version or an email for the cloud version') }
 
     field :password,
           section: SECTION_TYPE_CONNECTION,
@@ -71,7 +70,7 @@ module Integrations
           title: -> { s_('JiraService|Password or API token') },
           non_empty_password_title: -> { s_('JiraService|Enter new password or API token') },
           non_empty_password_help: -> { s_('JiraService|Leave blank to use your current password or API token.') },
-          help: -> { s_('JiraService|Use a password for server version and an API token for cloud version.') }
+          help: -> { s_('JiraService|Password for the server version or an API token for the cloud version') }
 
     field :jira_issue_transition_id, api_only: true
 
@@ -98,7 +97,10 @@ module Integrations
     def self.valid_jira_cloud_url?(url)
       return false unless url.present?
 
-      !!URI(url).hostname&.end_with?(JIRA_CLOUD_HOST)
+      uri = URI.parse(url)
+      uri.is_a?(URI::HTTPS) && !!uri.hostname&.end_with?(JIRA_CLOUD_HOST)
+    rescue URI::InvalidURIError
+      false
     end
 
     def data_fields
@@ -130,11 +132,9 @@ module Integrations
     end
 
     def client
-      @client ||= begin
-        JIRA::Client.new(options).tap do |client|
-          # Replaces JIRA default http client with our implementation
-          client.request_client = Gitlab::Jira::HttpClient.new(client.options)
-        end
+      @client ||= JIRA::Client.new(options).tap do |client|
+        # Replaces JIRA default http client with our implementation
+        client.request_client = Gitlab::Jira::HttpClient.new(client.options)
       end
     end
 
@@ -391,8 +391,6 @@ module Integrations
 
       Gitlab::UsageDataCounters::HLLRedisCounter.track_event(key, values: user.id)
 
-      return unless Feature.enabled?(:route_hll_to_snowplow_phase2)
-
       optional_arguments = {
         project: project,
         namespace: group || project&.namespace
@@ -404,6 +402,7 @@ module Integrations
         label: Integration::SNOWPLOW_EVENT_LABEL,
         property: key,
         user: user,
+        context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll, event: key).to_context],
         **optional_arguments
       )
     end
@@ -533,13 +532,14 @@ module Integrations
     end
 
     def build_entity_meta(entity)
-      if entity.is_a?(Commit)
+      case entity
+      when Commit
         {
           id: entity.short_id,
           description: entity.safe_message,
           branch: branch_name(entity)
         }
-      elsif entity.is_a?(MergeRequest)
+      when MergeRequest
         {
           id: entity.to_reference,
           branch: entity.source_branch

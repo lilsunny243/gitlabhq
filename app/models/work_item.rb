@@ -3,6 +3,10 @@
 class WorkItem < Issue
   include Gitlab::Utils::StrongMemoize
 
+  COMMON_QUICK_ACTIONS_COMMANDS = [
+    :title, :reopen, :close, :cc, :tableflip, :shrug
+  ].freeze
+
   self.table_name = 'issues'
   self.inheritance_column = :_type_disabled
 
@@ -13,11 +17,42 @@ class WorkItem < Issue
   has_many :child_links, class_name: '::WorkItems::ParentLink', foreign_key: :work_item_parent_id
   has_many :work_item_children, through: :child_links, class_name: 'WorkItem',
                                 foreign_key: :work_item_id, source: :work_item
+  has_many :work_item_children_by_relative_position, -> { work_item_children_keyset_order },
+                                                     through: :child_links, class_name: 'WorkItem',
+                                                     foreign_key: :work_item_id, source: :work_item
 
   scope :inc_relations_for_permission_check, -> { includes(:author, project: :project_feature) }
 
-  def self.assignee_association_name
-    'issue'
+  delegate :supports_assignee?, to: :work_item_type
+
+  class << self
+    def assignee_association_name
+      'issue'
+    end
+
+    def test_reports_join_column
+      'issues.id'
+    end
+
+    def work_item_children_keyset_order
+      keyset_order = Gitlab::Pagination::Keyset::Order.build([
+        Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+          attribute_name: :relative_position,
+          column_expression: WorkItems::ParentLink.arel_table[:relative_position],
+          order_expression: WorkItems::ParentLink.arel_table[:relative_position].asc.nulls_last,
+          nullable: :nulls_last,
+          distinct: false
+        ),
+        Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+          attribute_name: :created_at,
+          order_expression: WorkItem.arel_table[:created_at].asc,
+          nullable: :not_nullable,
+          distinct: false
+        )
+      ])
+
+      includes(:child_links).order(keyset_order)
+    end
   end
 
   def noteable_target_type_name
@@ -30,6 +65,24 @@ class WorkItem < Issue
         widget_class.new(self)
       end
     end
+  end
+
+  def ancestors
+    hierarchy.ancestors(hierarchy_order: :asc)
+  end
+
+  def same_type_base_and_ancestors
+    hierarchy(same_type: true).base_and_ancestors(hierarchy_order: :asc)
+  end
+
+  def same_type_descendants_depth
+    hierarchy(same_type: true).max_descendants_depth.to_i
+  end
+
+  def supported_quick_action_commands
+    commands_for_widgets = work_item_type.widgets.flat_map(&:quick_action_commands).uniq
+
+    COMMON_QUICK_ACTIONS_COMMANDS + commands_for_widgets
   end
 
   private
@@ -49,6 +102,13 @@ class WorkItem < Issue
     super
 
     Gitlab::UsageDataCounters::WorkItemActivityUniqueCounter.track_work_item_created_action(author: author)
+  end
+
+  def hierarchy(options = {})
+    base = self.class.where(id: id)
+    base = base.where(work_item_type_id: work_item_type_id) if options[:same_type]
+
+    ::Gitlab::WorkItems::WorkItemHierarchy.new(base, options: options)
   end
 end
 

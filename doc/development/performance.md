@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Performance Guidelines
@@ -14,15 +14,15 @@ consistent performance of GitLab. Refer to the [Index](#performance-documentatio
 - General:
   - [Solving performance issues](#workflow)
   - [Handbook performance page](https://about.gitlab.com/handbook/engineering/performance/)
-  - [Merge request performance guidelines](../development/merge_request_performance_guidelines.md)
+  - [Merge request performance guidelines](merge_request_concepts/performance.md)
 - Backend:
   - [Tooling](#tooling)
   - Database:
     - [Query performance guidelines](database/query_performance.md)
     - [Pagination performance guidelines](../development/database/pagination_performance_guidelines.md)
     - [Keyset pagination performance](../development/database/keyset_pagination.md#performance)
-  - [Troubleshooting import/export performance issues](../development/import_export.md#troubleshooting-performance-issues)
-  - [Pipelines performance in the `gitlab` project](../development/pipelines.md#performance)
+  - [Troubleshooting import/export performance issues](../user/project/settings/import_export_troubleshooting.md#troubleshooting-performance-issues)
+  - [Pipelines performance in the `gitlab` project](pipelines/performance.md)
 - Frontend:
   - [Performance guidelines and monitoring](../development/fe_guide/performance.md)
   - [Browser performance testing guidelines](../ci/testing/browser_performance_testing.md)
@@ -37,7 +37,7 @@ consistent performance of GitLab. Refer to the [Index](#performance-documentatio
   - [Service measurement](../development/service_measurement.md)
 - Self-managed administration and customer-focused:
   - [File system performance benchmarking](../administration/operations/filesystem_benchmarking.md)
-  - [Sidekiq performance troubleshooting](../administration/troubleshooting/sidekiq.md)
+  - [Sidekiq performance troubleshooting](../administration/sidekiq/sidekiq_troubleshooting.md)
 
 ## Workflow
 
@@ -51,7 +51,7 @@ The process of solving performance problems is roughly as follows:
 1. Add your findings based on the measurement period (screenshots of graphs,
    timings, etc) to the issue mentioned in step 1.
 1. Solve the problem.
-1. Create a merge request, assign the "Performance" label and follow the [performance review process](merge_request_performance_guidelines.md).
+1. Create a merge request, assign the "Performance" label and follow the [performance review process](merge_request_concepts/performance.md).
 1. Once a change has been deployed make sure to _again_ measure for at least 24
    hours to see if your changes have any impact on the production environment.
 1. Repeat until you're done.
@@ -74,12 +74,12 @@ GitLab provides built-in tools to help improve performance and availability:
 - [Profiling](profiling.md).
 - [Distributed Tracing](distributed_tracing.md)
 - [GitLab Performance Monitoring](../administration/monitoring/performance/index.md).
-- [QueryRecoder](query_recorder.md) for preventing `N+1` regressions.
+- [QueryRecoder](database/query_recorder.md) for preventing `N+1` regressions.
 - [Chaos endpoints](chaos_endpoints.md) for testing failure scenarios. Intended mainly for testing availability.
 - [Service measurement](service_measurement.md) for measuring and logging service execution.
 
 GitLab team members can use [GitLab.com's performance monitoring systems](https://about.gitlab.com/handbook/engineering/monitoring/) located at
-[`dashboards.gitlab.net`](https://dashboards.gitlab.net), this requires you to log in using your
+[`dashboards.gitlab.net`](https://dashboards.gitlab.net), this requires you to sign in using your
 `@gitlab.com` email address. Non-GitLab team-members are advised to set up their
 own Prometheus and Grafana stack.
 
@@ -154,7 +154,7 @@ allowing you to profile which code is running on CPU in detail.
 It's important to note that profiling an application *alters its performance*.
 Different profiling strategies have different overheads. Stackprof is a sampling
 profiler. It samples stack traces from running threads at a configurable
-frequency (for example, 100hz, that is 100 stacks per second). This type of profiling
+frequency (for example, 100 hz, that is 100 stacks per second). This type of profiling
 has quite a low (albeit non-zero) overhead and is generally considered to be
 safe for production.
 
@@ -234,7 +234,7 @@ The following configuration options can be configured:
 - `STACKPROF_INTERVAL`: Sampling interval. Unit semantics depend on `STACKPROF_MODE`.
   For `object` mode this is a per-event interval (every `nth` event is sampled)
   and defaults to `100`.
-  For other modes such as `cpu` this is a frequency interval and defaults to `10100` μs (99hz).
+  For other modes such as `cpu` this is a frequency interval and defaults to `10100` μs (99 hz).
 - `STACKPROF_FILE_PREFIX`: File path prefix where profiles are stored. Defaults
   to `$TMPDIR` (often corresponds to `/tmp`).
 - `STACKPROF_TIMEOUT_S`: Profiling timeout in seconds. Profiling will
@@ -312,7 +312,7 @@ To export the flame graph to an SVG file, use [Brendan Gregg's FlameGraph tool](
 stackprof --stackcollapse  /tmp/group_member_policy_spec.rb.dump | flamegraph.pl > flamegraph.svg
 ```
 
-It's also possible to view flame graphs through [speedscope](https://github.com/jlfwong/speedscope).
+It's also possible to view flame graphs through [Speedscope](https://github.com/jlfwong/speedscope).
 You can do this when using the [performance bar](profiling.md#speedscope-flamegraphs)
 and when [profiling code blocks](https://github.com/jlfwong/speedscope/wiki/Importing-from-stackprof-(ruby)).
 This option isn't supported by `bin/rspec-stackprof`.
@@ -391,7 +391,7 @@ We store these results also when running nightly scheduled CI jobs on the
 default branch on `gitlab.com`. Statistics of these profiling data are
 [available online](https://gitlab-org.gitlab.io/rspec_profiling_stats/). For
 example, you can find which tests take longest to run or which execute the most
-queries. This can be handy for optimizing our tests or identifying performance
+queries. Use this to optimize our tests or identify performance
 issues in our code.
 
 ## Memory optimization
@@ -477,7 +477,7 @@ The `mem_*` values represent different aspects of how objects and memory are all
   => {:mem_objects=>1002, :mem_bytes=>32000, :mem_mallocs=>1000}
   ```
 
-- The following example will allocate over 40kB of data, and perform only a single memory allocation.
+- The following example will allocate over 40 kB of data, and perform only a single memory allocation.
    The existing object will be reallocated/resized on subsequent iterations:
 
   ```ruby
@@ -583,8 +583,8 @@ You may find the results:
   **Metrics Reports** [dropdown list](../ci/testing/metrics_reports.md).
 - In the `memory-on-boot` artifacts for a full report and a dependency breakdown.
 
-`derailed_benchmarks` also provides other methods to investigate memory. To learn more,
-refer to the [gem documentation](https://github.com/zombocom/derailed_benchmarks#running-derailed-exec).
+`derailed_benchmarks` also provides other methods to investigate memory. For more information, see
+the [gem documentation](https://github.com/zombocom/derailed_benchmarks#running-derailed-exec).
 Most of the methods (`derailed exec perf:*`) attempt to boot your Rails app in a
 `production` environment and run benchmarks against it.
 It is possible both in GDK and GCK:
@@ -730,7 +730,7 @@ test = +"hello"
 test += " world"
 ```
 
-When adding new Ruby files, please check that you can add the above header,
+When adding new Ruby files, check that you can add the above header,
 as omitting it may lead to style check failures.
 
 ## Banzai pipelines and filters
@@ -825,7 +825,7 @@ source into memory, memory use grows by _at least_ the size of the data source.
 In the case of `readlines`, it grows even further, due to extra bookkeeping
 the Ruby VM has to perform to represent each line.
 
-Consider the following program, which reads a text file that is 750MB on disk:
+Consider the following program, which reads a text file that is 750 MB on disk:
 
 ```ruby
 File.readlines('large_file.txt').each do |line|
@@ -859,7 +859,7 @@ We can see that `heap_live_slots` (the number of reachable objects) jumped to ~2
 which is roughly two orders of magnitude more compared to reading the file line by
 line instead. It was not just the raw memory usage that increased, but also how the garbage collector (GC)
 responded to this change in anticipation of future memory use. We can see that `malloc_increase_bytes` jumped
-to ~30MB, which compares to just ~4kB for a "fresh" Ruby program. This figure specifies how
+to ~30 MB, which compares to just ~4 kB for a "fresh" Ruby program. This figure specifies how
 much additional heap space the Ruby GC claims from the operating system next time it runs out of memory.
 Not only did we occupy more memory, we also changed the behavior of the application
 to increase memory use at a faster rate.
@@ -925,7 +925,7 @@ SOME_CONSTANT = 'bar'
 ## How to seed a database with millions of rows
 
 You might want millions of project rows in your local database, for example,
-in order to compare relative query performance, or to reproduce a bug. You could
+to compare relative query performance, or to reproduce a bug. You could
 do this by hand with SQL commands or using [Mass Inserting Rails Models](mass_insert.md) functionality.
 
 Assuming you are working with ActiveRecord models, you might also find these links helpful:

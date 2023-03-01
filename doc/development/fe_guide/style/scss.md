@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/development/fe_guide/style_guide_scss.html'
 ---
 
@@ -41,13 +41,13 @@ GitLab differs from the scale used in the Bootstrap library. For a Bootstrap pad
 utility, you may need to double the size of the applied utility to achieve the same visual
 result (such as `ml-1` becoming `gl-ml-2`).
 
-#### Where should I put new utility classes?
+#### Where should you put new utility classes?
 
-If a class you need has not been added to GitLab UI, you get to add it! Follow the naming patterns documented in the [utility files](https://gitlab.com/gitlab-org/gitlab-ui/-/tree/main/src/scss/utility-mixins) and refer to [GitLab UI's CSS documentation](https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/doc/contributing/adding_css.md#adding-utility-mixins) for more details, especially about adding responsive and stateful rules.
+If a class you need has not been added to GitLab UI, you get to add it! Follow the naming patterns documented in the [utility files](https://gitlab.com/gitlab-org/gitlab-ui/-/tree/main/src/scss/utility-mixins) and refer to the [GitLab UI CSS documentation](https://gitlab.com/gitlab-org/gitlab-ui/-/blob/main/doc/contributing/adding_css.md#adding-utility-mixins) for more details, especially about adding responsive and stateful rules.
 
 If it is not possible to wait for a GitLab UI update (generally one day), add the class to [`utilities.scss`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/stylesheets/utilities.scss) following the same naming conventions documented in GitLab UI. A follow-up issue to backport the class to GitLab UI and delete it from GitLab should be opened.
 
-#### When should I create component classes?
+#### When should you create component classes?
 
 We recommend a "utility-first" approach.
 
@@ -60,6 +60,41 @@ Inspiration:
 
 - <https://tailwindcss.com/docs/utility-first>
 - <https://tailwindcss.com/docs/extracting-components>
+
+#### Utility mixins
+
+In addition to utility classes GitLab UI provides utility mixins named after the utility classes.
+
+For example a utility class `.gl-mt-3` will have a corresponding mixin `gl-mt-3`. Here's how it can be used in an SCSS file:
+
+```scss
+.my-class {
+  @include gl-mt-3;
+}
+```
+
+These mixins should be used to replace _magic values_ in our code.
+For example a `margin-top: 8px` is a good candidate for the `@include gl-mt-3` mixin replacement.
+
+Avoid using utility mixins for [pre-defined CSS keywords](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Values_and_Units#pre-defined_keyword_values).
+For example prefer `display: flex` over `@include gl-display-flex`.
+
+```scss
+// Bad
+.my-class {
+  @include gl-display-flex;
+}
+
+// Good
+.my-class {
+  display: flex;
+}
+
+// Good
+.my-class {
+  @include gl-mt-3;
+}
+```
 
 ### Naming
 
@@ -176,14 +211,4 @@ To check if any warnings are produced by your changes, run `yarn lint:stylelint`
 catch any warnings.
 
 If the Rake task is throwing warnings you don't understand, SCSS Lint's
-documentation includes [a full list of their rules](https://stylelint.io/user-guide/rules/list/).
-
-### Fixing issues
-
-If you want to automate changing a large portion of the codebase to conform to
-the SCSS style guide, you can use [CSSComb](https://github.com/csscomb/csscomb.js). First install
-[Node](https://github.com/nodejs/node) and [npm](https://www.npmjs.com/), then run `npm install csscomb -g` to install
-CSSComb globally (system-wide). Run it in the GitLab directory with
-`csscomb app/assets/stylesheets` to automatically fix issues with CSS/SCSS.
-
-Note that this doesn't fix every problem, but it should fix a majority.
+documentation includes [a full list of their rules](https://stylelint.io/user-guide/rules/).

@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # External authorization control **(FREE SELF)**
@@ -47,10 +47,30 @@ Alternatively, learn where to install custom certificates by using
 
 The external authorization service can be enabled by an administrator:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **External authorization**.
 1. Complete the fields.
+1. Select **Save changes**.
+
+### Allow external authorization with deploy tokens and deploy keys
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/386656) in GitLab 15.9.
+
+You can set your instance to allow external authorization for Git operations with
+[deploy tokens](../../project/deploy_tokens/index.md) or [deploy keys](../../project/deploy_keys/index.md).
+
+Prerequisites:
+
+- You must be using classification labels without a service URL for external authorization.
+
+To allow authorization with deploy tokens and keys:
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **External authorization**, and:
+   - Leave the service URL field empty.
+   - Select **Allow deploy tokens and deploy keys to be used with external authorization**.
 1. Select **Save changes**.
 
 ## How it works
@@ -93,7 +113,7 @@ When denying access, a `reason` can be optionally specified in the JSON body:
 Any other status code than 200, 401 or 403 also deny access to the user, but the
 response isn't cached.
 
-If the service times out (after 500ms), a message "External Policy Server did
+If the service times out (after 500 ms), a message "External Policy Server did
 not respond" is displayed.
 
 ## Classification labels
@@ -103,7 +123,7 @@ You can use your own classification label in the project's
 label" box. When no classification label is specified on a project, the default
 label defined in the [global settings](#configuration) is used.
 
-The label is shown on all project pages in the upper right corner.
+On all project pages, in the upper-right corner, the label appears.
 
 ![classification label on project page](img/classification_label_on_project_page_v14_8.png)
 
@@ -115,6 +135,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

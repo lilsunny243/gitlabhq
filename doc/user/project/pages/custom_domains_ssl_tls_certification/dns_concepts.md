@@ -2,7 +2,7 @@
 type: concepts
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # DNS records overview **(FREE)**
@@ -21,7 +21,7 @@ GitLab Pages with your own (sub)domain, you need to access your domain's
 registrar control panel to add a DNS record pointing it back to your
 GitLab Pages site.
 
-Note that **how to** add DNS records depends on which server your domain
+How to add DNS records depends on which server your domain
 is hosted on. Every control panel has its own place to do it. If you are
 not an administrator of your domain, and don't have access to your registrar,
 you must ask the technical support of your hosting service
@@ -35,7 +35,7 @@ for the most popular hosting services:
 - [123-reg](https://www.123-reg.co.uk/support/domains/domain-name-server-dns-management-guide/)
 - [Amazon](https://docs.aws.amazon.com/AmazonS3/latest/dev/website-hosting-custom-domain-walkthrough.html)
 - [Bluehost](https://www.bluehost.com/help/article/dns-management-add-edit-or-delete-dns-entries)
-- [Cloudflare](https://support.cloudflare.com/hc/en-us/articles/201720164-Creating-a-Cloudflare-account-and-adding-a-website)
+- [Cloudflare](https://developers.cloudflare.com/fundamentals/get-started/setup/)
 - [cPanel](https://documentation.cpanel.net/display/84Docs/Edit+DNS+Zone)
 - [DigitalOcean](https://docs.digitalocean.com/products/networking/dns/how-to/manage-records/)
 - [DreamHost](https://help.dreamhost.com/hc/en-us/articles/360035516812)
@@ -44,7 +44,7 @@ for the most popular hosting services:
 - [Hostgator](https://www.hostgator.com/help/article/changing-dns-records)
 - [Inmotion hosting](https://www.bluehost.com/help/article/dns-management-add-edit-or-delete-dns-entries)
 - [Media Temple](https://mediatemple.net/community/products/dv/204403794/how-can-i-change-the-dns-records-for-my-domain)
-- [Microsoft](https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-2000-server/bb727018(v=technet.10))
+- [Microsoft](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-2000-server/bb727018(v=technet.10))
 - [Namecheap](https://www.namecheap.com/support/knowledgebase/subcategory/2237/host-records-setup/)
 
 <!-- vale gitlab.Spelling = YES -->

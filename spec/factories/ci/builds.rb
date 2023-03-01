@@ -24,6 +24,18 @@ FactoryBot.define do
 
     project { pipeline.project }
 
+    ref { pipeline.ref }
+
+    trait :with_token do
+      transient do
+        generate_token { true }
+      end
+
+      after(:build) do |build, evaluator|
+        build.ensure_token if evaluator.generate_token
+      end
+    end
+
     trait :degenerated do
       options { nil }
       yaml_variables { nil }
@@ -93,6 +105,7 @@ FactoryBot.define do
     end
 
     trait :pending do
+      with_token
       queued_at { 'Di 29. Okt 09:50:59 CET 2013' }
 
       status { 'pending' }
@@ -100,6 +113,7 @@ FactoryBot.define do
 
     trait :created do
       status { 'created' }
+      generate_token { false }
     end
 
     trait :preparing do
@@ -303,14 +317,11 @@ FactoryBot.define do
         # Build deployment/environment relations if environment name is set
         # to the job. If `build.deployment` has already been set, it doesn't
         # build a new instance.
-        environment = Gitlab::Ci::Pipeline::Seed::Environment.new(build).to_resource
+        Environments::CreateForBuildService.new.execute(build)
+      end
 
-        build.assign_attributes(
-          deployment: Gitlab::Ci::Pipeline::Seed::Deployment.new(build, environment).to_resource,
-          metadata_attributes: {
-            expanded_environment_name: environment.name
-          }
-        )
+      after(:create) do |build, evaluator|
+        Deployments::CreateForBuildService.new.execute(build)
       end
     end
 
@@ -409,9 +420,17 @@ FactoryBot.define do
     end
 
     trait :artifacts do
-      after(:create) do |build|
-        create(:ci_job_artifact, :archive, job: build, expire_at: build.artifacts_expire_at)
-        create(:ci_job_artifact, :metadata, job: build, expire_at: build.artifacts_expire_at)
+      after(:create) do |build, evaluator|
+        create(:ci_job_artifact, :archive, :public, job: build, expire_at: build.artifacts_expire_at)
+        create(:ci_job_artifact, :metadata, :public, job: build, expire_at: build.artifacts_expire_at)
+        build.reload
+      end
+    end
+
+    trait :private_artifacts do
+      after(:create) do |build, evaluator|
+        create(:ci_job_artifact, :archive, :private, job: build, expire_at: build.artifacts_expire_at)
+        create(:ci_job_artifact, :metadata, :private, job: build, expire_at: build.artifacts_expire_at)
         build.reload
       end
     end
@@ -424,79 +443,79 @@ FactoryBot.define do
 
     trait :codequality_report do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :codequality, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :codequality, job: build)
       end
     end
 
     trait :sast_report do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :sast, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :sast, job: build)
       end
     end
 
     trait :secret_detection_report do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :secret_detection, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :secret_detection, job: build)
       end
     end
 
     trait :test_reports do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :junit, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :junit, job: build)
       end
     end
 
     trait :test_reports_with_attachment do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :junit_with_attachment, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :junit_with_attachment, job: build)
       end
     end
 
     trait :broken_test_reports do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :junit_with_corrupted_data, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :junit_with_corrupted_data, job: build)
       end
     end
 
     trait :test_reports_with_duplicate_failed_test_names do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :junit_with_duplicate_failed_test_names, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :junit_with_duplicate_failed_test_names, job: build)
       end
     end
 
     trait :test_reports_with_three_failures do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :junit_with_three_failures, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :junit_with_three_failures, job: build)
       end
     end
 
     trait :accessibility_reports do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :accessibility, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :accessibility, job: build)
       end
     end
 
     trait :coverage_reports do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :cobertura, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :cobertura, job: build)
       end
     end
 
     trait :codequality_reports do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :codequality, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :codequality, job: build)
       end
     end
 
     trait :codequality_reports_without_degradation do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :codequality_without_errors, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :codequality_without_errors, job: build)
       end
     end
 
     trait :terraform_reports do
       after(:build) do |build|
-        build.job_artifacts << create(:ci_job_artifact, :terraform, job: build)
+        build.job_artifacts << build(:ci_job_artifact, :terraform, job: build)
       end
     end
 
@@ -536,9 +555,12 @@ FactoryBot.define do
       options do
         {
           image: { name: 'image:1.0', entrypoint: '/bin/sh' },
-          services: ['postgres', { name: 'docker:stable-dind', entrypoint: '/bin/sh', command: 'sleep 30', alias: 'docker' }, { name: 'mysql:latest', variables: { MYSQL_ROOT_PASSWORD: 'root123.' } }],
+          services: ['postgres',
+                     { name: 'docker:stable-dind', entrypoint: '/bin/sh', command: 'sleep 30', alias: 'docker' },
+                     { name: 'mysql:latest', variables: { MYSQL_ROOT_PASSWORD: 'root123.' } }],
           script: %w(echo),
           after_script: %w(ls date),
+          hooks: { pre_get_sources_script: ["echo 'hello pre_get_sources_script'"] },
           artifacts: {
             name: 'artifacts_file',
             untracked: false,
@@ -716,7 +738,7 @@ FactoryBot.define do
 
     trait :with_runner_session do
       after(:build) do |build|
-        build.build_runner_session(url: 'https://localhost')
+        build.build_runner_session(url: 'https://gitlab.example.com')
       end
     end
 

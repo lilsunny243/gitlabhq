@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Pipeline', :js do
+RSpec.describe 'Pipeline', :js, feature_category: :projects do
   include RoutesHelpers
   include ProjectForksHelper
   include ::ExclusiveLeaseHelpers
@@ -18,6 +18,8 @@ RSpec.describe 'Pipeline', :js do
   end
 
   shared_context 'pipeline builds' do
+    let!(:external_stage) { create(:ci_stage, name: 'external', pipeline: pipeline) }
+
     let!(:build_passed) do
       create(:ci_build, :success,
              pipeline: pipeline, stage: 'build', stage_idx: 0, name: 'build')
@@ -52,7 +54,7 @@ RSpec.describe 'Pipeline', :js do
       create(:generic_commit_status, status: 'success',
                                      pipeline: pipeline,
                                      name: 'jenkins',
-                                     stage: 'external',
+                                     ci_stage: external_stage,
                                      ref: 'master',
                                      target_url: 'http://gitlab.com/status')
     end
@@ -64,7 +66,9 @@ RSpec.describe 'Pipeline', :js do
     let_it_be(:group) { create(:group) }
     let_it_be(:project, reload: true) { create(:project, :repository, group: group) }
 
-    let(:pipeline) { create(:ci_pipeline, project: project, ref: 'master', sha: project.commit.id, user: user) }
+    let(:pipeline) do
+      create(:ci_pipeline, name: 'Build pipeline', project: project, ref: 'master', sha: project.commit.id, user: user)
+    end
 
     subject(:visit_pipeline) { visit project_pipeline_path(project, pipeline) }
 
@@ -72,9 +76,9 @@ RSpec.describe 'Pipeline', :js do
       visit_pipeline
 
       expect(page).to have_selector('.js-pipeline-graph')
-      expect(page).to have_content('Build')
-      expect(page).to have_content('Test')
-      expect(page).to have_content('Deploy')
+      expect(page).to have_content('build')
+      expect(page).to have_content('test')
+      expect(page).to have_content('deploy')
       expect(page).to have_content('Retry')
       expect(page).to have_content('Cancel running')
     end
@@ -93,6 +97,19 @@ RSpec.describe 'Pipeline', :js do
                                       "for #{pipeline.ref}")
         expect(page).to have_link(pipeline.ref,
           href: project_commits_path(pipeline.project, pipeline.ref))
+      end
+    end
+
+    it 'displays pipeline name instead of commit title' do
+      visit_pipeline
+
+      within 'h3' do
+        expect(page).to have_content(pipeline.name)
+      end
+
+      within '.well-segment[data-testid="commit-row"]' do
+        expect(page).to have_content(project.commit.title)
+        expect(page).to have_content(project.commit.short_id)
       end
     end
 
@@ -363,7 +380,7 @@ RSpec.describe 'Pipeline', :js do
           project: downstream_project,
           ref: 'master',
           sha: downstream_project.commit.id,
-          child_of: pipeline )
+          child_of: pipeline)
         end
 
         let!(:build) { create(:ci_build, status, pipeline: downstream_pipeline, user: user) }
@@ -793,9 +810,9 @@ RSpec.describe 'Pipeline', :js do
 
       it 'shows the pipeline graph' do
         expect(page).to have_selector('.js-pipeline-graph')
-        expect(page).to have_content('Build')
-        expect(page).to have_content('Test')
-        expect(page).to have_content('Deploy')
+        expect(page).to have_content('build')
+        expect(page).to have_content('test')
+        expect(page).to have_content('deploy')
         expect(page).to have_content('Retry')
         expect(page).to have_content('Cancel running')
       end
@@ -851,15 +868,12 @@ RSpec.describe 'Pipeline', :js do
 
         before do
           schedule.owner.block!
-
-          begin
-            PipelineScheduleWorker.new.perform
-          rescue Ci::CreatePipelineService::CreateError
-            # Do nothing, assert view code after the Pipeline failed to create.
-          end
+          PipelineScheduleWorker.new.perform
         end
 
         it 'displays the PipelineSchedule in an inactive state' do
+          stub_feature_flags(pipeline_schedules_vue: false)
+
           visit project_pipeline_schedules_path(project)
           page.click_link('Inactive')
 
@@ -1219,9 +1233,24 @@ RSpec.describe 'Pipeline', :js do
       it 'displays the pipeline graph' do
         subject
 
-        expect(page).to have_current_path(pipeline_path(pipeline), ignore_query: true)
+        expect(page).to have_current_path(pipeline_path(pipeline))
         expect(page).to have_selector('.js-pipeline-graph')
       end
+    end
+  end
+
+  describe 'GET /:project/-/pipelines/latest' do
+    let_it_be(:project) { create(:project, :repository) }
+
+    let!(:pipeline) { create(:ci_pipeline, project: project, ref: 'master', sha: project.commit.id) }
+
+    before do
+      visit latest_project_pipelines_path(project)
+    end
+
+    it 'displays the pipeline graph with correct URL' do
+      expect(page).to have_current_path("#{pipeline_path(pipeline)}/")
+      expect(page).to have_selector('.js-pipeline-graph')
     end
   end
 

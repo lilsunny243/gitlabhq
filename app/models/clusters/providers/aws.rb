@@ -12,9 +12,9 @@ module Clusters
 
       belongs_to :cluster, inverse_of: :provider_aws, class_name: 'Clusters::Cluster'
 
-      default_value_for :region, DEFAULT_REGION
-      default_value_for :num_nodes, 3
-      default_value_for :instance_type, 'm5.large'
+      attribute :region, default: DEFAULT_REGION
+      attribute :num_nodes, default: 3
+      attribute :instance_type, default: "m5.large"
 
       attr_encrypted :secret_access_key,
         mode: :per_attribute_iv,
@@ -43,18 +43,6 @@ module Clusters
           secret_access_key: nil,
           session_token: nil
         )
-      end
-
-      def api_client
-        strong_memoize(:api_client) do
-          ::Aws::CloudFormation::Client.new(credentials: credentials, region: region)
-        end
-      end
-
-      def credentials
-        strong_memoize(:credentials) do
-          ::Aws::Credentials.new(access_key_id, secret_access_key, session_token)
-        end
       end
 
       def has_rbac_enabled?

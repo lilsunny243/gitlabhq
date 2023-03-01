@@ -224,25 +224,13 @@ RSpec.shared_examples 'process nuget upload' do |user_type, status, add_member =
       end
 
       context 'and direct upload disabled' do
-        context 'and background upload disabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: false)
-          end
-
-          it_behaves_like 'creates nuget package files'
+        let(:fog_connection) do
+          stub_package_file_object_storage(direct_upload: false)
         end
 
-        context 'and background upload enabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: true)
-          end
-
-          it_behaves_like 'creates nuget package files'
-        end
+        it_behaves_like 'creates nuget package files'
       end
     end
-
-    it_behaves_like 'background upload schedules a file migration'
   end
 end
 
@@ -293,6 +281,8 @@ RSpec.shared_examples 'process nuget download content request' do |user_type, st
 
     it_behaves_like 'a package tracking event', 'API::NugetPackages', 'pull_package'
 
+    it_behaves_like 'bumping the package last downloaded at field'
+
     it 'returns a valid package archive' do
       subject
 
@@ -315,6 +305,8 @@ RSpec.shared_examples 'process nuget download content request' do |user_type, st
       end
 
       it_behaves_like 'a package tracking event', 'API::NugetPackages', 'pull_symbol_package'
+
+      it_behaves_like 'bumping the package last downloaded at field'
     end
 
     context 'with lower case package name' do
@@ -385,6 +377,26 @@ RSpec.shared_examples 'process nuget search request' do |user_type, status, add_
       it_behaves_like 'returns a valid json search response', status, 5, [1, 5, 5, 1, 1]
     end
   end
+end
+
+RSpec.shared_examples 'process empty nuget search request' do |user_type, status, add_member = true|
+  before do
+    target.send("add_#{user_type}", user) if add_member && user_type != :anonymous
+  end
+
+  it_behaves_like 'returning response status', status
+
+  it 'returns a valid json response' do
+    subject
+
+    expect(response.media_type).to eq('application/json')
+    expect(json_response).to be_a(Hash)
+    expect(json_response).to match_schema('public_api/v4/packages/nuget/search')
+    expect(json_response['totalHits']).to eq(0)
+    expect(json_response['data'].map { |e| e['versions'].size }).to be_empty
+  end
+
+  it_behaves_like 'a package tracking event', 'API::NugetPackages', 'search_package'
 end
 
 RSpec.shared_examples 'rejects nuget access with invalid target id' do
@@ -503,7 +515,7 @@ RSpec.shared_examples 'nuget upload endpoint' do |symbol_package: false|
       let(:token) { user_token ? personal_access_token.token : 'wrong' }
       let(:user_headers) { user_role == :anonymous ? {} : basic_auth_header(user.username, token) }
       let(:headers) { user_headers.merge(workhorse_headers) }
-      let(:snowplow_gitlab_standard_context) { { project: project, user: user, namespace: project.namespace } }
+      let(:snowplow_gitlab_standard_context) { { project: project, user: user, namespace: project.namespace, property: 'i_package_nuget_user' } }
 
       before do
         update_visibility_to(Gitlab::VisibilityLevel.const_get(visibility_level, false))

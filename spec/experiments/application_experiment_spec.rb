@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ApplicationExperiment, :experiment do
+RSpec.describe ApplicationExperiment, :experiment, feature_category: :experimentation_conversion do
   subject(:application_experiment) { described_class.new('namespaced/stub', **context) }
 
   let(:context) { {} }
@@ -42,72 +42,6 @@ RSpec.describe ApplicationExperiment, :experiment do
         key: anything,
         variant: 'control'
       )
-    end
-
-    describe '#publish_to_database' do
-      using RSpec::Parameterized::TableSyntax
-
-      let(:publish_to_database) { ActiveSupport::Deprecation.silence { application_experiment.publish_to_database } }
-
-      shared_examples 'does not record to the database' do
-        it 'does not create an experiment record' do
-          expect { publish_to_database }.not_to change(Experiment, :count)
-        end
-
-        it 'does not create an experiment subject record' do
-          expect { publish_to_database }.not_to change(ExperimentSubject, :count)
-        end
-      end
-
-      context 'when there is a usable subject' do
-        let(:context) { { context_key => context_value } }
-
-        where(:context_key, :context_value, :object_type) do
-          :namespace | build(:namespace, id: non_existing_record_id) | :namespace
-          :group     | build(:namespace, id: non_existing_record_id) | :namespace
-          :project   | build(:project, id: non_existing_record_id)   | :project
-          :user      | build(:user, id: non_existing_record_id)      | :user
-          :actor     | build(:user, id: non_existing_record_id)      | :user
-        end
-
-        with_them do
-          it 'creates an experiment and experiment subject record' do
-            expect { publish_to_database }.to change(Experiment, :count).by(1)
-
-            expect(Experiment.last.name).to eq('namespaced/stub')
-            expect(ExperimentSubject.last.send(object_type)).to eq(context[context_key])
-          end
-        end
-      end
-
-      context "when experiment hasn't ran" do
-        let(:context) { { user: create(:user) } }
-
-        it 'sets a variant on the experiment subject' do
-          publish_to_database
-
-          expect(ExperimentSubject.last.variant).to eq('control')
-        end
-      end
-
-      context 'when there is not a usable subject' do
-        let(:context) { { context_key => context_value } }
-
-        where(:context_key, :context_value) do
-          :namespace | nil
-          :foo       | :bar
-        end
-
-        with_them do
-          include_examples 'does not record to the database'
-        end
-      end
-
-      context 'but we should not track' do
-        let(:should_track) { false }
-
-        include_examples 'does not record to the database'
-      end
     end
   end
 
@@ -253,13 +187,11 @@ RSpec.describe ApplicationExperiment, :experiment do
     end
 
     with_them do
-      it "returns the url or nil if invalid" do
-        allow(Gitlab).to receive(:com?).and_return(true)
+      it "returns the url or nil if invalid on SaaS", :saas do
         expect(application_experiment.process_redirect_url(url)).to eq(processed_url)
       end
 
-      it "considers all urls invalid when not on dev or com" do
-        allow(Gitlab).to receive(:com?).and_return(false)
+      it "considers all urls invalid when not on SaaS" do
         expect(application_experiment.process_redirect_url(url)).to be_nil
       end
     end

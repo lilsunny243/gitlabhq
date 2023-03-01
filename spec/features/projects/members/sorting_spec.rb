@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Members > Sorting', :js do
+RSpec.describe 'Projects > Members > Sorting', :js, feature_category: :subgroups do
   include Spec::Support::Helpers::Features::MembersHelpers
 
   let(:maintainer) { create(:user, name: 'John Doe', created_at: 5.days.ago, last_activity_on: Date.today) }
@@ -48,7 +48,7 @@ RSpec.describe 'Projects > Members > Sorting', :js do
     expect(first_row.text).to have_content(maintainer.name)
     expect(second_row.text).to have_content(developer.name)
 
-    expect_sort_by('Created on', :asc)
+    expect_sort_by('User created', :asc)
   end
 
   it 'sorts by user created on descending' do
@@ -57,7 +57,7 @@ RSpec.describe 'Projects > Members > Sorting', :js do
     expect(first_row.text).to have_content(developer.name)
     expect(second_row.text).to have_content(maintainer.name)
 
-    expect_sort_by('Created on', :desc)
+    expect_sort_by('User created', :desc)
   end
 
   it 'sorts by last activity ascending' do

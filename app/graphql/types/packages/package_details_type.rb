@@ -26,6 +26,10 @@ module Types
       field :pypi_setup_url, GraphQL::Types::String, null: true, description: 'Url of the PyPi project setup endpoint.'
       field :pypi_url, GraphQL::Types::String, null: true, description: 'Url of the PyPi project endpoint.'
 
+      field :last_downloaded_at, Types::TimeType, null: true, description: 'Last time that a file of this package was downloaded.'
+
+      field :public_package, GraphQL::Types::Boolean, null: true, description: 'Indicates if there is public access to the package.'
+
       def versions
         object.versions
       end
@@ -60,6 +64,10 @@ module Types
 
       def pypi_url
         pypi_registry_url(object.project.id)
+      end
+
+      def public_package
+        object.project.public? || object.project.project_feature.package_registry_access_level == ProjectFeature::PUBLIC
       end
     end
   end

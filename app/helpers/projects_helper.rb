@@ -69,7 +69,7 @@ module ProjectsHelper
     if opts[:name]
       inject_classes.concat(["js-user-link", opts[:mobile_classes]])
     else
-      inject_classes.append( "has-tooltip" )
+      inject_classes.append("has-tooltip")
     end
 
     inject_classes = inject_classes.compact.join(" ")
@@ -123,6 +123,25 @@ module ProjectsHelper
     end
   end
 
+  def vue_fork_divergence_data(project, ref)
+    source_project = visible_fork_source(project)
+
+    return {} unless source_project
+
+    source_default_branch = source_project.default_branch
+
+    {
+      source_name: source_project.full_name,
+      source_path: project_path(source_project),
+      ahead_compare_path: project_compare_path(
+        project, from: source_default_branch, to: ref, from_project_id: source_project.id
+      ),
+      behind_compare_path: project_compare_path(
+        source_project, from: ref, to: source_default_branch, from_project_id: project.id
+      )
+    }
+  end
+
   def remove_fork_project_warning_message(project)
     _("You are going to remove the fork relationship from %{project_full_name}. Are you ABSOLUTELY sure?") %
       { project_full_name: project.full_name }
@@ -142,6 +161,8 @@ module ProjectsHelper
   end
 
   def project_search_tabs?(tab)
+    return false unless @project.present?
+
     abilities = Array(search_tab_ability_map[tab])
 
     abilities.any? { |ability| can?(current_user, ability, @project) }
@@ -172,6 +193,7 @@ module ProjectsHelper
 
   def project_list_cache_key(project, pipeline_status: true)
     key = [
+      project.star_count,
       project.route.cache_key,
       project.cache_key,
       project.last_activity_date,
@@ -253,11 +275,8 @@ module ProjectsHelper
     end
   end
 
-  # TODO: Remove this method when removing the feature flag
-  # https://gitlab.com/gitlab-org/gitlab/merge_requests/11209#note_162234863
-  # make sure to remove from the EE specific controller as well: ee/app/controllers/ee/dashboard/projects_controller.rb
   def show_projects?(projects, params)
-    Feature.enabled?(:project_list_filter_bar) || !!(params[:personal] || params[:name] || any_projects?(projects))
+    !!(params[:personal] || params[:name] || params[:language] || any_projects?(projects))
   end
 
   def push_to_create_project_command(user = current_user)
@@ -285,11 +304,7 @@ module ProjectsHelper
       current_page?(starred_explore_projects_path)
   end
 
-  def show_merge_request_count?(disabled: false, compact_mode: false)
-    !disabled && !compact_mode
-  end
-
-  def show_issue_count?(disabled: false, compact_mode: false)
+  def show_count?(disabled: false, compact_mode: false)
     !disabled && !compact_mode
   end
 
@@ -391,7 +406,9 @@ module ProjectsHelper
       issuesHelpPath: help_page_path('user/project/issues/index'),
       membersPagePath: project_project_members_path(project),
       environmentsHelpPath: help_page_path('ci/environments/index'),
-      featureFlagsHelpPath: help_page_path('operations/feature_flags')
+      featureFlagsHelpPath: help_page_path('operations/feature_flags'),
+      releasesHelpPath: help_page_path('user/project/releases/index'),
+      infrastructureHelpPath: help_page_path('user/infrastructure/index')
     }
   end
 
@@ -418,6 +435,10 @@ module ProjectsHelper
     project.merge_requests_enabled? && can?(user, :read_merge_request, project)
   end
 
+  def able_to_see_forks_count?(project, user)
+    project.forking_enabled? && can?(user, :read_code, project)
+  end
+
   def fork_button_disabled_tooltip(project)
     return unless current_user
 
@@ -439,7 +460,6 @@ module ProjectsHelper
   def show_inactive_project_deletion_banner?(project)
     return false unless project.present? && project.saved?
     return false unless delete_inactive_projects?
-    return false unless Feature.enabled?(:inactive_projects_deletion, project.root_namespace)
 
     project.inactive?
   end
@@ -454,26 +474,50 @@ module ProjectsHelper
 
   def clusters_deprecation_alert_message
     if has_active_license?
-      s_('ClusterIntegration|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of November 2022. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd} or reach out to GitLab support.')
+      s_('ClusterIntegration|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd} or reach out to GitLab support.')
     else
-      s_('ClusterIntegration|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of November 2022. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}.')
+      s_('ClusterIntegration|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}.')
     end
   end
 
   def project_coverage_chart_data_attributes(daily_coverage_options, ref)
     {
       graph_endpoint: "#{daily_coverage_options[:graph_api_path]}?#{daily_coverage_options[:base_params].to_query}",
-      graph_start_date: "#{daily_coverage_options[:base_params][:start_date].strftime('%b %d')}",
-      graph_end_date: "#{daily_coverage_options[:base_params][:end_date].strftime('%b %d')}",
-      graph_ref: "#{ref}",
+      graph_start_date: daily_coverage_options[:base_params][:start_date].strftime('%b %d'),
+      graph_end_date: daily_coverage_options[:base_params][:end_date].strftime('%b %d'),
+      graph_ref: ref.to_s,
       graph_csv_path: "#{daily_coverage_options[:download_path]}?#{daily_coverage_options[:base_params].to_query}"
     }
   end
 
+  def localized_project_human_access(access)
+    localized_access_names[access] || Gitlab::Access.human_access(access)
+  end
+
+  def badge_count(number)
+    format_cached_count(1000, number)
+  end
+
+  def remote_mirror_setting_enabled?
+    false
+  end
+
   private
 
+  def localized_access_names
+    {
+      Gitlab::Access::NO_ACCESS => _('No access'),
+      Gitlab::Access::MINIMAL_ACCESS => _("Minimal Access"),
+      Gitlab::Access::GUEST => _('Guest'),
+      Gitlab::Access::REPORTER => _('Reporter'),
+      Gitlab::Access::DEVELOPER => _('Developer'),
+      Gitlab::Access::MAINTAINER => _('Maintainer'),
+      Gitlab::Access::OWNER => _('Owner')
+    }
+  end
+
   def configure_oauth_import_message(provider, help_url)
-    str = if current_user.admin?
+    str = if current_user.can_admin_all_resources?
             'ImportProjects|To enable importing projects from %{provider}, as administrator you need to configure %{link_start}OAuth integration%{link_end}'
           else
             'ImportProjects|To enable importing projects from %{provider}, ask your GitLab administrator to configure %{link_start}OAuth integration%{link_end}'
@@ -509,10 +553,10 @@ module ProjectsHelper
 
   def search_tab_ability_map
     @search_tab_ability_map ||= tab_ability_map.merge(
-      blobs: :download_code,
-      commits: :download_code,
+      blobs: :read_code,
+      commits: :read_code,
       merge_requests: :read_merge_request,
-      notes: [:read_merge_request, :download_code, :read_issue, :read_snippet],
+      notes: [:read_merge_request, :read_code, :read_issue, :read_snippet],
       members: :read_project_member
     )
   end
@@ -611,7 +655,7 @@ module ProjectsHelper
   end
 
   def restricted_levels
-    return [] if current_user.admin?
+    return [] if current_user.can_admin_all_resources?
 
     Gitlab::CurrentSettings.restricted_visibility_levels || []
   end
@@ -636,7 +680,7 @@ module ProjectsHelper
       lfsEnabled: !!project.lfs_enabled,
       emailsDisabled: project.emails_disabled?,
       metricsDashboardAccessLevel: feature.metrics_dashboard_access_level,
-      operationsAccessLevel: feature.operations_access_level,
+      monitorAccessLevel: feature.monitor_access_level,
       showDefaultAwardEmojis: project.show_default_award_emojis?,
       warnAboutPotentiallyUnwantedCharacters: project.warn_about_potentially_unwanted_characters?,
       enforceAuthChecksOnUploads: project.enforce_auth_checks_on_uploads?,
@@ -644,7 +688,8 @@ module ProjectsHelper
       containerRegistryAccessLevel: feature.container_registry_access_level,
       environmentsAccessLevel: feature.environments_access_level,
       featureFlagsAccessLevel: feature.feature_flags_access_level,
-      releasesAccessLevel: feature.releases_access_level
+      releasesAccessLevel: feature.releases_access_level,
+      infrastructureAccessLevel: feature.infrastructure_access_level
     }
   end
 
@@ -656,7 +701,7 @@ module ProjectsHelper
 
   def find_file_path
     return unless @project && !@project.empty_repo?
-    return unless can?(current_user, :download_code, @project)
+    return unless can?(current_user, :read_code, @project)
 
     ref = @ref || @project.repository.root_ref
 
@@ -712,7 +757,7 @@ module ProjectsHelper
   end
 
   def show_visibility_confirm_modal?(project)
-    project.unlink_forks_upon_visibility_decrease_enabled? && project.visibility_level > Gitlab::VisibilityLevel::PRIVATE && project.forks_count > 0
+    project.visibility_level > Gitlab::VisibilityLevel::PRIVATE && project.forks_count > 0
   end
 
   def confirm_reduce_visibility_message(project)

@@ -75,8 +75,10 @@
 
     %div
       - if @user.new_record?
-        = f.submit _('Create user'), class: "btn gl-button btn-confirm"
-        = link_to _('Cancel'), admin_users_path, class: "gl-button btn btn-default btn-cancel"
+        = f.submit _('Create user'), pajamas_button: true
+        = render Pajamas::ButtonComponent.new(href: admin_users_path) do
+          = _('Cancel')
       - else
-        = f.submit _('Save changes'), class: "btn gl-button btn-confirm"
-        = link_to _('Cancel'), admin_user_path(@user), class: "gl-button btn btn-default btn-cancel"
+        = f.submit _('Save changes'), pajamas_button: true
+        = render Pajamas::ButtonComponent.new(href: admin_user_path(@user)) do
+          = _('Cancel')

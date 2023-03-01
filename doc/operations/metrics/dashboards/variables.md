@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Using variables (DEPRECATED) **(FREE)**
@@ -38,7 +38,7 @@ must be lowercase. The supported variables are:
 - `ci_environment_name`
 - `__range`
 
-### environment_filter
+### `environment_filter`
 
 `environment_filter` is automatically expanded to `container_name!="POD",environment="ENVIRONMENT_NAME"`
 where `ENVIRONMENT_NAME` is the name of the current environment.
@@ -46,7 +46,7 @@ where `ENVIRONMENT_NAME` is the name of the current environment.
 For example, a Prometheus query like `container_memory_usage_bytes{ {{environment_filter}} }`
 becomes `container_memory_usage_bytes{ container_name!="POD",environment="production" }`.
 
-### __range
+### `__range`
 
 The `__range` variable is useful in Prometheus
 [range vector selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#range-vector-selectors).

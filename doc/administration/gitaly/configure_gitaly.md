@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Configure Gitaly **(FREE SELF)**
@@ -49,6 +49,9 @@ NOTE:
 When configured to run on their own servers, Gitaly servers must be
 [upgraded](../../update/package/index.md) before Gitaly clients in your cluster.
 
+NOTE:
+[Disk requirements](index.md#disk-requirements) apply to Gitaly nodes.
+
 The process for setting up Gitaly on its own server is:
 
 1. [Install Gitaly](#install-gitaly).
@@ -56,21 +59,6 @@ The process for setting up Gitaly on its own server is:
 1. [Configure Gitaly servers](#configure-gitaly-servers).
 1. [Configure Gitaly clients](#configure-gitaly-clients).
 1. [Disable Gitaly where not required](#disable-gitaly-where-not-required-optional) (optional).
-
-When running Gitaly on its own server, note the following regarding GitLab versions:
-
-- From GitLab 11.4, Gitaly was able to serve all Git requests without requiring a shared NFS mount
-  for Git repository data, except for the
-  [Elasticsearch indexer](https://gitlab.com/gitlab-org/gitlab-elasticsearch-indexer).
-- From GitLab 11.8, the Elasticsearch indexer also uses Gitaly for data access. NFS can still be
-  leveraged for redundancy on block-level Git data, but should be mounted only on the Gitaly
-  servers.
-- From GitLab 11.8 to 12.2, it is possible to use Elasticsearch in a Gitaly setup that doesn't use
-  NFS. To use Elasticsearch in these versions, the
-  [repository indexer](../../integration/advanced_search/elasticsearch.md#elasticsearch-repository-indexer)
-  must be enabled in your GitLab configuration.
-- [In GitLab 12.3 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/6481), the new indexer is
-  the default and no configuration is required.
 
 ### Network architecture
 
@@ -103,7 +91,7 @@ the default ports for HTTP and HTTPs communication.
 ![Gitaly network architecture diagram](img/gitaly_network_13_9.png)
 
 WARNING:
-Gitaly servers must not be exposed to the public internet as Gitaly's network traffic is unencrypted
+Gitaly servers must not be exposed to the public internet as Gitaly network traffic is unencrypted
 by default. The use of firewall is highly recommended to restrict access to the Gitaly server.
 Another option is to [use TLS](#enable-tls-support).
 
@@ -140,7 +128,7 @@ To configure Gitaly servers, you must:
 
 The `git` user must be able to read, write, and set permissions on the configured storage path.
 
-To avoid downtime while rotating Gitaly's token, you can temporarily disable authentication using the `gitaly['auth_transitioning']` setting. For more information, see the documentation on
+To avoid downtime while rotating the Gitaly token, you can temporarily disable authentication using the `gitaly['auth_transitioning']` setting. For more information, see the documentation on
 [enabling "auth transitioning mode"](#enable-auth-transitioning-mode).
 
 #### Configure authentication
@@ -555,12 +543,17 @@ Additionally, the certificate (or its certificate authority) must be installed o
 - Gitaly servers.
 - Gitaly clients that communicate with it.
 
-Note the following:
+If you use a load balancer, it must be able to negotiate HTTP/2 using the ALPN TLS extension.
+
+### Certificate requirements
 
 - The certificate must specify the address you use to access the Gitaly server. You must add the hostname or IP address as a Subject Alternative Name to the certificate.
 - You can configure Gitaly servers with both an unencrypted listening address `listen_addr` and an
   encrypted listening address `tls_listen_addr` at the same time. This allows you to gradually
   transition from unencrypted to encrypted traffic if necessary.
+- The certificate's Common Name field is ignored.
+
+### Configure Gitaly with TLS
 
 To configure Gitaly with TLS:
 
@@ -762,21 +755,32 @@ settings:
 
 ## Limit RPC concurrency
 
-Clone traffic can put a large strain on your Gitaly service. The bulk of the work gets done in the
-either of the following RPCs:
+WARNING:
+Enabling limits on your environment should be done with caution and only
+in select circumstances, such as to protect against unexpected traffic.
+When reached, limits _do_ result in disconnects that negatively impact users.
+For consistent and stable performance, you should first explore other options such as
+adjusting node specifications, and [reviewing large repositories](../../user/project/repository/managing_large_repositories.md) or workloads.
+
+When cloning or pulling repositories, various RPCs run in the background. In particular, the Git pack RPCs:
 
 - `SSHUploadPackWithSidechannel` (for Git SSH).
 - `PostUploadPackWithSidechannel` (for Git HTTP).
 
-To prevent such workloads from overwhelming your Gitaly server, you can set concurrency limits in
-Gitaly's configuration file. For example:
+These RPCs can consume a large amount of resources, which can have a significant impact in situations such as:
+
+- Unexpectedly high traffic.
+- Running against [large repositories](../../user/project/repository/managing_large_repositories.md) that don't follow best practices.
+
+You can limit these processes from overwhelming your Gitaly server in these scenarios using the concurrency limits in the Gitaly configuration file. For
+example:
 
 ```ruby
 # in /etc/gitlab/gitlab.rb
 
 gitaly['concurrency'] = [
   {
-    'rpc' => "/gitaly.SmartHTTPService/PostUploadPackWithSidechanel",
+    'rpc' => "/gitaly.SmartHTTPService/PostUploadPackWithSidechannel",
     'max_per_repo' => 20,
     'max_queue_time' => "1s",
     'max_queue_size' => 10
@@ -807,30 +811,40 @@ repository. In the example above:
 - If a request waits in the queue for more than 1 second, it is rejected with an error.
 - If the queue grows beyond 10, subsequent requests are rejected with an error.
 
+NOTE:
+When these limits are reached, users are disconnected.
+
 You can observe the behavior of this queue using the Gitaly logs and Prometheus. For more
 information, see the [relevant documentation](monitoring.md#monitor-gitaly-concurrency-limiting).
 
 ## Control groups
 
+WARNING:
+Enabling limits on your environment should be done with caution and only
+in select circumstances, such as to protect against unexpected traffic.
+When reached, limits _do_ result in disconnects that negatively impact users.
+For consistent and stable performance, you should first explore other options such as
+adjusting node specifications, and [reviewing large repositories](../../user/project/repository/managing_large_repositories.md) or workloads.
+
 FLAG:
 On self-managed GitLab, by default repository cgroups are not available. To make it available, ask an administrator to
 [enable the feature flag](../feature_flags.md) named `gitaly_run_cmds_in_cgroup`.
 
-Control groups (cgroups) in Linux allow limits to be imposed on how much memory and CPU can be consumed.
+When enabling cgroups for memory, you should ensure that no swap is configured on the Gitaly nodes as
+processes may switch to using that instead of being terminated. This situation could lead to notably compromised
+performance.
+
+You can use control groups (cgroups) in Linux to impose limits on how much memory and CPU can be consumed by Gitaly processes.
 See the [`cgroups` Linux man page](https://man7.org/linux/man-pages/man7/cgroups.7.html) for more information.
-cgroups can be useful for protecting the system against resource exhaustion because of over consumption of memory and CPU.
+cgroups can be useful for protecting the system against unexpected resource exhaustion because of over consumption of memory and CPU.
 
-Some Git operations are expensive by nature. `git clone`, for instance,
-spawns a `git-upload-pack` process on the server that can consume a lot of memory
-for large repositories. For example, a client that keeps on cloning a
-large repository over and over again. This situation could potentially use up all of the
-memory on a server, causing other operations to fail for other users.
+Some Git operations can consume notable resources up to the point of exhaustion in situations such as:
 
-A repository can consume large amounts of memory for many reasons when cloned or downloaded.
-Using cgroups allows the kernel to kill these operations before they hog up all system resources.
+- Unexpectedly high traffic.
+- Operations running against large repositories that don't follow best practices.
 
-Gitaly shells out to Git for many of its operations. Git can consume a lot of resources for certain operations,
-especially for large repositories.
+As a hard protection, it's possible to use cgroups that configure the kernel to terminate these operations before they hog up all system resources
+and cause instability.
 
 Gitaly has built-in cgroups control. When configured, Gitaly assigns Git processes to a cgroup based on the repository
 the Git command is operating in. These cgroups are called repository cgroups. Each repository cgroup:
@@ -844,8 +858,8 @@ When a repository cgroup reaches its:
 - Memory limit, the kernel looks through the processes for a candidate to kill.
 - CPU limit, processes are not killed, but the processes are prevented from consuming more CPU than allowed.
 
-You configure repository cgroups for your GitLab installation to protect against system resource starvation from a few
-large repositories or bad actors.
+NOTE:
+When these limits are reached, performance may be reduced and users may be disconnected.
 
 ### Configure repository cgroups (new method)
 
@@ -925,8 +939,8 @@ gitaly['cgroups_cpu_enabled'] = true
 
 In the previous example using the new configuration method:
 
-- The top level memory limit is capped at 60gb.
-- Each of the 1000 cgroups in the repositories pool is capped at 20gb.
+- The top level memory limit is capped at 60 GB.
+- Each of the 1000 cgroups in the repositories pool is capped at 20 GB.
 
 This configuration leads to "oversubscription". Each cgroup in the pool has a much larger capacity than 1/1000th
 of the top-level memory limit.
@@ -1097,8 +1111,8 @@ benefit from it. It is orthogonal to:
 
 - The transport (HTTP or SSH).
 - Git protocol version (v0 or v2).
-- The type of fetch (full clones, incremental fetches, shallow clones,
-  partial clones, and so on).
+- The type of fetch, such as full clones, incremental fetches, shallow clones,
+  or partial clones.
 
 The strength of this cache is its ability to deduplicate concurrent
 identical fetches. It:
@@ -1306,18 +1320,38 @@ following keys (in this example, to disable the `hasDotgit` consistency check):
 - In [GitLab 15.3](https://gitlab.com/gitlab-org/omnibus-gitlab/-/issues/6800) and later:
 
   ```ruby
+  ignored_blobs = "/etc/gitlab/instance_wide_ignored_git_blobs.txt"
+
   gitaly['gitconfig'] = [
+
+   # Populate a file with one unabbreviated SHA-1 per line.
+   # See https://git-scm.com/docs/git-config#Documentation/git-config.txt-fsckskipList
+   { key: "fsck.skipList", value: ignored_blobs },
+   { key: "fetch.fsck.skipList", value: ignored_blobs },
+   { key: "receive.fsck.skipList", value: ignored_blobs },
+
    { key: "fsck.hasDotgit", value: "ignore" },
    { key: "fetch.fsck.hasDotgit", value: "ignore" },
-   { key: "receive.fsck.hasDotgit", value: "ignore "},
+   { key: "receive.fsck.hasDotgit", value: "ignore" },
+   { key: "fsck.missingSpaceBeforeEmail", value: "ignore" },
   ]
   ```
 
 - In GitLab 15.2 and earlier (legacy method):
 
   ```ruby
-  ignored_git_errors = ["hasDotgit = ignore"]
+  ignored_git_errors = [
+    "hasDotgit = ignore",
+    "missingSpaceBeforeEmail = ignore",
+  ]
   omnibus_gitconfig['system'] = {
+
+   # Populate a file with one unabbreviated SHA-1 per line.
+   # See https://git-scm.com/docs/git-config#Documentation/git-config.txt-fsckskipList
+    "fsck.skipList" => ignored_blobs
+    "fetch.fsck.skipList" => ignored_blobs,
+    "receive.fsck.skipList" => ignored_blobs,
+
     "fsck" => ignored_git_errors,
     "fetch.fsck" => ignored_git_errors,
     "receive.fsck" => ignored_git_errors,
@@ -1339,4 +1373,78 @@ value = "ignore"
 [[git.config]]
 key = "receive.fsck.hasDotgit"
 value = "ignore"
+
+[[git.config]]
+key = "fsck.missingSpaceBeforeEmail"
+value = "ignore"
+
+[[git.config]]
+key = "fetch.fsck.missingSpaceBeforeEmail"
+value = "ignore"
+
+[[git.config]]
+key = "receive.fsck.missingSpaceBeforeEmail"
+value = "ignore"
+
+[[git.config]]
+key = "fsck.skipList"
+value = "/etc/gitlab/instance_wide_ignored_git_blobs.txt"
+
+[[git.config]]
+key = "fetch.fsck.skipList"
+value = "/etc/gitlab/instance_wide_ignored_git_blobs.txt"
+
+[[git.config]]
+key = "receive.fsck.skipList"
+value = "/etc/gitlab/instance_wide_ignored_git_blobs.txt"
 ```
+
+## Configure commit signing for GitLab UI commits
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/19185) in GitLab 15.4.
+
+By default, Gitaly doesn't sign commits made using GitLab UI. For example, commits made using:
+
+- Web editor.
+- Web IDE.
+- Merge requests.
+
+You can configure Gitaly to sign commits made using GitLab UI. The commits show as unverified and signed by an unknown user. Support for improvements is
+proposed in issue [19185](https://gitlab.com/gitlab-org/gitlab/-/issues/19185).
+
+**For Omnibus GitLab**
+
+1. [Create a GPG key](../../user/project/repository/gpg_signed_commits/index.md#create-a-gpg-key)
+   and export it. For optimal performance, consider using an EdDSA key.
+
+   ```shell
+   gpg --export-secret-keys <ID> > signing_key.gpg
+   ```
+
+1. On the Gitaly nodes, copy the key into `/etc/gitlab/gitaly/`.
+1. Edit `/etc/gitlab/gitlab.rb` and configure `gitaly['gpg_signing_key_path']`:
+
+   ```ruby
+   gitaly['gpg_signing_key_path'] = "/etc/gitlab/gitaly/signing_key.gpg"
+   ```
+
+1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
+
+**For installations from source**
+
+1. [Create a GPG key](../../user/project/repository/gpg_signed_commits/index.md#create-a-gpg-key)
+   and export it. For optimal performance, consider using an EdDSA key.
+
+   ```shell
+   gpg --export-secret-keys <ID> > signing_key.gpg
+   ```
+
+1. On the Gitaly nodes, copy the key into `/etc/gitlab`.
+1. Edit `/home/git/gitaly/config.toml` and configure `signing_key`:
+
+   ```toml
+   [git]
+   signing_key = "/etc/gitlab/gitaly/signing_key.gpg"
+   ```
+
+1. Save the file and [restart GitLab](../restart_gitlab.md#installations-from-source).

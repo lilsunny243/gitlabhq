@@ -4,7 +4,6 @@ class Oauth::ApplicationsController < Doorkeeper::ApplicationsController
   include Gitlab::GonHelper
   include PageLayoutHelper
   include OauthApplications
-  include Gitlab::Experimentation::ControllerConcern
   include InitializesCurrentUserMode
 
   # Defined by the `Doorkeeper::ApplicationsController` and is redundant as we call `authenticate_user!` below. Not
@@ -25,7 +24,7 @@ class Oauth::ApplicationsController < Doorkeeper::ApplicationsController
   end
 
   def show
-    @created = get_created_session
+    @created = get_created_session if Feature.disabled?('hash_oauth_secrets')
   end
 
   def create
@@ -34,12 +33,30 @@ class Oauth::ApplicationsController < Doorkeeper::ApplicationsController
     if @application.persisted?
       flash[:notice] = I18n.t(:notice, scope: [:doorkeeper, :flash, :applications, :create])
 
-      set_created_session
+      if Feature.enabled?('hash_oauth_secrets')
+        @created = true
+        render :show
+      else
+        set_created_session
 
-      redirect_to oauth_application_url(@application)
+        redirect_to oauth_application_url(@application)
+      end
     else
       set_index_vars
       render :index
+    end
+  end
+
+  def renew
+    set_application
+
+    @application.renew_secret
+
+    if @application.save
+      flash.now[:notice] = s_('AuthorizedApplication|Application secret was successfully updated.')
+      render :show
+    else
+      redirect_to oauth_application_url(@application)
     end
   end
 

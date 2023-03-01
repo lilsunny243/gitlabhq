@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Filter issues', :js do
+RSpec.describe 'Filter issues', :js, feature_category: :team_planning do
   include FilteredSearchHelpers
 
   let(:project) { create(:project) }
@@ -19,6 +19,7 @@ RSpec.describe 'Filter issues', :js do
   end
 
   before do
+    stub_feature_flags(or_issuable_queries: false)
     project.add_maintainer(user)
 
     create(:issue, project: project, author: user2, title: "Bug report 1")

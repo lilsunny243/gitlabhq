@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::Mergeability::RunChecksService do
+RSpec.describe MergeRequests::Mergeability::RunChecksService, :clean_gitlab_redis_cache do
   subject(:run_checks) { described_class.new(merge_request: merge_request, params: {}) }
 
   describe '#execute' do
@@ -69,6 +69,11 @@ RSpec.describe MergeRequests::Mergeability::RunChecksService do
               expect(service).to receive(:read).with(merge_check: merge_check).and_return(success_result)
             end
 
+            expect_next_instance_of(MergeRequests::Mergeability::Logger, merge_request: merge_request) do |logger|
+              expect(logger).to receive(:instrument).with(mergeability_name: 'check_ci_status_service').and_call_original
+              expect(logger).to receive(:commit)
+            end
+
             expect(execute.success?).to eq(true)
           end
         end
@@ -80,6 +85,11 @@ RSpec.describe MergeRequests::Mergeability::RunChecksService do
               expect(service).to receive(:write).with(merge_check: merge_check, result_hash: success_result.to_hash).and_return(true)
             end
 
+            expect_next_instance_of(MergeRequests::Mergeability::Logger, merge_request: merge_request) do |logger|
+              expect(logger).to receive(:instrument).with(mergeability_name: 'check_ci_status_service').and_call_original
+              expect(logger).to receive(:commit)
+            end
+
             expect(execute.success?).to eq(true)
           end
         end
@@ -87,18 +97,6 @@ RSpec.describe MergeRequests::Mergeability::RunChecksService do
 
       context 'when check is not cacheable' do
         let(:cacheable) { false }
-
-        it 'does not call the results store' do
-          expect(Gitlab::MergeRequests::Mergeability::ResultsStore).not_to receive(:new)
-
-          expect(execute.success?).to eq(true)
-        end
-      end
-
-      context 'when mergeability_caching is turned off' do
-        before do
-          stub_feature_flags(mergeability_caching: false)
-        end
 
         it 'does not call the results store' do
           expect(Gitlab::MergeRequests::Mergeability::ResultsStore).not_to receive(:new)
@@ -151,11 +149,11 @@ RSpec.describe MergeRequests::Mergeability::RunChecksService do
     let_it_be(:merge_request) { create(:merge_request) }
 
     context 'when the execute method has been executed' do
-      before do
-        run_checks.execute
-      end
-
       context 'when all the checks succeed' do
+        before do
+          run_checks.execute
+        end
+
         it 'returns nil' do
           expect(failure_reason).to eq(nil)
         end

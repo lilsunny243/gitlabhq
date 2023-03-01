@@ -22,6 +22,12 @@ class GlobalPolicy < BasePolicy
   condition(:project_bot, scope: :user) { @user&.project_bot? }
   condition(:migration_bot, scope: :user) { @user&.migration_bot? }
 
+  condition(:create_runner_workflow_enabled) do
+    Feature.enabled?(:create_runner_workflow)
+  end
+
+  condition(:service_account, scope: :user) { @user&.service_account? }
+
   rule { anonymous }.policy do
     prevent :log_in
     prevent :receive_notifications
@@ -60,7 +66,7 @@ class GlobalPolicy < BasePolicy
     prevent :access_git
   end
 
-  rule { project_bot }.policy do
+  rule { project_bot | service_account }.policy do
     prevent :log_in
     prevent :receive_notifications
   end
@@ -115,12 +121,15 @@ class GlobalPolicy < BasePolicy
     enable :approve_user
     enable :reject_user
     enable :read_usage_trends_measurement
+    enable :create_instance_runners
+  end
+
+  rule { ~create_runner_workflow_enabled }.policy do
+    prevent :create_instance_runners
   end
 
   # We can't use `read_statistics` because the user may have different permissions for different projects
   rule { admin }.enable :use_project_statistics_filters
-
-  rule { admin }.enable :delete_runners
 
   rule { external_user }.prevent :create_snippet
 end

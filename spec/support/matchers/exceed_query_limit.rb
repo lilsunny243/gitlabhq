@@ -63,14 +63,16 @@ module ExceedQueryLimitHelpers
     end
   end
 
-  MARGINALIA_ANNOTATION_REGEX = %r{\s*\/\*.*\*\/}.freeze
+  MARGINALIA_ANNOTATION_REGEX = %r{\s*/\*.*\*/}.freeze
 
-  DB_QUERY_RE = Regexp.union([
-    /^(?<prefix>SELECT .* FROM "?[a-z_]+"?) (?<suffix>.*)$/m,
-    /^(?<prefix>UPDATE "?[a-z_]+"?) (?<suffix>.*)$/m,
-    /^(?<prefix>INSERT INTO "[a-z_]+" \((?:"[a-z_]+",?\s?)+\)) (?<suffix>.*)$/m,
-    /^(?<prefix>DELETE FROM "[a-z_]+") (?<suffix>.*)$/m
-  ]).freeze
+  DB_QUERY_RE = Regexp.union(
+    [
+      /^(?<prefix>SELECT .* FROM "?[a-z_]+"?) (?<suffix>.*)$/m,
+      /^(?<prefix>UPDATE "?[a-z_]+"?) (?<suffix>.*)$/m,
+      /^(?<prefix>INSERT INTO "[a-z_]+" \((?:"[a-z_]+",?\s?)+\)) (?<suffix>.*)$/m,
+      /^(?<prefix>DELETE FROM "[a-z_]+") (?<suffix>.*)$/m
+    ]
+  ).freeze
 
   def with_threshold(threshold)
     @threshold = threshold
@@ -333,7 +335,7 @@ RSpec::Matchers.define :issue_same_number_of_queries_as do
     or_fewer_msg = "or fewer" if @or_fewer
     threshold_msg = "(+/- #{threshold})" unless threshold == 0
 
-    ["#{expected_count}", or_fewer_msg, threshold_msg].compact.join(' ')
+    [expected_count.to_s, or_fewer_msg, threshold_msg].compact.join(' ')
   end
 
   def skip_cached
@@ -372,6 +374,35 @@ RSpec::Matchers.define :exceed_query_limit do |expected|
     else
       verify_count(&block)
     end
+  end
+
+  failure_message_when_negated do |actual|
+    failure_message
+  end
+end
+
+RSpec::Matchers.define :match_query_count do |expected|
+  supports_block_expectations
+
+  include ExceedQueryLimitHelpers
+
+  def verify_count(&block)
+    @subject_block = block
+    actual_count == maximum
+  end
+
+  def failure_message
+    threshold_message = threshold > 0 ? " (+#{threshold})" : ''
+    counts = "#{expected_count}#{threshold_message}"
+    "Expected exactly #{counts} queries, got #{actual_count}:\n\n#{log_message}"
+  end
+
+  def skip_cached
+    false
+  end
+
+  match do |block|
+    verify_count(&block)
   end
 
   failure_message_when_negated do |actual|

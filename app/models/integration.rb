@@ -19,7 +19,7 @@ class Integration < ApplicationRecord
 
   INTEGRATION_NAMES = %w[
     asana assembla bamboo bugzilla buildkite campfire confluence custom_issue_tracker datadog discord
-    drone_ci emails_on_push ewm external_wiki flowdock hangouts_chat harbor irker jira
+    drone_ci emails_on_push ewm external_wiki hangouts_chat harbor irker jira
     mattermost mattermost_slash_commands microsoft_teams packagist pipelines_email
     pivotaltracker prometheus pumble pushover redmine slack slack_slash_commands teamcity unify_circuit webex_teams youtrack zentao
   ].freeze
@@ -27,7 +27,7 @@ class Integration < ApplicationRecord
   # TODO Shimo is temporary disabled on group and instance-levels.
   # See: https://gitlab.com/gitlab-org/gitlab/-/issues/345677
   PROJECT_SPECIFIC_INTEGRATION_NAMES = %w[
-    jenkins shimo
+    apple_app_store google_play jenkins shimo
   ].freeze
 
   # Fake integrations to help with local development.
@@ -41,7 +41,9 @@ class Integration < ApplicationRecord
     Integrations::BaseCi
     Integrations::BaseIssueTracker
     Integrations::BaseMonitoring
+    Integrations::BaseSlackNotification
     Integrations::BaseSlashCommands
+    Integrations::BaseThirdPartyWiki
   ].freeze
 
   SECTION_TYPE_CONFIGURATION = 'configuration'
@@ -71,20 +73,21 @@ class Integration < ApplicationRecord
 
   alias_attribute :type, :type_new
 
-  default_value_for :active, false
-  default_value_for :alert_events, true
-  default_value_for :category, 'common'
-  default_value_for :commit_events, true
-  default_value_for :confidential_issues_events, true
-  default_value_for :confidential_note_events, true
-  default_value_for :issues_events, true
-  default_value_for :job_events, true
-  default_value_for :merge_requests_events, true
-  default_value_for :note_events, true
-  default_value_for :pipeline_events, true
-  default_value_for :push_events, true
-  default_value_for :tag_push_events, true
-  default_value_for :wiki_page_events, true
+  attribute :active, default: false
+  attribute :alert_events, default: true
+  attribute :incident_events, default: false
+  attribute :category, default: 'common'
+  attribute :commit_events, default: true
+  attribute :confidential_issues_events, default: true
+  attribute :confidential_note_events, default: true
+  attribute :issues_events, default: true
+  attribute :job_events, default: true
+  attribute :merge_requests_events, default: true
+  attribute :note_events, default: true
+  attribute :pipeline_events, default: true
+  attribute :push_events, default: true
+  attribute :tag_push_events, default: true
+  attribute :wiki_page_events, default: true
 
   after_initialize :initialize_properties
 
@@ -130,6 +133,7 @@ class Integration < ApplicationRecord
   scope :wiki_page_hooks, -> { where(wiki_page_events: true, active: true) }
   scope :deployment_hooks, -> { where(deployment_events: true, active: true) }
   scope :alert_hooks, -> { where(alert_events: true, active: true) }
+  scope :incident_hooks, -> { where(incident_events: true, active: true) }
   scope :deployment, -> { where(category: 'deployment') }
 
   class << self
@@ -147,6 +151,8 @@ class Integration < ApplicationRecord
     fields << ::Integrations::Field.new(name: name, integration_class: self, **attrs)
 
     case storage
+    when :attribute
+      # noop
     when :properties
       prop_accessor(name)
     when :data_fields
@@ -155,7 +161,7 @@ class Integration < ApplicationRecord
       raise ArgumentError, "Unknown field storage: #{storage}"
     end
 
-    boolean_accessor(name) if attrs[:type] == 'checkbox'
+    boolean_accessor(name) if attrs[:type] == 'checkbox' && storage != :attribute
   end
   # :nocov:
 
@@ -401,9 +407,9 @@ class Integration < ApplicationRecord
         .or(where(type: integration.type, instance: true)).select(:id)
 
     from_union([
-      where(type: integration.type, inherit_from_id: inherit_from_ids, group: integration.group.descendants),
-      where(type: integration.type, inherit_from_id: inherit_from_ids, project: Project.in_namespace(integration.group.self_and_descendants))
-    ])
+                 where(type: integration.type, inherit_from_id: inherit_from_ids, group: integration.group.descendants),
+                 where(type: integration.type, inherit_from_id: inherit_from_ids, project: Project.in_namespace(integration.group.self_and_descendants))
+               ])
   end
 
   def activated?
@@ -487,9 +493,9 @@ class Integration < ApplicationRecord
 
   def reencrypt_properties
     unless properties.nil? || properties.empty?
-      alg = self.class.encrypted_attributes[:properties][:algorithm]
+      alg = self.class.attr_encrypted_attributes[:properties][:algorithm]
       iv = generate_iv(alg)
-      ep = self.class.encrypt(:properties, properties, { iv: iv })
+      ep = self.class.attr_encrypt(:properties, properties, { iv: iv })
     end
 
     { 'encrypted_properties' => ep, 'encrypted_properties_iv' => iv }
@@ -585,6 +591,10 @@ class Integration < ApplicationRecord
   # override if needed
   def supports_data_fields?
     false
+  end
+
+  def chat?
+    category == :chat
   end
 
   private

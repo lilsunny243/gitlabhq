@@ -1,7 +1,7 @@
 ---
 stage: Manage
-group: Workspace
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Organization
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Manage groups
@@ -10,8 +10,7 @@ Use groups to manage one or more related projects at the same time.
 
 ## View groups
 
-1. On the top bar, select **Menu > Groups**.
-1. Select **Explore groups**.
+To view groups, on the top bar, select **Main menu > Groups > View all groups**.
 
 The **Groups** page shows a list of groups, sorted by last updated date.
 
@@ -25,7 +24,7 @@ The **Groups** page shows a list of groups, sorted by last updated date.
 To create a group:
 
 1. On the top bar, either:
-   - Select **Menu > Groups**, and on the right, select **Create group**.
+   - Select **Main menu > Groups > View all groups**, and on the right, select **New group**.
    - To the left of the search box, select the plus sign and then **New group**.
 1. Select **Create group**.
 1. Enter a name for the group in **Group name**. For a list of words that cannot be used as group names, see
@@ -34,8 +33,8 @@ To create a group:
 1. Choose the [visibility level](../public_access.md).
 1. Personalize your GitLab experience by answering the following questions:
    - What is your role?
-   - Who will be using this group?
-   - What will you use this group for?
+   - Who is using this group?
+   - What are you using this group for?
 1. Invite GitLab members or other users to join the group.
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
@@ -45,7 +44,7 @@ For details about groups, watch [GitLab Namespaces (users, groups and subgroups)
 
 To remove a group and its contents:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Advanced** section.
 1. In the **Remove group** section, select **Remove group**.
@@ -54,7 +53,7 @@ To remove a group and its contents:
 
 A group can also be removed from the groups dashboard:
 
-1. On the top bar, select **Menu > Groups**.
+1. On the top bar, select **Main menu > Groups > View all groups**.
 1. Select **Your Groups**.
 1. Select (**{ellipsis_v}**) for the group you want to delete.
 1. Select **Delete**.
@@ -67,6 +66,7 @@ This action removes the group. It also adds a background job to delete all proje
 Specifically:
 
 - In [GitLab 12.8 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/33257), on [GitLab Premium](https://about.gitlab.com/pricing/premium/) or higher tiers, this action adds a background job to mark a group for deletion. By default, the job schedules the deletion 7 days in the future. You can modify this waiting period through the [instance settings](../admin_area/settings/visibility_and_access_controls.md#deletion-protection).
+
 - In [GitLab 13.6 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/39504), if the user who sets up the deletion is removed from the group before the
 deletion happens, the job is cancelled, and the group is no longer scheduled for deletion.
 
@@ -78,12 +78,12 @@ If you don't want to wait, you can remove a group immediately.
 
 Prerequisites:
 
-- You must have at least the Owner role for a group.
+- You must have the Owner role for a group.
 - You have [marked the group for deletion](#remove-a-group).
 
 To immediately remove a group marked for deletion:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Advanced**.
 1. In the "Permanently remove group" section, select **Remove group**.
@@ -98,7 +98,8 @@ are deleted.
 
 To restore a group that is marked for deletion:
 
-1. Go to your group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. Select **Settings > General**.
 1. Expand the **Path, transfer, remove** section.
 1. In the Restore group section, select **Restore group**.
 
@@ -106,7 +107,7 @@ To restore a group that is marked for deletion:
 
 As a user, you can request to be a member of a group, if an administrator allows it.
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. Under the group name, select **Request Access**.
 
 As many as ten of the most-recently-active group owners receive an email with your request.
@@ -127,7 +128,12 @@ To find members in a group, you can sort, filter, or search.
 
 Filter a group to find members. By default, all members in the group and subgroups are displayed.
 
-1. Go to the group and select **Group information > Members**.
+In lists of group members, entries can display the following badges:
+
+- **SAML**, to indicate the member has a [SAML account](saml_sso/index.md) connected to them.
+- **Enterprise**, to indicate that the member is an [enterprise user](../enterprise_user/index.md).
+
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. Above the list of members, in the **Filter members** box, enter filter criteria.
    - To view members in the group only, select **Membership = Direct**.
    - To view members of the group and its subgroups, select **Membership = Inherited**.
@@ -138,7 +144,8 @@ Filter a group to find members. By default, all members in the group and subgrou
 
 You can search for members by name, username, or email.
 
-1. Go to the group and select **Group information > Members**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Group information > Members**.
 1. Above the list of members, in the **Filter members** box, enter search criteria.
 1. To the right of the **Filter members** box, select the magnifying glass (**{search}**).
 
@@ -146,8 +153,9 @@ You can search for members by name, username, or email.
 
 You can sort members by **Account**, **Access granted**, **Max role**, or **Last sign-in**.
 
-1. Go to the group and select **Group information > Members**.
-1. Above the list of members, on the top right, from the **Account** list, select
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Group information > Members**.
+1. Above the list of members, in the upper-right corner, from the **Account** list, select
    the criteria to filter by.
 1. To switch the sort between ascending and descending, to the right of the **Account** list, select the
    arrow (**{sort-lowest}** or **{sort-highest}**).
@@ -156,11 +164,15 @@ You can sort members by **Account**, **Access granted**, **Max role**, or **Last
 
 You can give a user access to all projects in a group.
 
-1. On the top bar, select **Menu > Groups** and find your group.
+Prerequisite:
+
+- You must have the Owner role.
+
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Group information > Members**.
 1. Select **Invite members**.
 1. Fill in the fields.
-   - The role applies to all projects in the group. [Learn more about permissions](../permissions.md).
+   - The role applies to all projects in the group. For more information, see [permissions](../permissions.md).
    - On the **Access expiration date**, the user can no longer access projects in the group.
 1. Select **Invite**.
 
@@ -182,19 +194,26 @@ Prerequisites:
 
 To remove a member from a group:
 
-1. Go to the group.
-1. From the left menu, select **Group information > Members**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Group information > Members**.
 1. Next to the member you want to remove, select **Remove member**.
 1. Optional. On the **Remove member** confirmation box:
    - To remove direct user membership from subgroups and projects, select the **Also remove direct user membership from subgroups and projects** checkbox.
    - To unassign the user from linked issues and merge requests, select the **Also unassign this user from linked issues and merge requests** checkbox.
 1. Select **Remove member**.
 
+## Ensure removed users cannot invite themselves back
+
+Malicious users with the Maintainer or Owner role could exploit a race condition that allows
+them to invite themselves back to a group or project that a GitLab administrator has removed them from.
+
+To avoid this problem, GitLab administrators can [ensure removed users cannot invite themselves back](../project/members/index.md#ensure-removed-users-cannot-invite-themselves-back).
+
 ## Add projects to a group
 
 There are two different ways to add a new project to a group:
 
-- Select a group, and then select **New project**. You can then continue [creating your project](../../user/project/working_with_projects.md#create-a-project).
+- Select a group, and then select **New project**. You can then continue [creating your project](../../user/project/index.md#create-a-project).
 - While you are creating a project, select a group from the dropdown list.
 
   ![Select group](img/select_group_dropdown_13_10.png)
@@ -208,7 +227,7 @@ By default, users with at least the Developer role can create projects under a g
 
 To change this setting for a specific group:
 
-1. On the top bar, select **Menu > Groups**.
+1. On the top bar, select **Main menu > Groups > View all groups**.
 1. Select **Your Groups**.
 1. Find the group and select it.
 1. From the left menu, select **Settings > General**.
@@ -224,11 +243,13 @@ You can change the owner of a group. Each group must always have at least one
 member with the Owner role.
 
 - As an administrator:
-  1. Go to the group and from the left menu, select **Group information > Members**.
+  1. On the top bar, select **Main menu > Groups** and find your group.
+  1. On the left sidebar, select **Group information > Members**.
   1. Give a different member the **Owner** role.
   1. Refresh the page. You can now remove the **Owner** role from the original owner.
 - As the current group's owner:
-  1. Go to the group and from the left menu, select **Group information > Members**.
+  1. On the top bar, select **Main menu > Groups** and find your group.
+  1. On the left sidebar, select **Group information > Members**.
   1. Give a different member the **Owner** role.
   1. Have the new owner sign in and remove the **Owner** role from you.
 
@@ -242,12 +263,19 @@ If you are changing the path so it can be claimed by another group or user,
 you must rename the group too. Both names and paths must
 be unique.
 
+After you change the group path, the new group path is a new namespace and you must update the existing project URL in the following resources:
+
+- [Include statements](../../ci/yaml/includes.md#include-a-single-configuration-file).
+- Docker image references in CI files.
+- Variables that specify a project or namespace.
+
 To retain ownership of the original namespace and protect the URL redirects,
 create a new group and transfer projects to it instead.
 
 To change your group path (group URL):
 
-1. Go to your group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General** page.
 1. Expand the **Advanced** section.
 1. Under **Change group URL**, enter a new name.
 1. Select **Change group URL**.
@@ -289,9 +317,7 @@ for the group's projects to meet your group's needs.
     [Feature flag `invite_members_group_modal`](https://gitlab.com/gitlab-org/gitlab/-/issues/352526) removed.
 
 Similar to how you [share a project with a group](../project/members/share_project_with_groups.md),
-you can share a group with another group. To invite a group, you must be a member of it. Members get direct access
-to the shared group. This includes members who inherited group membership from a parent group.
-
+you can share a group with another group. To invite a group, you must be a member of it.
 To share a given group, for example, `Frontend` with another group, for example,
 `Engineering`:
 
@@ -306,15 +332,18 @@ After sharing the `Frontend` group with the `Engineering` group:
 
 - The **Groups** tab lists the `Engineering` group.
 - The **Groups** tab lists a group regardless of whether it is a public or private group.
-- All members of the `Engineering` group have access to the `Frontend` group. The same access levels of the members apply up to the maximum access level selected when sharing the group.
+- All direct members of the `Engineering` group have access to the `Frontend` group. Direct members of `Engineering` that gain access to the `Frontend` group keep their same access level as in `Engineering`, but up to the maximum access level selected when sharing the group. Inherited members of the `Engineering` group do not gain access to the `Frontend` group.
 
 ## Transfer a group
 
-You can transfer groups in the following ways:
+Transferring groups moves them from one place to another in the same GitLab instance. You can:
 
 - Transfer a subgroup to a new parent group.
 - Convert a top-level group into a subgroup by transferring it to the desired group.
 - Convert a subgroup into a top-level group by transferring it out of its current group.
+
+If you need to copy a group to a different GitLab instance,
+[migrate the group by direct transfer](import/index.md#migrate-groups-by-direct-transfer-recommended).
 
 When transferring groups, note:
 
@@ -324,10 +353,11 @@ When transferring groups, note:
 - If the immediate parent group's visibility is lower than the group's current visibility, visibility levels for subgroups and projects change to match the new parent group's visibility.
 - Only explicit group membership is transferred, not inherited membership. If the group's owners have only inherited membership, this leaves the group without an owner. In this case, the user transferring the group becomes the group's owner.
 - Transfers fail if [packages](../packages/index.md) exist in any of the projects in the group, or in any of its subgroups.
+- Top-level groups that have a subscription on GitLab.com cannot be transferred. To make the transfer possible, the top-level group's subscription must be removed first. Then the top-level group can be transferred as a subgroup to another top-level group.
 
 To transfer a group:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand the **Advanced** section.
 1. In the **Remove group** section, select **Transfer group**.
@@ -357,7 +387,8 @@ the default setting.
 
 To enable delayed deletion of projects in a group:
 
-1. Go to the group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Scroll to:
    - (GitLab 15.1 and later) **Deletion protection** and select **Keep deleted projects**.
@@ -378,7 +409,8 @@ You can disable all email notifications related to the group, which includes its
 
 To disable email notifications:
 
-1. Go to the group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Select **Email notifications are disabled**.
 1. Select **Save changes**.
@@ -397,7 +429,8 @@ This is particularly helpful for groups with a large number of users.
 
 To disable group mentions:
 
-1. Go to the group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
 1. Expand the **Permissions and group features** section.
 1. Select **Group mentions are disabled**.
 1. Select **Save changes**.
@@ -409,7 +442,8 @@ To disable group mentions:
 
 You can export a list of members in a group or subgroup as a CSV.
 
-1. Go to your group or subgroup and select either **Group information > Members** or **Subgroup information > Members**.
+1. On the top bar, select **Main menu > Groups** and find your group or subgroup.
+1. On the left sidebar, select either **Group information > Members** or **Subgroup information > Members**.
 1. Select **Export as CSV**.
 1. After the CSV file has been generated, it is emailed as an attachment to the user that requested it.
 
@@ -435,7 +469,7 @@ Prerequisite:
 
 To specify a user cap:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
    You can set a cap on the top-level group only.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Permissions and group features**.
@@ -457,7 +491,7 @@ Prerequisite:
 
 To remove the user cap:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Permissions and group features**.
 1. In the **User cap** box, delete the value.
@@ -478,7 +512,7 @@ Prerequisite:
 
 To approve members that are pending because they've exceeded the user cap:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > Usage Quotas**.
 1. On the **Seats** tab, under the alert, select **View pending approvals**.
 1. For each member you want to approve, select **Approve**.
@@ -496,22 +530,94 @@ This includes projects shared with the group, but it **excludes** projects in
 subgroups or parent groups of the group being configured.
 
 You can configure this feature for both subgroups and immediate parent groups. A project
-in a subgroup has access to the templates for that subgroup, as well as
+in a subgroup has access to the templates for that subgroup and
 any immediate parent groups.
 
 To learn how to create templates for issues and merge requests, see
-[Description templates](../project/description_templates.md).
+[description templates](../project/description_templates.md).
 
 Define project templates at a group level by setting a group as the template source.
-[Learn more about group-level project templates](custom_project_templates.md).
+For more information, see [group-level project templates](custom_project_templates.md).
 
 ### Enable group file template **(PREMIUM)**
 
 To enable group file templates:
 
-1. Go to the group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
 1. Expand the **Templates** section.
 1. Choose a project to act as the template repository.
+1. Select **Save changes**.
+
+## Group merge checks settings **(PREMIUM)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/372040) in GitLab 15.9 [with a flag](../../administration/feature_flags.md) name `support_group_level_merge_checks_setting`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to
+[enable the feature flag](../../administration/feature_flags.md) named `support_group_level_merge_checks_setting`. On GitLab.com, this feature is not
+available.
+
+Group owners can set up merge request checks on a top-level group, which apply to all subgroups and projects.
+
+If the settings are inherited by a subgroup or project, they cannot be changed in the subgroup or project
+that inherited them.
+
+### Require a successful pipeline for merge
+
+You can configure all child projects in your group to require a complete and successful pipeline before
+merge.
+
+See also [the project-level setting](../project/merge_requests/merge_when_pipeline_succeeds.md#require-a-successful-pipeline-for-merge).
+
+Prerequisites:
+
+- You must be the owner of the group.
+
+To enable this setting:
+
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Merge requests**.
+1. Under **Merge checks**, select **Pipelines must succeed**.
+   This setting also prevents merge requests from being merged if there is no pipeline.
+1. Select **Save changes**.
+
+#### Allow merge after skipped pipelines
+
+You can configure [skipped pipelines](../../ci/pipelines/index.md#skip-a-pipeline) from preventing merge requests from being merged.
+
+See also [the project-level setting](../project/merge_requests/merge_when_pipeline_succeeds.md#allow-merge-after-skipped-pipelines).
+
+Prerequisite:
+
+- You must be the owner of the group.
+
+To change this behavior:
+
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Merge requests**.
+1. Under **Merge checks**:
+   - Select **Pipelines must succeed**.
+   - Select **Skipped pipelines are considered successful**.
+1. Select **Save changes**.
+
+### Prevent merge unless all threads are resolved
+
+You can prevent merge requests from being merged until all threads are resolved. When this setting is enabled, for all child projects in your group, the
+**Unresolved threads** count in a merge request is shown in orange when at least one thread remains unresolved.
+
+Prerequisite:
+
+- You must be the owner of the group.
+
+To enable this setting:
+
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Merge requests**.
+1. Under **Merge checks**, select **All threads must be resolved**.
 1. Select **Save changes**.
 
 ## Group merge request approval settings **(PREMIUM)**
@@ -526,7 +632,8 @@ that belong to the group.
 
 To view the merge request approval settings for a group:
 
-1. Go to the top-level group's **Settings > General** page.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > General**.
 1. Expand the **Merge request approvals** section.
 1. Select the settings you want.
 1. Select **Save changes**.
@@ -549,9 +656,7 @@ Changes to [group wikis](../project/wiki/group.md) do not appear in group activi
 
 You can view the most recent actions taken in a group, either in your browser or in an RSS feed:
 
-1. On the top bar, select **Menu > Groups**.
-1. Select **Your Groups**.
-1. Find the group and select it.
+1. On the top bar, select **Main menu > Groups > View all groups** and find your group.
 1. On the left sidebar, select **Group information > Activity**.
 
 To view the activity feed in Atom format, select the
@@ -579,3 +684,64 @@ To find and store an array of groups based on an SQL query in the [rails console
 Group.find_by_sql("SELECT * FROM namespaces WHERE name LIKE '%oup'")
 => [#<Group id:3 @test-group>, #<Group id:4 @template-group/template-subgroup>]
 ```
+
+### Transfer subgroup to another location using Rails console
+
+If transferring a group doesn't work through the UI or API, you may want to attempt the transfer in a [Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session):
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+user = User.find_by_username('<username>')
+group = Group.find_by_name("<group_name>")
+## Set parent_group = nil to make the subgroup a top-level group
+parent_group = Group.find_by(id: "<group_id>")
+service = ::Groups::TransferService.new(group, user)
+service.execute(parent_group)
+```
+
+### Find groups pending deletion using Rails console
+
+If you need to find all the groups that are pending deletion, you can use the following command in a [Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session):
+
+```ruby
+Group.all.each do |g|
+ if g.marked_for_deletion?
+    puts "Group ID: #{g.id}"
+    puts "Group name: #{g.name}"
+    puts "Group path: #{g.full_path}"
+ end
+end
+```
+
+### Delete a group using Rails console
+
+At times, a group deletion may get stuck. If needed, in a [Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session),
+you can attempt to delete a group using the following command:
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+GroupDestroyWorker.new.perform(group_id, user_id)
+```
+
+### Find a user's maximum permissions for a group or project
+
+Administrators can find a user's maximum permissions for a group or project.
+
+1. Start a [Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+1. Run the following commands:
+
+   ```ruby
+   user = User.find_by_username 'username'
+   project = Project.find_by_full_path 'group/project'
+   user.max_member_access_for_project project.id
+   ```
+
+   ```ruby
+   user = User.find_by_username 'username'
+   group = Group.find_by_full_path 'group'
+   user.max_member_access_for_group group.id
+   ```

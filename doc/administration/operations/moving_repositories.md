@@ -1,14 +1,14 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Moving repositories managed by GitLab **(FREE SELF)**
 
 You can move all repositories managed by GitLab to another file system or another server.
 
-## Moving data within a GitLab instance
+## Moving data in a GitLab instance
 
 The GitLab API is the recommended way to move Git repositories:
 
@@ -28,10 +28,10 @@ For more information, see:
   querying and scheduling group repository moves **(PREMIUM SELF)**.
 - [Migrate to Gitaly Cluster](../gitaly/index.md#migrate-to-gitaly-cluster).
 
-### Move Repositories
+### Moving Repositories
 
 GitLab repositories can be associated with projects, groups, and snippets. Each of these types
-have a separate API to schedule the respective repositories to move. To move all repositories
+has a separate API to schedule the respective repositories to move. To move all repositories
 on a GitLab instance, each of these types must be scheduled to move for each storage.
 
 WARNING:
@@ -41,7 +41,7 @@ To move repositories into a [Gitaly Cluster](../gitaly/index.md#gitaly-cluster) 
 WARNING:
 Repositories can be **permanently deleted** by a call to `/projects/:project_id/repository_storage_moves`
 that attempts to move a project already stored in a Gitaly Cluster back into that cluster.
-See [this issue for more details](https://gitlab.com/gitlab-org/gitaly/-/issues/3752). This was fixed in
+See [this issue for more details](https://gitlab.com/gitlab-org/gitaly/-/issues/3752). This issue was fixed in
 GitLab 14.3.0 and backported to
 [14.2.4](https://about.gitlab.com/releases/2021/09/17/gitlab-14-2-4-released/),
 [14.1.6](https://about.gitlab.com/releases/2021/09/27/gitlab-14-1-6-released/),
@@ -59,13 +59,18 @@ To move repositories:
    so that the new storages receives all new projects. This stops new projects from being created
    on existing storages while the migration is in progress.
 1. Schedule repository moves for:
-   - [Projects](#bulk-schedule-project-moves).
-   - [Snippets](#bulk-schedule-snippet-moves).
-   - [Groups](#bulk-schedule-group-moves). **(PREMIUM SELF)**
+   - [All projects](#move-all-projects) or
+     [individual projects](../../api/project_repository_storage_moves.md#schedule-a-repository-storage-move-for-a-project).
+   - [All snippets](#move-all-snippets) or
+     [individual snippets](../../api/snippet_repository_storage_moves.md#schedule-a-repository-storage-move-for-a-snippet).
+   - [All groups](#move-all-groups) or
+     [individual groups](../../api/group_repository_storage_moves.md#schedule-a-repository-storage-move-for-a-group). **(PREMIUM SELF)**
+1. If [Geo](../geo/index.md) is enabled,
+   [resync all repositories](../geo/replication/troubleshooting.md#queue-up-all-repositories-for-resync).
 
-### Bulk schedule project moves
+#### Move all projects
 
-Use the API to schedule project moves:
+To move all projects by using the API:
 
 1. [Schedule repository storage moves for all projects on a storage shard](../../api/project_repository_storage_moves.md#schedule-repository-storage-moves-for-all-projects-on-a-storage-shard)
    using the API. For example:
@@ -100,9 +105,9 @@ Use the API to schedule project moves:
 
 1. Repeat for each storage as required.
 
-### Bulk schedule snippet moves
+#### Move all snippets
 
-Use the API to schedule snippet moves:
+To move all snippets by using the API:
 
 1. [Schedule repository storage moves for all snippets on a storage shard](../../api/snippet_repository_storage_moves.md#schedule-repository-storage-moves-for-all-snippets-on-a-storage-shard). For example:
 
@@ -113,8 +118,8 @@ Use the API to schedule snippet moves:
         "https://gitlab.example.com/api/v4/snippet_repository_storage_moves"
    ```
 
-1. [Query the most recent repository moves](../../api/snippet_repository_storage_moves.md#retrieve-all-snippet-repository-storage-moves)
-The response indicates either:
+1. [Query the most recent repository moves](../../api/snippet_repository_storage_moves.md#retrieve-all-snippet-repository-storage-moves).
+   The response indicates either:
    - The moves have completed successfully. The `state` field is `finished`.
    - The moves are in progress. Re-query the repository move until it completes successfully.
    - The moves have failed. Most failures are temporary and are solved by rescheduling the move.
@@ -129,12 +134,12 @@ The response indicates either:
 
 1. Repeat for each storage as required.
 
-### Bulk schedule group moves **(PREMIUM SELF)**
+#### Move all groups **(PREMIUM SELF)**
 
-Use the API to schedule group moves:
+To move all groups by using the API:
 
-1. [Schedule repository storage moves for all groups on a storage shard](../../api/group_repository_storage_moves.md#schedule-repository-storage-moves-for-all-groups-on-a-storage-shard)
-. For example:
+1. [Schedule repository storage moves for all groups on a storage shard](../../api/group_repository_storage_moves.md#schedule-repository-storage-moves-for-all-groups-on-a-storage-shard).
+    For example:
 
     ```shell
     curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" \
@@ -143,8 +148,8 @@ Use the API to schedule group moves:
          "https://gitlab.example.com/api/v4/group_repository_storage_moves"
     ```
 
-1. [Query the most recent repository moves](../../api/group_repository_storage_moves.md#retrieve-all-group-repository-storage-moves)
-. The response indicates either:
+1. [Query the most recent repository moves](../../api/group_repository_storage_moves.md#retrieve-all-group-repository-storage-moves).
+   The response indicates either:
    - The moves have completed successfully. The `state` field is `finished`.
    - The moves are in progress. Re-query the repository move until it completes successfully.
    - The moves have failed. Most failures are temporary and are solved by rescheduling the move.
@@ -161,7 +166,7 @@ Use the API to schedule group moves:
 
 ## Migrating to another GitLab instance
 
-[Using the API](#moving-data-within-a-gitlab-instance) isn't an option if you are migrating to a new
+[Using the API](#moving-data-in-a-gitlab-instance) isn't an option if you are migrating to a new
 GitLab environment, for example:
 
 - From a single-node GitLab to a scaled-out architecture.
@@ -185,7 +190,7 @@ Each of the approaches we list can or does overwrite data in the target director
 
 For either Gitaly or Gitaly Cluster targets, the GitLab [backup and restore capability](../../raketasks/backup_restore.md)
 should be used. Git repositories are accessed, managed, and stored on GitLab servers by Gitaly as a database. Data loss
-can result from directly accessing and copying Gitaly's files using tools like `rsync`.
+can result from directly accessing and copying Gitaly files using tools like `rsync`.
 
 - From GitLab 13.3, backup performance can be improved by
   [processing multiple repositories concurrently](../../raketasks/backup_gitlab.md#back-up-git-repositories-concurrently).
@@ -376,14 +381,3 @@ sudo -u git -H bundle exec rake gitlab:list_repos SINCE='2015-10-1 12:00 UTC' |\
     /home/git/repositories \
     /mnt/gitlab/repositories
 ```
-
-## Troubleshooting
-
-See the following for information on troubleshooting repository moves.
-
-### Repository move fails for archived projects
-
-Because of a [known issue](https://gitlab.com/gitlab-org/gitlab/-/issues/363670),
-[archived projects](../../user/project/settings/index.md#advanced-project-settings) fail to move even though the data is cloned
-by Gitaly. Make sure archived projects are
-[unarchived](../../user/project/settings/index.md#unarchive-a-project) before initiating a move.

@@ -29,6 +29,15 @@ module QA
         @gitlab_url ||= ENV["QA_GITLAB_URL"] || "http://127.0.0.1:3000" # default to GDK
       end
 
+      # Retrieves the value of the gitlab_canary cookie if set or returns an empty hash.
+      #
+      # @return [Hash]
+      def canary_cookie
+        canary = ENV['QA_COOKIES']&.scan(/gitlab_canary=(true|false)/)&.dig(0, 0)
+
+        canary ? { gitlab_canary: canary } : {}
+      end
+
       def additional_repository_storage
         ENV['QA_ADDITIONAL_REPOSITORY_STORAGE']
       end
@@ -122,6 +131,11 @@ module QA
 
       def signup_disabled?
         enabled?(ENV['SIGNUP_DISABLED'], default: false)
+      end
+
+      # PATs are disabled for FedRamp
+      def personal_access_tokens_disabled?
+        enabled?(ENV['PERSONAL_ACCESS_TOKENS_DISABLED'], default: false)
       end
 
       def admin_password
@@ -223,6 +237,10 @@ module QA
         ENV['GITLAB_QA_PASSWORD_1']
       end
 
+      def gitlab_qa_access_token_1
+        ENV['GITLAB_QA_ACCESS_TOKEN_1']
+      end
+
       def gitlab_qa_username_2
         ENV['GITLAB_QA_USERNAME_2'] || 'gitlab-qa-user2'
       end
@@ -263,22 +281,6 @@ module QA
         ENV['GITLAB_QA_PASSWORD_6']
       end
 
-      def gitlab_qa_1p_email
-        ENV['GITLAB_QA_1P_EMAIL']
-      end
-
-      def gitlab_qa_1p_password
-        ENV['GITLAB_QA_1P_PASSWORD']
-      end
-
-      def gitlab_qa_1p_secret
-        ENV['GITLAB_QA_1P_SECRET']
-      end
-
-      def gitlab_qa_1p_github_uuid
-        ENV['GITLAB_QA_1P_GITHUB_UUID']
-      end
-
       def jira_admin_username
         ENV['JIRA_ADMIN_USERNAME']
       end
@@ -289,6 +291,18 @@ module QA
 
       def jira_hostname
         ENV['JIRA_HOSTNAME']
+      end
+
+      def slack_workspace
+        ENV['QA_SLACK_WORKSPACE']
+      end
+
+      def slack_email
+        ENV['QA_SLACK_EMAIL']
+      end
+
+      def slack_password
+        ENV['QA_SLACK_PASSWORD']
       end
 
       def jenkins_admin_username
@@ -408,14 +422,6 @@ module QA
         ENV.fetch('GITLAB_QA_LOOP_RUNNER_MINUTES', 1).to_i
       end
 
-      def reusable_project_path
-        ENV.fetch('QA_REUSABLE_PROJECT_PATH', 'reusable_project')
-      end
-
-      def reusable_group_path
-        ENV.fetch('QA_REUSABLE_GROUP_PATH', 'reusable_group')
-      end
-
       def mailhog_hostname
         ENV['MAILHOG_HOSTNAME']
       end
@@ -438,7 +444,7 @@ module QA
       end
 
       def gitlab_agentk_version
-        ENV.fetch('GITLAB_AGENTK_VERSION', 'v14.5.0')
+        ENV.fetch('GITLAB_AGENTK_VERSION', 'fe716ea')
       end
 
       def transient_trials
@@ -450,7 +456,11 @@ module QA
       end
 
       def export_metrics?
-        running_in_ci? && enabled?(ENV['QA_EXPORT_TEST_METRICS'], default: true)
+        enabled?(ENV['QA_EXPORT_TEST_METRICS'], default: false)
+      end
+
+      def save_metrics_json?
+        enabled?(ENV['QA_SAVE_TEST_METRICS'], default: false)
       end
 
       def ee_activation_code
@@ -494,6 +504,27 @@ module QA
 
       def use_public_ip_api?
         enabled?(ENV['QA_USE_PUBLIC_IP_API'], default: false)
+      end
+
+      def allow_local_requests?
+        enabled?(ENV['QA_ALLOW_LOCAL_REQUESTS'], default: false)
+      end
+
+      def chrome_default_download_path
+        ENV['DEFAULT_CHROME_DOWNLOAD_PATH'] || Dir.tmpdir
+      end
+
+      def super_sidebar_enabled?
+        enabled?(ENV['QA_SUPER_SIDEBAR_ENABLED'], default: false)
+      end
+
+      def require_slack_env!
+        missing_env = %i[slack_workspace slack_email slack_password].select do |method|
+          ::QA::Runtime::Env.public_send(method).nil?
+        end
+        return unless missing_env.any?
+
+        raise "Missing Slack env: #{missing_env.map(&:upcase).join(', ')}"
       end
 
       private

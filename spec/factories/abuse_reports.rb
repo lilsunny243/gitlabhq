@@ -5,5 +5,11 @@ FactoryBot.define do
     reporter factory: :user
     user
     message { 'User sends spam' }
+    reported_from_url { 'http://gitlab.com' }
+    links_to_spam { ['https://gitlab.com/issue1', 'https://gitlab.com/issue2'] }
+
+    trait :closed do
+      status { 'closed' }
+    end
   end
 end

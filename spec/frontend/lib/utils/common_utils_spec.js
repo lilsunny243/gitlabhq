@@ -476,7 +476,7 @@ describe('common_utils', () => {
         });
     });
 
-    it('catches the rejected promise from the callback ', () => {
+    it('catches the rejected promise from the callback', () => {
       const errorMessage = 'Mistakes were made!';
       return commonUtils
         .backOff((next, stop) => {
@@ -622,6 +622,23 @@ describe('common_utils', () => {
           milestones: ['12.3', '12.4'],
         },
       },
+      convertObjectPropsToLowerCase: {
+        obj: {
+          'Project-Name': 'GitLab CE',
+          'Group-Name': 'GitLab.org',
+          'License-Type': 'MIT',
+          'Mile-Stones': ['12.3', '12.4'],
+        },
+        objNested: {
+          'Project-Name': 'GitLab CE',
+          'Group-Name': 'GitLab.org',
+          'License-Type': 'MIT',
+          'Tech-Stack': {
+            'Frontend-Framework': 'Vue',
+          },
+          'Mile-Stones': ['12.3', '12.4'],
+        },
+      },
     };
 
     describe('convertObjectProps', () => {
@@ -637,6 +654,7 @@ describe('common_utils', () => {
       ${'convertObjectProps'}            | ${mockObjects.convertObjectProps.obj}            | ${mockObjects.convertObjectProps.objNested}
       ${'convertObjectPropsToCamelCase'} | ${mockObjects.convertObjectPropsToCamelCase.obj} | ${mockObjects.convertObjectPropsToCamelCase.objNested}
       ${'convertObjectPropsToSnakeCase'} | ${mockObjects.convertObjectPropsToSnakeCase.obj} | ${mockObjects.convertObjectPropsToSnakeCase.objNested}
+      ${'convertObjectPropsToLowerCase'} | ${mockObjects.convertObjectPropsToLowerCase.obj} | ${mockObjects.convertObjectPropsToLowerCase.objNested}
     `('$functionName', ({ functionName, mockObj, mockObjNested }) => {
       const testFunction =
         functionName === 'convertObjectProps'
@@ -669,6 +687,12 @@ describe('common_utils', () => {
             group_name: 'GitLab.org',
             absolute_web_url: 'https://gitlab.com/gitlab-org/',
             milestones: ['12.3', '12.4'],
+          },
+          convertObjectPropsToLowerCase: {
+            'project-name': 'GitLab CE',
+            'group-name': 'GitLab.org',
+            'license-type': 'MIT',
+            'mile-stones': ['12.3', '12.4'],
           },
         };
 
@@ -710,6 +734,15 @@ describe('common_utils', () => {
             },
             milestones: ['12.3', '12.4'],
           },
+          convertObjectPropsToLowerCase: {
+            'project-name': 'GitLab CE',
+            'group-name': 'GitLab.org',
+            'license-type': 'MIT',
+            'tech-stack': {
+              'Frontend-Framework': 'Vue',
+            },
+            'mile-stones': ['12.3', '12.4'],
+          },
         };
 
         expect(testFunction(mockObjNested)).toEqual(expected[functionName]);
@@ -750,6 +783,15 @@ describe('common_utils', () => {
                 database: 'PostgreSQL',
               },
               milestones: ['12.3', '12.4'],
+            },
+            convertObjectPropsToLowerCase: {
+              'project-name': 'GitLab CE',
+              'group-name': 'GitLab.org',
+              'license-type': 'MIT',
+              'tech-stack': {
+                'frontend-framework': 'Vue',
+              },
+              'mile-stones': ['12.3', '12.4'],
             },
           };
 
@@ -801,6 +843,15 @@ describe('common_utils', () => {
                 },
                 milestones: ['12.3', '12.4'],
               },
+              convertObjectPropsToLowerCase: {
+                'project-name': 'GitLab CE',
+                'group-name': 'GitLab.org',
+                'license-type': 'MIT',
+                'tech-stack': {
+                  'Frontend-Framework': 'Vue',
+                },
+                'mile-stones': ['12.3', '12.4'],
+              },
             };
 
             const dropKeys = {
@@ -845,12 +896,20 @@ describe('common_utils', () => {
                 },
                 milestones: ['12.3', '12.4'],
               },
+              convertObjectPropsToLowerCase: {
+                'project-name': 'GitLab CE',
+                'tech-stack': {
+                  'frontend-framework': 'Vue',
+                },
+                'mile-stones': ['12.3', '12.4'],
+              },
             };
 
             const dropKeys = {
               convertObjectProps: ['group_name', 'database'],
               convertObjectPropsToCamelCase: ['group_name', 'database'],
               convertObjectPropsToSnakeCase: ['groupName', 'database'],
+              convertObjectPropsToLowerCase: ['Group-Name', 'License-Type'],
             };
 
             expect(
@@ -898,12 +957,22 @@ describe('common_utils', () => {
                 },
                 milestones: ['12.3', '12.4'],
               },
+              convertObjectPropsToLowerCase: {
+                'project-name': 'GitLab CE',
+                'Group-Name': 'GitLab.org',
+                'license-type': 'MIT',
+                'tech-stack': {
+                  'Frontend-Framework': 'Vue',
+                },
+                'mile-stones': ['12.3', '12.4'],
+              },
             };
 
             const ignoreKeyNames = {
               convertObjectProps: ['group_name'],
               convertObjectPropsToCamelCase: ['group_name'],
               convertObjectPropsToSnakeCase: ['groupName'],
+              convertObjectPropsToLowerCase: ['Group-Name'],
             };
 
             expect(
@@ -948,12 +1017,22 @@ describe('common_utils', () => {
                 },
                 milestones: ['12.3', '12.4'],
               },
+              convertObjectPropsToLowerCase: {
+                'project-name': 'GitLab CE',
+                'group-name': 'GitLab.org',
+                'license-type': 'MIT',
+                'tech-stack': {
+                  'Frontend-Framework': 'Vue',
+                },
+                'mile-stones': ['12.3', '12.4'],
+              },
             };
 
             const ignoreKeyNames = {
               convertObjectProps: ['group_name', 'frontend_framework'],
               convertObjectPropsToCamelCase: ['group_name', 'frontend_framework'],
               convertObjectPropsToSnakeCase: ['groupName', 'frontendFramework'],
+              convertObjectPropsToLowerCase: ['Frontend-Framework'],
             };
 
             expect(
@@ -1013,45 +1092,6 @@ describe('common_utils', () => {
       expect(commonUtils.roundToNearestHalf(1.27)).toBe(1.5);
       expect(commonUtils.roundToNearestHalf(1.23)).toBe(1);
       expect(commonUtils.roundToNearestHalf(1.778)).toBe(2);
-    });
-  });
-
-  describe('searchBy', () => {
-    const searchSpace = {
-      iid: 1,
-      reference: '&1',
-      title: 'Error omnis quos consequatur ullam a vitae sed omnis libero cupiditate.',
-      url: '/groups/gitlab-org/-/epics/1',
-    };
-
-    it('returns null when `query` or `searchSpace` params are empty/undefined', () => {
-      expect(commonUtils.searchBy('omnis', null)).toBeNull();
-      expect(commonUtils.searchBy('', searchSpace)).toBeNull();
-      expect(commonUtils.searchBy()).toBeNull();
-    });
-
-    it('returns object with matching props based on `query` & `searchSpace` params', () => {
-      // String `omnis` is found only in `title` prop so return just that
-      expect(commonUtils.searchBy('omnis', searchSpace)).toEqual(
-        expect.objectContaining({
-          title: searchSpace.title,
-        }),
-      );
-
-      // String `1` is found in both `iid` and `reference` props so return both
-      expect(commonUtils.searchBy('1', searchSpace)).toEqual(
-        expect.objectContaining({
-          iid: searchSpace.iid,
-          reference: searchSpace.reference,
-        }),
-      );
-
-      // String `/epics/1` is found in `url` prop so return just that
-      expect(commonUtils.searchBy('/epics/1', searchSpace)).toEqual(
-        expect.objectContaining({
-          url: searchSpace.url,
-        }),
-      );
     });
   });
 

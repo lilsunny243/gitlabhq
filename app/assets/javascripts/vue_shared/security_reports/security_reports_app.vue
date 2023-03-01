@@ -1,9 +1,9 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { s__ } from '~/locale';
-import ReportSection from '~/reports/components/report_section.vue';
-import { ERROR, SLOT_SUCCESS, SLOT_LOADING, SLOT_ERROR } from '~/reports/constants';
+import ReportSection from '~/ci/reports/components/report_section.vue';
+import { ERROR, SLOT_SUCCESS, SLOT_LOADING, SLOT_ERROR } from '~/ci/reports/constants';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import HelpIcon from './components/help_icon.vue';
 import SecurityReportDownloadDropdown from './components/security_report_download_dropdown.vue';
@@ -160,7 +160,7 @@ export default {
       this.fetchCounts();
     },
     showError(error) {
-      createFlash({
+      createAlert({
         message: this.$options.i18n.apiError,
         captureError: true,
         error,

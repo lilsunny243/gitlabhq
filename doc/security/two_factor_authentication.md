@@ -2,7 +2,7 @@
 type: howto
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Enforce two-factor authentication **(FREE)**
@@ -26,7 +26,7 @@ cannot leave the 2FA configuration area at `/-/profile/two_factor_auth`.
 
 To enable 2FA for all users:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > General** (`/admin/application_settings/general`).
 1. Expand the **Sign-in restrictions** section, where you can configure both.
 
@@ -52,7 +52,7 @@ Prerequisites:
 
 To enforce 2FA only for certain groups:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > General**.
 1. Expand **Permissions and group features**.
 1. Select **All users in this group must set up two-factor authentication**.
@@ -99,10 +99,12 @@ This is a permanent and irreversible action. Users must reactivate 2FA to use it
 
 ### For a single user
 
-To disable 2FA for non-administrator users, we recommend using the [API endpoint](../api/users.md#disable-two-factor-authentication)
+To disable 2FA for non-administrator users, you should use the [API endpoint](../api/users.md#disable-two-factor-authentication)
 instead of the Rails console.
 Using the [Rails console](../administration/operations/rails_console.md), 2FA for a single user can be disabled.
 Connect to the Rails console and run:
+
+**In GitLab 13.5 and later:**
 
 ```ruby
 admin = User.find_by_username('<USERNAME>')
@@ -110,6 +112,8 @@ user_to_disable = User.find_by_username('<USERNAME>')
 
 TwoFactor::DestroyService.new(admin, user: user_to_disable).execute
 ```
+
+The target user is notified that 2FA has been disabled.
 
 ### For all users
 
@@ -134,8 +138,8 @@ sudo -u git -H bundle exec rake gitlab:two_factor:disable_for_all_users RAILS_EN
 FLAG:
 On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../administration/feature_flags.md) named `two_factor_for_cli`. On GitLab.com, this feature is not available. The feature is not ready for production use. This feature flag also affects [session duration for Git Operations when 2FA is enabled](../user/admin_area/settings/account_and_limit_settings.md#customize-session-duration-for-git-operations-when-2fa-is-enabled).
 
-Two-factor authentication can be enforced for Git over SSH operations. However, we recommend using
-[ED25519_SK](../user/ssh.md#ed25519_sk-ssh-keys) or [ECDSA_SK](../user/ssh.md#ecdsa_sk-ssh-keys) SSH keys instead.
+You can enforce 2FA for [Git over SSH operations](../development/gitlab_shell/features.md#git-operations). However, you should use
+[ED25519_SK](../user/ssh.md#ed25519_sk-ssh-keys) or [ECDSA_SK](../user/ssh.md#ecdsa_sk-ssh-keys) SSH keys instead. 2FA is enforced for Git operations only, and internal commands such as [`personal_access_token`](../development/gitlab_shell/features.md#personal-access-token) are excluded.
 
 To perform one-time password (OTP) verification, run:
 
@@ -149,7 +153,7 @@ Then authenticate by either:
 - In GitLab 15.3 and later, responding to a device push notification if
   [FortiAuthenticator is enabled](../user/profile/account/two_factor_authentication.md#enable-one-time-password-using-fortiauthenticator).
 
-After successful authentication, you can perform Git over SSH operations for 15 minutes (default) with the associated
+After successful authentication, you can perform [Git over SSH operations](../development/gitlab_shell/features.md#git-operations) for 15 minutes (default) with the associated
 SSH key.
 
 ### Security limitation
@@ -167,6 +171,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

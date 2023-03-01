@@ -66,22 +66,14 @@ class CustomerRelations::Organization < ApplicationRecord
       JOIN #{table_name} AS new_organizations ON new_organizations.group_id = :old_group_id AND LOWER(new_organizations.name) = LOWER(existing_organizations.name)
       WHERE existing_organizations.group_id = :new_group_id AND organization_id = existing_organizations.id
     SQL
-    connection.execute(sanitize_sql([
-      update_query,
-      old_group_id: group.root_ancestor.id,
-      new_group_id: group.id
-      ]))
+    connection.execute(sanitize_sql([update_query, old_group_id: group.root_ancestor.id, new_group_id: group.id]))
 
     dupes_query = <<~SQL
       DELETE FROM #{table_name} AS existing_organizations
       USING #{table_name} AS new_organizations
       WHERE existing_organizations.group_id = :new_group_id AND new_organizations.group_id = :old_group_id AND LOWER(new_organizations.name) = LOWER(existing_organizations.name)
     SQL
-    connection.execute(sanitize_sql([
-      dupes_query,
-      old_group_id: group.root_ancestor.id,
-      new_group_id: group.id
-      ]))
+    connection.execute(sanitize_sql([dupes_query, old_group_id: group.root_ancestor.id, new_group_id: group.id]))
 
     where(group: group).update_all(group_id: group.root_ancestor.id)
   end
@@ -93,8 +85,8 @@ class CustomerRelations::Organization < ApplicationRecord
   private
 
   def self.default_state_counts
-    states.keys.each_with_object({}) do |key, memo|
-      memo[key] = 0
+    states.keys.index_with do |key|
+      0
     end
   end
 

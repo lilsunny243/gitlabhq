@@ -117,7 +117,7 @@ module Gitlab
     end
 
     def blobs(limit: count_limit)
-      return [] unless Ability.allowed?(@current_user, :download_code, @project)
+      return [] unless Ability.allowed?(@current_user, :read_code, @project)
 
       @blobs ||= Gitlab::FileFinder.new(project, repository_project_ref).find(query, content_match_cutoff: limit)
     end
@@ -125,17 +125,15 @@ module Gitlab
     def wiki_blobs(limit: count_limit)
       return [] unless Ability.allowed?(@current_user, :read_wiki, @project)
 
-      @wiki_blobs ||= begin
-        if project.wiki_enabled? && query.present?
-          if project.wiki.empty?
-            []
-          else
-            Gitlab::WikiFileFinder.new(project, repository_wiki_ref).find(query, content_match_cutoff: limit)
-          end
-        else
-          []
-        end
-      end
+      @wiki_blobs ||= if project.wiki_enabled? && query.present?
+                        if project.wiki.empty?
+                          []
+                        else
+                          Gitlab::WikiFileFinder.new(project, repository_wiki_ref).find(query, content_match_cutoff: limit)
+                        end
+                      else
+                        []
+                      end
     end
 
     def notes
@@ -153,7 +151,7 @@ module Gitlab
     end
 
     def find_commits(query, limit:)
-      return [] unless Ability.allowed?(@current_user, :download_code, @project)
+      return [] unless Ability.allowed?(@current_user, :read_code, @project)
 
       commits = find_commits_by_message(query, limit: limit)
       commit_by_sha = find_commit_by_sha(query)
@@ -195,3 +193,5 @@ module Gitlab
     end
   end
 end
+
+Gitlab::ProjectSearchResults.prepend_mod_with('Gitlab::ProjectSearchResults')

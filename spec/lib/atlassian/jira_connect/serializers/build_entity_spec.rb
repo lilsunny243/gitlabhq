@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Atlassian::JiraConnect::Serializers::BuildEntity do
+RSpec.describe Atlassian::JiraConnect::Serializers::BuildEntity, feature_category: :integrations do
   let_it_be(:user) { create_default(:user) }
   let_it_be(:project) { create_default(:project) }
 
@@ -29,11 +29,11 @@ RSpec.describe Atlassian::JiraConnect::Serializers::BuildEntity do
   end
 
   context 'when the pipeline does belong to a Jira issue' do
-    let(:pipeline) { create(:ci_pipeline, merge_request: merge_request) }
+    let(:pipeline) { create(:ci_pipeline, merge_request: merge_request, project: project) }
 
     %i[jira_branch jira_title jira_description].each do |trait|
       context "because it belongs to an MR with a #{trait}" do
-        let(:merge_request) { create(:merge_request, trait) }
+        let(:merge_request) { create(:merge_request, trait, source_project: project) }
 
         describe '#issue_keys' do
           it 'is not empty' do
@@ -46,6 +46,23 @@ RSpec.describe Atlassian::JiraConnect::Serializers::BuildEntity do
             expect(subject.to_json).to be_valid_json.and match_schema(Atlassian::Schemata.build_info)
           end
         end
+      end
+    end
+
+    context 'in the pipeline\'s commit messsage' do
+      let_it_be(:pipeline) { create(:ci_pipeline, project: project) }
+      let(:commit_message) { "Merge branch 'staging' into 'master'\n\nFixes bug described in PROJ-1234" }
+
+      before do
+        allow(pipeline).to receive(:git_commit_message).and_return(commit_message)
+      end
+
+      describe '#issue_keys' do
+        it { expect(subject.issue_keys).to match_array(['PROJ-1234']) }
+      end
+
+      describe '#to_json' do
+        it { expect(subject.to_json).to be_valid_json.and match_schema(Atlassian::Schemata.build_info) }
       end
     end
   end

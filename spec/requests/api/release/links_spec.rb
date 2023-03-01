@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Release::Links do
+RSpec.describe API::Release::Links, feature_category: :release_orchestration do
+  include Ci::JobTokenScopeHelpers
+
   let(:project) { create(:project, :repository, :private) }
   let(:maintainer) { create(:user) }
   let(:developer) { create(:user) }
@@ -51,7 +53,7 @@ RSpec.describe API::Release::Links do
       end
 
       context 'when using JOB-TOKEN auth' do
-        let(:job) { create(:ci_build, :running, user: maintainer) }
+        let(:job) { create(:ci_build, :running, user: maintainer, project: project) }
 
         it 'returns releases links' do
           get api("/projects/#{project.id}/releases/v0.1/assets/links", job_token: job.token)
@@ -81,24 +83,20 @@ RSpec.describe API::Release::Links do
       end
 
       context 'when project is public' do
-        let(:project) { create(:project, :repository, :public) }
+        before do
+          project.update!(visibility_level: Gitlab::VisibilityLevel::PUBLIC)
+        end
 
         it 'allows the request' do
           get api("/projects/#{project.id}/releases/v0.1/assets/links", non_project_member)
 
           expect(response).to have_gitlab_http_status(:ok)
         end
-      end
 
-      context 'when project is public and the repository is private' do
-        let(:project) { create(:project, :repository, :public, :repository_private) }
-
-        it_behaves_like '403 response' do
-          let(:request) { get api("/projects/#{project.id}/releases/v0.1/assets/links", non_project_member) }
-        end
-
-        context 'when the release does not exists' do
-          let!(:release) {}
+        context 'and the releases are private' do
+          before do
+            project.project_feature.update!(releases_access_level: ProjectFeature::PRIVATE)
+          end
 
           it_behaves_like '403 response' do
             let(:request) { get api("/projects/#{project.id}/releases/v0.1/assets/links", non_project_member) }
@@ -131,7 +129,7 @@ RSpec.describe API::Release::Links do
     end
 
     context 'when using JOB-TOKEN auth' do
-      let(:job) { create(:ci_build, :running, user: maintainer) }
+      let(:job) { create(:ci_build, :running, user: maintainer, project: project) }
 
       it 'returns releases link' do
         get api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}", job_token: job.token)
@@ -226,8 +224,26 @@ RSpec.describe API::Release::Links do
       expect(response).to match_response_schema('release/link')
     end
 
+    context 'when using `direct_asset_path`' do
+      before do
+        params[:direct_asset_path] = params.delete(:filepath)
+      end
+
+      it 'creates a new release link successfully' do
+        expect do
+          post api("/projects/#{project.id}/releases/v0.1/assets/links", maintainer), params: params
+        end.to change { Releases::Link.count }.by(1)
+
+        release.reload
+
+        expect(last_release_link.name).to eq('awesome-app.dmg')
+        expect(last_release_link.filepath).to eq('/binaries/awesome-app.dmg')
+        expect(last_release_link.url).to eq('https://example.com/download/awesome-app.dmg')
+      end
+    end
+
     context 'when using JOB-TOKEN auth' do
-      let(:job) { create(:ci_build, :running, user: maintainer) }
+      let(:job) { create(:ci_build, :running, user: maintainer, project: project) }
 
       it 'creates a new release link' do
         expect do
@@ -361,8 +377,17 @@ RSpec.describe API::Release::Links do
       expect(response).to match_response_schema('release/link')
     end
 
+    context 'when using `direct_asset_path`' do
+      it 'updates the release link' do
+        put api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}", maintainer),
+            params: params.merge(direct_asset_path: '/binaries/awesome-app.msi')
+
+        expect(json_response['direct_asset_url']).to eq("http://localhost/#{project.namespace.path}/#{project.name}/-/releases/#{release.tag}/downloads/binaries/awesome-app.msi")
+      end
+    end
+
     context 'when using JOB-TOKEN auth' do
-      let(:job) { create(:ci_build, :running, user: maintainer) }
+      let(:job) { create(:ci_build, :running, user: maintainer, project: project) }
 
       it 'updates the release link' do
         put api("/projects/#{project.id}/releases/v0.1/assets/links/#{release_link.id}"), params: params.merge(job_token: job.token)
@@ -473,7 +498,7 @@ RSpec.describe API::Release::Links do
     end
 
     context 'when using JOB-TOKEN auth' do
-      let(:job) { create(:ci_build, :running, user: maintainer) }
+      let(:job) { create(:ci_build, :running, user: maintainer, project: project) }
 
       it 'deletes the release link' do
         expect do

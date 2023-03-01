@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin updates settings' do
+RSpec.describe 'Admin updates settings', feature_category: :not_owned do
   include StubENV
   include TermsHelper
   include UsageDataHelpers
 
-  let(:admin) { create(:admin) }
+  let_it_be(:admin) { create(:admin) }
   let(:dot_com?) { false }
 
   context 'application setting :admin_mode is enabled', :request_store do
@@ -24,7 +24,7 @@ RSpec.describe 'Admin updates settings' do
       end
 
       it 'change visibility settings' do
-        page.within('.as-visibility-access') do
+        page.within('[data-testid="admin-visibility-access-settings"]') do
           choose "application_setting_default_project_visibility_20"
           click_button 'Save changes'
         end
@@ -33,23 +33,29 @@ RSpec.describe 'Admin updates settings' do
       end
 
       it 'uncheck all restricted visibility levels' do
-        page.within('.as-visibility-access') do
-          find('#application_setting_restricted_visibility_levels_0').set(false)
-          find('#application_setting_restricted_visibility_levels_10').set(false)
-          find('#application_setting_restricted_visibility_levels_20').set(false)
+        page.within('[data-testid="restricted-visibility-levels"]') do
+          uncheck s_('VisibilityLevel|Public')
+          uncheck s_('VisibilityLevel|Internal')
+          uncheck s_('VisibilityLevel|Private')
+        end
+
+        page.within('[data-testid="admin-visibility-access-settings"]') do
           click_button 'Save changes'
         end
 
         expect(page).to have_content "Application settings saved successfully"
-        expect(find('#application_setting_restricted_visibility_levels_0')).not_to be_checked
-        expect(find('#application_setting_restricted_visibility_levels_10')).not_to be_checked
-        expect(find('#application_setting_restricted_visibility_levels_20')).not_to be_checked
+
+        page.within('[data-testid="restricted-visibility-levels"]') do
+          expect(find_field(s_('VisibilityLevel|Public'))).not_to be_checked
+          expect(find_field(s_('VisibilityLevel|Internal'))).not_to be_checked
+          expect(find_field(s_('VisibilityLevel|Private'))).not_to be_checked
+        end
       end
 
       it 'modify import sources' do
         expect(current_settings.import_sources).not_to be_empty
 
-        page.within('.as-visibility-access') do
+        page.within('[data-testid="admin-visibility-access-settings"]') do
           Gitlab::ImportSources.options.map do |name, _|
             uncheck name
           end
@@ -60,7 +66,7 @@ RSpec.describe 'Admin updates settings' do
         expect(page).to have_content "Application settings saved successfully"
         expect(current_settings.import_sources).to be_empty
 
-        page.within('.as-visibility-access') do
+        page.within('[data-testid="admin-visibility-access-settings"]') do
           check "Repository by URL"
           click_button 'Save changes'
         end
@@ -70,17 +76,25 @@ RSpec.describe 'Admin updates settings' do
       end
 
       it 'change Visibility and Access Controls' do
-        page.within('.as-visibility-access') do
-          uncheck 'Enabled'
+        page.within('[data-testid="admin-visibility-access-settings"]') do
+          page.within('[data-testid="project-export"]') do
+            uncheck 'Enabled'
+          end
+
+          page.within('[data-testid="bulk-import"]') do
+            check 'Enabled'
+          end
+
           click_button 'Save changes'
         end
 
         expect(current_settings.project_export_enabled).to be_falsey
+        expect(current_settings.bulk_import_enabled).to be(true)
         expect(page).to have_content "Application settings saved successfully"
       end
 
       it 'change Keys settings' do
-        page.within('.as-visibility-access') do
+        page.within('[data-testid="admin-visibility-access-settings"]') do
           select 'Are forbidden', from: 'RSA SSH keys'
           select 'Are allowed', from: 'DSA SSH keys'
           select 'Must be at least 384 bits', from: 'ECDSA SSH keys'
@@ -147,19 +161,28 @@ RSpec.describe 'Admin updates settings' do
         context 'when Gitlab.com' do
           let(:dot_com?) { true }
 
-          it 'does not expose the setting' do
-            expect(page).to have_no_selector('#application_setting_deactivate_dormant_users')
-          end
-
-          it 'does not expose the setting' do
-            expect(page).to have_no_selector('#application_setting_deactivate_dormant_users_period')
+          it 'does not expose the setting section' do
+            # NOTE: not_to have_content may have false positives for content
+            #       that might not load instantly, so before checking that
+            #       `Dormant users` subsection has _not_ loaded, we check that the
+            #       `Account and limit` section _was_ loaded
+            expect(page).to have_content('Account and limit')
+            expect(page).not_to have_content('Dormant users')
+            expect(page).not_to have_field('Deactivate dormant users after a period of inactivity')
+            expect(page).not_to have_field('Days of inactivity before deactivation')
           end
         end
 
         context 'when not Gitlab.com' do
           let(:dot_com?) { false }
 
-          it 'changes Dormant users' do
+          it 'exposes the setting section' do
+            expect(page).to have_content('Dormant users')
+            expect(page).to have_field('Deactivate dormant users after a period of inactivity')
+            expect(page).to have_field('Days of inactivity before deactivation')
+          end
+
+          it 'changes dormant users' do
             expect(page).to have_unchecked_field('Deactivate dormant users after a period of inactivity')
             expect(current_settings.deactivate_dormant_users).to be_falsey
 
@@ -176,11 +199,11 @@ RSpec.describe 'Admin updates settings' do
             expect(page).to have_checked_field('Deactivate dormant users after a period of inactivity')
           end
 
-          it 'change Dormant users period' do
-            expect(page).to have_field _('Period of inactivity (days)')
+          it 'change dormant users period' do
+            expect(page).to have_field _('Days of inactivity before deactivation')
 
             page.within(find('[data-testid="account-limit"]')) do
-              fill_in _('application_setting_deactivate_dormant_users_period'), with: '35'
+              fill_in _('application_setting_deactivate_dormant_users_period'), with: '90'
               click_button 'Save changes'
             end
 
@@ -188,7 +211,28 @@ RSpec.describe 'Admin updates settings' do
 
             page.refresh
 
-            expect(page).to have_field _('Period of inactivity (days)'), with: '35'
+            expect(page).to have_field _('Days of inactivity before deactivation'), with: '90'
+          end
+
+          it 'displays dormant users period field validation error', :js do
+            selector = '#application_setting_deactivate_dormant_users_period_error'
+            expect(page).not_to have_selector(selector, visible: :visible)
+
+            page.within(find('[data-testid="account-limit"]')) do
+              check 'application_setting_deactivate_dormant_users'
+              fill_in _('application_setting_deactivate_dormant_users_period'), with: '30'
+              click_button 'Save changes'
+            end
+
+            expect(page).to have_selector(selector, visible: :visible)
+          end
+
+          it 'auto disables dormant users period field depending on parent checkbox', :js do
+            uncheck 'application_setting_deactivate_dormant_users'
+            expect(page).to have_field('application_setting_deactivate_dormant_users_period', disabled: true)
+
+            check 'application_setting_deactivate_dormant_users'
+            expect(page).to have_field('application_setting_deactivate_dormant_users_period', disabled: false)
           end
         end
       end
@@ -202,6 +246,22 @@ RSpec.describe 'Admin updates settings' do
             end
 
             expect(current_settings.require_admin_approval_after_user_signup).to be_truthy
+            expect(page).to have_content "Application settings saved successfully"
+          end
+        end
+
+        context 'Email confirmation settings' do
+          it "is set to 'hard' by default" do
+            expect(current_settings.email_confirmation_setting).to eq('off')
+          end
+
+          it 'changes the setting', :js do
+            page.within('.as-signup') do
+              choose 'Hard'
+              click_button 'Save changes'
+            end
+
+            expect(current_settings.email_confirmation_setting).to eq('hard')
             expect(page).to have_content "Application settings saved successfully"
           end
         end
@@ -304,10 +364,14 @@ RSpec.describe 'Admin updates settings' do
         it 'changes the setting' do
           page.within('#js-jira_connect-settings') do
             fill_in 'Jira Connect Application ID', with: '1234'
+            fill_in 'Jira Connect Proxy URL', with: 'https://example.com'
+            check 'Enable public key storage'
             click_button 'Save changes'
           end
 
           expect(current_settings.jira_connect_application_key).to eq('1234')
+          expect(current_settings.jira_connect_proxy_url).to eq('https://example.com')
+          expect(current_settings.jira_connect_public_key_storage_enabled).to eq(true)
           expect(page).to have_content "Application settings saved successfully"
         end
       end
@@ -400,39 +464,19 @@ RSpec.describe 'Admin updates settings' do
       end
 
       context 'Runner Registration' do
-        context 'when feature is enabled' do
-          before do
-            stub_feature_flags(runner_registration_control: true)
+        it 'allows admins to control who has access to register runners' do
+          visit ci_cd_admin_application_settings_path
+
+          expect(current_settings.valid_runner_registrars).to eq(ApplicationSetting::VALID_RUNNER_REGISTRAR_TYPES)
+
+          page.within('.as-runner') do
+            find_all('input[type="checkbox"]').each(&:click)
+
+            click_button 'Save changes'
           end
 
-          it 'allows admins to control who has access to register runners' do
-            visit ci_cd_admin_application_settings_path
-
-            expect(current_settings.valid_runner_registrars).to eq(ApplicationSetting::VALID_RUNNER_REGISTRAR_TYPES)
-
-            page.within('.as-runner') do
-              find_all('input[type="checkbox"]').each(&:click)
-
-              click_button 'Save changes'
-            end
-
-            expect(current_settings.valid_runner_registrars).to eq([])
-            expect(page).to have_content "Application settings saved successfully"
-          end
-        end
-
-        context 'when feature is disabled' do
-          before do
-            stub_feature_flags(runner_registration_control: false)
-          end
-
-          it 'does not allow admins to control who has access to register runners' do
-            visit ci_cd_admin_application_settings_path
-
-            expect(current_settings.valid_runner_registrars).to eq(ApplicationSetting::VALID_RUNNER_REGISTRAR_TYPES)
-
-            expect(page).not_to have_css('.as-runner')
-          end
+          expect(current_settings.valid_runner_registrars).to eq([])
+          expect(page).to have_content "Application settings saved successfully"
         end
       end
 
@@ -562,7 +606,7 @@ RSpec.describe 'Admin updates settings' do
 
       it 'change Prometheus settings' do
         page.within('.as-prometheus') do
-          check 'Enable health and performance metrics endpoint'
+          check 'Enable GitLab Prometheus metrics endpoint'
           click_button 'Save changes'
         end
 
@@ -718,6 +762,18 @@ RSpec.describe 'Admin updates settings' do
         expect(current_settings.users_get_by_id_limit_allowlist).to eq(%w[someone someone_else])
       end
 
+      it 'changes Projects API rate limits settings' do
+        visit network_admin_application_settings_path
+
+        page.within('.as-projects-api-limits') do
+          fill_in 'Maximum requests per 10 minutes per IP address', with: 100
+          click_button 'Save changes'
+        end
+
+        expect(page).to have_content "Application settings saved successfully"
+        expect(current_settings.projects_api_rate_limit_unauthenticated).to eq(100)
+      end
+
       shared_examples 'regular throttle rate limit settings' do
         it 'changes rate limit settings' do
           visit network_admin_application_settings_path
@@ -785,7 +841,34 @@ RSpec.describe 'Admin updates settings' do
 
     context 'Preferences page' do
       before do
+        stub_feature_flags(deactivation_email_additional_text: deactivation_email_additional_text_feature_flag)
         visit preferences_admin_application_settings_path
+      end
+
+      let(:deactivation_email_additional_text_feature_flag) { true }
+
+      describe 'Email page' do
+        context 'when deactivation email additional text feature flag is enabled' do
+          it 'shows deactivation email additional text field' do
+            expect(page).to have_field 'Additional text for deactivation email'
+
+            page.within('.as-email') do
+              fill_in 'Additional text for deactivation email', with: 'So long and thanks for all the fish!'
+              click_button 'Save changes'
+            end
+
+            expect(page).to have_content 'Application settings saved successfully'
+            expect(current_settings.deactivation_email_additional_text).to eq('So long and thanks for all the fish!')
+          end
+        end
+
+        context 'when deactivation email additional text feature flag is disabled' do
+          let(:deactivation_email_additional_text_feature_flag) { false }
+
+          it 'does not show deactivation email additional text field' do
+            expect(page).not_to have_field 'Additional text for deactivation email'
+          end
+        end
       end
 
       it 'change Help page' do
@@ -855,7 +938,7 @@ RSpec.describe 'Admin updates settings' do
 
     context 'Nav bar' do
       it 'shows default help links in nav' do
-        default_support_url = "https://#{ApplicationHelper.promo_host}/getting-help/"
+        default_support_url = "https://#{ApplicationHelper.promo_host}/get-help/"
 
         visit root_dashboard_path
 

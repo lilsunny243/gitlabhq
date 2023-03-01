@@ -1,7 +1,7 @@
 ---
-stage: Monitor
-group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Data Stores
+group: Application Performance
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Performance bar **(FREE SELF)**
@@ -51,7 +51,7 @@ From left to right, the performance bar displays:
   values in milliseconds, separated by slashes.
   Select to display a modal window with more details. The values, from left to right:
   - **Backend**: time needed for the base page to load.
-  - [**First Contentful Paint**](https://web.dev/first-contentful-paint/):
+  - [**First Contentful Paint**](https://developer.chrome.com/docs/lighthouse/performance/first-contentful-paint/):
     Time until something was visible to the user. Displays `NaN` if your browser does not
     support this feature.
   - [**DomContentLoaded**](https://web.dev/critical-rendering-path-measure-crp/) Event.
@@ -81,7 +81,7 @@ From left to right, the performance bar displays:
 NOTE:
 Not all indicators are available in all environments. For instance, the memory view
 requires running Ruby with [specific patches](https://gitlab.com/gitlab-org/gitlab-build-images/-/blob/master/patches/ruby/2.7.4/thread-memory-allocations-2.7.patch)
-applied. When running GitLab locally using [GDK](../../../development/contributing/index.md#gitlab-development-kit),
+applied. When running GitLab locally using the [GDK](https://gitlab.com/gitlab-org/gitlab-development-kit),
 this is typically not the case and the memory view cannot be used.
 
 ## Keyboard shortcut
@@ -108,7 +108,7 @@ The performance bar is disabled by default for non-administrators. To enable it
 for a given group:
 
 1. Sign in as a user with administrator access.
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Metrics and profiling**
    (`admin/application_settings/metrics_and_profiling`), and expand
    **Profiling - Performance bar**.

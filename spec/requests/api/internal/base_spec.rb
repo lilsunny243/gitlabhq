@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Internal::Base do
+RSpec.describe API::Internal::Base, feature_category: :system_access do
   include GitlabShellHelpers
   include APIInternalBaseHelpers
 
@@ -67,24 +67,6 @@ RSpec.describe API::Internal::Base do
         perform_request(headers: { API::Helpers::GITLAB_SHARED_SECRET_HEADER => Base64.encode64(secret_token) })
 
         expect(response).to have_gitlab_http_status(:unauthorized)
-      end
-
-      context 'when gitlab_shell_jwt_token is disabled' do
-        before do
-          stub_feature_flags(gitlab_shell_jwt_token: false)
-        end
-
-        it 'authenticates using a header' do
-          perform_request(headers: { API::Helpers::GITLAB_SHARED_SECRET_HEADER => Base64.encode64(secret_token) })
-
-          expect(response).to have_gitlab_http_status(:ok)
-        end
-
-        it 'returns 401 when no credentials provided' do
-          get(api("/internal/check"))
-
-          expect(response).to have_gitlab_http_status(:unauthorized)
-        end
       end
     end
   end
@@ -343,6 +325,28 @@ RSpec.describe API::Internal::Base do
       expect(json_response['name']).to eq(user.name)
     end
 
+    context 'when signing key is passed' do
+      it 'does not authenticate user' do
+        key.signing!
+
+        get(api("/internal/discover"), params: { key_id: key.id }, headers: gitlab_shell_internal_api_request_header)
+
+        expect(json_response).to be_nil
+      end
+    end
+
+    context 'when auth-only key is passed' do
+      it 'authenticates user' do
+        key.auth!
+
+        get(api("/internal/discover"), params: { key_id: key.id }, headers: gitlab_shell_internal_api_request_header)
+
+        expect(response).to have_gitlab_http_status(:ok)
+
+        expect(json_response['name']).to eq(user.name)
+      end
+    end
+
     it "finds a user by username" do
       get(api("/internal/discover"), params: { username: user.username }, headers: gitlab_shell_internal_api_request_header)
 
@@ -376,6 +380,30 @@ RSpec.describe API::Internal::Base do
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response['id']).to eq(key.id)
         expect(json_response['key'].split[1]).to eq(key.key.split[1])
+      end
+
+      context 'when signing key is passed' do
+        it 'does not return the key' do
+          key.signing!
+
+          get(api('/internal/authorized_keys'), params: { key: key.key.split[1] }, headers: gitlab_shell_internal_api_request_header)
+
+          expect(response).to have_gitlab_http_status(:not_found)
+
+          expect(json_response['id']).to be_nil
+        end
+      end
+
+      context 'when auth-only key is passed' do
+        it 'authenticates user' do
+          key.auth!
+
+          get(api('/internal/authorized_keys'), params: { key: key.key.split[1] }, headers: gitlab_shell_internal_api_request_header)
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(json_response['id']).to eq(key.id)
+          expect(json_response['key'].split[1]).to eq(key.key.split[1])
+        end
       end
 
       it 'exposes the comment of the key as a simple identifier of username + hostname' do
@@ -425,28 +453,10 @@ RSpec.describe API::Internal::Base do
         expect(json_response['message']['error']).to eq('This endpoint has been requested too many times. Try again later.')
       end
 
-      context 'when rate_limit_gitlab_shell feature flag is disabled' do
-        before do
-          stub_feature_flags(rate_limit_gitlab_shell: false)
-        end
+      it 'is not throttled by rate limiter' do
+        expect(::Gitlab::ApplicationRateLimiter).not_to receive(:throttled?)
 
-        it 'is not throttled by rate limiter' do
-          expect(::Gitlab::ApplicationRateLimiter).not_to receive(:throttled?)
-
-          subject
-        end
-      end
-
-      context 'when rate_limit_gitlab_shell_by_ip feature flag is disabled' do
-        before do
-          stub_feature_flags(rate_limit_gitlab_shell_by_ip: false)
-        end
-
-        it 'is not throttled by rate limiter' do
-          expect(::Gitlab::ApplicationRateLimiter).not_to receive(:throttled?)
-
-          subject
-        end
+        subject
       end
 
       context 'when the IP is in a trusted range' do
@@ -640,6 +650,12 @@ RSpec.describe API::Internal::Base do
                   },
                   headers: gitlab_shell_internal_api_request_header
                 )
+              end
+
+              it "updates user's activity data" do
+                expect(::Users::ActivityService).to receive(:new).with(author: user, namespace: project.namespace, project: project)
+
+                request
               end
             end
           end
@@ -1033,7 +1049,7 @@ RSpec.describe API::Internal::Base do
 
       context 'git push' do
         before do
-          stub_const('Gitlab::QueryLimiting::Transaction::THRESHOLD', 120)
+          allow(Gitlab::QueryLimiting::Transaction).to receive(:threshold).and_return(120)
         end
 
         subject { push_with_path(key, full_path: path, changes: '_any') }

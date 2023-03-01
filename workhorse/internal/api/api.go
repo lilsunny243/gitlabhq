@@ -18,8 +18,8 @@ import (
 
 	"gitlab.com/gitlab-org/gitlab/workhorse/internal/config"
 	"gitlab.com/gitlab-org/gitlab/workhorse/internal/helper"
+	"gitlab.com/gitlab-org/gitlab/workhorse/internal/helper/fail"
 	"gitlab.com/gitlab-org/gitlab/workhorse/internal/log"
-
 	"gitlab.com/gitlab-org/gitlab/workhorse/internal/secret"
 )
 
@@ -98,6 +98,8 @@ type RemoteObject struct {
 	GetURL string
 	// DeleteURL is a presigned S3 RemoveObject URL
 	DeleteURL string
+	// Whether Workhorse needs to delete the temporary object or not.
+	SkipDelete bool
 	// StoreURL is the temporary presigned S3 PutObject URL to which upload the first found file
 	StoreURL string
 	// Boolean to indicate whether to use headers included in PutHeaders
@@ -129,6 +131,7 @@ type Response struct {
 	// GL_REPOSITORY is an environment variable used by gitlab-shell hooks during
 	// 'git push' and 'git pull'
 	GL_REPOSITORY string
+
 	// GitConfigOptions holds the custom options that we want to pass to the git command
 	GitConfigOptions []string
 	// StoreLFSPath is provided by the GitLab Rails application to mark where the tmp file should be placed.
@@ -160,12 +163,14 @@ type Response struct {
 	ProcessLsif bool
 	// The maximum accepted size in bytes of the upload
 	MaximumSize int64
+	// A list of permitted hash functions. If empty, then all available are permitted.
+	UploadHashFunctions []string
 }
 
 type GitalyServer struct {
-	Address  string            `json:"address"`
-	Token    string            `json:"token"`
-	Features map[string]string `json:"features"`
+	Address      string            `json:"address"`
+	Token        string            `json:"token"`
+	CallMetadata map[string]string `json:"call_metadata"`
 }
 
 // singleJoiningSlash is taken from reverseproxy.go:singleJoiningSlash
@@ -226,7 +231,7 @@ func (api *API) newRequest(r *http.Request, suffix string) (*http.Request, error
 	authReq := &http.Request{
 		Method: r.Method,
 		URL:    rebaseUrl(r.URL, api.URL, suffix),
-		Header: helper.HeaderClone(r.Header),
+		Header: r.Header.Clone(),
 	}
 
 	authReq = authReq.WithContext(r.Context())
@@ -307,7 +312,7 @@ func (api *API) PreAuthorizeFixedPath(r *http.Request, method string, path strin
 	if err != nil {
 		return nil, fmt.Errorf("construct auth request: %w", err)
 	}
-	authReq.Header = helper.HeaderClone(r.Header)
+	authReq.Header = r.Header.Clone()
 	authReq.URL.RawQuery = r.URL.RawQuery
 
 	failureResponse, apiResponse, err := api.PreAuthorize(path, authReq)
@@ -335,7 +340,7 @@ func (api *API) PreAuthorizeHandler(next HandleFunc, suffix string) http.Handler
 		}
 
 		if err != nil {
-			helper.Fail500(w, r, err)
+			fail.Request(w, r, err)
 			return
 		}
 
@@ -361,7 +366,7 @@ func (api *API) doRequestWithoutRedirects(authReq *http.Request) (*http.Response
 }
 
 // removeConnectionHeaders removes hop-by-hop headers listed in the "Connection" header of h.
-// See https://tools.ietf.org/html/rfc7230#section-6.1
+// See https://www.rfc-editor.org/rfc/rfc7230#section-6.1
 func removeConnectionHeaders(h http.Header) {
 	for _, f := range h["Connection"] {
 		for _, sf := range strings.Split(f, ",") {
@@ -390,7 +395,7 @@ func passResponseBack(httpResponse *http.Response, w http.ResponseWriter, r *htt
 	// the entire response body in memory before sending it on.
 	responseBody, err := bufferResponse(httpResponse.Body)
 	if err != nil {
-		helper.Fail500(w, r, err)
+		fail.Request(w, r, err)
 		return
 	}
 	httpResponse.Body.Close() // Free up the Puma thread

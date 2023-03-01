@@ -9,21 +9,14 @@ module Import
     attr_reader :params, :current_user
 
     def execute(access_params, provider)
-      if blocked_url?
-        return log_and_return_error("Invalid URL: #{url}", _("Invalid URL: %{url}") % { url: url }, :bad_request)
-      end
-
-      unless authorized?
-        return error(_('This namespace has already been taken! Please choose another one.'), :unprocessable_entity)
-      end
-
-      if oversized?
-        return error(oversize_error_message, :unprocessable_entity)
-      end
+      context_error = validate_context
+      return context_error if context_error
 
       project = create_project(access_params, provider)
+      track_access_level('github')
 
       if project.persisted?
+        store_import_settings(project)
         success(project)
       elsif project.errors[:import_source_disabled].present?
         error(project.errors[:import_source_disabled], :forbidden)
@@ -50,15 +43,11 @@ module Import
     end
 
     def project_name
-      @project_name ||= params[:new_name].presence || repo.name
-    end
-
-    def namespace_path
-      @namespace_path ||= params[:target_namespace].presence || current_user.namespace_path
+      @project_name ||= params[:new_name].presence || repo[:name]
     end
 
     def target_namespace
-      @target_namespace ||= find_or_create_namespace(namespace_path, current_user.namespace_path)
+      @target_namespace ||= Namespace.find_by_full_path(target_namespace_path)
     end
 
     def extra_project_attrs
@@ -66,13 +55,13 @@ module Import
     end
 
     def oversized?
-      repository_size_limit > 0 && repo.size > repository_size_limit
+      repository_size_limit > 0 && repo[:size] > repository_size_limit
     end
 
     def oversize_error_message
       _('"%{repository_name}" size (%{repository_size}) is larger than the limit of %{limit}.') % {
-        repository_name: repo.name,
-        repository_size: number_to_human_size(repo.size),
+        repository_name: repo[:name],
+        repository_size: number_to_human_size(repo[:size]),
         limit: number_to_human_size(repository_size_limit)
       }
     end
@@ -108,6 +97,24 @@ module Import
 
     private
 
+    def validate_context
+      if blocked_url?
+        log_and_return_error("Invalid URL: #{url}", _("Invalid URL: %{url}") % { url: url }, :bad_request)
+      elsif target_namespace.nil?
+        error(_('Namespace or group to import repository into does not exist.'), :unprocessable_entity)
+      elsif !authorized?
+        error(_('This namespace has already been taken. Choose a different one.'), :unprocessable_entity)
+      elsif oversized?
+        error(oversize_error_message, :unprocessable_entity)
+      end
+    end
+
+    def target_namespace_path
+      raise ArgumentError, 'Target namespace is required' if params[:target_namespace].blank?
+
+      params[:target_namespace]
+    end
+
     def log_error(exception)
       Gitlab::GithubImport::Logger.error(
         message: 'Import failed due to a GitHub error',
@@ -125,6 +132,10 @@ module Import
       )
 
       error(translated_message, http_status)
+    end
+
+    def store_import_settings(project)
+      Gitlab::GithubImport::Settings.new(project).write(params[:optional_stages])
     end
   end
 end

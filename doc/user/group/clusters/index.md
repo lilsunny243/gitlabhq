@@ -2,7 +2,7 @@
 type: reference
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Group-level Kubernetes clusters (certificate-based) (DEPRECATED) **(FREE)**
@@ -21,7 +21,7 @@ your group, enabling you to use the same cluster across multiple projects.
 
 To view your group-level Kubernetes clusters:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Kubernetes**.
 
 ## Cluster management project
@@ -89,7 +89,7 @@ your cluster, which can cause deployment jobs to fail.
 
 To clear the cache:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Kubernetes**.
 1. Select your cluster.
 1. Expand **Advanced settings**.
@@ -111,7 +111,7 @@ The domain should have a wildcard DNS configured to the Ingress IP address. [Mor
 When adding more than one Kubernetes cluster to your project, you need to differentiate
 them with an environment scope. The environment scope associates clusters with
 [environments](../../../ci/environments/index.md) similar to how the
-[environment-specific CI/CD variables](../../../ci/variables/index.md#limit-the-environment-scope-of-a-cicd-variable)
+[environment-specific CI/CD variables](../../../ci/environments/index.md#limit-the-environment-scope-of-a-cicd-variable)
 work.
 
 While evaluating which environment matches the environment scope of a
@@ -187,6 +187,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

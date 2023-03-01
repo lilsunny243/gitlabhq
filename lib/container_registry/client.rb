@@ -5,10 +5,13 @@ module ContainerRegistry
     include Gitlab::Utils::StrongMemoize
 
     attr_accessor :uri
+    attr_reader :options, :base_uri
 
     REGISTRY_VERSION_HEADER = 'gitlab-container-registry-version'
     REGISTRY_FEATURES_HEADER = 'gitlab-container-registry-features'
     REGISTRY_TAG_DELETE_FEATURE = 'tag_delete'
+
+    DEFAULT_TAGS_PAGE_SIZE = 10000
 
     ALLOWED_REDIRECT_SCHEMES = %w[http https].freeze
     REDIRECT_OPTIONS = {
@@ -52,8 +55,11 @@ module ContainerRegistry
       }
     end
 
-    def repository_tags(name)
-      response_body faraday.get("/v2/#{name}/tags/list")
+    def repository_tags(name, page_size: DEFAULT_TAGS_PAGE_SIZE)
+      response = faraday.get("/v2/#{name}/tags/list") do |req|
+        req.params['n'] = page_size
+      end
+      response_body(response)
     end
 
     def repository_manifest(name, reference)

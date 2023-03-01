@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Pages access control **(FREE)**
@@ -20,7 +20,7 @@ For a demonstration, see [Pages access controls](https://www.youtube.com/watch?v
 1. Toggle the **Pages** button to enable the access control. If you don't see the toggle button,
    that means it isn't enabled. Ask your administrator to [enable it](../../../administration/pages/index.md#access-control).
 
-1. The Pages access control dropdown allows you to set who can view pages hosted
+1. The Pages access control dropdown list allows you to set who can view pages hosted
    with GitLab Pages, depending on your project's visibility:
 
    - If your project is private:
@@ -34,7 +34,7 @@ For a demonstration, see [Pages access controls](https://www.youtube.com/watch?v
      - **Only project members**: Only project members are able to browse the website.
      - **Everyone with access**: Everyone, both logged into and logged out of GitLab, is able to browse the website, no matter their project membership.
 
-1. Select **Save changes**. Note that your changes may not take effect immediately. GitLab Pages uses
+1. Select **Save changes**. Your changes may not take effect immediately. GitLab Pages uses
    a caching mechanism for efficiency. Your changes may not take effect until that cache is
    invalidated, which usually takes less than a minute.
 

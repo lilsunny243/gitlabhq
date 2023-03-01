@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: index
 ---
 
@@ -12,7 +12,7 @@ distributed version control system designed to handle everything from small to
 large projects with speed and efficiency.
 
 [GitLab](https://about.gitlab.com) is a Git-based fully integrated platform for
-software development. Besides Git's functionalities, GitLab has a lot of
+software development. Besides Git functionalities, GitLab has a lot of
 powerful [features](https://about.gitlab.com/features/) to enhance your
 [workflow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/).
 
@@ -36,14 +36,14 @@ The following resources can help you get started with Git:
 - [GitLab Git Cheat Sheet (download)](https://about.gitlab.com/images/press/git-cheat-sheet.pdf)
 - Commits:
   - [Revert a commit](../../user/project/merge_requests/revert_changes.md#revert-a-commit)
-  - [Cherry-picking a commit](../../user/project/merge_requests/cherry_pick_changes.md#cherry-pick-a-commit)
+  - [Cherry-picking a commit](../../user/project/merge_requests/cherry_pick_changes.md)
   - [Squashing commits](../gitlab_flow.md#squashing-commits-with-rebase)
   - [Squash-and-merge](../../user/project/merge_requests/squash_and_merge.md)
   - [Signing commits](../../user/project/repository/gpg_signed_commits/index.md)
 - [Git stash](stash.md)
 - [Git file blame](../../user/project/repository/git_blame.md)
 - [Git file history](../../user/project/repository/git_history.md)
-- [Git tags](tags.md)
+- [Git tags](../../user/project/repository/tags/index.md)
 
 ### Concepts
 
@@ -65,7 +65,6 @@ You can do many Git tasks from the command line:
 - [Git add](git_add.md).
 - [Git log](git_log.md).
 - [Git stash](stash.md).
-- [Merge conflicts](merge_conflicts.md).
 - [Rollback commits](rollback_commits.md).
 - [Subtree](subtree.md).
 - [Unstage](unstage.md).

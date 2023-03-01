@@ -7,13 +7,14 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
 
   let(:env) { {} }
   let(:subscriber) { described_class.new }
-  let(:connection) { ActiveRecord::Base.retrieve_connection }
+
+  let(:connection) { Gitlab::Database.database_base_models[:main].retrieve_connection }
   let(:db_config_name) { ::Gitlab::Database.db_config_name(connection) }
 
   describe '.load_balancing_metric_counter_keys' do
     context 'multiple databases' do
       before do
-        skip_if_multiple_databases_not_setup
+        skip_if_multiple_databases_not_setup(:ci)
       end
 
       it 'has expected keys' do
@@ -90,7 +91,7 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
   describe '.load_balancing_metric_duration_keys' do
     context 'multiple databases' do
       before do
-        skip_if_multiple_databases_not_setup
+        skip_if_multiple_databases_not_setup(:ci)
       end
 
       it 'has expected keys' do
@@ -137,7 +138,7 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
         :event,
         name: 'transaction.active_record',
         duration: 230,
-        payload:  { connection: connection }
+        payload: { connection: connection }
       )
     end
 
@@ -155,7 +156,9 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
       end
 
       it 'captures the metrics for web only' do
-        expect(web_transaction).to receive(:observe).with(:gitlab_database_transaction_seconds, 0.23, { db_config_name: db_config_name })
+        expect(web_transaction).to receive(:observe).with(
+          :gitlab_database_transaction_seconds, 0.23, { db_config_name: db_config_name }
+        )
 
         expect(background_transaction).not_to receive(:observe)
         expect(background_transaction).not_to receive(:increment)
@@ -175,7 +178,9 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
       end
 
       it 'captures the metrics for web only' do
-        expect(web_transaction).to receive(:observe).with(:gitlab_database_transaction_seconds, 0.23, { db_config_name: db_config_name })
+        expect(web_transaction).to receive(:observe).with(
+          :gitlab_database_transaction_seconds, 0.23, { db_config_name: db_config_name }
+        )
 
         expect(background_transaction).not_to receive(:observe)
         expect(background_transaction).not_to receive(:increment)
@@ -195,7 +200,9 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
       end
 
       it 'captures the metrics for web only' do
-        expect(background_transaction).to receive(:observe).with(:gitlab_database_transaction_seconds, 0.23, { db_config_name: db_config_name })
+        expect(background_transaction).to receive(:observe).with(
+          :gitlab_database_transaction_seconds, 0.23, { db_config_name: db_config_name }
+        )
 
         expect(web_transaction).not_to receive(:observe)
         expect(web_transaction).not_to receive(:increment)
@@ -213,7 +220,7 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
         :event,
         name: 'sql.active_record',
         duration: 2,
-        payload:  payload
+        payload: payload
       )
     end
 
@@ -278,7 +285,7 @@ RSpec.describe Gitlab::Metrics::Subscribers::ActiveRecord do
         :event,
         name: 'sql.active_record',
         duration: 2,
-        payload:  payload
+        payload: payload
       )
     end
 

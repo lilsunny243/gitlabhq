@@ -4,7 +4,7 @@
  */
 .event-item {
   font-size: $gl-font-size;
-  padding: $gl-padding 0 $gl-padding 56px;
+  padding: $gl-padding 0 $gl-padding $gl-spacing-scale-8;
   border-bottom: 1px solid $white-normal;
   color: $gl-text-color-secondary;
   position: relative;
@@ -83,6 +83,10 @@
 
         iframe.twitter-share-button {
           vertical-align: bottom;
+        }
+
+        .gl-label-scoped.gl-label-sm {
+          --label-inset-border: inset 0 0 0 1px currentColor;
         }
       }
 

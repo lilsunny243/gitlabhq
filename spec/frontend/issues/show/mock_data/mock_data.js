@@ -59,6 +59,14 @@ export const appProps = {
   publishedIncidentUrl,
 };
 
+export const descriptionHtmlWithList = `
+  <ul data-sourcepos="1:1-3:8" dir="auto">
+    <li data-sourcepos="1:1-1:8">todo 1</li>
+    <li data-sourcepos="2:1-2:8">todo 2</li>
+    <li data-sourcepos="3:1-3:8">todo 3</li>
+  </ul>
+`;
+
 export const descriptionHtmlWithCheckboxes = `
   <ul dir="auto" class="task-list" data-sourcepos"3:1-5:12">
     <li class="task-list-item" data-sourcepos="3:1-3:11">
@@ -69,36 +77,6 @@ export const descriptionHtmlWithCheckboxes = `
     </li>
     <li class="task-list-item" data-sourcepos="5:1-5:12">
       <input class="task-list-item-checkbox" type="checkbox"> todo 3
-    </li>
-  </ul>
-`;
-
-export const descriptionHtmlWithTask = `
-  <ul data-sourcepos="1:1-3:7" class="task-list" dir="auto">
-    <li data-sourcepos="1:1-1:10" class="task-list-item">
-      <input type="checkbox" class="task-list-item-checkbox" disabled>
-      <a href="/gitlab-org/gitlab-test/-/issues/48" data-original="#48+" data-link="false" data-link-reference="false" data-project="1" data-issue="2" data-reference-format="+" data-reference-type="task" data-container="body" data-placement="top" title="1" class="gfm gfm-issue has-tooltip" data-issue-type="task">1 (#48)</a>
-    </li>
-    <li data-sourcepos="2:1-2:7" class="task-list-item">
-      <input type="checkbox" class="task-list-item-checkbox" disabled> 2
-    </li>
-    <li data-sourcepos="3:1-3:7" class="task-list-item">
-      <input type="checkbox" class="task-list-item-checkbox" disabled> 3
-    </li>
-  </ul>
-`;
-
-export const descriptionHtmlWithIssue = `
-  <ul data-sourcepos="1:1-3:7" class="task-list" dir="auto">
-    <li data-sourcepos="1:1-1:10" class="task-list-item">
-      <input type="checkbox" class="task-list-item-checkbox" disabled>
-      <a href="/gitlab-org/gitlab-test/-/issues/48" data-original="#48+" data-link="false" data-link-reference="false" data-project="1" data-issue="2" data-reference-format="+" data-reference-type="task" data-container="body" data-placement="top" title="1" class="gfm gfm-issue has-tooltip" data-issue-type="issue">1 (#48)</a>
-    </li>
-    <li data-sourcepos="2:1-2:7" class="task-list-item">
-      <input type="checkbox" class="task-list-item-checkbox" disabled> 2
-    </li>
-    <li data-sourcepos="3:1-3:7" class="task-list-item">
-      <input type="checkbox" class="task-list-item-checkbox" disabled> 3
     </li>
   </ul>
 `;

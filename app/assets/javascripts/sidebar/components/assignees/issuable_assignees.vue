@@ -1,7 +1,8 @@
 <script>
 import { GlButton } from '@gitlab/ui';
+import { TYPE_ISSUE } from '~/issues/constants';
 import { n__ } from '~/locale';
-import UncollapsedAssigneeList from '~/sidebar/components/assignees/uncollapsed_assignee_list.vue';
+import UncollapsedAssigneeList from './uncollapsed_assignee_list.vue';
 
 export default {
   components: {
@@ -16,7 +17,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: 'issue',
+      default: TYPE_ISSUE,
     },
     signedIn: {
       type: Boolean,

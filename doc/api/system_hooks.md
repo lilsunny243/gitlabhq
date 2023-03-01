@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # System hooks API **(FREE SELF)**
@@ -10,7 +10,7 @@ All methods require administrator authorization.
 
 You can configure the URL endpoint of the system hooks from the GitLab user interface:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. Select **System Hooks** (`/admin/hooks`).
 
 Read more about [system hooks](../administration/system_hooks.md).

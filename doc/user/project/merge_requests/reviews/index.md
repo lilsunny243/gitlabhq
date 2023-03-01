@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index, reference
 ---
 
@@ -21,6 +21,32 @@ You can review merge requests from the GitLab interface. If you install the
 [GitLab Workflow VS Code extension](../../repository/vscode.md), you can also
 review merge requests in Visual Studio Code.
 
+## Suggested reviewers **(ULTIMATE SAAS)**
+
+> [Introduced](https://gitlab.com/groups/gitlab-org/modelops/applied-ml/review-recommender/-/epics/3) in GitLab 15.4.
+
+GitLab can suggest reviewers. Using the changes in a merge request and a project's contribution graph, machine learning suggestions appear in the reviewer section of the right sidebar.
+
+![Suggested Reviewers](img/suggested_reviewers_v15_9.png)
+
+This feature is currently in [Open Beta](https://about.gitlab.com/handbook/product/gitlab-the-product/#open-beta) behind a [feature flag](https://gitlab.com/gitlab-org/gitlab/-/issues/368356).
+
+For more information, see [Data usage in Suggested Reviewers](data_usage.md).
+
+### Enable suggested reviewers
+
+Project Maintainers or Owners can enable suggested reviewers by visiting
+the [project settings](../../settings/index.md).
+
+Enabling suggested reviewers triggers GitLab to create an ML model for your
+project that is used to generate reviewers. The larger your project, the longer
+this process can take. Usually, the model is ready to generate suggestions
+within a few hours.
+
+No action is required after the feature is enabled. After the model is ready,
+recommendations populate the **Reviewer** dropdown list in the right-hand sidebar
+of a merge request with new commits.
+
 ## Review a merge request
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/4213) in GitLab 11.4.
@@ -31,8 +57,8 @@ to you. When you're ready, you can publish them together in a single action.
 To start your review:
 
 1. Go to the merge request you want to review, and select the **Changes** tab.
-   To learn more about navigating the diffs displayed in this tab, read
-   [Changes tab in merge requests](../changes.md).
+   For more information about navigating the diffs displayed in this tab, see
+   [Changes in merge requests](../changes.md).
 1. Select the **{comment}** **comment** icon in the gutter to expand the diff lines
    and display a comment box. In GitLab version 13.2 and later, you can
    [select multiple lines](#comment-on-multiple-lines).
@@ -50,6 +76,52 @@ To start your review:
 if you [approve a merge request](../approvals/index.md#approve-a-merge-request) and
 are shown in the reviewer list, a green check mark **{check-circle-filled}**
 displays next to your name.
+
+### Download merge request changes as a diff
+
+To download the changes included in a merge request as a diff:
+
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Merge requests**.
+1. Select your merge request.
+1. In the upper-right corner, select **Code > Plain diff**.
+
+If you know the URL of the merge request, you can also download the diff from
+the command line by appending `.diff` to the URL. This example downloads the diff
+for merge request `000000`:
+
+```plaintext
+https://gitlab.com/gitlab-org/gitlab/-/merge_requests/000000.diff
+```
+
+To download and apply the diff in a one-line CLI command:
+
+```shell
+curl "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/000000.diff" | git apply
+```
+
+### Download merge request changes as a patch file
+
+To download the changes included in a merge request as a patch file:
+
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Merge requests**.
+1. Select your merge request.
+1. In the upper-right corner, select **Code > Email patches**.
+
+If you know the URL of the merge request, you can also download the patch from
+the command line by appending `.patch` to the URL. This example downloads the patch
+file for merge request `000000`:
+
+```plaintext
+https://gitlab.com/gitlab-org/gitlab/-/merge_requests/000000.patch
+```
+
+To download and apply the patch in a one-line CLI command using [`git am`](https://git-scm.com/docs/git-am):
+
+```shell
+curl "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/000000.patch" | git am
+```
 
 ### Submit a review
 
@@ -81,7 +153,7 @@ To resolve or unresolve a thread when replying to a comment:
 
 Pending comments display information about the action to be taken when the comment is published:
 
-- **{check-circle-filled}** Thread will be resolved.
+- **{check-circle-filled}** Thread is resolved.
 - **{check-circle}** Thread stays unresolved.
 
 ### Add a new comment
@@ -96,7 +168,7 @@ If you have a review in progress, you can also add a comment from the **Overview
 ### Approval Rule information for Reviewers **(PREMIUM)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/233736) in GitLab 13.8.
-> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/293742) in GitLab 13.9.
+> - [Feature flag `reviewer_approval_rules` removed](https://gitlab.com/gitlab-org/gitlab/-/issues/293742) in GitLab 13.9.
 
 When editing the **Reviewers** field in a new or existing merge request, GitLab
 displays the name of the matching [approval rule](../approvals/rules.md)
@@ -104,11 +176,11 @@ below the name of each suggested reviewer. [Code Owners](../../code_owners.md) a
 
 This example shows reviewers and approval rules when creating a new merge request:
 
-![Reviewer approval rules in new/edit form](img/reviewer_approval_rules_form_v13_8.png)
+![Reviewer approval rules in new/edit form](img/reviewer_approval_rules_form_v15_9.png)
 
 This example shows reviewers and approval rules in a merge request sidebar:
 
-![Reviewer approval rules in sidebar](img/reviewer_approval_rules_sidebar_v13_8.png)
+![Reviewer approval rules in sidebar](img/reviewer_approval_rules_sidebar_v15_9.png)
 
 ### Request a new review
 
@@ -128,7 +200,7 @@ them a notification email.
 ## Comment on multiple lines
 
 > - [Introduced](https://gitlab.com/gitlab-org/ux-research/-/issues/870) in GitLab 13.2.
-> - [Added](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/49875) click-and-drag features in GitLab 13.8.
+> - [Added](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/49875) select-and-drag features in GitLab 13.8.
 > - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/299121) in GitLab 13.9.
 
 When commenting on a diff, you can select which lines of code your comment refers
@@ -218,7 +290,7 @@ This can occur if Sidekiq doesn't pick up the changes fast enough.
 
 #### Sidekiq
 
-Sidekiq didn't process the CI state change fast enough. Please wait a few
+Sidekiq didn't process the CI state change fast enough. Wait a few
 seconds and the status should update automatically.
 
 #### Bug
@@ -246,7 +318,7 @@ The merge request sidebar contains the branch reference for the source branch
 used to contribute changes for this merge request.
 
 To copy the branch reference into your clipboard, select the **Copy branch name** button
-(**{copy-to-clipboard}**) in the right sidebar. Use it to checkout the branch locally
+(**{copy-to-clipboard}**) in the right sidebar. Use it to check out the branch locally
 from the command line by running `git checkout <branch-name>`.
 
 ### Checkout merge requests locally through the `head` ref

@@ -1,6 +1,6 @@
 <script>
 import { __ } from '~/locale';
-import { participantsQueries } from '~/sidebar/constants';
+import { participantsQueries } from '../../constants';
 import Participants from './participants.vue';
 
 export default {
@@ -71,7 +71,7 @@ export default {
   <participants
     :loading="isLoading"
     :participants="participants"
-    :number-of-less-participants="7"
+    :number-of-less-participants="8"
     :lazy="false"
     class="block participants"
     @toggleSidebar="toggleSidebar"

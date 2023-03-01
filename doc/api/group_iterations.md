@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Group iterations API **(PREMIUM)**
@@ -20,13 +20,13 @@ Returns a list of group iterations.
 GET /groups/:id/iterations
 GET /groups/:id/iterations?state=opened
 GET /groups/:id/iterations?state=closed
-GET /groups/:id/iterations?title=1.0
 GET /groups/:id/iterations?search=version
+GET /groups/:id/iterations?include_ancestors=false
 ```
 
 | Attribute           | Type    | Required | Description |
 | ------------------- | ------- | -------- | ----------- |
-| `state`             | string  | no       | 'Return `opened`, `upcoming`, `current (previously started)`, `closed`, or `all` iterations. Filtering by `started` state is deprecated starting with 14.1, please use `current` instead.' |
+| `state`             | string  | no       | 'Return `opened`, `upcoming`, `current (previously started)`, `closed`, or `all` iterations. Filtering by `started` state is deprecated starting with 14.1, use `current` instead.' |
 | `search`            | string  | no       | Return only iterations with a title matching the provided string.                              |
 | `include_ancestors` | boolean | no       | Include iterations from parent group and its ancestors. Defaults to `true`.                    |
 

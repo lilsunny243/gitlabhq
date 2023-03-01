@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > Visibility settings', :js do
+RSpec.describe 'Projects > Settings > Visibility settings', :js, feature_category: :projects do
   let(:user) { create(:user) }
   let(:project) { create(:project, namespace: user.namespace, visibility_level: 20) }
 
@@ -26,38 +26,6 @@ RSpec.describe 'Projects > Settings > Visibility settings', :js do
 
       expect(visibility_select.value).to eq '0'
       expect(visibility_select_container).to have_content 'Only accessible by project members. Membership must be explicitly granted to each user.'
-    end
-
-    context 'merge requests select' do
-      it 'hides merge requests section' do
-        find('.project-feature-controls[data-for="project[project_feature_attributes][merge_requests_access_level]"] .gl-toggle').click
-
-        expect(page).to have_selector('.merge-requests-feature', visible: false)
-      end
-
-      context 'given project with merge_requests_disabled access level' do
-        let(:project) { create(:project, :merge_requests_disabled, namespace: user.namespace) }
-
-        it 'hides merge requests section' do
-          expect(page).to have_selector('.merge-requests-feature', visible: false)
-        end
-      end
-    end
-
-    context 'builds select' do
-      it 'hides builds select section' do
-        find('.project-feature-controls[data-for="project[project_feature_attributes][builds_access_level]"] .gl-toggle').click
-
-        expect(page).to have_selector('.builds-feature', visible: false)
-      end
-
-      context 'given project with builds_disabled access level' do
-        let(:project) { create(:project, :builds_disabled, namespace: user.namespace) }
-
-        it 'hides builds select section' do
-          expect(page).to have_selector('.builds-feature', visible: false)
-        end
-      end
     end
 
     context 'disable email notifications' do

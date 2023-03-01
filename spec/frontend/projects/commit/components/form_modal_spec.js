@@ -99,7 +99,9 @@ describe('CommitFormModal', () => {
       createComponent(shallowMount, {}, { prependedText: '_prepended_text_' });
 
       expect(findPrependedText().exists()).toBe(true);
-      expect(findPrependedText().find(GlSprintf).attributes('message')).toBe('_prepended_text_');
+      expect(findPrependedText().findComponent(GlSprintf).attributes('message')).toBe(
+        '_prepended_text_',
+      );
     });
 
     it('Does not show prepended text', () => {
@@ -124,7 +126,7 @@ describe('CommitFormModal', () => {
       createComponent(shallowMount, { pushCode: false });
 
       expect(findAppendedText().exists()).toBe(true);
-      expect(findAppendedText().find(GlSprintf).attributes('message')).toContain(
+      expect(findAppendedText().findComponent(GlSprintf).attributes('message')).toContain(
         mockData.modalPropsData.i18n.branchInFork,
       );
     });
@@ -133,7 +135,7 @@ describe('CommitFormModal', () => {
       createComponent(shallowMount, { pushCode: false, branchCollaboration: true });
 
       expect(findAppendedText().exists()).toBe(true);
-      expect(findAppendedText().find(GlSprintf).attributes('message')).toContain(
+      expect(findAppendedText().findComponent(GlSprintf).attributes('message')).toContain(
         mockData.modalPropsData.i18n.existingBranch,
       );
     });
@@ -155,7 +157,7 @@ describe('CommitFormModal', () => {
     });
 
     it('Changes the start_branch input value', async () => {
-      findBranchesDropdown().vm.$emit('selectBranch', '_changed_branch_value_');
+      findBranchesDropdown().vm.$emit('input', '_changed_branch_value_');
 
       await nextTick();
 
@@ -164,7 +166,7 @@ describe('CommitFormModal', () => {
 
     it('Changes the target_project_id input value', async () => {
       createComponent(shallowMount, {}, {}, { isCherryPick: true });
-      findProjectsDropdown().vm.$emit('selectProject', '_changed_project_value_');
+      findProjectsDropdown().vm.$emit('input', '_changed_project_value_');
 
       await nextTick();
 

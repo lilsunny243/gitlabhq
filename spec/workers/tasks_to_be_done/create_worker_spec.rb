@@ -20,17 +20,17 @@ RSpec.describe TasksToBeDone::CreateWorker do
 
         expect(service_class)
           .to receive(:new)
-          .with(project: member_task.project, current_user: current_user, assignee_ids: assignee_ids)
+          .with(container: member_task.project, current_user: current_user, assignee_ids: assignee_ids)
           .and_call_original
       end
 
-      expect { described_class.new.perform(*job_args) }.to change(Issue, :count).by(3)
+      expect { described_class.new.perform(*job_args) }.to change { Issue.count }.by(3)
     end
   end
 
   include_examples 'an idempotent worker' do
     it 'creates 3 task issues' do
-      expect { subject }.to change(Issue, :count).by(3)
+      expect { subject }.to change { Issue.count }.by(3)
     end
   end
 end

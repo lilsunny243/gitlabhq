@@ -29,7 +29,8 @@ module Gitlab
           "Your password expired. "\
           "Please access GitLab from a web browser to update your password."
         else
-          "Your account has been blocked."
+          "Your request has been rejected for an unknown reason."\
+          "Please contact your GitLab administrator and/or GitLab Support."
         end
       end
 
@@ -57,3 +58,5 @@ module Gitlab
     end
   end
 end
+
+Gitlab::Auth::UserAccessDeniedReason.prepend_mod

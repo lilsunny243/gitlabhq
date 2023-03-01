@@ -7,13 +7,15 @@ RSpec.describe Integrations::MockCi do
 
   subject(:integration) { described_class.new(project: project, mock_service_url: generate(:url)) }
 
+  it_behaves_like Integrations::BaseCi
+
   include_context Integrations::EnableSslVerification
 
   describe '#commit_status' do
     let(:sha) { generate(:sha) }
 
-    def stub_request(*args)
-      WebMock.stub_request(:get, integration.commit_status_path(sha)).to_return(*args)
+    def stub_request(...)
+      WebMock.stub_request(:get, integration.commit_status_path(sha)).to_return(...)
     end
 
     def commit_status

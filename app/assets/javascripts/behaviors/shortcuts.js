@@ -26,6 +26,7 @@ export default function initPageShortcuts() {
 
   // the pages above have their own shortcuts sub-classes instantiated elsewhere
   // TODO: replace this whitelist with something more automated/maintainable
+  // https://gitlab.com/gitlab-org/gitlab/-/issues/392845
   if (page && !pagesWithCustomShortcuts.includes(page)) {
     import(/* webpackChunkName: 'shortcutsBundle' */ './shortcuts/shortcuts')
       .then(({ default: Shortcuts }) => new Shortcuts())

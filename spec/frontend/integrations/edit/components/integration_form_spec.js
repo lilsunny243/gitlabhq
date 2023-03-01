@@ -1,28 +1,26 @@
-import { GlBadge, GlForm } from '@gitlab/ui';
+import { GlAlert, GlForm } from '@gitlab/ui';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
+import { nextTick } from 'vue';
 import * as Sentry from '@sentry/browser';
 import { setHTMLFixture } from 'helpers/fixtures';
 import { mountExtended, shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import ActiveCheckbox from '~/integrations/edit/components/active_checkbox.vue';
-import ConfirmationModal from '~/integrations/edit/components/confirmation_modal.vue';
 import DynamicField from '~/integrations/edit/components/dynamic_field.vue';
 import IntegrationForm from '~/integrations/edit/components/integration_form.vue';
 import OverrideDropdown from '~/integrations/edit/components/override_dropdown.vue';
-import ResetConfirmationModal from '~/integrations/edit/components/reset_confirmation_modal.vue';
 import TriggerFields from '~/integrations/edit/components/trigger_fields.vue';
-import IntegrationSectionConnection from '~/integrations/edit/components/sections/connection.vue';
+import IntegrationFormActions from '~/integrations/edit/components/integration_form_actions.vue';
+import IntegrationFormSection from '~/integrations/edit/components/integration_forms/section.vue';
 
 import {
-  integrationLevels,
   I18N_SUCCESSFUL_CONNECTION_MESSAGE,
   I18N_DEFAULT_ERROR_MESSAGE,
-  billingPlans,
-  billingPlanNames,
+  INTEGRATION_FORM_TYPE_SLACK,
 } from '~/integrations/constants';
 import { createStore } from '~/integrations/edit/store';
-import httpStatus from '~/lib/utils/http_status';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { refreshCurrentPage } from '~/lib/utils/url_utility';
 import {
   mockIntegrationProps,
@@ -59,7 +57,6 @@ describe('IntegrationForm', () => {
       stubs: {
         OverrideDropdown,
         ActiveCheckbox,
-        ConfirmationModal,
         TriggerFields,
       },
       mocks: {
@@ -72,22 +69,15 @@ describe('IntegrationForm', () => {
 
   const findOverrideDropdown = () => wrapper.findComponent(OverrideDropdown);
   const findActiveCheckbox = () => wrapper.findComponent(ActiveCheckbox);
-  const findConfirmationModal = () => wrapper.findComponent(ConfirmationModal);
-  const findResetConfirmationModal = () => wrapper.findComponent(ResetConfirmationModal);
-  const findResetButton = () => wrapper.findByTestId('reset-button');
-  const findProjectSaveButton = () => wrapper.findByTestId('save-button');
-  const findInstanceOrGroupSaveButton = () => wrapper.findByTestId('save-button-instance-group');
-  const findTestButton = () => wrapper.findByTestId('test-button');
   const findTriggerFields = () => wrapper.findComponent(TriggerFields);
-  const findGlBadge = () => wrapper.findComponent(GlBadge);
+  const findAlert = () => wrapper.findComponent(GlAlert);
   const findGlForm = () => wrapper.findComponent(GlForm);
   const findRedirectToField = () => wrapper.findByTestId('redirect-to-field');
   const findDynamicField = () => wrapper.findComponent(DynamicField);
   const findAllDynamicFields = () => wrapper.findAllComponents(DynamicField);
-  const findAllSections = () => wrapper.findAllByTestId('integration-section');
-  const findConnectionSection = () => findAllSections().at(0);
-  const findConnectionSectionComponent = () =>
-    findConnectionSection().findComponent(IntegrationSectionConnection);
+  const findAllSections = () => wrapper.findAllComponents(IntegrationFormSection);
+  const findHelpHtml = () => wrapper.findByTestId('help-html');
+  const findFormActions = () => wrapper.findComponent(IntegrationFormActions);
 
   beforeEach(() => {
     mockAxios = new MockAdapter(axios);
@@ -99,108 +89,6 @@ describe('IntegrationForm', () => {
   });
 
   describe('template', () => {
-    describe('integrationLevel is instance', () => {
-      it('renders ConfirmationModal', () => {
-        createComponent({
-          customStateProps: {
-            integrationLevel: integrationLevels.INSTANCE,
-          },
-        });
-
-        expect(findConfirmationModal().exists()).toBe(true);
-      });
-
-      describe('resetPath is empty', () => {
-        it('does not render ResetConfirmationModal and button', () => {
-          createComponent({
-            customStateProps: {
-              integrationLevel: integrationLevels.INSTANCE,
-            },
-          });
-
-          expect(findResetButton().exists()).toBe(false);
-          expect(findResetConfirmationModal().exists()).toBe(false);
-        });
-      });
-
-      describe('resetPath is present', () => {
-        it('renders ResetConfirmationModal and button', () => {
-          createComponent({
-            customStateProps: {
-              integrationLevel: integrationLevels.INSTANCE,
-              resetPath: 'resetPath',
-            },
-          });
-
-          expect(findResetButton().exists()).toBe(true);
-          expect(findResetConfirmationModal().exists()).toBe(true);
-        });
-      });
-    });
-
-    describe('integrationLevel is group', () => {
-      it('renders ConfirmationModal', () => {
-        createComponent({
-          customStateProps: {
-            integrationLevel: integrationLevels.GROUP,
-          },
-        });
-
-        expect(findConfirmationModal().exists()).toBe(true);
-      });
-
-      describe('resetPath is empty', () => {
-        it('does not render ResetConfirmationModal and button', () => {
-          createComponent({
-            customStateProps: {
-              integrationLevel: integrationLevels.GROUP,
-            },
-          });
-
-          expect(findResetButton().exists()).toBe(false);
-          expect(findResetConfirmationModal().exists()).toBe(false);
-        });
-      });
-
-      describe('resetPath is present', () => {
-        it('renders ResetConfirmationModal and button', () => {
-          createComponent({
-            customStateProps: {
-              integrationLevel: integrationLevels.GROUP,
-              resetPath: 'resetPath',
-            },
-          });
-
-          expect(findResetButton().exists()).toBe(true);
-          expect(findResetConfirmationModal().exists()).toBe(true);
-        });
-      });
-    });
-
-    describe('integrationLevel is project', () => {
-      it('does not render ConfirmationModal', () => {
-        createComponent({
-          customStateProps: {
-            integrationLevel: 'project',
-          },
-        });
-
-        expect(findConfirmationModal().exists()).toBe(false);
-      });
-
-      it('does not render ResetConfirmationModal and button', () => {
-        createComponent({
-          customStateProps: {
-            integrationLevel: 'project',
-            resetPath: 'resetPath',
-          },
-        });
-
-        expect(findResetButton().exists()).toBe(false);
-        expect(findResetConfirmationModal().exists()).toBe(false);
-      });
-    });
-
     describe('triggerEvents is present', () => {
       it('renders TriggerFields', () => {
         const events = [{ title: 'push' }];
@@ -321,54 +209,13 @@ describe('IntegrationForm', () => {
     beforeEach(() => {
       createComponent({
         customStateProps: {
-          sections: [mockSectionConnection],
+          sections: [mockSectionConnection, mockSectionJiraIssues],
         },
       });
     });
 
     it('renders the expected number of sections', () => {
-      expect(findAllSections().length).toBe(1);
-    });
-
-    it('renders title, description and the correct dynamic component', () => {
-      const connectionSection = findConnectionSection();
-
-      expect(connectionSection.find('h4').text()).toBe(mockSectionConnection.title);
-      expect(connectionSection.find('p').text()).toBe(mockSectionConnection.description);
-      expect(findGlBadge().exists()).toBe(false);
-      expect(findConnectionSectionComponent().exists()).toBe(true);
-    });
-
-    it('renders GlBadge when `plan` is present', () => {
-      createComponent({
-        customStateProps: {
-          sections: [mockSectionConnection, mockSectionJiraIssues],
-        },
-      });
-
-      expect(findGlBadge().exists()).toBe(true);
-      expect(findGlBadge().text()).toMatchInterpolatedText(billingPlanNames[billingPlans.PREMIUM]);
-    });
-
-    it('passes only fields with section type', () => {
-      const sectionFields = [
-        { name: 'username', type: 'text', section: mockSectionConnection.type },
-        { name: 'API token', type: 'password', section: mockSectionConnection.type },
-      ];
-
-      const nonSectionFields = [
-        { name: 'branch', type: 'text' },
-        { name: 'labels', type: 'select' },
-      ];
-
-      createComponent({
-        customStateProps: {
-          sections: [mockSectionConnection],
-          fields: [...sectionFields, ...nonSectionFields],
-        },
-      });
-
-      expect(findConnectionSectionComponent().props('fields')).toEqual(sectionFields);
+      expect(findAllSections()).toHaveLength(2);
     });
 
     describe.each`
@@ -387,7 +234,8 @@ describe('IntegrationForm', () => {
             },
           });
 
-          findConnectionSectionComponent().vm.$emit('toggle-integration-active', formActive);
+          const section = findAllSections().at(0);
+          section.vm.$emit('toggle-integration-active', formActive);
         });
 
         it(`sets noValidate to ${novalidate}`, () => {
@@ -396,7 +244,7 @@ describe('IntegrationForm', () => {
       },
     );
 
-    describe('when IntegrationSectionConnection emits `request-jira-issue-types` event', () => {
+    describe('when section emits `request-jira-issue-types` event', () => {
       beforeEach(() => {
         jest.spyOn(document, 'querySelector').mockReturnValue(document.createElement('form'));
 
@@ -408,7 +256,8 @@ describe('IntegrationForm', () => {
           mountFn: mountExtended,
         });
 
-        findConnectionSectionComponent().vm.$emit('request-jira-issue-types');
+        const section = findAllSections().at(0);
+        section.vm.$emit('request-jira-issue-types');
       });
 
       it('dispatches `requestJiraIssueTypes` action', () => {
@@ -459,110 +308,84 @@ describe('IntegrationForm', () => {
     );
   });
 
-  describe('when `save` button is clicked', () => {
-    describe('buttons', () => {
-      beforeEach(async () => {
-        createComponent({
-          customStateProps: {
-            showActive: true,
-            canTest: true,
-            initialActivated: true,
-          },
-          mountFn: mountExtended,
-        });
-
-        await findProjectSaveButton().vm.$emit('click', new Event('click'));
+  describe('Response to the "save" event (form submission)', () => {
+    const prepareComponentAndSave = async (initialActivated = true, checkValidityReturn) => {
+      createComponent({
+        customStateProps: {
+          showActive: true,
+          initialActivated,
+          fields: [mockField],
+        },
+        mountFn: mountExtended,
       });
+      jest.spyOn(findGlForm().element, 'submit');
+      jest.spyOn(findGlForm().element, 'checkValidity').mockReturnValue(checkValidityReturn);
 
-      it('sets save button `loading` prop to `true`', () => {
-        expect(findProjectSaveButton().props('loading')).toBe(true);
-      });
+      findFormActions().vm.$emit('save');
+      await nextTick();
+    };
 
-      it('sets test button `disabled` prop to `true`', () => {
-        expect(findTestButton().props('disabled')).toBe(true);
-      });
-    });
-
-    describe.each`
-      checkValidityReturn | integrationActive
-      ${true}             | ${false}
-      ${true}             | ${true}
-      ${false}            | ${false}
+    it.each`
+      desc                 | checkValidityReturn | integrationActive | shouldSubmit
+      ${'form is valid'}   | ${true}             | ${false}          | ${true}
+      ${'form is valid'}   | ${true}             | ${true}           | ${true}
+      ${'form is invalid'} | ${false}            | ${false}          | ${true}
+      ${'form is invalid'} | ${false}            | ${true}           | ${false}
     `(
-      'when form is valid (checkValidity returns $checkValidityReturn and integrationActive is $integrationActive)',
-      ({ integrationActive, checkValidityReturn }) => {
-        beforeEach(async () => {
-          createComponent({
-            customStateProps: {
-              showActive: true,
-              canTest: true,
-              initialActivated: integrationActive,
-            },
-            mountFn: mountExtended,
-          });
-          jest.spyOn(findGlForm().element, 'submit');
-          jest.spyOn(findGlForm().element, 'checkValidity').mockReturnValue(checkValidityReturn);
+      'when $desc (checkValidity returns $checkValidityReturn and integrationActive is $integrationActive)',
+      async ({ integrationActive, checkValidityReturn, shouldSubmit }) => {
+        await prepareComponentAndSave(integrationActive, checkValidityReturn);
 
-          await findProjectSaveButton().vm.$emit('click', new Event('click'));
-        });
-
-        it('submit form', () => {
+        if (shouldSubmit) {
           expect(findGlForm().element.submit).toHaveBeenCalledTimes(1);
-        });
+        } else {
+          expect(findGlForm().element.submit).not.toHaveBeenCalled();
+        }
       },
     );
 
-    describe('when form is invalid (checkValidity returns false and integrationActive is true)', () => {
+    it('flips `isSaving` to `true`', async () => {
+      await prepareComponentAndSave(true, true);
+      expect(findFormActions().props('isSaving')).toBe(true);
+    });
+
+    describe('when form is invalid', () => {
+      beforeEach(async () => {
+        await prepareComponentAndSave(true, false);
+      });
+
+      it('when form is invalid, it sets `isValidated` props on form fields', () => {
+        expect(findDynamicField().props('isValidated')).toBe(true);
+      });
+
+      it('resets `isSaving`', () => {
+        expect(findFormActions().props('isSaving')).toBe(false);
+      });
+    });
+  });
+
+  describe('Response to the "test" event from the actions', () => {
+    describe('when form is invalid', () => {
       beforeEach(async () => {
         createComponent({
           customStateProps: {
             showActive: true,
-            canTest: true,
-            initialActivated: true,
             fields: [mockField],
           },
           mountFn: mountExtended,
         });
-        jest.spyOn(findGlForm().element, 'submit');
         jest.spyOn(findGlForm().element, 'checkValidity').mockReturnValue(false);
 
-        await findProjectSaveButton().vm.$emit('click', new Event('click'));
-      });
-
-      it('does not submit form', () => {
-        expect(findGlForm().element.submit).not.toHaveBeenCalled();
-      });
-
-      it('sets save button `loading` prop to `false`', () => {
-        expect(findProjectSaveButton().props('loading')).toBe(false);
-      });
-
-      it('sets test button `disabled` prop to `false`', () => {
-        expect(findTestButton().props('disabled')).toBe(false);
+        findFormActions().vm.$emit('test');
+        await nextTick();
       });
 
       it('sets `isValidated` props on form fields', () => {
         expect(findDynamicField().props('isValidated')).toBe(true);
       });
-    });
-  });
 
-  describe('when `test` button is clicked', () => {
-    describe('when form is invalid', () => {
-      it('sets `isValidated` props on form fields', async () => {
-        createComponent({
-          customStateProps: {
-            showActive: true,
-            canTest: true,
-            fields: [mockField],
-          },
-          mountFn: mountExtended,
-        });
-        jest.spyOn(findGlForm().element, 'checkValidity').mockReturnValue(false);
-
-        await findTestButton().vm.$emit('click', new Event('click'));
-
-        expect(findDynamicField().props('isValidated')).toBe(true);
+      it('resets `isTesting`', () => {
+        expect(findFormActions().props('isTesting')).toBe(false);
       });
     });
 
@@ -573,34 +396,26 @@ describe('IntegrationForm', () => {
         createComponent({
           customStateProps: {
             showActive: true,
-            canTest: true,
             testPath: mockTestPath,
           },
           mountFn: mountExtended,
         });
+
         jest.spyOn(findGlForm().element, 'checkValidity').mockReturnValue(true);
       });
 
-      describe('buttons', () => {
-        beforeEach(async () => {
-          await findTestButton().vm.$emit('click', new Event('click'));
-        });
-
-        it('sets test button `loading` prop to `true`', () => {
-          expect(findTestButton().props('loading')).toBe(true);
-        });
-
-        it('sets save button `disabled` prop to `true`', () => {
-          expect(findProjectSaveButton().props('disabled')).toBe(true);
-        });
+      it('flips `isTesting` to `true`', async () => {
+        findFormActions().vm.$emit('test');
+        await nextTick();
+        expect(findFormActions().props('isTesting')).toBe(true);
       });
 
       describe.each`
-        scenario                                                | replyStatus                         | errorMessage   | serviceResponse | expectToast                           | expectSentry
-        ${'when "test settings" request fails'}                 | ${httpStatus.INTERNAL_SERVER_ERROR} | ${undefined}   | ${undefined}    | ${I18N_DEFAULT_ERROR_MESSAGE}         | ${true}
-        ${'when "test settings" returns an error'}              | ${httpStatus.OK}                    | ${'an error'}  | ${undefined}    | ${'an error'}                         | ${false}
-        ${'when "test settings" returns an error with details'} | ${httpStatus.OK}                    | ${'an error.'} | ${'extra info'} | ${'an error. extra info'}             | ${false}
-        ${'when "test settings" succeeds'}                      | ${httpStatus.OK}                    | ${undefined}   | ${undefined}    | ${I18N_SUCCESSFUL_CONNECTION_MESSAGE} | ${false}
+        scenario                                                | replyStatus                          | errorMessage   | serviceResponse | expectToast                           | expectSentry
+        ${'when "test settings" request fails'}                 | ${HTTP_STATUS_INTERNAL_SERVER_ERROR} | ${undefined}   | ${undefined}    | ${I18N_DEFAULT_ERROR_MESSAGE}         | ${true}
+        ${'when "test settings" returns an error'}              | ${HTTP_STATUS_OK}                    | ${'an error'}  | ${undefined}    | ${'an error'}                         | ${false}
+        ${'when "test settings" returns an error with details'} | ${HTTP_STATUS_OK}                    | ${'an error.'} | ${'extra info'} | ${'an error. extra info'}             | ${false}
+        ${'when "test settings" succeeds'}                      | ${HTTP_STATUS_OK}                    | ${undefined}   | ${undefined}    | ${I18N_SUCCESSFUL_CONNECTION_MESSAGE} | ${false}
       `(
         '$scenario',
         ({ replyStatus, errorMessage, serviceResponse, expectToast, expectSentry }) => {
@@ -611,20 +426,12 @@ describe('IntegrationForm', () => {
               service_response: serviceResponse,
             });
 
-            await findTestButton().vm.$emit('click', new Event('click'));
+            findFormActions().vm.$emit('test');
             await waitForPromises();
           });
 
           it(`calls toast with '${expectToast}'`, () => {
             expect(mockToastShow).toHaveBeenCalledWith(expectToast);
-          });
-
-          it('sets `loading` prop of test button to `false`', () => {
-            expect(findTestButton().props('loading')).toBe(false);
-          });
-
-          it('sets save button `disabled` prop to `false`', () => {
-            expect(findProjectSaveButton().props('disabled')).toBe(false);
           });
 
           it(`${expectSentry ? 'does' : 'does not'} capture exception in Sentry`, () => {
@@ -635,44 +442,27 @@ describe('IntegrationForm', () => {
     });
   });
 
-  describe('when `reset-confirmation-modal` emits `reset` event', () => {
+  describe('Response to the "reset" event from the actions', () => {
     const mockResetPath = '/reset';
 
-    describe('buttons', () => {
-      beforeEach(async () => {
-        createComponent({
-          customStateProps: {
-            integrationLevel: integrationLevels.GROUP,
-            canTest: true,
-            resetPath: mockResetPath,
-          },
-        });
-
-        await findResetConfirmationModal().vm.$emit('reset');
+    beforeEach(async () => {
+      mockAxios.onPost(mockResetPath).replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      createComponent({
+        customStateProps: {
+          resetPath: mockResetPath,
+        },
       });
 
-      it('sets reset button `loading` prop to `true`', () => {
-        expect(findResetButton().props('loading')).toBe(true);
-      });
+      findFormActions().vm.$emit('reset');
+      await nextTick();
+    });
 
-      it('sets other button `disabled` props to `true`', () => {
-        expect(findInstanceOrGroupSaveButton().props('disabled')).toBe(true);
-        expect(findTestButton().props('disabled')).toBe(true);
-      });
+    it('flips `isResetting` to `true`', () => {
+      expect(findFormActions().props('isResetting')).toBe(true);
     });
 
     describe('when "reset settings" request fails', () => {
       beforeEach(async () => {
-        mockAxios.onPost(mockResetPath).replyOnce(httpStatus.INTERNAL_SERVER_ERROR);
-        createComponent({
-          customStateProps: {
-            integrationLevel: integrationLevels.GROUP,
-            canTest: true,
-            resetPath: mockResetPath,
-          },
-        });
-
-        await findResetConfirmationModal().vm.$emit('reset');
         await waitForPromises();
       });
 
@@ -684,33 +474,95 @@ describe('IntegrationForm', () => {
         expect(Sentry.captureException).toHaveBeenCalledTimes(1);
       });
 
-      it('sets reset button `loading` prop to `false`', () => {
-        expect(findResetButton().props('loading')).toBe(false);
-      });
-
-      it('sets button `disabled` props to `false`', () => {
-        expect(findInstanceOrGroupSaveButton().props('disabled')).toBe(false);
-        expect(findTestButton().props('disabled')).toBe(false);
+      it('resets `isResetting`', () => {
+        expect(findFormActions().props('isResetting')).toBe(false);
       });
     });
 
     describe('when "reset settings" succeeds', () => {
       beforeEach(async () => {
-        mockAxios.onPost(mockResetPath).replyOnce(httpStatus.OK);
+        mockAxios.onPost(mockResetPath).replyOnce(HTTP_STATUS_OK);
         createComponent({
           customStateProps: {
-            integrationLevel: integrationLevels.GROUP,
             resetPath: mockResetPath,
           },
         });
 
-        await findResetConfirmationModal().vm.$emit('reset');
+        findFormActions().vm.$emit('reset');
         await waitForPromises();
       });
 
       it('calls `refreshCurrentPage`', () => {
         expect(refreshCurrentPage).toHaveBeenCalledTimes(1);
       });
+
+      it('resets `isResetting`', async () => {
+        expect(findFormActions().props('isResetting')).toBe(false);
+      });
+    });
+  });
+
+  describe('Slack integration', () => {
+    describe('Help and sections rendering', () => {
+      const dummyHelp = 'Foo Help';
+
+      it.each`
+        integration                    | helpHtml     | sections                   | shouldShowSections | shouldShowHelp
+        ${INTEGRATION_FORM_TYPE_SLACK} | ${''}        | ${[]}                      | ${false}           | ${false}
+        ${INTEGRATION_FORM_TYPE_SLACK} | ${dummyHelp} | ${[]}                      | ${false}           | ${true}
+        ${INTEGRATION_FORM_TYPE_SLACK} | ${undefined} | ${[mockSectionConnection]} | ${true}            | ${false}
+        ${INTEGRATION_FORM_TYPE_SLACK} | ${dummyHelp} | ${[mockSectionConnection]} | ${true}            | ${true}
+        ${'foo'}                       | ${''}        | ${[]}                      | ${false}           | ${false}
+        ${'foo'}                       | ${dummyHelp} | ${[]}                      | ${false}           | ${true}
+        ${'foo'}                       | ${undefined} | ${[mockSectionConnection]} | ${true}            | ${false}
+        ${'foo'}                       | ${dummyHelp} | ${[mockSectionConnection]} | ${true}            | ${false}
+      `(
+        '$sections sections, and "$helpHtml" helpHtml for "$integration" integration',
+        ({ integration, helpHtml, sections, shouldShowSections, shouldShowHelp }) => {
+          createComponent({
+            provide: {
+              helpHtml,
+            },
+            customStateProps: {
+              sections,
+              type: integration,
+            },
+          });
+          expect(findAllSections().length > 0).toEqual(shouldShowSections);
+          expect(findHelpHtml().exists()).toBe(shouldShowHelp);
+          if (shouldShowHelp) {
+            expect(findHelpHtml().html()).toContain(helpHtml);
+          }
+        },
+      );
+    });
+
+    describe.each`
+      hasSections | hasFieldsWithoutSections | description
+      ${true}     | ${true}                  | ${'When having both: the sections and the fields without a section'}
+      ${true}     | ${false}                 | ${'When having the sections only'}
+      ${false}    | ${true}                  | ${'When having only the fields without a section'}
+    `('$description', ({ hasSections, hasFieldsWithoutSections }) => {
+      it.each`
+        prefix        | integration                    | shouldUpgradeSlack | shouldShowAlert
+        ${'does'}     | ${INTEGRATION_FORM_TYPE_SLACK} | ${true}            | ${true}
+        ${'does not'} | ${INTEGRATION_FORM_TYPE_SLACK} | ${false}           | ${false}
+        ${'does not'} | ${'foo'}                       | ${true}            | ${false}
+        ${'does not'} | ${'foo'}                       | ${false}           | ${false}
+      `(
+        '$prefix render the upgrade warning when we are in "$integration" integration with Slack-needs-upgrade is "$shouldUpgradeSlack" and have sections',
+        ({ integration, shouldUpgradeSlack, shouldShowAlert }) => {
+          createComponent({
+            customStateProps: {
+              shouldUpgradeSlack,
+              type: integration,
+              sections: hasSections ? [mockSectionConnection] : [],
+              fields: hasFieldsWithoutSections ? [mockField] : [],
+            },
+          });
+          expect(findAlert().exists()).toBe(shouldShowAlert);
+        },
+      );
     });
   });
 });

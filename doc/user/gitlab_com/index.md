@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab.com settings **(FREE SAAS)**
@@ -146,22 +146,22 @@ Below are the current settings regarding [GitLab CI/CD](../../ci/index.md).
 Any settings or feature limits not listed here are using the defaults listed in
 the related documentation.
 
-| Setting                                                                  | GitLab.com                                                                                                                | Default (self-managed)                                                                                                                                                                   |
-|:-------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Artifacts maximum size (compressed)                                      | 1 GB                                                                                                                      | See [Maximum artifacts size](../../user/admin_area/settings/continuous_integration.md#maximum-artifacts-size)                                                                            |
-| Artifacts [expiry time](../../ci/yaml/index.md#artifactsexpire_in)       | From June 22, 2020, deleted after 30 days unless otherwise specified (artifacts created before that date have no expiry). | See [Default artifacts expiration](../admin_area/settings/continuous_integration.md#default-artifacts-expiration)                                                                        |
-| Scheduled Pipeline Cron                                                  | `*/5 * * * *`                                                                                                             | See [Pipeline schedules advanced configuration](../../administration/cicd.md#change-maximum-scheduled-pipeline-frequency)                                                               |
-| Maximum jobs in active pipelines                                         | `500` for Free tier, `1000` for all trial tiers, and unlimited otherwise.                                                 | See [Number of jobs in active pipelines](../../administration/instance_limits.md#number-of-jobs-in-active-pipelines)                                                                     |
-| Maximum CI/CD subscriptions to a project                                 | `2`                                                                                                                       | See [Number of CI/CD subscriptions to a project](../../administration/instance_limits.md#number-of-cicd-subscriptions-to-a-project)                                                      |
-| Maximum number of pipeline triggers in a project                         | `25000` for Free tier, Unlimited for all paid tiers                                                                       | See [Limit the number of pipeline triggers](../../administration/instance_limits.md#limit-the-number-of-pipeline-triggers)                                                               |
-| Maximum pipeline schedules in projects                                   | `10` for Free tier, `50` for all paid tiers                                                                               | See [Number of pipeline schedules](../../administration/instance_limits.md#number-of-pipeline-schedules)                                                                                 |
-| Maximum pipelines per schedule                                           | `24` for Free tier, `288` for all paid tiers                                                                              | See [Limit the number of pipelines created by a pipeline schedule per day](../../administration/instance_limits.md#limit-the-number-of-pipelines-created-by-a-pipeline-schedule-per-day) |
-| Maximum number of schedule rules defined for each security policy project                                   | Unlimited for all paid tiers                                                                               | See [Number of schedule rules defined for each security policy project](../../administration/instance_limits.md#limit-the-number-of-schedule-rules-defined-for-security-policy-project)                                                                                    |
-| Scheduled job archiving                                                  | 3 months (from June 22, 2020). Jobs created before that date were archived after September 22, 2020.                      | Never                                                                                                                                                                                    |
-| Maximum test cases per [unit test report](../../ci/testing/unit_test_reports.md) | `500000`                                                                                                                  | Unlimited                                                                                                                                                                                |
-| Maximum registered runners                                               | Free tier: `50` per-group / `50` per-project<br/>All paid tiers: `1000` per-group  / `1000` per-project                   | See [Number of registered runners per scope](../../administration/instance_limits.md#number-of-registered-runners-per-scope)                                                             |
-| Limit of dotenv variables                                                | Free tier: `50` / Premium tier: `100` / Ultimate tier: `150`                                                              | See [Limit dotenv variables](../../administration/instance_limits.md#limit-dotenv-variables)                                                                                             |
-| Authorization token duration (minutes)                                   | `15`                          | To set a custom value, in the Rails console, run `ApplicationSetting.last.update(container_registry_token_expire_delay: <integer>)`, where `<integer>` is the desired number of minutes. |
+| Setting                                                                          | GitLab.com                                                                                                                | Default (self-managed) |
+|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------|
+| Artifacts maximum size (compressed)                                              | 1 GB                                                                                                                      | See [Maximum artifacts size](../../user/admin_area/settings/continuous_integration.md#maximum-artifacts-size). |
+| Artifacts [expiry time](../../ci/yaml/index.md#artifactsexpire_in)               | From June 22, 2020, deleted after 30 days unless otherwise specified (artifacts created before that date have no expiry). | See [Default artifacts expiration](../admin_area/settings/continuous_integration.md#default-artifacts-expiration). |
+| Scheduled Pipeline Cron                                                          | `*/5 * * * *`                                                                                                             | See [Pipeline schedules advanced configuration](../../administration/cicd.md#change-maximum-scheduled-pipeline-frequency). |
+| Maximum jobs in active pipelines                                                 | `500` for Free tier, `1000` for all trial tiers, and unlimited otherwise.                                                 | See [Number of jobs in active pipelines](../../administration/instance_limits.md#number-of-jobs-in-active-pipelines). |
+| Maximum CI/CD subscriptions to a project                                         | `2`                                                                                                                       | See [Number of CI/CD subscriptions to a project](../../administration/instance_limits.md#number-of-cicd-subscriptions-to-a-project). |
+| Maximum number of pipeline triggers in a project                                 | `25000` for Free tier, Unlimited for all paid tiers                                                                       | See [Limit the number of pipeline triggers](../../administration/instance_limits.md#limit-the-number-of-pipeline-triggers). |
+| Maximum pipeline schedules in projects                                           | `10` for Free tier, `50` for all paid tiers                                                                               | See [Number of pipeline schedules](../../administration/instance_limits.md#number-of-pipeline-schedules). |
+| Maximum pipelines per schedule                                                   | `24` for Free tier, `288` for all paid tiers                                                                              | See [Limit the number of pipelines created by a pipeline schedule per day](../../administration/instance_limits.md#limit-the-number-of-pipelines-created-by-a-pipeline-schedule-per-day). |
+| Maximum number of schedule rules defined for each security policy project        | Unlimited for all paid tiers                                                                                              | See [Number of schedule rules defined for each security policy project](../../administration/instance_limits.md#limit-the-number-of-schedule-rules-defined-for-security-policy-project). |
+| Scheduled job archiving                                                          | 3 months (from June 22, 2020). Jobs created before that date were archived after September 22, 2020.                      | Never. |
+| Maximum test cases per [unit test report](../../ci/testing/unit_test_reports.md) | `500000`                                                                                                                  | Unlimited. |
+| Maximum registered runners                                                       | Free tier: `50` per-group / `50` per-project<br/>All paid tiers: `1000` per-group  / `1000` per-project                   | See [Number of registered runners per scope](../../administration/instance_limits.md#number-of-registered-runners-per-scope). |
+| Limit of dotenv variables                                                        | Free tier: `50` / Premium tier: `100` / Ultimate tier: `150`                                                              | See [Limit dotenv variables](../../administration/instance_limits.md#limit-dotenv-variables). |
+| Authorization token duration (minutes)                                           | `15`                                                                                                                      | To set a custom value, in the Rails console, run `ApplicationSetting.last.update(container_registry_token_expire_delay: <integer>)`, where `<integer>` is the desired number of minutes. |
 
 ## Package registry limits
 
@@ -189,7 +189,7 @@ the default value [is the same as for self-managed instances](../admin_area/sett
 |-------------------------------|--------------------|
 | [Repository size including LFS](../admin_area/settings/account_and_limit_settings.md#repository-size-limit) | 10 GB |
 | [Maximum import size](../project/settings/import_export.md#maximum-import-file-size)                        | 5 GB  |
-| Maximum attachment size       | 10 MB              |
+| Maximum attachment size       | 100 MB              |
 
 If you are near or over the repository size limit, you can either
 [reduce your repository size with Git](../project/repository/reducing_the_repo_size_using_git.md)
@@ -208,9 +208,9 @@ from those IPs and allow them.
 
 GitLab.com is fronted by Cloudflare. For incoming connections to GitLab.com, you might need to allow CIDR blocks of Cloudflare ([IPv4](https://www.cloudflare.com/ips-v4/) and [IPv6](https://www.cloudflare.com/ips-v6/)).
 
-For outgoing connections from CI/CD runners, we are not providing static IP
-addresses. All GitLab.com shared runners are deployed into Google Cloud Platform (GCP). Any
-IP-based firewall can be configured by looking up all
+For outgoing connections from CI/CD runners, we are not providing static IP addresses.
+All GitLab.com shared runners are deployed into Google Cloud Platform (GCP) in `us-east1`.
+Any IP-based firewall can be configured by looking up
 [IP address ranges or CIDR blocks for GCP](https://cloud.google.com/compute/docs/faq#find_ip_range).
 
 ## Hostname list
@@ -249,10 +249,13 @@ The limit varies depending on your plan and the number of seats in your subscrip
 |----------------------|-------------------------|
 | Number of webhooks   | `100` per project, `50` per group |
 | Maximum payload size | 25 MB                   |
+| Timeout              | 10 seconds              |
 
-For self-managed instance limits, see
-[Webhook rate limit](../../administration/instance_limits.md#webhook-rate-limit)
-and [Number of webhooks](../../administration/instance_limits.md#number-of-webhooks).
+For self-managed instance limits, see:
+
+- [Webhook rate limit](../../administration/instance_limits.md#webhook-rate-limit).
+- [Number of webhooks](../../administration/instance_limits.md#number-of-webhooks).
+- [Webhook timeout](../../administration/instance_limits.md#webhook-timeout).
 
 ## Runner SaaS
 
@@ -265,15 +268,18 @@ For more information, see [Runner SaaS](../../ci/runners/index.md).
 GitLab.com runs [Sidekiq](https://sidekiq.org) with arguments `--timeout=4 --concurrency=4`
 and the following environment variables:
 
-| Setting                                | GitLab.com  | Default   |
-|----------------------------------------|-------------|-----------|
-| `SIDEKIQ_DAEMON_MEMORY_KILLER`         | -           | `1`       |
-| `SIDEKIQ_MEMORY_KILLER_MAX_RSS`        | `2000000`   | `2000000` |
-| `SIDEKIQ_MEMORY_KILLER_HARD_LIMIT_RSS` | -           | -         |
-| `SIDEKIQ_MEMORY_KILLER_CHECK_INTERVAL` | -           | `3`       |
-| `SIDEKIQ_MEMORY_KILLER_GRACE_TIME`     | -           | `900`     |
-| `SIDEKIQ_MEMORY_KILLER_SHUTDOWN_WAIT`  | -           | `30`      |
-| `SIDEKIQ_LOG_ARGUMENTS`                | `1`         | `1`       |
+| Setting                                | GitLab.com | Default   |
+|----------------------------------------|------------|-----------|
+| `GITLAB_MEMORY_WATCHDOG_ENABLED`       | -          | `true`    |
+| `SIDEKIQ_MEMORY_KILLER_MAX_RSS`        | -          | `2000000` |
+| `SIDEKIQ_MEMORY_KILLER_HARD_LIMIT_RSS` | -          | -         |
+| `SIDEKIQ_MEMORY_KILLER_CHECK_INTERVAL` | -          | `3`       |
+| `SIDEKIQ_MEMORY_KILLER_GRACE_TIME`     | -          | `900`     |
+| `SIDEKIQ_MEMORY_KILLER_SHUTDOWN_WAIT`  | -          | `30`      |
+| `SIDEKIQ_LOG_ARGUMENTS`                | `1`        | `1`       |
+
+For more information, see how to
+[configure the environment variables](../../administration/sidekiq/sidekiq_memory_killer.md).
 
 NOTE:
 The `SIDEKIQ_MEMORY_KILLER_MAX_RSS` setting is `16000000` on Sidekiq import
@@ -298,7 +304,7 @@ The list of GitLab.com specific settings (and their defaults) is as follows:
 | `autovacuum_vacuum_scale_factor`      | 0.01                                                                | 0.02                                  |
 | `checkpoint_completion_target`        | 0.7                                                                 | 0.9                                   |
 | `checkpoint_segments`                 | 32                                                                  | 10                                    |
-| `effective_cache_size`                | 338688MB                                                            | Based on how much memory is available |
+| `effective_cache_size`                | 338688 MB                                                           | Based on how much memory is available |
 | `hot_standby`                         | on                                                                  | off                                   |
 | `hot_standby_feedback`                | on                                                                  | off                                   |
 | `log_autovacuum_min_duration`         | 0                                                                   | -1                                    |
@@ -306,19 +312,19 @@ The list of GitLab.com specific settings (and their defaults) is as follows:
 | `log_line_prefix`                     | `%t [%p]: [%l-1]`                                                   | empty                                 |
 | `log_min_duration_statement`          | 1000                                                                | -1                                    |
 | `log_temp_files`                      | 0                                                                   | -1                                    |
-| `maintenance_work_mem`                | 2048MB                                                              | 16 MB                                 |
+| `maintenance_work_mem`                | 2048 MB                                                             | 16 MB                                 |
 | `max_replication_slots`               | 5                                                                   | 0                                     |
 | `max_wal_senders`                     | 32                                                                  | 0                                     |
-| `max_wal_size`                        | 5GB                                                                 | 1GB                                   |
-| `shared_buffers`                      | 112896MB                                                            | Based on how much memory is available |
-| `shared_preload_libraries`            | pg_stat_statements                                                  | empty                                 |
+| `max_wal_size`                        | 5 GB                                                                | 1 GB                                  |
+| `shared_buffers`                      | 112896 MB                                                           | Based on how much memory is available |
+| `shared_preload_libraries`            | `pg_stat_statements`                                                | empty                                 |
 | `shmall`                              | 30146560                                                            | Based on the server's capabilities    |
 | `shmmax`                              | 123480309760                                                        | Based on the server's capabilities    |
-| `wal_buffers`                         | 16MB                                                                | -1                                    |
+| `wal_buffers`                         | 16 MB                                                               | -1                                    |
 | `wal_keep_segments`                   | 512                                                                 | 10                                    |
 | `wal_level`                           | replica                                                             | minimal                               |
-| `statement_timeout`                   | 15s                                                                 | 60s                                   |
-| `idle_in_transaction_session_timeout` | 60s                                                                 | 60s                                   |
+| `statement_timeout`                   | 15 s                                                                | 60 s                                  |
+| `idle_in_transaction_session_timeout` | 60 s                                                                | 60 s                                  |
 
 Some of these settings are in the process being adjusted. For example, the value
 for `shared_buffers` is quite high, and we are
@@ -327,6 +333,16 @@ for `shared_buffers` is quite high, and we are
 ## Puma
 
 GitLab.com uses the default of 60 seconds for [Puma request timeouts](../../administration/operations/puma.md#change-the-worker-timeout).
+
+## Maximum number of reviewers and assignees
+
+> - Maximum assignees [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/368936) in GitLab 15.6.
+> - Maximum reviewers [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/366485) in GitLab 15.9.
+
+Merge requests enforce these maximums:
+
+- Maximum assignees: 200
+- Maximum reviewers: 200
 
 ## GitLab.com-specific rate limits
 
@@ -364,9 +380,9 @@ More details are available on the rate limits for
 
 GitLab can rate-limit requests at several layers. The rate limits listed here
 are configured in the application. These limits are the most
-restrictive per IP address. To learn more about the rate limiting
-for GitLab.com, read our runbook page
-[Overview of rate limits for GitLab.com](https://gitlab.com/gitlab-com/runbooks/-/tree/master/docs/rate-limiting).
+restrictive per IP address. For more information about the rate limits
+for GitLab.com, see
+[an overview](https://gitlab.com/gitlab-com/runbooks/-/tree/master/docs/rate-limiting).
 
 ### Rate limiting responses
 
@@ -420,7 +436,7 @@ No response headers are provided.
 
 ### Pagination response headers
 
-For performance reasons, if a query returns more than 10,000 records, [GitLab excludes some headers](../../api/index.md#pagination-response-headers).
+For performance reasons, if a query returns more than 10,000 records, [GitLab excludes some headers](../../api/rest/index.md#pagination-response-headers).
 
 ### Visibility settings
 
@@ -436,11 +452,18 @@ If more than the maximum number of allowed connections occur concurrently, they
 are dropped and users get
 [an `ssh_exchange_identification` error](../../topics/git/troubleshooting_git.md#ssh_exchange_identification-error).
 
-### Import/export
+### Group and project import by uploading export files
 
-To help avoid abuse, project and group imports, exports, and export downloads
-are rate limited. See [Project import/export rate limits](../../user/project/settings/import_export.md#rate-limits) and [Group import/export rate limits](../../user/group/settings/import_export.md#rate-limits)
-for details.
+To help avoid abuse, the following are rate limited:
+
+- Project and group imports.
+- Group and project exports that use files.
+- Export downloads.
+
+For more information, see:
+
+- [Project import/export rate limits](../../user/project/settings/import_export.md#rate-limits).
+- [Group import/export rate limits](../../user/group/import/index.md#rate-limits).
 
 ### Non-configurable limits
 

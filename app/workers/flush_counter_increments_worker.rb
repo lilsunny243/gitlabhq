@@ -11,6 +11,7 @@ class FlushCounterIncrementsWorker
   data_consistency :always
 
   sidekiq_options retry: 3
+  loggable_arguments 0, 2
 
   # The increments in `ProjectStatistics` are owned by several teams depending
   # on the counter
@@ -28,6 +29,6 @@ class FlushCounterIncrementsWorker
     model = model_class.find_by_id(model_id)
     return unless model
 
-    model.flush_increments_to_database!(attribute)
+    Gitlab::Counters::BufferedCounter.new(model, attribute).commit_increment!
   end
 end

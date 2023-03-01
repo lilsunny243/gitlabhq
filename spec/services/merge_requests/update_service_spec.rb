@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::UpdateService, :mailer do
+RSpec.describe MergeRequests::UpdateService, :mailer, feature_category: :code_review_workflow do
   include ProjectForksHelper
 
   let(:group) { create(:group, :public) }
@@ -45,6 +45,11 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
     def update_merge_request(opts)
       @merge_request = MergeRequests::UpdateService.new(project: project, current_user: user, params: opts).execute(merge_request)
       @merge_request.reload
+    end
+
+    it_behaves_like 'issuable update service updating last_edited_at values' do
+      let(:issuable) { merge_request }
+      subject(:update_issuable) { update_merge_request(update_params) }
     end
 
     context 'valid params' do
@@ -191,7 +196,7 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
           expect(Gitlab::UsageDataCounters::MergeRequestActivityUniqueCounter)
             .to receive(:track_milestone_changed_action).once.with(user: user)
 
-          opts[:milestone] = milestone
+          opts[:milestone_id] = milestone.id
 
           MergeRequests::UpdateService.new(project: project, current_user: user, params: opts).execute(merge_request)
         end
@@ -231,27 +236,17 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
       end
 
       context 'updating milestone' do
-        RSpec.shared_examples 'updates milestone' do
+        context 'with milestone_id param' do
+          let(:opts) { { milestone_id: milestone.id } }
+
           it 'sets milestone' do
             expect(@merge_request.milestone).to eq milestone
           end
         end
 
-        context 'when milestone_id param' do
-          let(:opts) { { milestone_id: milestone.id } }
-
-          it_behaves_like 'updates milestone'
-        end
-
-        context 'when milestone param' do
-          let(:opts) { { milestone: milestone } }
-
-          it_behaves_like 'updates milestone'
-        end
-
         context 'milestone counters cache reset' do
           let(:milestone_old) { create(:milestone, project: project) }
-          let(:opts) { { milestone: milestone_old } }
+          let(:opts) { { milestone_id: milestone_old.id } }
 
           it 'deletes milestone counters' do
             expect_next_instance_of(Milestones::MergeRequestsCountService, milestone_old) do |service|
@@ -262,7 +257,7 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
               expect(service).to receive(:delete_cache).and_call_original
             end
 
-            update_merge_request(milestone: milestone)
+            update_merge_request(milestone_id: milestone.id)
           end
 
           it 'deletes milestone counters when the milestone is removed' do
@@ -270,17 +265,17 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
               expect(service).to receive(:delete_cache).and_call_original
             end
 
-            update_merge_request(milestone: nil)
+            update_merge_request(milestone_id: nil)
           end
 
           it 'deletes milestone counters when the milestone was not set' do
-            update_merge_request(milestone: nil)
+            update_merge_request(milestone_id: nil)
 
             expect_next_instance_of(Milestones::MergeRequestsCountService, milestone) do |service|
               expect(service).to receive(:delete_cache).and_call_original
             end
 
-            update_merge_request(milestone: milestone)
+            update_merge_request(milestone_id: milestone.id)
           end
         end
       end
@@ -420,16 +415,10 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
           create(:merge_request, :simple, source_project: project, reviewer_ids: [user2.id])
         end
 
-        context 'when merge_request_reviewer feature is enabled' do
-          before do
-            stub_feature_flags(merge_request_reviewer: true)
-          end
+        let(:opts) { { reviewer_ids: [IssuableFinder::Params::NONE] } }
 
-          let(:opts) { { reviewer_ids: [IssuableFinder::Params::NONE] } }
-
-          it 'removes reviewers' do
-            expect(update_merge_request(opts).reviewers).to eq []
-          end
+        it 'removes reviewers' do
+          expect(update_merge_request(opts).reviewers).to eq []
         end
       end
     end
@@ -477,6 +466,16 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
           expect(merge_request.referenced_users).to be_empty
           expect(merge_request.valid?).to be false
         end
+      end
+    end
+
+    shared_examples_for "creates a new pipeline" do
+      it "creates a new pipeline" do
+        expect(MergeRequests::CreatePipelineWorker)
+          .to receive(:perform_async)
+          .with(project.id, user.id, merge_request.id, { "allow_duplicate" => true })
+
+        update_merge_request(target_branch: new_target_branch)
       end
     end
 
@@ -620,6 +619,20 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
 
           expect(Todo.count).to eq(2)
         end
+
+        it 'triggers GraphQL description updated subscription' do
+          expect(GraphqlTriggers).to receive(:issuable_description_updated).with(merge_request).and_call_original
+
+          update_merge_request(description: 'updated description')
+        end
+      end
+
+      context 'when decription is not changed' do
+        it 'does not trigger GraphQL description updated subscription' do
+          expect(GraphqlTriggers).not_to receive(:issuable_description_updated)
+
+          update_merge_request(title: 'updated title')
+        end
       end
 
       context 'when is reassigned' do
@@ -680,6 +693,16 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
           expect(user2.review_requested_open_merge_requests_count).to eq(1)
           expect(user3.review_requested_open_merge_requests_count).to eq(0)
         end
+
+        it_behaves_like 'triggers GraphQL subscription mergeRequestReviewersUpdated' do
+          let(:action) { update_merge_request({ reviewer_ids: [user2.id] }) }
+        end
+      end
+
+      context 'when reviewers did not change' do
+        it_behaves_like 'does not trigger GraphQL subscription mergeRequestReviewersUpdated' do
+          let(:action) { update_merge_request({ reviewer_ids: [merge_request.reviewer_ids] }) }
+        end
       end
 
       context 'when the milestone is removed' do
@@ -721,12 +744,12 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
             expect(service).to receive(:async_execute)
           end
 
-          update_merge_request({ milestone: create(:milestone, project: project) })
+          update_merge_request(milestone_id: create(:milestone, project: project).id)
         end
 
         it 'sends notifications for subscribers of changed milestone', :sidekiq_might_not_need_inline do
           perform_enqueued_jobs do
-            update_merge_request(milestone: create(:milestone, project: project))
+            update_merge_request(milestone_id: create(:milestone, project: project).id)
           end
 
           should_email(subscriber)
@@ -761,7 +784,7 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
         end
       end
 
-      context 'when the target branch change' do
+      context 'when the target branch changes' do
         it 'calls MergeRequests::ResolveTodosService#async_execute' do
           expect_next_instance_of(MergeRequests::ResolveTodosService, merge_request, user) do |service|
             expect(service).to receive(:async_execute)
@@ -771,10 +794,14 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
         end
 
         it "does not try to mark as unchecked if it's already unchecked" do
-          expect(merge_request).to receive(:unchecked?).and_return(true)
+          allow(merge_request).to receive(:unchecked?).twice.and_return(true)
           expect(merge_request).not_to receive(:mark_as_unchecked)
 
           update_merge_request({ target_branch: "target" })
+        end
+
+        it_behaves_like "creates a new pipeline" do
+          let(:new_target_branch) { "target" }
         end
       end
 
@@ -789,6 +816,10 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
           end
 
           update_merge_request({ target_branch: 'target' })
+        end
+
+        it_behaves_like "creates a new pipeline" do
+          let(:new_target_branch) { "target" }
         end
       end
     end
@@ -822,6 +853,12 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
           should_not_email(non_subscriber)
         end
 
+        it 'triggers GraphQL subscription mergeRequestMergeStatusUpdated' do
+          expect(GraphqlTriggers).to receive(:merge_request_merge_status_updated).with(merge_request)
+
+          update_merge_request(title: 'New title')
+        end
+
         context 'when removing through wip_event param' do
           it 'removes Draft from the title' do
             expect { update_merge_request({ wip_event: "ready" }) }
@@ -844,8 +881,14 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
             @merge_request = described_class.new(project: project, current_user: user, params: opts).execute(merge_request)
           end
 
-          should_not_email(subscriber)
+          should_email(subscriber)
           should_not_email(non_subscriber)
+        end
+
+        it 'triggers GraphQL subscription mergeRequestMergeStatusUpdated' do
+          expect(GraphqlTriggers).to receive(:merge_request_merge_status_updated).with(merge_request)
+
+          update_merge_request(title: 'Draft: New title')
         end
 
         context 'when adding through wip_event param' do
@@ -1113,7 +1156,7 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
       end
     end
 
-    include_examples 'issuable update service' do
+    it_behaves_like 'issuable update service' do
       let(:open_issuable) { merge_request }
       let(:closed_issuable) { create(:closed_merge_request, source_project: project) }
     end
@@ -1201,6 +1244,10 @@ RSpec.describe MergeRequests::UpdateService, :mailer do
 
         expect { update_merge_request(target_branch: 'master', target_branch_was_deleted: true) }
           .to change { merge_request.reload.target_branch }.from('mr-a').to('master')
+      end
+
+      it_behaves_like "creates a new pipeline" do
+        let(:new_target_branch) { "target" }
       end
     end
 

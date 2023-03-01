@@ -3,10 +3,10 @@
 class Admin::RunnersController < Admin::ApplicationController
   include RunnerSetupScripts
 
-  before_action :runner, except: [:index, :tag_list, :runner_setup_scripts]
+  before_action :runner, except: [:index, :new, :tag_list, :runner_setup_scripts]
+
   before_action only: [:index] do
-    push_frontend_feature_flag(:admin_runners_bulk_delete)
-    push_frontend_feature_flag(:runner_list_stacked_layout_admin)
+    push_frontend_feature_flag(:create_runner_workflow, current_user)
   end
 
   feature_category :runner
@@ -22,36 +22,22 @@ class Admin::RunnersController < Admin::ApplicationController
     assign_projects
   end
 
+  def new
+    render_404 unless Feature.enabled?(:create_runner_workflow, current_user)
+  end
+
+  def register
+    render_404 unless Feature.enabled?(:create_runner_workflow, current_user) && runner.registration_available?
+  end
+
   def update
-    if Ci::Runners::UpdateRunnerService.new(@runner).update(runner_params)
+    if Ci::Runners::UpdateRunnerService.new(@runner).execute(runner_params).success?
       respond_to do |format|
         format.html { redirect_to edit_admin_runner_path(@runner) }
       end
     else
       assign_projects
       render 'show'
-    end
-  end
-
-  def destroy
-    Ci::Runners::UnregisterRunnerService.new(@runner, current_user).execute
-
-    redirect_to admin_runners_path, status: :found
-  end
-
-  def resume
-    if Ci::Runners::UpdateRunnerService.new(@runner).update(active: true)
-      redirect_to admin_runners_path, notice: _('Runner was successfully updated.')
-    else
-      redirect_to admin_runners_path, alert: _('Runner was not updated.')
-    end
-  end
-
-  def pause
-    if Ci::Runners::UpdateRunnerService.new(@runner).update(active: false)
-      redirect_to admin_runners_path, notice: _('Runner was successfully updated.')
-    else
-      redirect_to admin_runners_path, alert: _('Runner was not updated.')
     end
   end
 

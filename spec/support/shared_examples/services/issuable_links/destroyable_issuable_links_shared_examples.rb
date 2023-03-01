@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
-RSpec.shared_examples 'a destroyable issuable link' do
+RSpec.shared_examples 'a destroyable issuable link' do |required_role: :reporter|
   context 'when successfully removes an issuable link' do
     before do
-      issuable_link.source.resource_parent.add_reporter(user)
-      issuable_link.target.resource_parent.add_reporter(user)
+      [issuable_link.target, issuable_link.source].each do |issuable|
+        issuable.resource_parent.try(:"add_#{required_role}", user)
+      end
     end
 
     it 'removes related issue' do
-      expect { subject }.to change(issuable_link.class, :count).by(-1)
+      expect { subject }.to change { issuable_link.class.count }.by(-1)
     end
 
     it 'creates notes' do
@@ -28,7 +29,7 @@ RSpec.shared_examples 'a destroyable issuable link' do
 
   context 'when failing to remove an issuable link' do
     it 'does not remove relation' do
-      expect { subject }.not_to change(issuable_link.class, :count).from(1)
+      expect { subject }.not_to change { issuable_link.class.count }.from(1)
     end
 
     it 'does not create notes' do

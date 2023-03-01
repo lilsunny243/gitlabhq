@@ -16,13 +16,18 @@ module Types
         ::Types::WorkItems::Widgets::HierarchyType,
         ::Types::WorkItems::Widgets::LabelsType,
         ::Types::WorkItems::Widgets::AssigneesType,
-        ::Types::WorkItems::Widgets::StartAndDueDateType
+        ::Types::WorkItems::Widgets::StartAndDueDateType,
+        ::Types::WorkItems::Widgets::MilestoneType,
+        ::Types::WorkItems::Widgets::NotesType
       ].freeze
 
       def self.ce_orphan_types
         ORPHAN_TYPES
       end
 
+      # Whenever a new widget is added make sure to update the spec to avoid N + 1 queries in
+      # spec/requests/api/graphql/project/work_items_spec.rb and add the necessary preloads
+      # in app/graphql/resolvers/work_items_resolver.rb
       def self.resolve_type(object, context)
         case object
         when ::WorkItems::Widgets::Description
@@ -35,6 +40,10 @@ module Types
           ::Types::WorkItems::Widgets::LabelsType
         when ::WorkItems::Widgets::StartAndDueDate
           ::Types::WorkItems::Widgets::StartAndDueDateType
+        when ::WorkItems::Widgets::Milestone
+          ::Types::WorkItems::Widgets::MilestoneType
+        when ::WorkItems::Widgets::Notes
+          ::Types::WorkItems::Widgets::NotesType
         else
           raise "Unknown GraphQL type for widget #{object}"
         end

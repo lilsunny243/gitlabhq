@@ -10,6 +10,10 @@ module ErrorTracking
 
     Error = Class.new(StandardError)
     MissingKeysError = Class.new(StandardError)
+    InvalidFieldValueError = Class.new(StandardError)
+    ResponseInvalidSizeError = Class.new(StandardError)
+
+    RESPONSE_SIZE_LIMIT = 1.megabyte
 
     attr_accessor :url, :token
 
@@ -19,6 +23,14 @@ module ErrorTracking
     end
 
     private
+
+    def validate_size(response)
+      return if Gitlab::Utils::DeepSize.new(response, max_size: RESPONSE_SIZE_LIMIT).valid?
+
+      limit = ActiveSupport::NumberHelper.number_to_human_size(RESPONSE_SIZE_LIMIT)
+      message = "Sentry API response is too big. Limit is #{limit}."
+      raise ResponseInvalidSizeError, message
+    end
 
     def api_urls
       @api_urls ||= SentryClient::ApiUrls.new(@url)
@@ -86,11 +98,23 @@ module ErrorTracking
     def handle_response(response)
       raise_error "Sentry response status code: #{response.code}" unless response.code.between?(200, 204)
 
+      validate_size(response.parsed_response)
+
       { body: response.parsed_response, headers: response.headers }
     end
 
     def raise_error(message)
       raise SentryClient::Error, message
+    end
+
+    def ensure_numeric!(field, value)
+      return value if /\A\d+\z/.match?(value)
+
+      raise_invalid_field_value!(field, "#{value.inspect} is not numeric")
+    end
+
+    def raise_invalid_field_value!(field, message)
+      raise InvalidFieldValueError, %(Sentry API response contains invalid value for field "#{field}": #{message})
     end
   end
 end

@@ -10,7 +10,7 @@ module Integrations
 
     SUPPORTED_EVENTS = %w[
       push issue confidential_issue merge_request note confidential_note
-      tag_push pipeline wiki_page deployment
+      tag_push pipeline wiki_page deployment incident
     ].freeze
 
     SUPPORTED_EVENTS_FOR_LABEL_FILTER = %w[issue confidential_issue merge_request note confidential_note].freeze
@@ -22,7 +22,10 @@ module Integrations
       MATCH_ALL_LABELS = 'match_all'
     ].freeze
 
-    default_value_for :category, 'chat'
+    SECRET_MASK = '************'
+    CHANNEL_LIMIT_PER_EVENT = 10
+
+    attribute :category, default: 'chat'
 
     prop_accessor :webhook, :username, :channel, :branches_to_be_notified, :labels_to_be_notified, :labels_to_be_notified_behavior
 
@@ -31,8 +34,12 @@ module Integrations
 
     boolean_accessor :notify_only_broken_pipelines, :notify_only_default_branch
 
-    validates :webhook, presence: true, public_url: true, if: :activated?
-    validates :labels_to_be_notified_behavior, inclusion: { in: LABEL_NOTIFICATION_BEHAVIOURS }, allow_blank: true
+    validates :webhook,
+              presence: true,
+              public_url: true,
+              if: -> (integration) { integration.activated? && integration.requires_webhook? }
+    validates :labels_to_be_notified_behavior, inclusion: { in: LABEL_NOTIFICATION_BEHAVIOURS }, allow_blank: true, if: :activated?
+    validate :validate_channel_limit, if: :activated?
 
     def initialize_properties
       super
@@ -71,42 +78,53 @@ module Integrations
 
     def default_fields
       [
-        { type: 'text', name: 'webhook', placeholder: "#{webhook_placeholder}", required: true }.freeze,
-        { type: 'text', name: 'username', placeholder: 'GitLab-integration' }.freeze,
-        { type: 'checkbox', name: 'notify_only_broken_pipelines', help: 'Do not send notifications for successful pipelines.' }.freeze,
+        {
+          type: 'checkbox',
+          section: SECTION_TYPE_CONFIGURATION,
+          name: 'notify_only_broken_pipelines',
+          help: 'Do not send notifications for successful pipelines.'
+        }.freeze,
         {
           type: 'select',
+          section: SECTION_TYPE_CONFIGURATION,
           name: 'branches_to_be_notified',
           title: s_('Integrations|Branches for which notifications are to be sent'),
           choices: self.class.branch_choices
         }.freeze,
         {
           type: 'text',
+          section: SECTION_TYPE_CONFIGURATION,
           name: 'labels_to_be_notified',
           placeholder: '~backend,~frontend',
           help: 'Send notifications for issue, merge request, and comment events with the listed labels only. Leave blank to receive notifications for all events.'
         }.freeze,
         {
           type: 'select',
+          section: SECTION_TYPE_CONFIGURATION,
           name: 'labels_to_be_notified_behavior',
           choices: [
             ['Match any of the labels', MATCH_ANY_LABEL],
             ['Match all of the labels', MATCH_ALL_LABELS]
           ]
         }.freeze
-      ].freeze
+      ].tap do |fields|
+        next unless requires_webhook?
+
+        fields.unshift(
+          { type: 'text', name: 'webhook', help: webhook_help, required: true }.freeze,
+          { type: 'text', name: 'username', placeholder: 'GitLab-integration' }.freeze
+        )
+      end.freeze
     end
 
     def execute(data)
-      return unless supported_events.include?(data[:object_kind])
-
-      return unless webhook.present?
-
       object_kind = data[:object_kind]
+
+      return false unless should_execute?(object_kind)
 
       data = custom_data(data)
 
-      return unless notify_label?(data)
+      return false unless notify_label?(data)
 
       # WebHook events often have an 'update' event that follows a 'open' or
       # 'close' action. Ignore update events for now to prevent duplicate
@@ -116,17 +134,15 @@ module Integrations
 
       return false unless message
 
-      event_type = data[:event_type] || object_kind
-
-      channel_names = event_channel_value(event_type).presence || channel.presence
-      channels = channel_names&.split(',')&.map(&:strip)
+      event = data[:event_type] || object_kind
+      channels = channels_for_event(event)
 
       opts = {}
       opts[:channel] = channels if channels.present?
       opts[:username] = username if username
 
       if notify(message, opts)
-        log_usage(event_type, user_id_from_hook_data(data))
+        log_usage(event, user_id_from_hook_data(data))
         return true
       end
 
@@ -147,7 +163,7 @@ module Integrations
       raise NotImplementedError
     end
 
-    def webhook_placeholder
+    def webhook_help
       raise NotImplementedError
     end
 
@@ -166,7 +182,16 @@ module Integrations
       self.public_send(field_name) # rubocop:disable GitlabSecurity/PublicSend
     end
 
+    def requires_webhook?
+      true
+    end
+
     private
+
+    def should_execute?(object_kind)
+      supported_events.include?(object_kind) &&
+        (!requires_webhook? || webhook.present?)
+    end
 
     def log_usage(_, _)
       # Implement in child class
@@ -207,6 +232,7 @@ module Integrations
       data.merge(project_url: project_url, project_name: project_name).with_indifferent_access
     end
 
+    # rubocop:disable Metrics/CyclomaticComplexity
     def get_message(object_kind, data)
       case object_kind
       when "push", "tag_push"
@@ -223,8 +249,11 @@ module Integrations
         Integrations::ChatMessage::WikiPageMessage.new(data)
       when "deployment"
         Integrations::ChatMessage::DeploymentMessage.new(data) if notify_for_ref?(data)
+      when "incident"
+        Integrations::ChatMessage::IssueMessage.new(data) unless update?(data)
       end
     end
+    # rubocop:enable Metrics/CyclomaticComplexity
 
     def build_event_channels
       event_channel_names.map do |channel_field|
@@ -266,6 +295,34 @@ module Integrations
         true
       else
         false
+      end
+    end
+
+    def channels_for_event(event)
+      channel_names = event_channel_value(event).presence || channel.presence
+      return [] unless channel_names
+
+      channel_names.split(',').map(&:strip).uniq
+    end
+
+    def unique_channels
+      @unique_channels ||= supported_events.flat_map do |event|
+        channels_for_event(event)
+      end.uniq
+    end
+
+    def validate_channel_limit
+      supported_events.each do |event|
+        count = channels_for_event(event).count
+        next unless count > CHANNEL_LIMIT_PER_EVENT
+
+        errors.add(
+          event_channel_name(event).to_sym,
+          format(
+            s_('SlackIntegration|cannot have more than %{limit} channels'),
+            limit: CHANNEL_LIMIT_PER_EVENT
+          )
+        )
       end
     end
   end

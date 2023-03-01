@@ -24,12 +24,25 @@ export default {
     state.projects = [];
   },
   [types.SET_QUERY](state, { key, value }) {
-    state.query[key] = value;
+    state.query = { ...state.query, [key]: value };
   },
   [types.SET_SIDEBAR_DIRTY](state, value) {
     state.sidebarDirty = value;
   },
   [types.LOAD_FREQUENT_ITEMS](state, { key, data }) {
     state.frequentItems[key] = data;
+  },
+  [types.RECEIVE_NAVIGATION_COUNT](state, { key, count }) {
+    const item = { ...state.navigation[key], count };
+    state.navigation = { ...state.navigation, [key]: item };
+  },
+  [types.REQUEST_AGGREGATIONS](state) {
+    state.aggregations = { fetching: true, error: false, data: [] };
+  },
+  [types.RECEIVE_AGGREGATIONS_SUCCESS](state, data) {
+    state.aggregations = { fetching: false, error: false, data: [...data] };
+  },
+  [types.RECEIVE_AGGREGATIONS_ERROR](state) {
+    state.aggregations = { fetching: false, error: true, data: [] };
   },
 };

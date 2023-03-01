@@ -9,6 +9,7 @@ export default {
     BoardCardInner,
   },
   mixins: [Tracking.mixin()],
+  inject: ['disabled', 'isApolloBoard'],
   props: {
     list: {
       type: Object,
@@ -20,11 +21,6 @@ export default {
       default: () => ({}),
       required: false,
     },
-    disabled: {
-      type: Boolean,
-      default: false,
-      required: false,
-    },
     index: {
       type: Number,
       default: 0,
@@ -34,6 +30,11 @@ export default {
       type: Boolean,
       default: false,
       required: false,
+    },
+    canAdmin: {
+      type: Boolean,
+      required: false,
+      default: true,
     },
   },
   computed: {
@@ -48,10 +49,10 @@ export default {
       );
     },
     isDisabled() {
-      return this.disabled || !this.item.id || this.item.isLoading;
+      return this.disabled || !this.item.id || this.item.isLoading || !this.canAdmin;
     },
     isDraggable() {
-      return !this.disabled && this.item.id && !this.item.isLoading;
+      return !this.isDisabled;
     },
     cardStyle() {
       return this.isColorful && this.item.color ? { borderColor: this.item.color } : '';
@@ -61,6 +62,15 @@ export default {
     },
     colorClass() {
       return this.isColorful ? 'gl-pl-4 gl-border-l-solid gl-border-4' : '';
+    },
+    formattedItem() {
+      return this.isApolloBoard
+        ? {
+            ...this.item,
+            assignees: this.item.assignees?.nodes || [],
+            labels: this.item.labels?.nodes || [],
+          }
+        : this.item;
     },
   },
   methods: {
@@ -105,10 +115,12 @@ export default {
   >
     <board-card-inner
       :list="list"
-      :item="item"
+      :item="formattedItem"
       :update-filters="true"
       :index="index"
       :show-work-item-type-icon="showWorkItemTypeIcon"
-    />
+    >
+      <slot></slot>
+    </board-card-inner>
   </li>
 </template>

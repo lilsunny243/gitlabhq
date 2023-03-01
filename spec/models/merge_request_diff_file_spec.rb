@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequestDiffFile do
+RSpec.describe MergeRequestDiffFile, feature_category: :code_review_workflow do
   it_behaves_like 'a BulkInsertSafe model', MergeRequestDiffFile do
     let(:valid_items_for_bulk_insertion) do
       build_list(:merge_request_diff_file, 10) do |mr_diff_file|
@@ -203,21 +203,31 @@ RSpec.describe MergeRequestDiffFile do
       end
     end
 
-    context 'when externally_stored_diffs_caching_export feature flag is disabled' do
+    context 'when diff is not stored externally' do
       it 'calls #diff' do
-        stub_feature_flags(externally_stored_diffs_caching_export: false)
-
         expect(file).to receive(:diff)
 
         file.utf8_diff
       end
     end
 
-    context 'when diff is not stored externally' do
-      it 'calls #diff' do
-        expect(file).to receive(:diff)
+    context 'when exception is raised' do
+      it 'logs exception and returns an empty string' do
+        allow(file).to receive(:diff).and_raise(StandardError, 'Error!')
 
-        file.utf8_diff
+        expect(Gitlab::AppLogger)
+          .to receive(:warn)
+          .with(
+            a_hash_including(
+              :message => 'Failed fetching merge request diff',
+              :merge_request_diff_file_id => file.id,
+              :merge_request_diff_id => file.merge_request_diff.id,
+              'exception.class' => 'StandardError',
+              'exception.message' => 'Error!'
+            )
+          )
+
+        expect(file.utf8_diff).to eq('')
       end
     end
   end

@@ -1,9 +1,10 @@
 import Vue from 'vue';
-import apolloProvider from '~/issues/show/graphql';
+import { TYPE_ISSUE } from '~/issues/constants';
+import { apolloProvider } from '~/graphql_shared/issuable_client';
 import { parseBoolean } from '~/lib/utils/common_utils';
 import RelatedIssuesRoot from './components/related_issues_root.vue';
 
-export function initRelatedIssues(issueType = 'issue') {
+export function initRelatedIssues(issueType = TYPE_ISSUE) {
   const el = document.querySelector('.js-related-issues-root');
 
   if (!el) {
@@ -17,6 +18,7 @@ export function initRelatedIssues(issueType = 'issue') {
     provide: {
       fullPath: el.dataset.fullPath,
       hasIssueWeightsFeature: parseBoolean(el.dataset.hasIssueWeightsFeature),
+      hasIterationsFeature: parseBoolean(el.dataset.hasIterationsFeature),
     },
     render: (createElement) =>
       createElement(RelatedIssuesRoot, {

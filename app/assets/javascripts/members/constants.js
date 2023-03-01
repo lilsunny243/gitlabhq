@@ -1,7 +1,7 @@
 import { GlFilteredSearchToken } from '@gitlab/ui';
 
 import { __, s__ } from '~/locale';
-import { OPERATOR_IS_ONLY } from '~/vue_shared/components/filtered_search_bar/constants';
+import { OPERATORS_IS } from '~/vue_shared/components/filtered_search_bar/constants';
 
 // Overridden in EE
 export const EE_APP_OPTIONS = {};
@@ -20,6 +20,7 @@ export const FIELD_KEY_MAX_ROLE = 'maxRole';
 export const FIELD_KEY_USER_CREATED_AT = 'userCreatedAt';
 export const FIELD_KEY_LAST_ACTIVITY_ON = 'lastActivityOn';
 export const FIELD_KEY_EXPIRATION = 'expiration';
+export const FIELD_KEY_ACTIVITY = 'activity';
 export const FIELD_KEY_LAST_SIGN_IN = 'lastSignIn';
 export const FIELD_KEY_ACTIONS = 'actions';
 
@@ -41,8 +42,6 @@ export const FIELDS = [
   {
     key: FIELD_KEY_GRANTED,
     label: __('Access granted'),
-    thClass: 'col-meta',
-    tdClass: 'col-meta',
     sort: {
       asc: 'last_joined',
       desc: 'oldest_joined',
@@ -77,8 +76,14 @@ export const FIELDS = [
     tdClass: 'col-expiration',
   },
   {
+    key: FIELD_KEY_ACTIVITY,
+    label: s__('Members|Activity'),
+    thClass: 'col-activity',
+    tdClass: 'col-activity',
+  },
+  {
     key: FIELD_KEY_USER_CREATED_AT,
-    label: __('Created on'),
+    label: s__('Members|User created'),
     sort: {
       asc: 'oldest_created_user',
       desc: 'recent_created_user',
@@ -117,7 +122,7 @@ export const FILTERED_SEARCH_TOKEN_TWO_FACTOR = {
   title: s__('Members|2FA'),
   token: GlFilteredSearchToken,
   unique: true,
-  operators: OPERATOR_IS_ONLY,
+  operators: OPERATORS_IS,
   options: [
     { value: 'enabled', title: s__('Members|Enabled') },
     { value: 'disabled', title: s__('Members|Disabled') },
@@ -131,7 +136,7 @@ export const FILTERED_SEARCH_TOKEN_WITH_INHERITED_PERMISSIONS = {
   title: s__('Members|Membership'),
   token: GlFilteredSearchToken,
   unique: true,
-  operators: OPERATOR_IS_ONLY,
+  operators: OPERATORS_IS,
   options: [
     { value: 'exclude', title: s__('Members|Direct') },
     { value: 'only', title: s__('Members|Inherited') },
@@ -157,6 +162,12 @@ export const MEMBER_TYPES = {
   invite: 'invite',
   accessRequest: 'accessRequest',
 };
+
+// `app/models/members/group_member.rb`
+export const MEMBER_MODEL_TYPE_GROUP_MEMBER = 'GroupMember';
+
+// `app/models/members/project_member.rb`
+export const MEMBER_MODEL_TYPE_PROJECT_MEMBER = 'ProjectMember';
 
 export const TAB_QUERY_PARAM_VALUES = {
   group: 'groups',
@@ -187,8 +198,6 @@ export const LEAVE_MODAL_ID = 'member-leave-modal';
 
 export const REMOVE_GROUP_LINK_MODAL_ID = 'remove-group-link-modal-id';
 
-export const SEARCH_TOKEN_TYPE = 'filtered-search-term';
-
 export const SORT_QUERY_PARAM_NAME = 'sort';
 export const ACTIVE_TAB_QUERY_PARAM_NAME = 'tab';
 
@@ -196,3 +205,8 @@ export const MEMBER_ACCESS_LEVEL_PROPERTY_NAME = 'access_level';
 
 export const GROUP_LINK_BASE_PROPERTY_NAME = 'group_link';
 export const GROUP_LINK_ACCESS_LEVEL_PROPERTY_NAME = 'group_access';
+
+export const I18N_USER_YOU = __("It's you");
+export const I18N_USER_BLOCKED = __('Blocked');
+export const I18N_USER_BOT = __('Bot');
+export const I188N_USER_2FA = __('2FA');

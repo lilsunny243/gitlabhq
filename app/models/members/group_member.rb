@@ -13,7 +13,7 @@ class GroupMember < Member
   delegate :update_two_factor_requirement, to: :user, allow_nil: true
 
   # Make sure group member points only to group as it source
-  default_value_for :source_type, SOURCE_TYPE
+  attribute :source_type, default: SOURCE_TYPE
   validates :source_type, format: { with: SOURCE_TYPE_FORMAT }
 
   default_scope { where(source_type: SOURCE_TYPE) } # rubocop:disable Cop/DefaultScope
@@ -55,10 +55,16 @@ class GroupMember < Member
     { group: group }
   end
 
+  def last_owner_of_the_group?
+    return false unless access_level == Gitlab::Access::OWNER
+
+    group.member_last_owner?(self) || group.member_last_blocked_owner?(self)
+  end
+
   private
 
   override :refresh_member_authorized_projects
-  def refresh_member_authorized_projects(blocking:)
+  def refresh_member_authorized_projects
     # Here, `destroyed_by_association` will be present if the
     # GroupMember is being destroyed due to the `dependent: :destroy`
     # callback on Group. In this case, there is no need to refresh the

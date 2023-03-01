@@ -1,14 +1,14 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 ---
 
 # Upgrading Community Edition and Enterprise Edition from source **(FREE SELF)**
 
 Make sure you view this update guide from the branch (version) of GitLab you
-would like to install (for example, `11.8`). You can select the required version of documentation in the dropdown list at the top right corner of GitLab documentation page.
+would like to install (for example, `11.8`). You can select the required version of documentation in the dropdown list in the upper-right corner of GitLab documentation page.
 
 In each of the following examples, replace `BRANCH` with the branch of the version you upgrading to (for example, `11-8-stable` for `11.8`). Replace `PREVIOUS_BRANCH` with the
 branch for the version you are upgrading from (for example, `11-7-stable` for `11.7`).
@@ -29,7 +29,7 @@ to identify the ideal upgrade path.
 
 Before upgrading to a new major version, you should ensure that any background
 migration jobs from previous releases have been completed. To see the current size of the `background_migration` queue,
-[Check for background migrations before upgrading](index.md#checking-for-background-migrations-before-upgrading).
+[Check for background migrations before upgrading](background_migrations.md).
 
 ## Guidelines for all versions
 
@@ -107,11 +107,11 @@ Download and install Go (for Linux, 64-bit):
 # Remove former Go installation folder
 sudo rm -rf /usr/local/go
 
-curl --remote-name --location --progress-bar "https://go.dev/dl/go1.17.10.linux-amd64.tar.gz"
-echo '87fc728c9c731e2f74e4a999ef53cf07302d7ed3504b0839027bd9c10edaa3fd  go1.17.10.linux-amd64.tar.gz' | shasum -a256 -c - && \
-  sudo tar -C /usr/local -xzf go1.17.10.linux-amd64.tar.gz
+curl --remote-name --location --progress-bar "https://go.dev/dl/go1.18.8.linux-amd64.tar.gz"
+echo '4d854c7bad52d53470cf32f1b287a5c0c441dc6b98306dea27358e099698142a  go1.18.8.linux-amd64.tar.gz' | shasum -a256 -c - && \
+  sudo tar -C /usr/local -xzf go1.18.8.linux-amd64.tar.gz
 sudo ln -sf /usr/local/go/bin/{go,gofmt} /usr/local/bin/
-rm go1.17.10.linux-amd64.tar.gz
+rm go1.18.8.linux-amd64.tar.gz
 ```
 
 ### 6. Update Git
@@ -309,9 +309,6 @@ sudo -u git -H bundle clean
 
 # Run database migrations
 sudo -u git -H bundle exec rake db:migrate RAILS_ENV=production
-
-# Compile GetText PO files
-sudo -u git -H bundle exec rake gettext:compile RAILS_ENV=production
 
 # Update node dependencies and recompile assets
 sudo -u git -H bundle exec rake yarn:install gitlab:assets:clean gitlab:assets:compile RAILS_ENV=production NODE_ENV=production NODE_OPTIONS="--max_old_space_size=4096"

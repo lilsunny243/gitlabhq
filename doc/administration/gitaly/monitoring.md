@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Monitoring Gitaly and Gitaly Cluster
@@ -49,7 +49,7 @@ the Gitaly logs and Prometheus:
 You can observe the status of [control groups (cgroups)](configure_gitaly.md#control-groups) using Prometheus:
 
 - `gitaly_cgroups_reclaim_attempts_total`, a gauge for the total number of times
-   there has been a memory relcaim attempt. This number resets each time a server is
+   there has been a memory reclaim attempt. This number resets each time a server is
    restarted.
 - `gitaly_cgroups_cpu_usage`, a gauge that measures CPU usage per cgroup.
 - `gitaly_cgroup_procs_total`, a gauge that measures the total number of
@@ -152,9 +152,6 @@ The following metrics are available from the `/metrics` endpoint:
   for replication to complete after the replication job starts. Available in GitLab 12.10 and later.
 - `gitaly_praefect_replication_delay_bucket`, a histogram measuring how much time passes between
   when the replication job is created and when it starts. Available in GitLab 12.10 and later.
-- `gitaly_praefect_node_latency_bucket`, a histogram measuring the latency in Gitaly returning
-  health check information to Praefect. This indicates Praefect connection saturation. Available in
-  GitLab 12.10 and later.
 - `gitaly_praefect_connections_total`, the total number of connections to Praefect. [Introduced](https://gitlab.com/gitlab-org/gitaly/-/merge_requests/4220) in GitLab 14.7.
 
 To monitor [strong consistency](index.md#strong-consistency), you can use the following Prometheus metrics:
@@ -170,14 +167,8 @@ To monitor [strong consistency](index.md#strong-consistency), you can use the fo
 - `gitaly_hook_transaction_voting_delay_seconds`, the client-side delay introduced by waiting for
   the transaction to be committed.
 
-To monitor the number of repositories that have no healthy, up-to-date replicas:
-
-- `gitaly_praefect_unavailable_repositories`
-
 To monitor [repository verification](praefect.md#repository-verification), use the following Prometheus metrics:
 
-- `gitaly_praefect_verification_queue_depth`, the total number of replicas pending verification. This
-  metric is scraped from the database and is only available when Prometheus is scraping the database metrics.
 - `gitaly_praefect_verification_jobs_dequeued_total`, the number of verification jobs picked up by the
   worker.
 - `gitaly_praefect_verification_jobs_completed_total`, the number of verification jobs completed by the
@@ -188,6 +179,9 @@ To monitor [repository verification](praefect.md#repository-verification), use t
 - `gitaly_praefect_stale_verification_leases_released_total`, the number of stale verification leases
   released.
 
+The `/metrics` endpoint also provides all the metrics available under the `/db_metrics` endpoint. Using `/metrics` for `/db_metrics` metrics
+is [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/390266) in GitLab 15.9 and will be removed in GitLab 16.0.
+
 You can also monitor the [Praefect logs](../logs/index.md#praefect-logs).
 
 ### Database metrics `/db_metrics` endpoint
@@ -197,7 +191,7 @@ You can also monitor the [Praefect logs](../logs/index.md#praefect-logs).
 The following metrics are available from the `/db_metrics` endpoint:
 
 - `gitaly_praefect_unavailable_repositories`, the number of repositories that have no healthy, up to date replicas.
-- `gitaly_praefect_read_only_repositories`, the number of repositories in read-only mode in a virtual storage.
-  This metric is available for backwards compatibility reasons. `gitaly_praefect_unavailable_repositories` is more
-  accurate.
 - `gitaly_praefect_replication_queue_depth`, the number of jobs in the replication queue.
+- `gitaly_praefect_verification_queue_depth`, the total number of replicas pending verification.
+- `gitaly_praefect_read_only_repositories`, the number of repositories in read-only mode in a virtual storage.
+  - This metric was [removed](https://gitlab.com/gitlab-org/gitaly/-/issues/4229) in GitLab 15.4.

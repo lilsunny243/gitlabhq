@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Query.runner(id)' do
+RSpec.describe 'Query.runner(id)', feature_category: :runner_fleet do
   include GraphqlHelpers
 
   let_it_be(:user) { create(:user, :admin) }
@@ -54,7 +54,8 @@ RSpec.describe 'Query.runner(id)' do
       executor_type: :shell)
   end
 
-  let_it_be(:active_project_runner) { create(:ci_runner, :project) }
+  let_it_be(:project1) { create(:project) }
+  let_it_be(:active_project_runner) { create(:ci_runner, :project, projects: [project1]) }
 
   shared_examples 'runner details fetch' do
     let(:query) do
@@ -73,37 +74,46 @@ RSpec.describe 'Query.runner(id)' do
       runner_data = graphql_data_at(:runner)
       expect(runner_data).not_to be_nil
 
-      expect(runner_data).to match a_hash_including(
-        'id' => runner.to_global_id.to_s,
-        'description' => runner.description,
-        'createdAt' => runner.created_at&.iso8601,
-        'contactedAt' => runner.contacted_at&.iso8601,
-        'version' => runner.version,
-        'shortSha' => runner.short_sha,
-        'revision' => runner.revision,
-        'locked' => false,
-        'active' => runner.active,
-        'paused' => !runner.active,
-        'status' => runner.status('14.5').to_s.upcase,
-        'maximumTimeout' => runner.maximum_timeout,
-        'accessLevel' => runner.access_level.to_s.upcase,
-        'runUntagged' => runner.run_untagged,
-        'ipAddress' => runner.ip_address,
-        'runnerType' => runner.instance_type? ? 'INSTANCE_TYPE' : 'PROJECT_TYPE',
-        'executorName' => runner.executor_type&.dasherize,
-        'architectureName' => runner.architecture,
-        'platformName' => runner.platform,
-        'maintenanceNote' => runner.maintenance_note,
-        'maintenanceNoteHtml' =>
+      expect(runner_data).to match a_graphql_entity_for(
+        runner,
+        description: runner.description,
+        created_at: runner.created_at&.iso8601,
+        contacted_at: runner.contacted_at&.iso8601,
+        version: runner.version,
+        short_sha: runner.short_sha,
+        revision: runner.revision,
+        locked: false,
+        active: runner.active,
+        paused: !runner.active,
+        status: runner.status('14.5').to_s.upcase,
+        job_execution_status: runner.builds.running.any? ? 'RUNNING' : 'IDLE',
+        maximum_timeout: runner.maximum_timeout,
+        access_level: runner.access_level.to_s.upcase,
+        run_untagged: runner.run_untagged,
+        ip_address: runner.ip_address,
+        runner_type: runner.instance_type? ? 'INSTANCE_TYPE' : 'PROJECT_TYPE',
+        ephemeral_authentication_token: nil,
+        executor_name: runner.executor_type&.dasherize,
+        architecture_name: runner.architecture,
+        platform_name: runner.platform,
+        maintenance_note: runner.maintenance_note,
+        maintenance_note_html:
           runner.maintainer_note.present? ? a_string_including('<strong>Test maintenance note</strong>') : '',
-        'jobCount' => 0,
-        'jobs' => a_hash_including("count" => 0, "nodes" => [], "pageInfo" => anything),
-        'projectCount' => nil,
-        'adminUrl' => "http://localhost/admin/runners/#{runner.id}",
-        'userPermissions' => {
+        job_count: runner.builds.count,
+        jobs: a_hash_including(
+          "count" => runner.builds.count,
+          "nodes" => an_instance_of(Array),
+          "pageInfo" => anything
+        ),
+        project_count: nil,
+        admin_url: "http://localhost/admin/runners/#{runner.id}",
+        edit_admin_url: "http://localhost/admin/runners/#{runner.id}/edit",
+        register_admin_url: runner.registration_available? ? "http://localhost/admin/runners/#{runner.id}/register" : nil,
+        user_permissions: {
           'readRunner' => true,
           'updateRunner' => true,
-          'deleteRunner' => true
+          'deleteRunner' => true,
+          'assignRunner' => true
         }
       )
       expect(runner_data['tagList']).to match_array runner.tag_list
@@ -127,10 +137,7 @@ RSpec.describe 'Query.runner(id)' do
       runner_data = graphql_data_at(:runner)
       expect(runner_data).not_to be_nil
 
-      expect(runner_data).to match a_hash_including(
-        'id' => runner.to_global_id.to_s,
-        'adminUrl' => nil
-      )
+      expect(runner_data).to match a_graphql_entity_for(runner, admin_url: nil, edit_admin_url: nil)
       expect(runner_data['tagList']).to match_array runner.tag_list
     end
   end
@@ -177,6 +184,16 @@ RSpec.describe 'Query.runner(id)' do
         expect(runner_data).not_to include('tagList')
       end
     end
+
+    context 'with build running' do
+      before do
+        project = create(:project, :repository)
+        pipeline = create(:ci_pipeline, project: project)
+        create(:ci_build, :running, runner: runner, pipeline: pipeline)
+      end
+
+      it_behaves_like 'runner details fetch'
+    end
   end
 
   describe 'for project runner' do
@@ -214,16 +231,53 @@ RSpec.describe 'Query.runner(id)' do
 
           runner_data = graphql_data_at(:runner)
 
-          expect(runner_data).to match a_hash_including(
-            'id' => project_runner.to_global_id.to_s,
-            'locked' => is_locked
+          expect(runner_data).to match a_graphql_entity_for(project_runner, locked: is_locked)
+        end
+      end
+    end
+
+    describe 'jobCount' do
+      let_it_be(:pipeline1) { create(:ci_pipeline, project: project1) }
+      let_it_be(:pipeline2) { create(:ci_pipeline, project: project1) }
+      let_it_be(:build1) { create(:ci_build, :running, runner: active_project_runner, pipeline: pipeline1) }
+      let_it_be(:build2) { create(:ci_build, :running, runner: active_project_runner, pipeline: pipeline2) }
+
+      let(:runner_query_fragment) { 'id jobCount' }
+      let(:query) do
+        %(
+          query {
+            runner1: runner(id: "#{active_project_runner.to_global_id}") { #{runner_query_fragment} }
+            runner2: runner(id: "#{inactive_instance_runner.to_global_id}") { #{runner_query_fragment} }
+          }
+        )
+      end
+
+      it 'retrieves correct jobCount values' do
+        post_graphql(query, current_user: user)
+
+        expect(graphql_data).to match a_hash_including(
+          'runner1' => a_graphql_entity_for(active_project_runner, job_count: 2),
+          'runner2' => a_graphql_entity_for(inactive_instance_runner, job_count: 0)
+        )
+      end
+
+      context 'when JOB_COUNT_LIMIT is in effect' do
+        before do
+          stub_const('Types::Ci::RunnerType::JOB_COUNT_LIMIT', 0)
+        end
+
+        it 'retrieves correct capped jobCount values' do
+          post_graphql(query, current_user: user)
+
+          expect(graphql_data).to match a_hash_including(
+            'runner1' => a_graphql_entity_for(active_project_runner, job_count: 1),
+            'runner2' => a_graphql_entity_for(inactive_instance_runner, job_count: 0)
           )
         end
       end
     end
 
     describe 'ownerProject' do
-      let_it_be(:project1) { create(:project) }
       let_it_be(:project2) { create(:project) }
       let_it_be(:runner1) { create(:ci_runner, :project, projects: [project2, project1]) }
       let_it_be(:runner2) { create(:ci_runner, :project, projects: [project1, project2]) }
@@ -242,18 +296,8 @@ RSpec.describe 'Query.runner(id)' do
         post_graphql(query, current_user: user)
 
         expect(graphql_data).to match a_hash_including(
-          'runner1' => {
-            'id' => runner1.to_global_id.to_s,
-            'ownerProject' => {
-              'id' => project2.to_global_id.to_s
-            }
-          },
-          'runner2' => {
-            'id' => runner2.to_global_id.to_s,
-            'ownerProject' => {
-              'id' => project1.to_global_id.to_s
-            }
-          }
+          'runner1' => a_graphql_entity_for(runner1, owner_project: a_graphql_entity_for(project2)),
+          'runner2' => a_graphql_entity_for(runner2, owner_project: a_graphql_entity_for(project1))
         )
       end
     end
@@ -263,6 +307,24 @@ RSpec.describe 'Query.runner(id)' do
     let(:runner) { inactive_instance_runner }
 
     it_behaves_like 'runner details fetch'
+  end
+
+  describe 'for registration type' do
+    context 'when registered with registration token' do
+      let(:runner) do
+        create(:ci_runner, registration_type: :registration_token)
+      end
+
+      it_behaves_like 'runner details fetch'
+    end
+
+    context 'when registered with authenticated user' do
+      let(:runner) do
+        create(:ci_runner, registration_type: :authenticated_user)
+      end
+
+      it_behaves_like 'runner details fetch'
+    end
   end
 
   describe 'for group runner request' do
@@ -283,8 +345,8 @@ RSpec.describe 'Query.runner(id)' do
     it 'retrieves groups field with expected value' do
       post_graphql(query, current_user: user)
 
-      runner_data = graphql_data_at(:runner, :groups)
-      expect(runner_data).to eq 'nodes' => [{ 'id' => group.to_global_id.to_s }]
+      runner_data = graphql_data_at(:runner, :groups, :nodes)
+      expect(runner_data).to contain_exactly(a_graphql_entity_for(group))
     end
   end
 
@@ -337,7 +399,6 @@ RSpec.describe 'Query.runner(id)' do
   end
 
   describe 'for multiple runners' do
-    let_it_be(:project1) { create(:project, :test_repo) }
     let_it_be(:project2) { create(:project, :test_repo) }
     let_it_be(:project_runner1) { create(:ci_runner, :project, projects: [project1, project2], description: 'Runner 1') }
     let_it_be(:project_runner2) { create(:ci_runner, :project, projects: [], description: 'Runner 2') }
@@ -409,13 +470,13 @@ RSpec.describe 'Query.runner(id)' do
           'jobCount' => 1,
           'jobs' => a_hash_including(
             "count" => 1,
-            "nodes" => [{ "id" => job.to_global_id.to_s, "status" => job.status.upcase }]
+            "nodes" => [a_graphql_entity_for(job, status: job.status.upcase)]
           ),
           'projectCount' => 2,
           'projects' => {
             'nodes' => [
-              { 'id' => project1.to_global_id.to_s },
-              { 'id' => project2.to_global_id.to_s }
+              a_graphql_entity_for(project1),
+              a_graphql_entity_for(project2)
             ]
           })
         expect(runner2_data).to match a_hash_including(
@@ -430,6 +491,8 @@ RSpec.describe 'Query.runner(id)' do
           'jobs' => nil, # returning jobs not allowed for more than 1 runner (see RunnerJobsResolver)
           'projectCount' => nil,
           'projects' => nil)
+
+        expect_graphql_errors_to_include [/"jobs" field can be requested only for 1 CiRunner\(s\) at a time./]
       end
     end
   end
@@ -476,6 +539,110 @@ RSpec.describe 'Query.runner(id)' do
     end
   end
 
+  describe 'ephemeralAuthenticationToken', :freeze_time do
+    subject(:request) { post_graphql(query, current_user: user) }
+
+    let_it_be(:creator) { create(:user) }
+
+    let(:created_at) { Time.current }
+    let(:token_prefix) { registration_type == :authenticated_user ? 'glrt-' : '' }
+    let(:registration_type) {}
+    let(:query) do
+      %(
+        query {
+          runner(id: "#{runner.to_global_id}") {
+            id
+            ephemeralAuthenticationToken
+          }
+        }
+      )
+    end
+
+    let(:runner) do
+      create(:ci_runner, :group,
+             groups: [group], creator: creator, created_at: created_at,
+             registration_type: registration_type, token: "#{token_prefix}abc123")
+    end
+
+    before_all do
+      group.add_owner(creator) # Allow creating runners in the group
+    end
+
+    shared_examples 'an ephemeral_authentication_token' do
+      it 'returns token in ephemeral_authentication_token field' do
+        request
+
+        runner_data = graphql_data_at(:runner)
+        expect(runner_data).not_to be_nil
+        expect(runner_data).to match a_graphql_entity_for(runner, ephemeral_authentication_token: runner.token)
+      end
+    end
+
+    shared_examples 'a protected ephemeral_authentication_token' do
+      it 'returns nil ephemeral_authentication_token' do
+        request
+
+        runner_data = graphql_data_at(:runner)
+        expect(runner_data).not_to be_nil
+        expect(runner_data).to match a_graphql_entity_for(runner, ephemeral_authentication_token: nil)
+      end
+    end
+
+    context 'with request made by creator', :frozen_time do
+      let(:user) { creator }
+
+      context 'with runner created in UI' do
+        let(:registration_type) { :authenticated_user }
+
+        context 'with runner created in last hour' do
+          let(:created_at) { (Ci::Runner::REGISTRATION_AVAILABILITY_TIME - 1.second).ago }
+
+          context 'with no runner machine registed yet' do
+            it_behaves_like 'an ephemeral_authentication_token'
+          end
+
+          context 'with first runner machine already registed' do
+            let!(:runner_machine) { create(:ci_runner_machine, runner: runner) }
+
+            it_behaves_like 'a protected ephemeral_authentication_token'
+          end
+        end
+
+        context 'with runner created almost too long ago' do
+          let(:created_at) { (Ci::Runner::REGISTRATION_AVAILABILITY_TIME - 1.second).ago }
+
+          it_behaves_like 'an ephemeral_authentication_token'
+        end
+
+        context 'with runner created too long ago' do
+          let(:created_at) { Ci::Runner::REGISTRATION_AVAILABILITY_TIME.ago }
+
+          it_behaves_like 'a protected ephemeral_authentication_token'
+        end
+      end
+
+      context 'with runner registered from command line' do
+        let(:registration_type) { :registration_token }
+
+        context 'with runner created in last 1 hour' do
+          let(:created_at) { (Ci::Runner::REGISTRATION_AVAILABILITY_TIME - 1.second).ago }
+
+          it_behaves_like 'a protected ephemeral_authentication_token'
+        end
+      end
+    end
+
+    context 'when request is made by non-creator of the runner' do
+      let(:user) { create(:admin) }
+
+      context 'with runner created in UI' do
+        let(:registration_type) { :authenticated_user }
+
+        it_behaves_like 'a protected ephemeral_authentication_token'
+      end
+    end
+  end
+
   describe 'Query limits' do
     def runner_query(runner)
       <<~SINGLE
@@ -484,15 +651,24 @@ RSpec.describe 'Query.runner(id)' do
           groups {
             nodes {
               id
+              path
+              fullPath
+              webUrl
             }
           }
           projects {
             nodes {
               id
+              path
+              fullPath
+              webUrl
             }
           }
           ownerProject {
             id
+            path
+            fullPath
+            webUrl
           }
         }
       SINGLE
@@ -501,15 +677,15 @@ RSpec.describe 'Query.runner(id)' do
     let(:active_project_runner2) { create(:ci_runner, :project) }
     let(:active_group_runner2) { create(:ci_runner, :group) }
 
-    # Currently excluding known N+1 issues, see https://gitlab.com/gitlab-org/gitlab/-/issues/334759
-    let(:excluded_fields) { %w[jobCount groups projects ownerProject] }
+    # Exclude fields that are already hardcoded above
+    let(:excluded_fields) { %w[jobs groups projects ownerProject] }
 
     let(:single_query) do
       <<~QUERY
         {
           instance_runner1: #{runner_query(active_instance_runner)}
-          project_runner1: #{runner_query(active_project_runner)}
           group_runner1: #{runner_query(active_group_runner)}
+          project_runner1: #{runner_query(active_project_runner)}
         }
       QUERY
     end
@@ -527,41 +703,205 @@ RSpec.describe 'Query.runner(id)' do
       QUERY
     end
 
-    it 'does not execute more queries per runner', :aggregate_failures do
+    it 'does not execute more queries per runner', :aggregate_failures, quarantine: "https://gitlab.com/gitlab-org/gitlab/-/issues/391442" do
       # warm-up license cache and so on:
-      post_graphql(double_query, current_user: user)
+      personal_access_token = create(:personal_access_token, user: user)
+      args = { current_user: user, token: { personal_access_token: personal_access_token } }
+      post_graphql(double_query, **args)
 
-      control = ActiveRecord::QueryRecorder.new { post_graphql(single_query, current_user: user) }
+      control = ActiveRecord::QueryRecorder.new { post_graphql(single_query, **args) }
 
-      expect { post_graphql(double_query, current_user: user) }
-        .not_to exceed_query_limit(control)
+      expect { post_graphql(double_query, **args) }.not_to exceed_query_limit(control)
 
       expect(graphql_data.count).to eq 6
       expect(graphql_data).to match(
         a_hash_including(
-          'instance_runner1' => a_hash_including('id' => active_instance_runner.to_global_id.to_s),
-          'instance_runner2' => a_hash_including('id' => inactive_instance_runner.to_global_id.to_s),
-          'group_runner1' => a_hash_including(
-            'id' => active_group_runner.to_global_id.to_s,
-            'groups' => { 'nodes' => [a_hash_including('id' => group.to_global_id.to_s)] }
+          'instance_runner1' => a_graphql_entity_for(active_instance_runner),
+          'instance_runner2' => a_graphql_entity_for(inactive_instance_runner),
+          'group_runner1' => a_graphql_entity_for(
+            active_group_runner,
+            groups: { 'nodes' => contain_exactly(a_graphql_entity_for(group)) }
           ),
-          'group_runner2' => a_hash_including(
-            'id' => active_group_runner2.to_global_id.to_s,
-            'groups' => { 'nodes' => [a_hash_including('id' => active_group_runner2.groups[0].to_global_id.to_s)] }
+          'group_runner2' => a_graphql_entity_for(
+            active_group_runner2,
+            groups: { 'nodes' => active_group_runner2.groups.map { |g| a_graphql_entity_for(g) } }
           ),
-          'project_runner1' => a_hash_including(
-            'id' => active_project_runner.to_global_id.to_s,
-            'projects' => { 'nodes' => [a_hash_including('id' => active_project_runner.projects[0].to_global_id.to_s)] },
-            'ownerProject' => a_hash_including('id' => active_project_runner.projects[0].to_global_id.to_s)
+          'project_runner1' => a_graphql_entity_for(
+            active_project_runner,
+            projects: { 'nodes' => active_project_runner.projects.map { |p| a_graphql_entity_for(p) } },
+            owner_project: a_graphql_entity_for(active_project_runner.projects[0])
           ),
-          'project_runner2' => a_hash_including(
-            'id' => active_project_runner2.to_global_id.to_s,
-            'projects' => {
-              'nodes' => [a_hash_including('id' => active_project_runner2.projects[0].to_global_id.to_s)]
-            },
-            'ownerProject' => a_hash_including('id' => active_project_runner2.projects[0].to_global_id.to_s)
+          'project_runner2' => a_graphql_entity_for(
+            active_project_runner2,
+            projects: { 'nodes' => active_project_runner2.projects.map { |p| a_graphql_entity_for(p) } },
+            owner_project: a_graphql_entity_for(active_project_runner2.projects[0])
           )
         ))
+    end
+  end
+
+  describe 'Query limits with jobs' do
+    let!(:group1) { create(:group) }
+    let!(:group2) { create(:group) }
+    let!(:project1) { create(:project, :repository, group: group1) }
+    let!(:project2) { create(:project, :repository, group: group1) }
+    let!(:project3) { create(:project, :repository, group: group2) }
+
+    let!(:merge_request1) { create(:merge_request, source_project: project1) }
+    let!(:merge_request2) { create(:merge_request, source_project: project3) }
+
+    let(:project_runner2) { create(:ci_runner, :project, projects: [project1, project2]) }
+    let!(:build1) { create(:ci_build, :success, name: 'Build One', runner: project_runner2, pipeline: pipeline1) }
+    let!(:pipeline1) do
+      create(:ci_pipeline, project: project1, source: :merge_request_event, merge_request: merge_request1, ref: 'main',
+                           target_sha: 'xxx')
+    end
+
+    let(:query) do
+      <<~QUERY
+        {
+          runner(id: "#{project_runner2.to_global_id}") {
+            id
+            jobs {
+              nodes {
+                id
+                detailedStatus {
+                  id
+                  detailsPath
+                  group
+                  icon
+                  text
+                }
+                project {
+                  id
+                  name
+                  webUrl
+                }
+                shortSha
+                commitPath
+                finishedAt
+                duration
+                queuedDuration
+                tags
+              }
+            }
+          }
+        }
+      QUERY
+    end
+
+    it 'does not execute more queries per job', :aggregate_failures do
+      # warm-up license cache and so on:
+      personal_access_token = create(:personal_access_token, user: user)
+      args = { current_user: user, token: { personal_access_token: personal_access_token } }
+      post_graphql(query, **args)
+
+      control = ActiveRecord::QueryRecorder.new(query_recorder_debug: true) { post_graphql(query, **args) }
+
+      # Add a new build to project_runner2
+      project_runner2.runner_projects << build(:ci_runner_project, runner: project_runner2, project: project3)
+      pipeline2 = create(:ci_pipeline, project: project3, source: :merge_request_event, merge_request: merge_request2,
+                                       ref: 'main', target_sha: 'xxx')
+      build2 = create(:ci_build, :success, name: 'Build Two', runner: project_runner2, pipeline: pipeline2)
+
+      args[:current_user] = create(:user, :admin) # do not reuse same user
+      expect { post_graphql(query, **args) }.not_to exceed_all_query_limit(control)
+
+      expect(graphql_data.count).to eq 1
+      expect(graphql_data).to match(
+        a_hash_including(
+          'runner' => a_graphql_entity_for(
+            project_runner2,
+            jobs: { 'nodes' => containing_exactly(a_graphql_entity_for(build1), a_graphql_entity_for(build2)) }
+          )
+        ))
+    end
+  end
+
+  describe 'sorting and pagination' do
+    let(:query) do
+      <<~GQL
+      query($id: CiRunnerID!, $projectSearchTerm: String, $n: Int, $cursor: String) {
+        runner(id: $id) {
+          #{fields}
+        }
+      }
+      GQL
+    end
+
+    before do
+      post_graphql(query, current_user: user, variables: variables)
+    end
+
+    context 'with project search term' do
+      let_it_be(:project1) { create(:project, description: 'abc') }
+      let_it_be(:project2) { create(:project, description: 'def') }
+      let_it_be(:project_runner) do
+        create(:ci_runner, :project, projects: [project1, project2])
+      end
+
+      let(:variables) { { id: project_runner.to_global_id.to_s, n: n, project_search_term: search_term } }
+
+      let(:fields) do
+        <<~QUERY
+        projects(search: $projectSearchTerm, first: $n, after: $cursor) {
+          count
+          nodes {
+            id
+          }
+          pageInfo {
+            hasPreviousPage
+            startCursor
+            endCursor
+            hasNextPage
+          }
+        }
+        QUERY
+      end
+
+      let(:projects_data) { graphql_data_at('runner', 'projects') }
+
+      context 'set to empty string' do
+        let(:search_term) { '' }
+
+        context 'with n = 1' do
+          let(:n) { 1 }
+
+          it_behaves_like 'a working graphql query'
+
+          it 'returns paged result' do
+            expect(projects_data).not_to be_nil
+            expect(projects_data['count']).to eq 2
+            expect(projects_data['pageInfo']['hasNextPage']).to eq true
+          end
+        end
+
+        context 'with n = 2' do
+          let(:n) { 2 }
+
+          it 'returns non-paged result' do
+            expect(projects_data).not_to be_nil
+            expect(projects_data['count']).to eq 2
+            expect(projects_data['pageInfo']['hasNextPage']).to eq false
+          end
+        end
+      end
+
+      context 'set to partial match' do
+        let(:search_term) { 'def' }
+
+        context 'with n = 1' do
+          let(:n) { 1 }
+
+          it_behaves_like 'a working graphql query'
+
+          it 'returns paged result with no additional pages' do
+            expect(projects_data).not_to be_nil
+            expect(projects_data['count']).to eq 1
+            expect(projects_data['pageInfo']['hasNextPage']).to eq false
+          end
+        end
+      end
     end
   end
 end

@@ -1,44 +1,84 @@
-import { mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
-import { GlBadge } from '@gitlab/ui';
+import MockAdapter from 'axios-mock-adapter';
+import { shallowMount, mount } from '@vue/test-utils';
+import Vue, { nextTick } from 'vue';
+import { GlBadge, GlModal, GlToast } from '@gitlab/ui';
 import JobItem from '~/pipelines/components/graph/job_item.vue';
+import axios from '~/lib/utils/axios_utils';
+import { useLocalStorageSpy } from 'helpers/local_storage_helper';
+import ActionComponent from '~/pipelines/components/jobs_shared/action_component.vue';
+
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import {
   delayedJob,
   mockJob,
   mockJobWithoutDetails,
   mockJobWithUnauthorizedAction,
+  mockFailedJob,
   triggerJob,
+  triggerJobWithRetryAction,
 } from './mock_data';
 
 describe('pipeline graph job item', () => {
+  useLocalStorageSpy();
+  Vue.use(GlToast);
+
   let wrapper;
+  let mockAxios;
 
   const findJobWithoutLink = () => wrapper.findByTestId('job-without-link');
   const findJobWithLink = () => wrapper.findByTestId('job-with-link');
+  const findActionVueComponent = () => wrapper.findComponent(ActionComponent);
   const findActionComponent = () => wrapper.findByTestId('ci-action-component');
   const findBadge = () => wrapper.findComponent(GlBadge);
+  const findJobLink = () => wrapper.findByTestId('job-with-link');
+  const findModal = () => wrapper.findComponent(GlModal);
 
-  const createWrapper = (propsData) => {
+  const clickOnModalPrimaryBtn = () => findModal().vm.$emit('primary');
+  const clickOnModalCancelBtn = () => findModal().vm.$emit('hide');
+  const clickOnModalCloseBtn = () => findModal().vm.$emit('close');
+
+  const myCustomClass1 = 'my-class-1';
+  const myCustomClass2 = 'my-class-2';
+
+  const defaultProps = {
+    job: mockJob,
+  };
+
+  const createWrapper = ({ props, data, mountFn = mount, mocks = {} } = {}) => {
     wrapper = extendedWrapper(
-      mount(JobItem, {
-        propsData,
+      mountFn(JobItem, {
+        data() {
+          return {
+            ...data,
+          };
+        },
+        propsData: {
+          ...defaultProps,
+          ...props,
+        },
+        mocks: {
+          ...mocks,
+        },
       }),
     );
   };
 
   const triggerActiveClass = 'gl-shadow-x0-y0-b3-s1-blue-500';
 
+  beforeEach(() => {
+    mockAxios = new MockAdapter(axios);
+  });
+
   afterEach(() => {
-    wrapper.destroy();
+    mockAxios.restore();
   });
 
   describe('name with link', () => {
     it('should render the job name and status with a link', async () => {
-      createWrapper({ job: mockJob });
+      createWrapper();
 
       await nextTick();
-      const link = wrapper.find('a');
+      const link = findJobLink();
 
       expect(link.attributes('href')).toBe(mockJob.status.detailsPath);
 
@@ -53,15 +93,17 @@ describe('pipeline graph job item', () => {
   describe('name without link', () => {
     beforeEach(() => {
       createWrapper({
-        job: mockJobWithoutDetails,
-        cssClassJobName: 'css-class-job-name',
-        jobHovered: 'test',
+        props: {
+          job: mockJobWithoutDetails,
+          cssClassJobName: 'css-class-job-name',
+          jobHovered: 'test',
+        },
       });
     });
 
-    it('it should render status and name', () => {
+    it('should render status and name', () => {
       expect(wrapper.find('.ci-status-icon-success').exists()).toBe(true);
-      expect(wrapper.find('a').exists()).toBe(false);
+      expect(findJobLink().exists()).toBe(false);
 
       expect(wrapper.text()).toBe(mockJobWithoutDetails.name);
     });
@@ -72,8 +114,8 @@ describe('pipeline graph job item', () => {
   });
 
   describe('action icon', () => {
-    it('it should render the action icon', () => {
-      createWrapper({ job: mockJob });
+    it('should render the action icon', () => {
+      createWrapper();
 
       const actionComponent = findActionComponent();
 
@@ -82,8 +124,12 @@ describe('pipeline graph job item', () => {
       expect(actionComponent.attributes('disabled')).not.toBe('disabled');
     });
 
-    it('it should render disabled action icon when user cannot run the action', () => {
-      createWrapper({ job: mockJobWithUnauthorizedAction });
+    it('should render disabled action icon when user cannot run the action', () => {
+      createWrapper({
+        props: {
+          job: mockJobWithUnauthorizedAction,
+        },
+      });
 
       const actionComponent = findActionComponent();
 
@@ -91,18 +137,32 @@ describe('pipeline graph job item', () => {
       expect(actionComponent.props('actionIcon')).toBe('stop');
       expect(actionComponent.attributes('disabled')).toBe('disabled');
     });
+
+    it('action icon tooltip text when job has passed but can be ran again', () => {
+      createWrapper({ props: { job: mockJob } });
+
+      expect(findActionComponent().props('tooltipText')).toBe('Run again');
+    });
+
+    it('action icon tooltip text when job has failed and can be retried', () => {
+      createWrapper({ props: { job: mockFailedJob } });
+
+      expect(findActionComponent().props('tooltipText')).toBe('Retry');
+    });
   });
 
   describe('job style', () => {
     beforeEach(() => {
       createWrapper({
-        job: mockJob,
-        cssClassJobName: 'css-class-job-name',
+        props: {
+          job: mockJob,
+          cssClassJobName: 'css-class-job-name',
+        },
       });
     });
 
     it('should render provided class name', () => {
-      expect(wrapper.find('a').classes()).toContain('css-class-job-name');
+      expect(findJobLink().classes()).toContain('css-class-job-name');
     });
 
     it('does not show a badge on the job item', () => {
@@ -117,11 +177,13 @@ describe('pipeline graph job item', () => {
   describe('status label', () => {
     it('should not render status label when it is not provided', () => {
       createWrapper({
-        job: {
-          id: 4258,
-          name: 'test',
-          status: {
-            icon: 'status_success',
+        props: {
+          job: {
+            id: 4258,
+            name: 'test',
+            status: {
+              icon: 'status_success',
+            },
           },
         },
       });
@@ -131,13 +193,15 @@ describe('pipeline graph job item', () => {
 
     it('should not render status label when it is  provided', () => {
       createWrapper({
-        job: {
-          id: 4259,
-          name: 'test',
-          status: {
-            icon: 'status_success',
-            label: 'success',
-            tooltip: 'success',
+        props: {
+          job: {
+            id: 4259,
+            name: 'test',
+            status: {
+              icon: 'status_success',
+              label: 'success',
+              tooltip: 'success',
+            },
           },
         },
       });
@@ -149,7 +213,9 @@ describe('pipeline graph job item', () => {
   describe('for delayed job', () => {
     it('displays remaining time in tooltip', () => {
       createWrapper({
-        job: delayedJob,
+        props: {
+          job: delayedJob,
+        },
       });
 
       expect(findJobWithLink().attributes('title')).toBe(
@@ -161,7 +227,11 @@ describe('pipeline graph job item', () => {
   describe('trigger job', () => {
     describe('card', () => {
       beforeEach(() => {
-        createWrapper({ job: triggerJob });
+        createWrapper({
+          props: {
+            job: triggerJob,
+          },
+        });
       });
 
       it('shows a badge on the job item', () => {
@@ -174,6 +244,37 @@ describe('pipeline graph job item', () => {
       });
     });
 
+    describe('when retrying', () => {
+      const mockToastShow = jest.fn();
+
+      beforeEach(async () => {
+        createWrapper({
+          mountFn: shallowMount,
+          data: {
+            currentSkipModalValue: true,
+          },
+          props: {
+            skipRetryModal: true,
+            job: triggerJobWithRetryAction,
+          },
+          mocks: {
+            $toast: {
+              show: mockToastShow,
+            },
+          },
+        });
+
+        jest.spyOn(wrapper.vm.$toast, 'show');
+
+        await findActionVueComponent().vm.$emit('pipelineActionRequestComplete');
+        await nextTick();
+      });
+
+      it('shows a toast message that the downstream is being created', () => {
+        expect(mockToastShow).toHaveBeenCalledTimes(1);
+      });
+    });
+
     describe('highlighting', () => {
       it.each`
         job                      | jobName                       | expanded | link
@@ -182,7 +283,12 @@ describe('pipeline graph job item', () => {
       `(
         `trigger job should stay highlighted when downstream is expanded`,
         ({ job, jobName, expanded, link }) => {
-          createWrapper({ job, pipelineExpanded: { jobName, expanded } });
+          createWrapper({
+            props: {
+              job,
+              pipelineExpanded: { jobName, expanded },
+            },
+          });
           const findJobEl = link ? findJobWithLink : findJobWithoutLink;
 
           expect(findJobEl().classes()).toContain(triggerActiveClass);
@@ -196,7 +302,12 @@ describe('pipeline graph job item', () => {
       `(
         `trigger job should not be highlighted when downstream is not expanded`,
         ({ job, jobName, expanded, link }) => {
-          createWrapper({ job, pipelineExpanded: { jobName, expanded } });
+          createWrapper({
+            props: {
+              job,
+              pipelineExpanded: { jobName, expanded },
+            },
+          });
           const findJobEl = link ? findJobWithLink : findJobWithoutLink;
 
           expect(findJobEl().classes()).not.toContain(triggerActiveClass);
@@ -208,60 +319,182 @@ describe('pipeline graph job item', () => {
   describe('job classes', () => {
     it('job class is shown', () => {
       createWrapper({
-        job: mockJob,
-        cssClassJobName: 'my-class',
+        props: {
+          job: mockJob,
+          cssClassJobName: 'my-class',
+        },
       });
 
-      expect(wrapper.find('a').classes()).toContain('my-class');
+      const jobLinkEl = findJobLink();
 
-      expect(wrapper.find('a').classes()).not.toContain(triggerActiveClass);
+      expect(jobLinkEl.classes()).toContain('my-class');
+
+      expect(jobLinkEl.classes()).not.toContain(triggerActiveClass);
     });
 
     it('job class is shown, along with hover', () => {
       createWrapper({
-        job: mockJob,
-        cssClassJobName: 'my-class',
-        sourceJobHovered: mockJob.name,
+        props: {
+          job: mockJob,
+          cssClassJobName: 'my-class',
+          sourceJobHovered: mockJob.name,
+        },
       });
 
-      expect(wrapper.find('a').classes()).toContain('my-class');
-      expect(wrapper.find('a').classes()).toContain(triggerActiveClass);
+      const jobLinkEl = findJobLink();
+
+      expect(jobLinkEl.classes()).toContain('my-class');
+      expect(jobLinkEl.classes()).toContain(triggerActiveClass);
     });
 
     it('multiple job classes are shown', () => {
       createWrapper({
-        job: mockJob,
-        cssClassJobName: ['my-class-1', 'my-class-2'],
+        props: {
+          job: mockJob,
+          cssClassJobName: [myCustomClass1, myCustomClass2],
+        },
       });
 
-      expect(wrapper.find('a').classes()).toContain('my-class-1');
-      expect(wrapper.find('a').classes()).toContain('my-class-2');
+      const jobLinkEl = findJobLink();
 
-      expect(wrapper.find('a').classes()).not.toContain(triggerActiveClass);
+      expect(jobLinkEl.classes()).toContain(myCustomClass1);
+      expect(jobLinkEl.classes()).toContain(myCustomClass2);
+
+      expect(jobLinkEl.classes()).not.toContain(triggerActiveClass);
     });
 
     it('multiple job classes are shown conditionally', () => {
       createWrapper({
-        job: mockJob,
-        cssClassJobName: { 'my-class-1': true, 'my-class-2': true },
+        props: {
+          job: mockJob,
+          cssClassJobName: { [myCustomClass1]: true, [myCustomClass2]: true },
+        },
       });
 
-      expect(wrapper.find('a').classes()).toContain('my-class-1');
-      expect(wrapper.find('a').classes()).toContain('my-class-2');
+      const jobLinkEl = findJobLink();
 
-      expect(wrapper.find('a').classes()).not.toContain(triggerActiveClass);
+      expect(jobLinkEl.classes()).toContain(myCustomClass1);
+      expect(jobLinkEl.classes()).toContain(myCustomClass2);
+
+      expect(jobLinkEl.classes()).not.toContain(triggerActiveClass);
     });
 
     it('multiple job classes are shown, along with a hover', () => {
       createWrapper({
-        job: mockJob,
-        cssClassJobName: ['my-class-1', 'my-class-2'],
-        sourceJobHovered: mockJob.name,
+        props: {
+          job: mockJob,
+          cssClassJobName: [myCustomClass1, myCustomClass2],
+          sourceJobHovered: mockJob.name,
+        },
       });
 
-      expect(wrapper.find('a').classes()).toContain('my-class-1');
-      expect(wrapper.find('a').classes()).toContain('my-class-2');
-      expect(wrapper.find('a').classes()).toContain(triggerActiveClass);
+      const jobLinkEl = findJobLink();
+
+      expect(jobLinkEl.classes()).toContain(myCustomClass1);
+      expect(jobLinkEl.classes()).toContain(myCustomClass2);
+      expect(jobLinkEl.classes()).toContain(triggerActiveClass);
+    });
+  });
+
+  describe('confirmation modal', () => {
+    describe('when clicking on the action component', () => {
+      it.each`
+        skipRetryModal | exists   | visibilityText
+        ${false}       | ${true}  | ${'shows'}
+        ${true}        | ${false} | ${'hides'}
+      `(
+        '$visibilityText the modal when `skipRetryModal` is $skipRetryModal',
+        async ({ exists, skipRetryModal }) => {
+          createWrapper({
+            props: {
+              skipRetryModal,
+              job: triggerJobWithRetryAction,
+            },
+          });
+          await findActionComponent().trigger('click');
+
+          expect(findModal().exists()).toBe(exists);
+        },
+      );
+    });
+
+    describe('when showing the modal', () => {
+      it.each`
+        buttonName   | shouldTriggerActionClick | actionBtn
+        ${'primary'} | ${true}                  | ${clickOnModalPrimaryBtn}
+        ${'cancel'}  | ${false}                 | ${clickOnModalCancelBtn}
+        ${'close'}   | ${false}                 | ${clickOnModalCloseBtn}
+      `(
+        'clicking on $buttonName will pass down shouldTriggerActionClick as $shouldTriggerActionClick to the action component',
+        async ({ shouldTriggerActionClick, actionBtn }) => {
+          createWrapper({
+            props: {
+              skipRetryModal: false,
+              job: triggerJobWithRetryAction,
+            },
+          });
+          await findActionComponent().trigger('click');
+
+          await actionBtn();
+
+          expect(findActionComponent().props().shouldTriggerClick).toBe(shouldTriggerActionClick);
+        },
+      );
+    });
+
+    describe('when not checking the "do not show this again" checkbox', () => {
+      it.each`
+        actionName      | actionBtn
+        ${'closing'}    | ${clickOnModalCloseBtn}
+        ${'cancelling'} | ${clickOnModalCancelBtn}
+        ${'confirming'} | ${clickOnModalPrimaryBtn}
+      `(
+        'does not emit any event and will not modify localstorage on $actionName',
+        async ({ actionBtn }) => {
+          createWrapper({
+            props: {
+              skipRetryModal: false,
+              job: triggerJobWithRetryAction,
+            },
+          });
+          await findActionComponent().trigger('click');
+          await actionBtn();
+
+          expect(wrapper.emitted().setSkipRetryModal).toBeUndefined();
+          expect(localStorage.setItem).not.toHaveBeenCalled();
+        },
+      );
+    });
+
+    describe('when checking the "do not show this again" checkbox', () => {
+      it.each`
+        actionName      | actionBtn
+        ${'closing'}    | ${clickOnModalCloseBtn}
+        ${'cancelling'} | ${clickOnModalCancelBtn}
+        ${'confirming'} | ${clickOnModalPrimaryBtn}
+      `(
+        'emits "setSkipRetryModal" and set local storage key on $actionName the modal',
+        async ({ actionBtn }) => {
+          // We are passing the checkbox as a slot to the GlModal.
+          // The way GlModal is mounted, we can neither click on the box
+          // or emit an event directly. We therefore set the data property
+          // as it would be if the box was checked.
+          createWrapper({
+            data: {
+              currentSkipModalValue: true,
+            },
+            props: {
+              skipRetryModal: false,
+              job: triggerJobWithRetryAction,
+            },
+          });
+          await findActionComponent().trigger('click');
+          await actionBtn();
+
+          expect(wrapper.emitted().setSkipRetryModal).toHaveLength(1);
+          expect(localStorage.setItem).toHaveBeenCalledWith('skip_retry_modal', 'true');
+        },
+      );
     });
   });
 });

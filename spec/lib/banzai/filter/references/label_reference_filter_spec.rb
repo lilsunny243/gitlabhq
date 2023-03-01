@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'html/pipeline'
 
-RSpec.describe Banzai::Filter::References::LabelReferenceFilter do
+RSpec.describe Banzai::Filter::References::LabelReferenceFilter, feature_category: :team_planning do
   include FilterSpecHelper
 
   let(:project)   { create(:project, :public, name: 'sample-project') }
@@ -309,11 +309,12 @@ RSpec.describe Banzai::Filter::References::LabelReferenceFilter do
       it 'links to valid references' do
         doc = reference_filter("See #{references}")
 
-        expect(doc.css('a').map { |a| a.attr('href') }).to match_array([
-          urls.project_issues_url(project, label_name: bug.name),
-          urls.project_issues_url(project, label_name: feature_proposal.name),
-          urls.project_issues_url(project, label_name: technical_debt.name)
-        ])
+        expect(doc.css('a').map { |a| a.attr('href') }).to match_array(
+          [
+            urls.project_issues_url(project, label_name: bug.name),
+            urls.project_issues_url(project, label_name: feature_proposal.name),
+            urls.project_issues_url(project, label_name: technical_debt.name)
+          ])
         expect(doc.text).to eq 'See bug, feature proposal, technical debt'
       end
     end
@@ -324,11 +325,12 @@ RSpec.describe Banzai::Filter::References::LabelReferenceFilter do
       it 'links to valid references' do
         doc = reference_filter("See #{references}")
 
-        expect(doc.css('a').map { |a| a.attr('href') }).to match_array([
-          urls.project_issues_url(project, label_name: bug.name),
-          urls.project_issues_url(project, label_name: feature_proposal.name),
-          urls.project_issues_url(project, label_name: technical_debt.name)
-        ])
+        expect(doc.css('a').map { |a| a.attr('href') }).to match_array(
+          [
+            urls.project_issues_url(project, label_name: bug.name),
+            urls.project_issues_url(project, label_name: feature_proposal.name),
+            urls.project_issues_url(project, label_name: technical_debt.name)
+          ])
         expect(doc.text).to eq 'See bug feature proposal technical debt'
       end
     end
@@ -713,13 +715,13 @@ RSpec.describe Banzai::Filter::References::LabelReferenceFilter do
     let_it_be(:project_label2)     { create(:label, project: project) }
     let_it_be(:project2_label)     { create(:label, project: project2) }
     let_it_be(:group2_label)       { create(:group_label, group: group2, color: '#00ff00') }
-    let_it_be(:project_reference)  { "#{project_label.to_reference}" }
-    let_it_be(:project_reference2) { "#{project_label2.to_reference}" }
-    let_it_be(:project2_reference) { "#{project2_label.to_reference}" }
+    let_it_be(:project_reference)  { project_label.to_reference.to_s }
+    let_it_be(:project_reference2) { project_label2.to_reference.to_s }
+    let_it_be(:project2_reference) { project2_label.to_reference.to_s }
     let_it_be(:group2_reference)   { "#{project2.full_path}~#{group2_label.name}" }
 
     it 'does not have N+1 per multiple references per project', :use_sql_query_cache do
-      markdown = "#{project_reference}"
+      markdown = project_reference.to_s
       control_count = 1
 
       expect do
@@ -735,7 +737,7 @@ RSpec.describe Banzai::Filter::References::LabelReferenceFilter do
 
     it 'has N+1 for multiple unique project/group references', :use_sql_query_cache do
       # reference to already loaded project, only one query
-      markdown = "#{project_reference}"
+      markdown = project_reference.to_s
       control_count = 1
 
       expect do

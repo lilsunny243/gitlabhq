@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Merge Trains API **(PREMIUM)**
@@ -20,7 +20,7 @@ If Merge Trains is not available for the project, a `403` status code is returne
 By default, `GET` requests return 20 results at a time because the API results
 are paginated.
 
-Read more on [pagination](index.md#pagination).
+Read more on [pagination](rest/index.md#pagination).
 
 ## List Merge Trains for a project
 
@@ -33,7 +33,7 @@ GET /projects/:id/merge_trains?scope=complete
 
 | Attribute           | Type             | Required   | Description                                                                                                                 |
 | ------------------- | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding).                                            |
+| `id`                | integer/string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding).                                            |
 | `scope`             | string           | no         | Return Merge Trains filtered by the given scope. Available scopes are `active` (to be merged) and `complete` (have been merged). |
 | `sort`              | string           | no         | Return Merge Trains sorted in `asc` or `desc` order. Default is `desc`.                                                     |
 
@@ -83,4 +83,140 @@ Example response:
     "duration": 70
   }
 ]
+```
+
+## List merge requests in a merge train
+
+Get all merge requests added to a merge train for the requested target branch.
+
+```plaintext
+GET /projects/:id/merge_trains/:target_branch
+```
+
+Supported attributes:
+
+| Attribute       | Type           | Required | Description  |
+| --------------- | ---------------| -------- | ------------ |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `target_branch` | string         | yes      | The target branch of the merge train. |
+| `scope`         | string         | no       | Return Merge Trains filtered by the given scope. Available scopes are `active` (to be merged) and `complete` (have been merged). |
+| `sort`          | string         | no       | Return Merge Trains sorted in `asc` or `desc` order. Default is `desc`. |
+
+Example request:
+
+```shell
+curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/597/merge_trains/main"
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 267,
+    "merge_request": {
+      "id": 273,
+      "iid": 1,
+      "project_id": 597,
+      "title": "My title 9",
+      "description": null,
+      "state": "opened",
+      "created_at": "2022-10-31T19:06:05.725Z",
+      "updated_at": "2022-10-31T19:06:05.725Z",
+      "web_url": "http://localhost/namespace18/project21/-/merge_requests/1"
+    },
+    "user": {
+      "id": 933,
+      "username": "user12",
+      "name": "Sidney Jones31",
+      "state": "active",
+      "avatar_url": "https://www.gravatar.com/avatar/6c8365de387cb3db10ecc7b1880203c4?s=80\u0026d=identicon",
+      "web_url": "http://localhost/user12"
+    },
+    "pipeline": {
+      "id": 273,
+      "iid": 1,
+      "project_id": 598,
+      "sha": "b83d6e391c22777fca1ed3012fce84f633d7fed0",
+      "ref": "main",
+      "status": "pending",
+      "source": "push",
+      "created_at": "2022-10-31T19:06:06.231Z",
+      "updated_at": "2022-10-31T19:06:06.231Z",
+      "web_url": "http://localhost/namespace19/project22/-/pipelines/273"
+    },
+    "created_at": "2022-10-31T19:06:06.237Z",
+    "updated_at":"2022-10-31T19:06:06.237Z",
+    "target_branch":"main",
+    "status":"idle",
+    "merged_at":null,
+    "duration":null
+  }
+]
+```
+
+## Get the status of a merge request on a merge train
+
+Get merge train information for the requested merge request.
+
+```plaintext
+GET /projects/:id/merge_trains/merge_requests/:merge_request_iid
+```
+
+Supported attributes:
+
+| Attribute           | Type           | Required | Description                                                                     |
+| ------------------- | -------------- | -------- | ------------------------------------------------------------------------------- |
+| `id`                | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding). |
+| `merge_request_iid` | integer        | yes      | The internal ID of the merge request.                                           |
+
+Example request:
+
+```shell
+curl --request GET --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/597/merge_trains/merge_requests/1"
+```
+
+Example response:
+
+```json
+{
+  "id": 267,
+  "merge_request": {
+    "id": 273,
+    "iid": 1,
+    "project_id": 597,
+    "title": "My title 9",
+    "description": null,
+    "state": "opened",
+    "created_at": "2022-10-31T19:06:05.725Z",
+    "updated_at": "2022-10-31T19:06:05.725Z",
+    "web_url": "http://localhost/namespace18/project21/-/merge_requests/1"
+  },
+  "user": {
+    "id": 933,
+    "username": "user12",
+    "name": "Sidney Jones31",
+    "state": "active",
+    "avatar_url": "https://www.gravatar.com/avatar/6c8365de387cb3db10ecc7b1880203c4?s=80\u0026d=identicon",
+    "web_url": "http://localhost/user12"
+  },
+  "pipeline": {
+    "id": 273,
+    "iid": 1,
+    "project_id": 598,
+    "sha": "b83d6e391c22777fca1ed3012fce84f633d7fed0",
+    "ref": "main",
+    "status": "pending",
+    "source": "push",
+    "created_at": "2022-10-31T19:06:06.231Z",
+    "updated_at": "2022-10-31T19:06:06.231Z",
+    "web_url": "http://localhost/namespace19/project22/-/pipelines/273"
+  },
+  "created_at": "2022-10-31T19:06:06.237Z",
+  "updated_at":"2022-10-31T19:06:06.237Z",
+  "target_branch":"main",
+  "status":"idle",
+  "merged_at":null,
+  "duration":null
+}
 ```

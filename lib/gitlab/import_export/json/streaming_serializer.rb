@@ -6,11 +6,7 @@ module Gitlab
       class StreamingSerializer
         include Gitlab::ImportExport::CommandLineUtil
 
-        BATCH_SIZE = 2
-
-        def self.batch_size(exportable)
-          BATCH_SIZE
-        end
+        BATCH_SIZE = 100
 
         class Raw < String
           def to_json(*_args)
@@ -18,8 +14,9 @@ module Gitlab
           end
         end
 
-        def initialize(exportable, relations_schema, json_writer, exportable_path:, logger: Gitlab::Export::Logger)
+        def initialize(exportable, relations_schema, json_writer, current_user:, exportable_path:, logger: Gitlab::Export::Logger)
           @exportable = exportable
+          @current_user = current_user
           @exportable_path = exportable_path
           @relations_schema = relations_schema
           @json_writer = json_writer
@@ -63,7 +60,7 @@ module Gitlab
 
         private
 
-        attr_reader :json_writer, :relations_schema, :exportable, :logger
+        attr_reader :json_writer, :relations_schema, :exportable, :logger, :current_user
 
         def serialize_many_relations(key, records, options)
           log_relation_export(key, records.size)
@@ -77,7 +74,7 @@ module Gitlab
               batch.each do |record|
                 before_read_callback(record)
 
-                items << Raw.new(record.to_json(options))
+                items << exportable_json_record(record, options, key)
 
                 after_read_callback(record)
               end
@@ -87,8 +84,70 @@ module Gitlab
           json_writer.write_relation_array(@exportable_path, key, enumerator)
         end
 
+        def exportable_json_record(record, options, key)
+          return Raw.new(record.to_json(options)) unless options[:include].any?
+
+          conditional_associations = relations_schema[:include_if_exportable]&.dig(key)
+
+          filtered_options =
+            if conditional_associations.present?
+              filter_conditional_include(record, options, conditional_associations)
+            else
+              options
+            end
+
+          Raw.new(authorized_record_json(record, filtered_options))
+        end
+
+        def filter_conditional_include(record, options, conditional_associations)
+          filtered_options = options.deep_dup
+
+          conditional_associations.each do |association|
+            filtered_options[:include].delete_if do |option|
+              !exportable_json_association?(option, record, association.to_sym)
+            end
+          end
+
+          filtered_options
+        end
+
+        def exportable_json_association?(option, record, association)
+          return true unless option.has_key?(association)
+          return false unless record.respond_to?(:exportable_association?)
+
+          record.exportable_association?(association, current_user: current_user)
+        end
+
+        def authorized_record_json(record, options)
+          include_keys = options[:include].flat_map(&:keys)
+          keys_to_authorize = record.try(:restricted_associations, include_keys)
+          return record.to_json(options) if keys_to_authorize.blank?
+
+          record_hash = record.as_json(options).with_indifferent_access
+          filtered_record_hash(record, keys_to_authorize, record_hash).to_json(options)
+        end
+
+        def filtered_record_hash(record, keys_to_authorize, record_hash)
+          keys_to_authorize.each do |key|
+            next unless record_hash[key].present?
+
+            readable = record.try(:readable_records, key, current_user: current_user)
+            if record.has_many_association?(key)
+              readable_ids = readable.pluck(:id)
+
+              record_hash[key].keep_if do |association_record|
+                readable_ids.include?(association_record[:id])
+              end
+            else
+              record_hash[key] = nil unless readable.present?
+            end
+          end
+
+          record_hash
+        end
+
         def batch(relation, key)
-          opts = { of: batch_size }
+          opts = { of: BATCH_SIZE }
           order_by = reorders(relation, key)
 
           # we need to sort issues by non primary key column(relative_position)
@@ -115,7 +174,7 @@ module Gitlab
 
           enumerator = Enumerator.new do |items|
             records.each do |record|
-              items << Raw.new(record.to_json(options))
+              items << exportable_json_record(record, options, key)
             end
           end
 
@@ -125,7 +184,7 @@ module Gitlab
         def serialize_single_relation(key, record, options)
           log_relation_export(key)
 
-          json = Raw.new(record.to_json(options))
+          json = exportable_json_record(record, options, key)
 
           json_writer.write_relation(@exportable_path, key, json)
         end
@@ -136,10 +195,6 @@ module Gitlab
 
         def preloads
           relations_schema[:preload]
-        end
-
-        def batch_size
-          @batch_size ||= self.class.batch_size(@exportable)
         end
 
         def reorders(relation, key)
@@ -161,21 +216,22 @@ module Gitlab
           order_expression = arel_table[column].public_send(direction).public_send(nulls_position) # rubocop:disable GitlabSecurity/PublicSend
           reverse_order_expression = arel_table[column].public_send(reverse_direction).public_send(reverse_nulls_position) # rubocop:disable GitlabSecurity/PublicSend
 
-          ::Gitlab::Pagination::Keyset::Order.build([
-            ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-              attribute_name: column,
-              column_expression: arel_table[column],
-              order_expression: order_expression,
-              reversed_order_expression: reverse_order_expression,
-              order_direction: direction,
-              nullable: nulls_position,
-              distinct: false
-            ),
-            ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-              attribute_name: klass.primary_key,
-              order_expression: arel_order_classes[direction].new(arel_table[klass.primary_key.to_sym])
-            )
-          ])
+          ::Gitlab::Pagination::Keyset::Order.build(
+            [
+              ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+                attribute_name: column,
+                column_expression: arel_table[column],
+                order_expression: order_expression,
+                reversed_order_expression: reverse_order_expression,
+                order_direction: direction,
+                nullable: nulls_position,
+                distinct: false
+              ),
+              ::Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+                attribute_name: klass.primary_key,
+                order_expression: arel_order_classes[direction].new(arel_table[klass.primary_key.to_sym])
+              )
+            ])
         end
 
         def read_from_replica_if_available(&block)

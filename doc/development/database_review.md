@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Database Review Guidelines
@@ -43,15 +43,14 @@ If your merge request description does not include these items, the review is re
 
 #### Migrations
 
-If new migrations are introduced, in the MR **you are required to provide**:
-
-- The output of both migrating (`db:migrate`) and rolling back (`db:rollback`) for all migrations.
+If new migrations are introduced, database reviewers must review the output of both migrating (`db:migrate`)
+and rolling back (`db:rollback`) for all migrations.
 
 We have automated tooling for
 [GitLab](https://gitlab.com/gitlab-org/gitlab) (provided by the
-[`db:check-migrations`](database/dbcheck-migrations-job.md) pipeline job) that provides this output for migrations on
-~database merge requests. You do not need to provide this information manually
-if the bot can do it for you. The bot also checks that migrations are correctly
+[`db:check-migrations`](database/dbcheck-migrations-job.md) pipeline job) that provides this output in the CI job logs.
+It is not required for the author to provide this output in the merge request description,
+but doing so may be helpful for reviewers. The bot also checks that migrations are correctly
 reversible.
 
 #### Queries
@@ -69,7 +68,7 @@ Refer to [Preparation when adding or modifying queries](#preparation-when-adding
 A merge request **author**'s role is to:
 
 - Decide whether a database review is needed.
-- If database review is needed, add the ~database label.
+- If database review is needed, add the `~database` label.
 - [Prepare the merge request for a database review](#how-to-prepare-the-merge-request-for-a-database-review).
 - Provide the [required](#required) artifacts prior to submitting the MR.
 
@@ -100,7 +99,7 @@ The MR author should request a review from the suggested database
 the suggested database **maintainer**.
 
 If reviewer roulette didn't suggest a database reviewer & maintainer,
-make sure you have applied the ~database label and rerun the
+make sure you have applied the `~database` label and rerun the
 `danger-review` CI job, or pick someone from the
 [`@gl-database` team](https://gitlab.com/groups/gl-database/-/group_members).
 
@@ -116,21 +115,21 @@ the following preparations into account.
 - Ensure that the Database Dictionary is updated as [documented](database/database_dictionary.md).
 - Make migrations reversible by using the `change` method or include a `down` method when using `up`.
   - Include either a rollback procedure or describe how to rollback changes.
-- Add the output of both migrating (`db:migrate`) and rolling back (`db:rollback`) for all migrations into the MR description.
-  - Ensure the down method reverts the changes in `db/structure.sql`.
-  - Update the migration output whenever you modify the migrations during the review process.
+- Check that the [`db:check-migrations`](database/dbcheck-migrations-job.md) pipeline job has run successfully and the migration rollback behaves as expected.
+  - Ensure the `db:check-schema` job has run successfully and no unexpected schema changes are introduced in a rollback. This job may only trigger a warning if the schema was changed.
+  - Verify that the previously mentioned jobs continue to succeed whenever you modify the migrations during the review process.
 - Add tests for the migration in `spec/migrations` if necessary. See [Testing Rails migrations at GitLab](testing_guide/testing_migrations_guide.md) for more details.
 - When [high-traffic](https://gitlab.com/gitlab-org/gitlab/-/blob/master/rubocop/rubocop-migrations.yml#L3) tables are involved in the migration, use the [`enable_lock_retries`](migration_style_guide.md#retry-mechanism-when-acquiring-database-locks) method to enable lock-retries. Review the relevant [examples in our documentation](migration_style_guide.md#usage-with-transactional-migrations) for use cases and solutions.
 - Ensure RuboCop checks are not disabled unless there's a valid reason to.
 - When adding an index to a [large table](https://gitlab.com/gitlab-org/gitlab/-/blob/master/rubocop/rubocop-migrations.yml#L3),
-test its execution using `CREATE INDEX CONCURRENTLY` in the `#database-lab` Slack channel and add the execution time to the MR description:
-  - Execution time largely varies between `#database-lab` and GitLab.com, but an elevated execution time from `#database-lab`
+  test its execution using `CREATE INDEX CONCURRENTLY` in [Database Lab](database/database_lab.md) and add the execution time to the MR description:
+  - Execution time largely varies between Database Lab and GitLab.com, but an elevated execution time from Database Lab
     can give a hint that the execution on GitLab.com is also considerably high.
-  - If the execution from `#database-lab` is longer than `1h`, the index should be moved to a [post-migration](database/post_deployment_migrations.md).
+  - If the execution from Database Lab is longer than `1h`, the index should be moved to a [post-migration](database/post_deployment_migrations.md).
     Keep in mind that in this case you may need to split the migration and the application changes in separate releases to ensure the index
     is in place when the code that needs it is deployed.
 - Manually trigger the [database testing](database/database_migration_pipeline.md) job (`db:gitlabcom-database-testing`) in the `test` stage.
-  - This job runs migrations in a production-like environment (similar to `#database_lab`) and posts to the MR its findings (queries, runtime, size change).
+  - This job runs migrations in a [Database Lab](database/database_lab.md) clone and posts to the MR its findings (queries, runtime, size change).
   - Review migration runtimes and any warnings.
 
 #### Preparation when adding data migrations
@@ -151,7 +150,7 @@ Include in the MR description:
 
 - Write the raw SQL in the MR description. Preferably formatted
   nicely with [pgFormatter](https://sqlformat.darold.net) or
-  [paste.depesz.com](https://paste.depesz.com) and using regular quotes
+  <https://paste.depesz.com> and using regular quotes
 <!-- vale gitlab.NonStandardQuotes = NO -->
   (for example, `"projects"."id"`) and avoiding smart quotes (for example, `“projects”.“id”`).
 <!-- vale gitlab.NonStandardQuotes = YES -->
@@ -174,20 +173,20 @@ Include in the MR description:
 ##### Query Plans
 
 - The query plan for each raw SQL query included in the merge request along with the link to the query plan following each raw SQL snippet.
-- Provide a public link to the plan from either:
-  - [postgres.ai](https://postgres.ai/): Follow the link in `#database-lab` and generate a shareable, public link
-    by clicking **Share** in the upper right corner.
-  - [explain.depesz.com](https://explain.depesz.com) or [explain.dalibo.com](https://explain.dalibo.com): Paste both the plan and the query used in the form.
+- Provide a link to the plan from [postgres.ai](database/database_lab.md), provided by the chatbot.
+  - If it's not possible to get an accurate picture in Database Lab, you may need to seed a development environment, and instead provide links
+    from [explain.depesz.com](https://explain.depesz.com) or [explain.dalibo.com](https://explain.dalibo.com). Be sure to paste both the plan
+    and the query used in the form.
 - When providing query plans, make sure it hits enough data:
-  - You can use a GitLab production replica to test your queries on a large scale,
-  through the `#database-lab` Slack channel or through [ChatOps](database/understanding_explain_plans.md#chatops).
-  - Usually, the `gitlab-org` namespace (`namespace_id = 9970`) and the
-  `gitlab-org/gitlab-foss` (`project_id = 13083`) or the `gitlab-org/gitlab` (`project_id = 278964`)
-   projects provide enough data to serve as a good example.
+  - To produce a query plan with enough data, you can use the IDs of:
+    - The `gitlab-org` namespace (`namespace_id = 9970`), for queries involving a group.
+    - The `gitlab-org/gitlab-foss` (`project_id = 13083`) or the `gitlab-org/gitlab` (`project_id = 278964`) projects, for queries involving a project.
+    - The `gitlab-qa` user (`user_id = 1614863`), for queries involving a user.
+      - Optionally, you can also use your own `user_id`, or the `user_id` of a user with a long history within the project or group being used to generate the query plan.
   - That means that no query plan should return 0 records or less records than the provided limit (if a limit is included). If a query is used in batching, a proper example batch with adequate included results should be identified and provided.
   - If your queries belong to a new feature in GitLab.com and thus they don't return data in production:
     - You may analyze the query and to provide the plan from a local environment.
-    - `#database-lab` and [postgres.ai](https://postgres.ai/) both allow updates to data (`exec UPDATE issues SET ...`) and creation of new tables and columns (`exec ALTER TABLE issues ADD COLUMN ...`).
+    - [postgres.ai](https://postgres.ai/) allows updates to data (`exec UPDATE issues SET ...`) and creation of new tables and columns (`exec ALTER TABLE issues ADD COLUMN ...`).
   - More information on how to find the number of actual returned records in [Understanding EXPLAIN plans](database/understanding_explain_plans.md)
 - For query changes, it is best to provide both the SQL queries along with the
   plan _before_ and _after_ the change. This helps spot differences quickly.
@@ -230,7 +229,7 @@ Include in the MR description:
     - [Check indexes are present for foreign keys](migration_style_guide.md#adding-foreign-key-constraints)
   - Ensure that migrations execute in a transaction or only contain
     concurrent index/foreign key helpers (with transactions disabled)
-  - If an index to a large table is added and its execution time was elevated (more than 1h) on `#database-lab`:
+  - If an index to a large table is added and its execution time was elevated (more than 1h) on [Database Lab](database/database_lab.md):
     - Ensure it was added in a post-migration.
     - Maintainer: After the merge request is merged, notify Release Managers about it on `#f_upcoming_release` Slack channel.
   - Check consistency with `db/structure.sql` and that migrations are [reversible](migration_style_guide.md#reversibility)
@@ -238,9 +237,11 @@ Include in the MR description:
   - Check queries timing (If any): In a single transaction, cumulative query time executed in a migration
     needs to fit comfortably in `15s` - preferably much less than that - on GitLab.com.
   - For column removals, make sure the column has been [ignored in a previous release](database/avoiding_downtime_in_migrations.md#dropping-columns)
-- Check [background migrations](database/background_migrations.md):
+- Check [batched background migrations](database/batched_background_migrations.md):
   - Establish a time estimate for execution on GitLab.com. For historical purposes,
     it's highly recommended to include this estimation on the merge request description.
+    This can be the number of expected batches times the delay interval.
+  - Manually trigger the [database testing](database/database_migration_pipeline.md) job (`db:gitlabcom-database-testing`) in the `test` stage.
   - If a single `update` is below than `1s` the query can be placed
       directly in a regular migration (inside `db/migrate`).
   - Background migrations are normally used, but not limited to:
@@ -251,8 +252,6 @@ Include in the MR description:
     it's suggested to treat background migrations as
     [post migrations](migration_style_guide.md#choose-an-appropriate-migration-type):
     place them in `db/post_migrate` instead of `db/migrate`.
-  - If a migration [has tracking enabled](database/background_migrations.md#background-jobs-tracking),
-    ensure `mark_all_as_succeeded` is called even if no work is done.
 - Check [timing guidelines for migrations](migration_style_guide.md#how-long-a-migration-should-take)
 - Check migrations are reversible and implement a `#down` method
 - Check new table migrations:
@@ -268,10 +267,9 @@ Include in the MR description:
   - Check for any overly complex queries and queries the author specifically
     points out for review (if any)
   - If not present, ask the author to provide SQL queries and query plans
-    (for example, by using [ChatOps](database/understanding_explain_plans.md#chatops) or direct
-    database access)
+    using [Database Lab](database/database_lab.md)
   - For given queries, review parameters regarding data distribution
   - [Check query plans](database/understanding_explain_plans.md) and suggest improvements
     to queries (changing the query, schema or adding indexes and similar)
   - General guideline is for queries to come in below [100ms execution time](database/query_performance.md#timing-guidelines-for-queries)
-  - Avoid N+1 problems and minimize the [query count](merge_request_performance_guidelines.md#query-counts).
+  - Avoid N+1 problems and minimize the [query count](merge_request_concepts/performance.md#query-counts).

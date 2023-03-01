@@ -1,5 +1,6 @@
 - breadcrumb_title _("Network")
 - page_title _("Network")
+- add_page_specific_style 'page_bundles/settings'
 - @content_class = "limit-container-width" unless fluid_layout
 
 %section.settings.as-performance.no-animate#js-performance-settings{ class: ('expanded' if expanded_by_default?) }
@@ -144,6 +145,9 @@
       = link_to _('Learn more.'), help_page_path('user/admin_area/settings/rate_limit_on_users_api.md'), target: '_blank', rel: 'noopener noreferrer'
   .settings-content
     = render 'users_api_limits'
+
+- if Feature.enabled?(:rate_limit_for_unauthenticated_projects_api_access)
+  = render 'projects_api_limits'
 
 %section.settings.as-import-export-limits.no-animate#js-import-export-limits-settings{ class: ('expanded' if expanded_by_default?) }
   .settings-header

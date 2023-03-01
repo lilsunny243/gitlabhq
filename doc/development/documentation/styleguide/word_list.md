@@ -1,7 +1,7 @@
 ---
 stage: none
 group: Style Guide
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: 'Writing styles, markup, formatting, and other standards for GitLab Documentation.'
 ---
 
@@ -14,10 +14,11 @@ recommends these word choices. In addition:
   [top misused terms](https://about.gitlab.com/handbook/communication/top-misused-terms/).
 - The documentation [style guide](../styleguide#language) includes details
   about language and capitalization.
+- The GitLab handbook provides guidance on the [use of third-party trademarks](https://about.gitlab.com/handbook/legal/policies/product-third-party-trademarks-guidelines/#process-for-adding-third-party-trademarks-to-gitlab).
 
 For guidance not on this page, we defer to these style guides:
 
-- [Microsoft Style Guide](https://docs.microsoft.com/en-us/style-guide/welcome/)
+- [Microsoft Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/)
 - [Google Developer Documentation Style Guide](https://developers.google.com/style)
 
 <!-- vale off -->
@@ -35,7 +36,7 @@ Don't use backticks.
 
 ## 2FA, two-factor authentication
 
-Spell out **two-factor authentication** in sentence case for the first use and in section headings, and **2FA**
+Spell out **two-factor authentication** in sentence case for the first use and in topic titles, and **2FA**
 thereafter. If the first word in a sentence, do not capitalize `factor` or `authentication`. For example:
 
 - Two-factor authentication (2FA) helps secure your account. Set up 2FA when you first log in.
@@ -60,9 +61,26 @@ Instead of:
 ## access level
 
 Access levels are different than [roles](#roles) or [permissions](#permissions).
-When you create a user, you choose an access level: **Regular**, **Auditor**, or **Admin**.
+When you create a user, you choose an access level: **Regular**, **Auditor**, or **Administrator**.
 
 Capitalize these words when you refer to the UI. Otherwise use lowercase.
+
+## active voice
+
+Use active voice instead of passive.
+
+Use:
+
+- The contributor writes the documentation.
+
+Instead of:
+
+- The documentation is written by contributors.
+
+NOTE:
+If you can add the phrase "by zombies" to the phrase,
+the construction is passive. For example, `The button is selected by zombies`
+is passive. `Zombies select the button` is active.
 
 ## administrator
 
@@ -83,7 +101,7 @@ Instead of:
 
 ## Admin Area
 
-Use title case **Admin Area** to refer to the area of the UI that you access when you select **Menu > Admin**.
+Use title case **Admin Area** to refer to the area of the UI that you access when you select **Main menu > Admin**.
 This area of the UI says **Admin Area** at the top of the page and on the menu.
 
 ## agent
@@ -125,7 +143,7 @@ Instead of:
 - This feature enables users to add files to their repository.
 
 This phrasing is more active and is from the user perspective, rather than the person who implemented the feature.
-[View details in the Microsoft style guide](https://docs.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/a/allow-allows).
+[View details in the Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/a/allow-allows).
 
 ## Alpha
 
@@ -134,6 +152,15 @@ Use uppercase for **Alpha**. For example: **The XYZ feature is in Alpha.** or **
 You might also want to link to [this section](../../../policy/alpha-beta-support.md#alpha-features)
 in the handbook when writing about Alpha features.
 
+## analytics
+
+Use lowercase for **analytics** and its variations, like **contribution analytics** and **issue analytics**.
+However, if the UI has different capitalization, make the documentation match the UI.
+
+For example:
+
+- You can view merge request analytics for a project. They are displayed on the Merge Request Analytics dashboard.
+
 ## and/or
 
 Instead of **and/or**, use **or** or rewrite the sentence to spell out both options.
@@ -141,11 +168,23 @@ Instead of **and/or**, use **or** or rewrite the sentence to spell out both opti
 ## and so on
 
 Do not use **and so on**. Instead, be more specific. For details, see
-[the Microsoft style guide](https://docs.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/a/and-so-on).
+[the Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/a/and-so-on).
 
 ## area
 
 Use [**section**](#section) instead of **area**. The only exception is [the Admin Area](#admin-area).
+
+## as
+
+Do not use **as** to mean **because**.
+
+Use:
+
+- Because none of the endpoints return an ID...
+
+Instead of:
+
+- As none of the endpoints return an ID...
 
 ## associate
 
@@ -156,6 +195,10 @@ Instead, use **assign**. For example:
 
 - Assign the issue to an epic.
 - Assign a user to the issue.
+
+## authenticated user
+
+Use **authenticated user** instead of other variations, like **signed in user** or **logged in user**.
 
 ## below
 
@@ -206,7 +249,7 @@ Instead of:
 
 ## cannot, can not
 
-Use **cannot** instead of **can not**. You can also use **can't**.
+Use **cannot** instead of **can not**.
 
 See also [contractions](index.md#contractions).
 
@@ -273,12 +316,33 @@ Use title case for the GitLab Container Registry.
 Do not use **currently** when talking about the product or its features. The documentation describes the product as it is today.
 ([Vale](../testing.md#vale) rule: [`CurrentStatus.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/CurrentStatus.yml))
 
+## data
+
+Use **data** as a singular noun.
+
+Use:
+
+- Data is collected.
+- The data shows a performance increase.
+
+Instead of:
+
+- Data are collected.
+- The data show a performance increase.
+
 ## default branch
 
 Use **default branch** to refer generically to the primary branch in the repository.
 Users can set the default branch by using a UI setting.
 
 For examples that use the default branch, use `main` instead of [`master`](#master).
+
+## delete
+
+Use **delete** when an object is completely deleted. **Delete** is the opposite of **create**.
+
+When the object continues to exist, use [**remove**](#remove) instead.
+For example, you can remove an issue from an epic, but the issue still exists.
 
 ## Dependency Proxy
 
@@ -304,12 +368,18 @@ Do not use **Developer permissions**. A user who is assigned the Developer role 
 
 ## disable
 
-See [the Microsoft style guide](https://docs.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/d/disable-disabled) for guidance on **disable**.
+See [the Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/d/disable-disabled) for guidance on **disable**.
 Use **inactive** or **off** instead. ([Vale](../testing.md#vale) rule: [`InclusionAbleism.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/InclusionAbleism.yml))
 
 ## disallow
 
 Use **prevent** instead of **disallow**. ([Vale](../testing.md#vale) rule: [`Substitutions.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/Substitutions.yml))
+
+## Docker-in-Docker, `dind`
+
+Use **Docker-in-Docker** when you are describing running a Docker container by using the Docker executor.
+
+Use `dind` in backticks to describe the container name: `docker:dind`. Otherwise, spell it out.
 
 ## downgrade
 
@@ -351,9 +421,13 @@ Do not use Latin abbreviations. Use **for example**, **such as**, **for instance
 
 Do not use **e-mail** with a hyphen. When plural, use **emails** or **email messages**. ([Vale](../testing.md#vale) rule: [`SubstitutionSuggestions.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/SubstitutionSuggestions.yml))
 
+## emojis
+
+Use **emojis** to refer to the plural form of **emoji**.
+
 ## enable
 
-See [the Microsoft style guide](https://docs.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/e/enable-enables) for guidance on **enable**.
+See [the Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/e/enable-enables) for guidance on **enable**.
 Use **active** or **on** instead. ([Vale](../testing.md#vale) rule: [`InclusionAbleism.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/InclusionAbleism.yml))
 
 ## enter
@@ -422,7 +496,7 @@ Instead of:
 However, you can make an exception when you are writing a task and you need to refer to all
 of the fields at once. For example:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **General pipelines**.
 1. Complete the fields.
@@ -444,13 +518,17 @@ Do not use **foo** in product documentation. You can use it in our API and contr
 
 When possible, use present tense instead of future tense. For example, use **after you execute this command, GitLab displays the result** instead of **after you execute this command, GitLab will display the result**. ([Vale](../testing.md#vale) rule: [`FutureTense.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/FutureTense.yml))
 
+## GB, gigabytes
+
+For **GB** and **MB**, follow the [Microsoft guidance](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/term-collections/bits-bytes-terms).
+
 ## Geo
 
 Use title case for **Geo**.
 
 ## GitLab
 
-Do not make **GitLab** possessive (GitLab's). This guidance follows [GitLab Trademark Guidelines](https://about.gitlab.com/handbook/marketing/corporate-marketing/brand-activation/trademark-guidelines/).
+Do not make **GitLab** possessive (GitLab's). This guidance follows [GitLab Trademark Guidelines](https://about.gitlab.com/handbook/marketing/brand-and-product-marketing/brand/brand-activation/trademark-guidelines/).
 
 ## GitLab.com
 
@@ -497,12 +575,15 @@ For example, **Snowplow Guide**. Instead, speak about the feature itself, and ho
 When writing about the Guest role:
 
 - Use a capital **G**.
-- Do not use bold.
-- Do not use the phrase, **if you are a guest** to mean someone who is assigned the Guest
-  role. Instead, write it out. For example, **if you are assigned the Guest role**.
-- To describe a situation where the Guest role is the minimum required:
+- Write it out:
+  - Use: if you are assigned the Guest role
+  - Instead of: if you are a guest
+
+- When the Guest role is the minimum required role:
   - Use: at least the Guest role
   - Instead of: the Guest role or higher
+
+Do not use bold.
 
 Do not use **Guest permissions**. A user who is assigned the Guest role has a set of associated permissions.
 
@@ -551,6 +632,15 @@ Do not use Latin abbreviations. Use **that is** instead. ([Vale](../testing.md#v
 
 Do not use **in order to**. Use **to** instead. ([Vale](../testing.md#vale) rule: [`Wordy.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/Wordy.yml))
 
+## -ing words
+
+Remove **-ing** words whenever possible. They can be difficult to translate,
+and more precise terms are usually available. For example:
+
+- Instead of **The files using storage are deleted**, use **The files that use storage are deleted**.
+- Instead of **Delete files using the Edit button**, use **Delete files by using the Edit button**.
+- Instead of **Replicating your server is required**, use **You must replicate your server**.
+
 ## issue
 
 Use lowercase for **issue**.
@@ -562,6 +652,21 @@ Use lowercase for **issue board**.
 ## issue weights
 
 Use lowercase for **issue weights**.
+
+## it
+
+When you use the word **it**, ensure the word it refers to is obvious.
+If it's not obvious, repeat the word rather than using **it**.
+
+Use:
+
+- The field returns a connection. The field accepts four arguments.
+
+Instead of:
+
+- The field returns a connection. It accepts four arguments.
+
+See also [this, these, that, those](#this-these-that-those).
 
 ## job
 
@@ -619,9 +724,17 @@ Instead of:
   - Buy a license.
   - Purchase a license.
 
+## limitations
+
+Do not use **limitations**. Use **known issues** instead.
+
 ## log in, log on
 
 Do not use **log in** or **log on**. Use [sign in](#sign-in) instead. If the user interface has **Log in**, you can use it.
+
+## logged-in user, logged in user
+
+Use **authenticated user** instead of **logged-in user** or **logged in user**.
 
 ## lower
 
@@ -640,12 +753,15 @@ Instead of:
 When writing about the Maintainer role:
 
 - Use a capital **M**.
-- Do not use bold.
-- Do not use the phrase, **if you are a maintainer** to mean someone who is assigned the Maintainer
-  role. Instead, write it out. For example, **if you are assigned the Maintainer role**.
-- To describe a situation where the Maintainer role is the minimum required:
+- Write it out.
+  - Use: if you are assigned the Maintainer role
+  - Instead of: if you are a maintainer
+
+- When the Maintainer role is the minimum required role:
   - Use: at least the Maintainer role
   - Instead of: the Maintainer role or higher
+
+Do not use bold.
 
 Do not use **Maintainer permissions**. A user who is assigned the Maintainer role has a set of associated permissions.
 
@@ -666,9 +782,18 @@ Do not use `master`. Use `main` when you need a sample [default branch name](#de
 
 **Might** means something has the probability of occurring. **May** gives permission to do something. Consider **can** instead of **may**.
 
+## MB, megabytes
+
+For **MB** and **GB**, follow the [Microsoft guidance](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/term-collections/bits-bytes-terms).
+
 ## me, myself, mine
 
 Do not use first-person singular. Use **you**, **we**, or **us** instead. ([Vale](../testing.md#vale) rule: [`FirstPerson.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/FirstPerson.yml))
+
+## member
+
+When you add a [user account](#user-account) to a group or project,
+the user account becomes a **member**.
 
 ## merge requests
 
@@ -692,26 +817,41 @@ Do not use **navigate**. Use **go** instead. For example:
 
 ([Vale](../testing.md#vale) rule: [`SubstitutionSuggestions.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/SubstitutionSuggestions.yml))
 
-## need to, should
+## need to
 
-Try to avoid **needs to**, because it's wordy. Avoid **should** when you can be more specific. If something is required, use **must**.
+Try to avoid **need to**, because it's wordy.
+
+For example, when a variable is **required**,
+instead of **You need to set the variable**, use:
+
+- Set the variable.
+- You must set the variable.
+
+When the variable is **recommended**:
+
+- You should set the variable.
+
+When the variable is **optional**:
+
+- You can set the variable.
+
+## normal, normally
+
+Don't use **normal** to mean the usual, typical, or standard way of doing something.
+Use those terms instead.
 
 Use:
 
-- You must set the variable.
-- Set the variable.
+- Typically, you specify a certificate.
+- Usually, you specify a certificate.
+- Follow the standard Git workflow.
 
 Instead of:
 
-- You need to set the variable.
+- Normally, you specify a certificate.
+- Follow the normal Git workflow.
 
-**Should** is acceptable for recommended actions or items, or in cases where an event may not
-happen. For example:
-
-- Although you can configure the installation manually, you should use the express configuration to
-  avoid complications.
-- You should see a success message in the console. Contact support if an error message appears
-  instead.
+([Vale](../testing.md#vale) rule: [`Normal.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/Normal.yml))
 
 ## note that
 
@@ -780,11 +920,14 @@ For example, a log file might overwrite a log file of the same name.
 When writing about the Owner role:
 
 - Use a capital **O**.
-- Do not use bold.
-- Do not use the phrase, **if you are an owner** to mean someone who is assigned the Owner
-  role. Instead, write it out. For example, **if you are assigned the Owner role**.
+- Write it out.
+  - Use: if you are assigned the Owner role
+  - Instead of: if you are an owner
+
+Do not use bold.
 
 Do not use **Owner permissions**. A user who is assigned the Owner role has a set of associated permissions.
+An Owner is the highest role a user can have.
 
 ## Package Registry
 
@@ -802,7 +945,7 @@ Use lowercase for **personal access token**.
 
 ## please
 
-Do not use **please**. For details, see the [Microsoft style guide](https://docs.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/p/please).
+Do not use **please**. For details, see the [Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/p/please).
 
 ## press
 
@@ -826,21 +969,39 @@ For example, you might write something like:
 
 Use lowercase for **push rules**.
 
+## recommend, we recommend
+
+Instead of **we recommend**, use **you should**. We want to talk to the user the way
+we would talk to a colleague, and to avoid differentiation between `we` and `them`.
+
+- You should set the variable. (It's recommended.)
+- Set the variable. (It's required.)
+- You can set the variable. (It's optional.)
+
 ## register
 
 Use **register** instead of **sign up** when talking about creating an account.
+
+## remove
+
+Use **remove** when an object continues to exist. For example, you can remove an issue from an epic, but the issue still exists.
+
+When an object is completely deleted, use [**delete**](#delete) instead.
 
 ## Reporter
 
 When writing about the Reporter role:
 
 - Use a capital **R**.
-- Do not use bold.
-- Do not use the phrase, **if you are a reporter** to mean someone who is assigned the Reporter
-  role. Instead, write it out. For example, **if you are assigned the Reporter role**.
-- To describe a situation where the Reporter role is the minimum required:
+- Write it out.
+  - Use: if you are assigned the Reporter role
+  - Instead of: if you are a reporter
+
+- When the Reporter role is the minimum required role:
   - Use: at least the Reporter role
   - Instead of: the Reporter role or higher
+
+Do not use bold.
 
 Do not use **Reporter permissions**. A user who is assigned the Reporter role has a set of associated permissions.
 
@@ -860,6 +1021,10 @@ Instead of:
 
 - Select **Create user** or **Save changes** if you created a new user or
   edited an existing one respectively.
+
+## review app
+
+Use lowercase for **review app**.
 
 ## roles
 
@@ -911,6 +1076,14 @@ The search results are displayed on a search page.
 
 Searching is different from [filtering](#filter).
 
+## seats
+
+When referring to the subscription billing model:
+
+- For GitLab SaaS, use **seats**. Customers purchase seats. Users occupy seats when they are invited
+to a group, with some [exceptions](../../../subscriptions/gitlab_com/index.md#how-seat-usage-is-determined).
+- For GitLab self-managed, use **users**. Customers purchase subscriptions for a specified number of **users**.
+
 ## section
 
 Use **section** to describe an area on a page. For example, if a page has lines that separate the UI
@@ -949,13 +1122,21 @@ Use **setup** as a noun, and **set up** as a verb. For example:
 
 ## sign in
 
-Use **sign in** instead of **sign on** or **log on** or **log in**. If the user interface has different words, use those.
+Use **sign in** or **sign in to**.
+
+Do not use **sign on** or **sign into**, or **log on**, **log in**, or **log into**.
+
+If the user interface has different words, use those.
 
 You can use **single sign-on**.
 
 ## sign up
 
 Use **register** instead of **sign up** when talking about creating an account.
+
+## signed-in user, signed in user
+
+Use **authenticated user** instead of **signed-in user** or **signed in user**.
 
 ## simply, simple
 
@@ -984,6 +1165,21 @@ Do not use **slave**. Another option is **secondary**. ([Vale](../testing.md#val
 ## subgroup
 
 Use **subgroup** (no hyphen) instead of **sub-group**. ([Vale](../testing.md#vale) rule: [`SubstitutionSuggestions.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/SubstitutionSuggestions.yml))
+
+## subscription tier
+
+Do not confuse **subscription** or **subscription tier** with **[license](#license)**.
+A user purchases a **subscription**. That subscription has a **tier**.
+
+To describe tiers:
+
+| Instead of                      | Use                                    |
+|---------------------------------|----------------------------------------|
+| In the Free tier or greater     | In all tiers                           |
+| In the Free tier or higher      | In all tiers                           |
+| In the Premium tier or greater  | In the Premium and Ultimate tier       |
+| In the Premium tier or higher   | In the Premium and Ultimate tier       |
+| In the Premium tier or lower    | In the Free and Premium tier           |
 
 ## that
 
@@ -1044,6 +1240,11 @@ Always follow these words with a noun. For example:
 - Use: **Those settings** need to be configured. (Or even better, **Configure those settings.**)
 - Instead of: **Those** need to be configured.
 
+## to which, of which
+
+Try to avoid **to which** and **of which**, and let the preposition dangle at the end of the sentence instead.
+For examples, see [Prepositions](index.md#prepositions).
+
 ## to-do item
 
 Use lowercase and hyphenate **to-do** item. ([Vale](../testing.md#vale) rule: [`ToDo.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/ToDo.yml))
@@ -1076,6 +1277,14 @@ For example:
 
 See also [**enter**](#enter).
 
+## units of measurement
+
+Use a space between the number and the unit of measurement. For example, **128 GB**.
+([Vale](../testing.md#vale) rule: [`Units.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/Units.yml))
+
+For other guidance, follow
+[the Microsoft style guidelines](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/term-collections/bits-bytes-terms).
+
 ## update
 
 Use **update** for installing a newer **patch** version of the software only. For example:
@@ -1089,7 +1298,7 @@ Do not use **update** for any other case. Instead, use **upgrade**.
 Use **upgrade** for:
 
 - Choosing a higher subscription tier (Premium or Ultimate).
-- Installing a newer **major** (13.0, 14.0) or **minor** (13.8, 14.5) version of GitLab.
+- Installing a newer **major** (13.0) or **minor** (13.2) version of GitLab.
 
 For example:
 
@@ -1103,22 +1312,23 @@ you're talking about the product version or the subscription tier.
 
 See also [downgrade](#downgrade) and [roll back](#roll-back).
 
+## upper left, upper right
+
+Use **upper-left corner** and **upper-right corner** to provide direction in the UI.
+If the UI element is not in a corner, use **upper left** and **upper right**.
+
+Do not use **top left** and **top right**.
+
+For details, see the [Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/u/upper-left-upper-right).
+
 ## useful
 
 Do not use **useful**. If the user doesn't find the process to be useful, we lose their trust. ([Vale](../testing.md#vale) rule: [`Simplicity.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/Simplicity.yml))
 
-## user, users
+## user account
 
-When possible, address the reader directly, instead of calling them **users**.
-Use the [second person](#you-your-yours), **you**, instead.
-
-Use:
-
-- You can configure a pipeline.
-
-Instead of:
-
-- Users can configure a pipeline.
+You create a **user account**. The user account has an [access level](#access-level).
+When you add a **user account** to a group or project, the user account becomes a **member**.
 
 ## utilize
 
@@ -1141,7 +1351,26 @@ Instead of:
 
 - We created a feature for you to add widgets.
 
-One exception: You can use **we recommend** instead of **it is recommended** or **GitLab recommends**. ([Vale](../testing.md#vale) rule: [`SubstitutionSuggestions.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/SubstitutionSuggestions.yml))
+([Vale](../testing.md#vale) rule: [`SubstitutionSuggestions.yml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/.vale/gitlab/SubstitutionSuggestions.yml))
+
+## while
+
+Use **while** to refer only to something occurring in time. For example,
+**Leave the window open while the process runs.**
+
+Do not use **while** for comparison. For example, use:
+
+- Job 1 can run quickly. However, job 2 is more precise.
+
+Instead of:
+
+- While job 1 can run quickly, job 2 is more precise.
+
+For details, see the [Microsoft style guide](https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/w/while).
+
+## whilst
+
+Do not use **whilst**. Use [while](#while) instead. **While** is more succinct and easier for non-native English speakers to understand.
 
 ## whitelist
 
@@ -1160,16 +1389,33 @@ in present tense, active voice.
 
 ## you, your, yours
 
-Use **you**, **your**, and **yours** instead of [**the user** and **the user's**](#user-users).
-Documentation should be from the [point of view](https://design.gitlab.com/content/voice-tone/#point-of-view) of the reader.
+Use **you** instead of **the user**, **the administrator** or **the customer**.
+Documentation should speak directly to the user, whether that user is someone installing the product,
+configuring it, administering it, or using it.
 
 Use:
 
 - You can configure a pipeline.
+- You can reset a user's password. (In content for an administrator)
 
 Instead of:
 
 - Users can configure a pipeline.
+- Administrators can reset a user's password.
+
+## you can
+
+When possible, start sentences with an active verb instead of **you can**.
+For example:
+
+- Use code review analytics to view merge request data.
+- Create a board to organize your team tasks.
+- Configure variables to restrict pushes to a repository.
+
+Use **you can** for optional actions. For example:
+
+- Use code review analytics to view metrics per merge request. You can also use the API.
+- Enter the name and value pairs. You can add up to 20 pairs per streaming destination.
 
 <!-- vale on -->
 <!-- markdownlint-enable -->

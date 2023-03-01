@@ -4,11 +4,17 @@ require 'spec_helper'
 
 # We stub Gitaly in `spec/support/gitaly.rb` for other tests. We don't want
 # those stubs while testing the GitalyClient itself.
-RSpec.describe Gitlab::GitalyClient do
+RSpec.describe Gitlab::GitalyClient, feature_category: :gitaly do
   def stub_repos_storages(address)
     allow(Gitlab.config.repositories).to receive(:storages).and_return({
       'default' => { 'gitaly_address' => address }
     })
+  end
+
+  around do |example|
+    described_class.clear_stubs!
+    example.run
+    described_class.clear_stubs!
   end
 
   describe '.query_time', :request_store do
@@ -149,52 +155,208 @@ RSpec.describe Gitlab::GitalyClient do
       expect(described_class.stub_creds('default')).to eq(:this_channel_is_insecure)
     end
 
+    it 'returns :this_channel_is_insecure if dns' do
+      address = 'dns:///localhost:9876'
+      stub_repos_storages address
+
+      expect(described_class.stub_creds('default')).to eq(:this_channel_is_insecure)
+    end
+
+    it 'returns :this_channel_is_insecure if dns (short-form)' do
+      address = 'dns:localhost:9876'
+      stub_repos_storages address
+
+      expect(described_class.stub_creds('default')).to eq(:this_channel_is_insecure)
+    end
+
+    it 'returns :this_channel_is_insecure if dns (with authority)' do
+      address = 'dns://1.1.1.1/localhost:9876'
+      stub_repos_storages address
+
+      expect(described_class.stub_creds('default')).to eq(:this_channel_is_insecure)
+    end
+
     it 'returns Credentials object if tls' do
       address = 'tls://localhost:9876'
       stub_repos_storages address
 
       expect(described_class.stub_creds('default')).to be_a(GRPC::Core::ChannelCredentials)
     end
+
+    it 'raise an exception if the scheme is not supported' do
+      address = 'custom://localhost:9876'
+      stub_repos_storages address
+
+      expect do
+        described_class.stub_creds('default')
+      end.to raise_error(/unsupported Gitaly address/i)
+    end
+  end
+
+  describe '.create_channel' do
+    where(:storage, :address, :expected_target) do
+      [
+        ['default', 'unix:tmp/gitaly.sock', 'unix:tmp/gitaly.sock'],
+        ['default', 'tcp://localhost:9876', 'localhost:9876'],
+        ['default', 'tls://localhost:9876', 'localhost:9876'],
+        ['default', 'dns:///localhost:9876', 'dns:///localhost:9876'],
+        ['default', 'dns:localhost:9876', 'dns:localhost:9876'],
+        ['default', 'dns://1.1.1.1/localhost:9876', 'dns://1.1.1.1/localhost:9876']
+      ]
+    end
+
+    with_them do
+      before do
+        allow(Gitlab.config.repositories).to receive(:storages).and_return(
+          'default' => { 'gitaly_address' => address },
+          'other' => { 'gitaly_address' => address }
+        )
+      end
+
+      it 'creates channel based on storage' do
+        channel = described_class.create_channel(storage)
+
+        expect(channel).to be_a(GRPC::Core::Channel)
+        expect(channel.target).to eql(expected_target)
+      end
+
+      it 'caches channel based on storage' do
+        channel_1 = described_class.create_channel(storage)
+        channel_2 = described_class.create_channel(storage)
+
+        expect(channel_1).to equal(channel_2)
+      end
+
+      it 'returns different channels for different storages' do
+        channel_1 = described_class.create_channel(storage)
+        channel_2 = described_class.create_channel('other')
+
+        expect(channel_1).not_to equal(channel_2)
+      end
+    end
   end
 
   describe '.stub' do
-    # Notice that this is referring to gRPC "stubs", not rspec stubs
-    before do
-      described_class.clear_stubs!
+    matcher :be_a_grpc_channel do |expected_address|
+      match { |actual| actual.is_a?(::GRPC::Core::Channel) && actual.target == expected_address }
+    end
+
+    matcher :have_same_channel do |expected|
+      match do |actual|
+        # gRPC client stub does not expose the underlying channel. We need a way
+        # to verify two stubs have the same channel. So, no way around.
+        expected_channel = expected.instance_variable_get(:@ch)
+        actual_channel = actual.instance_variable_get(:@ch)
+        expected_channel.is_a?(GRPC::Core::Channel) &&
+          actual_channel.is_a?(GRPC::Core::Channel) &&
+          expected_channel == actual_channel
+      end
     end
 
     context 'when passed a UNIX socket address' do
-      it 'passes the address as-is to GRPC' do
-        address = 'unix:/tmp/gitaly.sock'
+      let(:address) { 'unix:/tmp/gitaly.sock' }
+
+      before do
         stub_repos_storages address
+      end
 
-        expect(Gitaly::CommitService::Stub).to receive(:new).with(address, any_args)
-
+      it 'passes the address as-is to GRPC' do
+        expect(Gitaly::CommitService::Stub).to receive(:new).with(
+          address, nil, channel_override: be_a_grpc_channel(address), interceptors: []
+        )
         described_class.stub(:commit_service, 'default')
+      end
+
+      it 'shares the same channel object with other stub' do
+        stub_commit = described_class.stub(:commit_service, 'default')
+        stub_blob = described_class.stub(:blob_service, 'default')
+
+        expect(stub_commit).to have_same_channel(stub_blob)
       end
     end
 
     context 'when passed a TLS address' do
-      it 'strips tls:// prefix before passing it to GRPC::Core::Channel initializer' do
-        address = 'localhost:9876'
+      let(:address) { 'localhost:9876' }
+
+      before do
         prefixed_address = "tls://#{address}"
         stub_repos_storages prefixed_address
+      end
 
-        expect(Gitaly::CommitService::Stub).to receive(:new).with(address, any_args)
+      it 'strips tls:// prefix before passing it to GRPC::Core::Channel initializer' do
+        expect(Gitaly::CommitService::Stub).to receive(:new).with(
+          address, nil, channel_override: be_a(GRPC::Core::Channel), interceptors: []
+        )
 
         described_class.stub(:commit_service, 'default')
+      end
+
+      it 'shares the same channel object with other stub' do
+        stub_commit = described_class.stub(:commit_service, 'default')
+        stub_blob = described_class.stub(:blob_service, 'default')
+
+        expect(stub_commit).to have_same_channel(stub_blob)
       end
     end
 
     context 'when passed a TCP address' do
-      it 'strips tcp:// prefix before passing it to GRPC::Core::Channel initializer' do
-        address = 'localhost:9876'
+      let(:address) { 'localhost:9876' }
+
+      before do
         prefixed_address = "tcp://#{address}"
         stub_repos_storages prefixed_address
+      end
 
-        expect(Gitaly::CommitService::Stub).to receive(:new).with(address, any_args)
+      it 'strips tcp:// prefix before passing it to GRPC::Core::Channel initializer' do
+        expect(Gitaly::CommitService::Stub).to receive(:new).with(
+          address, nil, channel_override: be_a(GRPC::Core::Channel), interceptors: []
+        )
 
         described_class.stub(:commit_service, 'default')
+      end
+
+      it 'shares the same channel object with other stub' do
+        stub_commit = described_class.stub(:commit_service, 'default')
+        stub_blob = described_class.stub(:blob_service, 'default')
+
+        expect(stub_commit).to have_same_channel(stub_blob)
+      end
+    end
+
+    context 'when passed a DNS address' do
+      let(:address) { 'dns:///localhost:9876' }
+
+      before do
+        stub_repos_storages address
+      end
+
+      it 'strips dns:/// prefix before passing it to GRPC::Core::Channel initializer' do
+        expect(Gitaly::CommitService::Stub).to receive(:new).with(
+          address, nil, channel_override: be_a(GRPC::Core::Channel), interceptors: []
+        )
+
+        described_class.stub(:commit_service, 'default')
+      end
+
+      it 'shares the same channel object with other stub' do
+        stub_commit = described_class.stub(:commit_service, 'default')
+        stub_blob = described_class.stub(:blob_service, 'default')
+
+        expect(stub_commit).to have_same_channel(stub_blob)
+      end
+    end
+
+    context 'when passed an unsupported scheme' do
+      let(:address) { 'custom://localhost:9876' }
+
+      before do
+        stub_repos_storages address
+      end
+
+      it 'strips dns:/// prefix before passing it to GRPC::Core::Channel initializer' do
+        expect do
+          described_class.stub(:commit_service, 'default')
+        end.to raise_error(/Unsupported Gitaly address/i)
       end
     end
   end
@@ -255,6 +417,102 @@ RSpec.describe Gitlab::GitalyClient do
 
         3.times do
           expect(described_class.request_kwargs('default', timeout: 1)[:metadata]['gitaly-session-id']).to eq(gitaly_session_id)
+        end
+      end
+    end
+
+    shared_examples 'gitaly feature flags in metadata' do
+      before do
+        allow(Feature::Gitaly).to receive(:server_feature_flags).and_return(
+          'gitaly-feature-a' => 'true',
+          'gitaly-feature-b' => 'false'
+        )
+      end
+
+      it 'evaluates Gitaly server feature flags' do
+        metadata = described_class.request_kwargs('default', timeout: 1)[:metadata]
+
+        expect(Feature::Gitaly).to have_received(:server_feature_flags).with(no_args)
+        expect(metadata['gitaly-feature-a']).to be('true')
+        expect(metadata['gitaly-feature-b']).to be('false')
+      end
+
+      context 'when there are actors' do
+        let(:repository_actor) { double(:actor) }
+        let(:project_actor) { double(:actor) }
+        let(:user_actor) { double(:actor) }
+        let(:group_actor) { double(:actor) }
+
+        it 'evaluates Gitaly server feature flags with actors' do
+          metadata = described_class.with_feature_flag_actors(
+            repository: repository_actor,
+            project: project_actor,
+            user: user_actor,
+            group: group_actor
+          ) do
+            described_class.request_kwargs('default', timeout: 1)[:metadata]
+          end
+
+          expect(Feature::Gitaly).to have_received(:server_feature_flags).with(
+            repository: repository_actor,
+            project: project_actor,
+            user: user_actor,
+            group: group_actor
+          )
+          expect(metadata['gitaly-feature-a']).to be('true')
+          expect(metadata['gitaly-feature-b']).to be('false')
+        end
+      end
+    end
+
+    context 'server_feature_flags when RequestStore is activated', :request_store do
+      it_behaves_like 'gitaly feature flags in metadata'
+    end
+
+    context 'server_feature_flags when RequestStore is not activated' do
+      it_behaves_like 'gitaly feature flags in metadata'
+    end
+
+    context 'logging information in metadata' do
+      let(:user) { create(:user) }
+
+      context 'user is added to application context' do
+        it 'injects username and user_id into gRPC metadata' do
+          metadata = {}
+          ::Gitlab::ApplicationContext.with_context(user: user) do
+            metadata = described_class.request_kwargs('default', timeout: 1)[:metadata]
+          end
+
+          expect(metadata['username']).to eql(user.username)
+          expect(metadata['user_id']).to eql(user.id.to_s)
+        end
+      end
+
+      context 'user is not added to application context' do
+        it 'does not inject username and user_id into gRPC metadata' do
+          metadata = described_class.request_kwargs('default', timeout: 1)[:metadata]
+
+          expect(metadata).not_to have_key('username')
+          expect(metadata).not_to have_key('user_id')
+        end
+      end
+
+      context 'remote_ip is added to application context' do
+        it 'injects remote_ip into gRPC metadata' do
+          metadata = {}
+          ::Gitlab::ApplicationContext.with_context(remote_ip: '1.2.3.4') do
+            metadata = described_class.request_kwargs('default', timeout: 1)[:metadata]
+          end
+
+          expect(metadata['remote_ip']).to eql('1.2.3.4')
+        end
+      end
+
+      context 'remote_ip is not added to application context' do
+        it 'does not inject remote_ip into gRPC metadata' do
+          metadata = described_class.request_kwargs('default', timeout: 1)[:metadata]
+
+          expect(metadata).not_to have_key('remote_ip')
         end
       end
     end
@@ -583,6 +841,44 @@ RSpec.describe Gitlab::GitalyClient do
           expect(described_class.decode_detailed_error(error)).to eq(result)
         end
       end
+    end
+  end
+
+  describe '.with_feature_flag_actor', :request_store do
+    shared_examples 'with_feature_flag_actor' do
+      let(:repository_actor) { double(:actor) }
+      let(:project_actor) { double(:actor) }
+      let(:user_actor) { double(:actor) }
+      let(:group_actor) { double(:actor) }
+
+      it 'allows access to feature flag actors inside the block' do
+        expect(described_class.feature_flag_actors).to eql({})
+
+        described_class.with_feature_flag_actors(
+          repository: repository_actor,
+          project: project_actor,
+          user: user_actor,
+          group: group_actor
+        ) do
+          expect(
+            described_class.feature_flag_actors
+          ).to eql(
+            repository: repository_actor,
+            project: project_actor,
+            user: user_actor,
+            group: group_actor)
+        end
+
+        expect(described_class.feature_flag_actors).to eql({})
+      end
+    end
+
+    context 'when RequestStore is activated', :request_store do
+      it_behaves_like 'with_feature_flag_actor'
+    end
+
+    context 'when RequestStore is not activated' do
+      it_behaves_like 'with_feature_flag_actor'
     end
   end
 end

@@ -1,7 +1,7 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Snowplow review guidelines
@@ -35,7 +35,7 @@ events or touches Snowplow related files.
 
 #### The Product Intelligence **reviewer** should
 
-- Check that the [event taxonomy](index.md#structured-event-taxonomy) is correct.
+- Check that the [event schema](index.md#event-schema) is correct.
 - Check the [usage recommendations](implementation.md#usage-recommendations).
 - Check that the [Event Dictionary](event_dictionary_guide.md) is up-to-date.
 - If needed, check that the events are firing locally using one of the

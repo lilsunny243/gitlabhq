@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Reference architecture: up to 1,000 users **(FREE SELF)**
@@ -10,9 +10,9 @@ This page describes GitLab reference architecture for up to 1,000 users. For a
 full list of reference architectures, see
 [Available reference architectures](index.md#available-reference-architectures).
 
-If you are serving up to 1,000 users and you don't have strict availability
-requirements, a single-node solution with
-[frequent backups](index.md#automated-backups) is appropriate for
+If you are serving up to 1,000 users, and you don't have strict availability
+requirements, a [standalone](index.md#standalone-non-ha) single-node solution with
+frequent backups is appropriate for
 many organizations.
 
 > - **Supported users (approximate):** 1,000
@@ -24,6 +24,7 @@ many organizations.
 > - **Validation and test results:** The Quality Engineering team does [regular smoke and performance tests](index.md#validation-and-test-results) to ensure the reference architectures remain compliant
 >   - **Test requests per second (RPS) rates:** API: 20 RPS, Web: 2 RPS, Git (Pull): 2 RPS, Git (Push): 1 RPS
 >   - **[Latest Results](https://gitlab.com/gitlab-org/quality/performance/-/wikis/Benchmarks/Latest/1k)**
+> - **Unsure which Reference Architecture to use?** [Go to this guide for more info](index.md#deciding-which-architecture-to-use).
 
 | Users        | Configuration           | GCP            | AWS          | Azure    |
 |--------------|-------------------------|----------------|--------------|----------|
@@ -66,38 +67,7 @@ The diagram above shows that while GitLab can be installed on a single server, i
 
 ## Requirements
 
-Before starting, you should take note of the following requirements / guidance for this reference architecture.
-
-### Supported CPUs
-
-This reference architecture was built and tested on Google Cloud Platform (GCP) using the
-[Intel Xeon E5 v3 (Haswell)](https://cloud.google.com/compute/docs/cpu-platforms)
-CPU platform as a baseline ([Sysbench benchmark](https://gitlab.com/gitlab-org/quality/performance/-/wikis/Reference-Architectures/GCP-CPU-Benchmarks)).
-
-Newer, similarly sized CPUs are supported and may have improved performance as a result. For Omnibus environments, ARM-based equivalents are also supported.
-
-NOTE:
-Any "burstable" instance types are not recommended due to inconsistent performance.
-
-### Supported infrastructure
-
-As a general guidance, GitLab should run on most infrastructure such as reputable Cloud Providers (AWS, GCP, Azure) and their services, or self managed (ESXi) that meet both the specs detailed above, as well as any requirements in this section. However, this does not constitute a guarantee for every potential permutation.
-
-Be aware of the following specific call outs:
-
-- [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is incompatible. See [14.4.0](../../update/index.md#1440) for more details.
-- [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/#:~:text=Azure%20Database%20for%20PostgreSQL%20is,high%20availability%2C%20and%20dynamic%20scalability.) is [not recommended](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61) due to known performance issues or missing features.
-- [Azure Blob Storage](https://docs.microsoft.com/en-us/azure/storage/blobs/) is recommended to be configured with [Premium accounts](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-block-blob-premium) to ensure consistent performance.
-
-### Swap
-
-In addition to the stated configurations, we recommend having at least 2 GB of
-swap on your server, even if you currently have enough available memory. Having
-swap helps to reduce the chance of errors occurring if your available memory
-changes. We also recommend configuring the kernel's swappiness setting to a
-lower value (such as `10`) to make the most of your memory, while still having
-the swap available when needed. View the
-[Memory requirements](../../install/requirements.md#memory) for details.
+Before starting, see the [requirements](index.md#requirements) for reference architectures.
 
 ## Setup instructions
 

@@ -5,7 +5,7 @@
   // for Snippets is introduced and Clone button is relocated, we won't
   // need this style.
   // Issue for the refactoring: https://gitlab.com/gitlab-org/gitlab/-/issues/213327
-  &.gl-new-dropdown button.dropdown-toggle {
+  &.gl-dropdown button.dropdown-toggle {
     @include gl-display-inline-flex;
   }
 
@@ -41,21 +41,25 @@
       max-height: $extended-max-height;
 
       // See comment below for explanation
-      .gl-new-dropdown-inner {
+      .gl-dropdown-inner {
         max-height: $extended-max-height - 2px;
       }
+    }
+
+    &.dropdown-reduced-height {
+      max-height: $dropdown-max-height;
     }
 
     @include media-breakpoint-down(xs) {
       width: 100%;
     }
 
-    // `GlDropdown` specifies the `max-height` of `.gl-new-dropdown-inner`
+    // `GlDropdown` specifies the `max-height` of `.gl-dropdown-inner`
     // as `$dropdown-max-height`, but the `max-height` rule above forces
     // the parent `.dropdown-menu` to be _slightly_ too small because of
     // the 1px borders. The workaround below overrides the @gitlab/ui style
     // to avoid a double scroll bar.
-    .gl-new-dropdown-inner {
+    .gl-dropdown-inner {
       max-height: $dropdown-max-height - 2px;
     }
   }
@@ -281,7 +285,7 @@
     list-style: none;
 
     > a,
-    button,
+    > button,
     .gl-button.btn-link,
     .menu-item {
       @include dropdown-link;
@@ -469,6 +473,7 @@
   .sidebar-participant {
     .merge-icon {
       top: calc(50% + 5px);
+      left: 3rem;
     }
   }
 }
@@ -627,21 +632,16 @@
   display: block;
   width: 100%;
   min-height: 30px;
-  padding: 0 7px;
+  @include gl-py-0;
+  @include gl-px-3;
   color: $gray-700;
   line-height: 30px;
-  border: 1px solid $dropdown-divider-bg;
-  border-radius: 2px;
+  border: 1px solid $gray-400;
+  @include gl-rounded-base;
   outline: 0;
 
   &:focus {
-    color: $gray-700;
-    border-color: $blue-300;
-    box-shadow: 0 0 4px $dropdown-input-focus-shadow;
-
-    ~ .dropdown-input-clear {
-      color: $gray-700;
-    }
+    @include gl-focus;
   }
 
   &:hover {
@@ -846,10 +846,6 @@
         @include gl-focus($inset: true);
       }
     }
-
-    .frequent-items-list-item-container a {
-      display: flex;
-    }
   }
 
   .section-header {
@@ -868,9 +864,10 @@
 
   .frequent-items-item-title,
   .frequent-items-item-namespace {
-    max-width: 250px;
+    max-width: 220px;
     text-overflow: ellipsis;
     white-space: nowrap;
+    overflow: hidden;
   }
 
   .frequent-items-item-title {
@@ -889,6 +886,11 @@
   @include media-breakpoint-down(xs) {
     .frequent-items-item-metadata-container {
       float: none;
+    }
+
+    .frequent-items-item-title,
+    .frequent-items-item-namespace {
+      max-width: 250px;
     }
   }
 }
@@ -1022,7 +1024,7 @@
 
 // This class won't be needed once we can add a prop for this in the GitLab UI component
 // https://gitlab.com/gitlab-org/gitlab-ui/-/issues/966
-.gl-new-dropdown {
+.gl-dropdown {
   .gl-dropdown-menu-wide {
     width: $gl-dropdown-width-wide;
   }
@@ -1030,7 +1032,7 @@
 
 // This class won't be needed once we can add a prop for this in the GitLab UI component
 // https://gitlab.com/gitlab-org/gitlab-ui/-/issues/966
-.gl-new-dropdown.gl-dropdown-menu-full-width {
+.gl-dropdown.gl-dropdown-menu-full-width {
   .dropdown-menu {
     width: 100%;
   }

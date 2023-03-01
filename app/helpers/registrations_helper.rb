@@ -10,6 +10,14 @@ module RegistrationsHelper
       qa_selector: 'new_user_username_field'
     }
   end
+
+  def arkose_labs_challenge_enabled?
+    false
+  end
+
+  def signup_box_template
+    'devise/shared/signup_box'
+  end
 end
 
 RegistrationsHelper.prepend_mod_with('RegistrationsHelper')

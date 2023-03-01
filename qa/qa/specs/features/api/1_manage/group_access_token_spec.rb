@@ -2,7 +2,7 @@
 
 module QA
   RSpec.describe 'Manage' do
-    describe 'Group access token' do
+    describe 'Group access token', product_group: :authentication_and_authorization do
       let(:group_access_token) { QA::Resource::GroupAccessToken.fabricate_via_api! }
       let(:api_client) { Runtime::API::Client.new(:gitlab, personal_access_token: group_access_token.token) }
       let(:project) do
@@ -40,9 +40,7 @@ module QA
             commit.branch = "new_branch_#{SecureRandom.hex(8)}"
             commit.start_branch = project.default_branch
             commit.commit_message = 'Add new file'
-            commit.add_files([
-              { file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }
-            ])
+            commit.add_files([{ file_path: "text-#{SecureRandom.hex(8)}.txt", content: 'new file' }])
           end
         end.not_to raise_error
       end

@@ -4,13 +4,14 @@ import Api from '~/api';
 import * as actions from '~/deploy_freeze/store/actions';
 import * as types from '~/deploy_freeze/store/mutation_types';
 import getInitialState from '~/deploy_freeze/store/state';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import * as logger from '~/lib/logger';
 import axios from '~/lib/utils/axios_utils';
-import { freezePeriodsFixture, timezoneDataFixture } from '../helpers';
+import { freezePeriodsFixture } from '../helpers';
+import { timezoneDataFixture } from '../../vue_shared/components/timezone_dropdown/helpers';
 
 jest.mock('~/api.js');
-jest.mock('~/flash.js');
+jest.mock('~/flash');
 
 describe('deploy freeze store actions', () => {
   const freezePeriodFixture = freezePeriodsFixture[0];
@@ -98,8 +99,8 @@ describe('deploy freeze store actions', () => {
   });
 
   describe('addFreezePeriod', () => {
-    it('dispatch correct actions on adding a freeze period', () => {
-      testAction(
+    it('dispatch correct actions on adding a freeze period', async () => {
+      await testAction(
         actions.addFreezePeriod,
         {},
         state,
@@ -109,32 +110,33 @@ describe('deploy freeze store actions', () => {
           { type: 'receiveFreezePeriodSuccess' },
           { type: 'fetchFreezePeriods' },
         ],
-        () =>
-          expect(Api.createFreezePeriod).toHaveBeenCalledWith(state.projectId, {
-            freeze_start: state.freezeStartCron,
-            freeze_end: state.freezeEndCron,
-            cron_timezone: state.selectedTimezoneIdentifier,
-          }),
       );
+
+      expect(Api.createFreezePeriod).toHaveBeenCalledWith(state.projectId, {
+        freeze_start: state.freezeStartCron,
+        freeze_end: state.freezeEndCron,
+        cron_timezone: state.selectedTimezoneIdentifier,
+      });
     });
 
-    it('should show flash error and set error in state on add failure', () => {
+    it('should show alert and set error in state on add failure', async () => {
       Api.createFreezePeriod.mockRejectedValue();
 
-      testAction(
+      await testAction(
         actions.addFreezePeriod,
         {},
         state,
         [],
         [{ type: 'requestFreezePeriod' }, { type: 'receiveFreezePeriodError' }],
-        () => expect(createFlash).toHaveBeenCalled(),
       );
+
+      expect(createAlert).toHaveBeenCalled();
     });
   });
 
   describe('updateFreezePeriod', () => {
-    it('dispatch correct actions on updating a freeze period', () => {
-      testAction(
+    it('dispatch correct actions on updating a freeze period', async () => {
+      await testAction(
         actions.updateFreezePeriod,
         {},
         state,
@@ -144,33 +146,34 @@ describe('deploy freeze store actions', () => {
           { type: 'receiveFreezePeriodSuccess' },
           { type: 'fetchFreezePeriods' },
         ],
-        () =>
-          expect(Api.updateFreezePeriod).toHaveBeenCalledWith(state.projectId, {
-            id: state.selectedId,
-            freeze_start: state.freezeStartCron,
-            freeze_end: state.freezeEndCron,
-            cron_timezone: state.selectedTimezoneIdentifier,
-          }),
       );
+
+      expect(Api.updateFreezePeriod).toHaveBeenCalledWith(state.projectId, {
+        id: state.selectedId,
+        freeze_start: state.freezeStartCron,
+        freeze_end: state.freezeEndCron,
+        cron_timezone: state.selectedTimezoneIdentifier,
+      });
     });
 
-    it('should show flash error and set error in state on add failure', () => {
+    it('should show alert and set error in state on add failure', async () => {
       Api.updateFreezePeriod.mockRejectedValue();
 
-      testAction(
+      await testAction(
         actions.updateFreezePeriod,
         {},
         state,
         [],
         [{ type: 'requestFreezePeriod' }, { type: 'receiveFreezePeriodError' }],
-        () => expect(createFlash).toHaveBeenCalled(),
       );
+
+      expect(createAlert).toHaveBeenCalled();
     });
   });
 
   describe('fetchFreezePeriods', () => {
     it('dispatch correct actions on fetchFreezePeriods', () => {
-      testAction(
+      return testAction(
         actions.fetchFreezePeriods,
         {},
         state,
@@ -182,26 +185,26 @@ describe('deploy freeze store actions', () => {
       );
     });
 
-    it('should show flash error and set error in state on fetch variables failure', () => {
+    it('should show alert and set error in state on fetch variables failure', async () => {
       Api.freezePeriods.mockRejectedValue();
 
-      testAction(
+      await testAction(
         actions.fetchFreezePeriods,
         {},
         state,
         [{ type: types.REQUEST_FREEZE_PERIODS }],
         [],
-        () =>
-          expect(createFlash).toHaveBeenCalledWith({
-            message: 'There was an error fetching the deploy freezes.',
-          }),
       );
+
+      expect(createAlert).toHaveBeenCalledWith({
+        message: 'There was an error fetching the deploy freezes.',
+      });
     });
   });
 
   describe('deleteFreezePeriod', () => {
-    it('dispatch correct actions on deleting a freeze period', () => {
-      testAction(
+    it('dispatch correct actions on deleting a freeze period', async () => {
+      await testAction(
         actions.deleteFreezePeriod,
         freezePeriodFixture,
         state,
@@ -210,20 +213,17 @@ describe('deploy freeze store actions', () => {
           { type: 'RECEIVE_DELETE_FREEZE_PERIOD_SUCCESS', payload: freezePeriodFixture.id },
         ],
         [],
-        () =>
-          expect(Api.deleteFreezePeriod).toHaveBeenCalledWith(
-            state.projectId,
-            freezePeriodFixture.id,
-          ),
       );
+
+      expect(Api.deleteFreezePeriod).toHaveBeenCalledWith(state.projectId, freezePeriodFixture.id);
     });
 
-    it('should show flash error and set error in state on delete failure', () => {
+    it('should show alert and set error in state on delete failure', async () => {
       jest.spyOn(logger, 'logError').mockImplementation();
       const error = new Error();
       Api.deleteFreezePeriod.mockRejectedValue(error);
 
-      testAction(
+      await testAction(
         actions.deleteFreezePeriod,
         freezePeriodFixture,
         state,
@@ -232,12 +232,11 @@ describe('deploy freeze store actions', () => {
           { type: 'RECEIVE_DELETE_FREEZE_PERIOD_ERROR', payload: freezePeriodFixture.id },
         ],
         [],
-        () => {
-          expect(createFlash).toHaveBeenCalled();
-
-          expect(logger.logError).toHaveBeenCalledWith('Unable to delete deploy freeze', error);
-        },
       );
+
+      expect(createAlert).toHaveBeenCalled();
+
+      expect(logger.logError).toHaveBeenCalledWith('Unable to delete deploy freeze', error);
     });
   });
 });

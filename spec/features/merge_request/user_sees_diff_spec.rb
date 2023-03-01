@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > User sees diff', :js do
+RSpec.describe 'Merge request > User sees diff', :js, feature_category: :code_review_workflow do
   include ProjectForksHelper
   include RepoHelpers
   include MergeRequestDiffHelpers
@@ -32,9 +32,23 @@ RSpec.describe 'Merge request > User sees diff', :js do
         visit "#{diffs_project_merge_request_path(project, merge_request)}#{fragment}"
       end
 
-      it 'shows expanded note' do
+      it 'shows expanded note', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391239' do
         expect(page).to have_selector(fragment, visible: true)
       end
+    end
+  end
+
+  context 'when linking to a line' do
+    let(:note) { create :diff_note_on_merge_request, project: project, noteable: merge_request }
+    let(:line) { note.diff_file.highlighted_diff_lines.last }
+    let(:line_code) { line.line_code }
+
+    before do
+      visit "#{diffs_project_merge_request_path(project, merge_request)}##{line_code}"
+    end
+
+    it 'shows the linked line' do
+      expect(page).to have_selector("[id='#{line_code}']", visible: true, obscured: false)
     end
   end
 

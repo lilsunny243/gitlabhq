@@ -3,24 +3,20 @@
 module API
   class ProjectDebianDistributions < ::API::Base
     params do
-      requires :id, type: String, desc: 'The ID of a project'
-    end
-
-    before do
-      not_found! if Gitlab::FIPS.enabled?
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
     end
 
     resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       after_validation do
         require_packages_enabled!
 
-        not_found! unless ::Feature.enabled?(:debian_packages, user_project)
+        not_found! unless ::Feature.enabled?(:debian_packages, project_or_group)
       end
 
       namespace ':id' do
         helpers do
-          def project_or_group
-            user_project
+          def project_or_group(action = :read_package)
+            user_project(action: action)
           end
         end
 

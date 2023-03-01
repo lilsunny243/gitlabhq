@@ -19,7 +19,6 @@ module Sidebars
 
       def add_menus
         add_menu(Sidebars::Projects::Menus::ProjectInformationMenu.new(context))
-        add_menu(Sidebars::Projects::Menus::LearnGitlabMenu.new(context))
         add_menu(Sidebars::Projects::Menus::RepositoryMenu.new(context))
         add_menu(Sidebars::Projects::Menus::IssuesMenu.new(context))
         add_menu(Sidebars::Projects::Menus::ExternalIssueTrackerMenu.new(context))
@@ -51,8 +50,7 @@ module Sidebars
       end
 
       def third_party_wiki_menu
-        wiki_menu_list = [::Sidebars::Projects::Menus::ConfluenceMenu]
-        wiki_menu_list << ::Sidebars::Projects::Menus::ShimoMenu if Feature.enabled?(:shimo_integration, context.project)
+        wiki_menu_list = [::Sidebars::Projects::Menus::ConfluenceMenu, ::Sidebars::Projects::Menus::ShimoMenu]
 
         wiki_menu_list.find { |wiki_menu| wiki_menu.new(context).render? }
       end

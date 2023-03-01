@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # SQL Query Guidelines
@@ -103,7 +103,7 @@ transaction. Transactions for migrations can be disabled using the following
 pattern:
 
 ```ruby
-class MigrationName < Gitlab::Database::Migration[1.0]
+class MigrationName < Gitlab::Database::Migration[2.1]
   disable_ddl_transaction!
 end
 ```
@@ -111,7 +111,7 @@ end
 For example:
 
 ```ruby
-class AddUsersLowerUsernameEmailIndexes < Gitlab::Database::Migration[1.0]
+class AddUsersLowerUsernameEmailIndexes < Gitlab::Database::Migration[2.1]
   disable_ddl_transaction!
 
   def up
@@ -397,7 +397,7 @@ default.
 
 While `WHERE IN` and `WHERE EXISTS` can be used to produce the same data it is
 recommended to use `WHERE EXISTS` whenever possible. While in many cases
-PostgreSQL can optimise `WHERE IN` quite well there are also many cases where
+PostgreSQL can optimize `WHERE IN` quite well there are also many cases where
 `WHERE EXISTS` performs (much) better.
 
 In Rails you have to use this by creating SQL fragments:

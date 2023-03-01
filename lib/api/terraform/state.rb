@@ -20,24 +20,32 @@ module API
         render_api_error!(e.message, 422)
       end
 
+      STATE_NAME_URI_REQUIREMENTS = { name: API::NO_SLASH_URL_PART_REGEX }.freeze
+
       before do
         authenticate!
         authorize! :read_terraform_state, user_project
 
         increment_unique_values('p_terraform_state_api_unique_users', current_user.id)
 
-        if Feature.enabled?(:route_hll_to_snowplow_phase2, user_project&.namespace)
-          Gitlab::Tracking.event('API::Terraform::State', 'p_terraform_state_api_unique_users',
-            namespace: user_project&.namespace, user: current_user)
-        end
+        Gitlab::Tracking.event(
+          'API::Terraform::State',
+          'terraform_state_api_request',
+          namespace: user_project&.namespace,
+          user: current_user,
+          project: user_project,
+          label: 'redis_hll_counters.terraform.p_terraform_state_api_unique_users_monthly',
+          context: [Gitlab::Tracking::ServicePingContext.new(data_source: :redis_hll,
+                                                             event: 'p_terraform_state_api_unique_users').to_context]
+        )
       end
 
       params do
-        requires :id, type: String, desc: 'The ID of a project'
+        requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
       end
 
       resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
-        namespace ':id/terraform/state/:name' do
+        namespace ':id/terraform/state/:name', requirements: STATE_NAME_URI_REQUIREMENTS do
           params do
             requires :name, type: String, desc: 'The name of a Terraform state'
             optional :ID, type: String, limit: 255, desc: 'Terraform state lock ID'
@@ -47,11 +55,36 @@ module API
             def remote_state_handler
               ::Terraform::RemoteStateHandler.new(user_project, current_user, name: params[:name], lock_id: params[:ID])
             end
+
+            def not_found_for_dots?
+              Feature.disabled?(:allow_dots_on_tf_state_names) && params[:name].include?(".")
+            end
+
+            # Change the state name to behave like before, https://gitlab.com/gitlab-org/gitlab/-/merge_requests/105674
+            # has been introduced. This behavior can be controlled via `allow_dots_on_tf_state_names` FF.
+            # See https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106861
+            def legacy_state_name!
+              params[:name] = params[:name].split('.').first
+            end
           end
 
-          desc 'Get a terraform state by its name'
+          desc 'Get a Terraform state by its name' do
+            detail 'Get a Terraform state by its name'
+            success [
+              { code: 200 },
+              { code: 204, message: 'Empty state' }
+            ]
+            failure [
+              { code: 403, message: 'Forbidden' },
+              { code: 404, message: 'Not found' },
+              { code: 422, message: 'Validation failure' }
+            ]
+            tags %w[terraform_state]
+          end
           route_setting :authentication, basic_auth_personal_access_token: true, job_token_allowed: :basic_auth
           get do
+            legacy_state_name! if not_found_for_dots?
+
             remote_state_handler.find_with_lock do |state|
               no_content! unless state.latest_file && state.latest_file.exists?
 
@@ -60,13 +93,29 @@ module API
             end
           end
 
-          desc 'Add a new terraform state or update an existing one'
+          desc 'Add a new Terraform state or update an existing one' do
+            detail 'Add a new Terraform state or update an existing one'
+            success [
+              { code: 200 },
+              { code: 204, message: 'No data provided' }
+            ]
+            failure [
+              { code: 403, message: 'Forbidden' },
+              { code: 422, message: 'Validation failure' },
+              { code: 413, message: 'Request Entity Too Large' }
+            ]
+            tags %w[terraform_state]
+          end
           route_setting :authentication, basic_auth_personal_access_token: true, job_token_allowed: :basic_auth
           post do
             authorize! :admin_terraform_state, user_project
+            legacy_state_name! if not_found_for_dots?
 
             data = request.body.read
             no_content! if data.empty?
+
+            max_state_size = Gitlab::CurrentSettings.max_terraform_state_size_bytes
+            file_too_large! if max_state_size > 0 && data.size > max_state_size
 
             remote_state_handler.handle_with_lock do |state|
               state.update_file!(CarrierWaveStringFile.new(data), version: params[:serial], build: current_authenticated_job)
@@ -76,10 +125,20 @@ module API
             status :ok
           end
 
-          desc 'Delete a terraform state of a certain name'
+          desc 'Delete a Terraform state of a certain name' do
+            detail 'Delete a Terraform state of a certain name'
+            success code: 200
+            failure [
+              { code: 403, message: 'Forbidden' },
+              { code: 404, message: 'Not found' },
+              { code: 422, message: 'Validation failure' }
+            ]
+            tags %w[terraform_state]
+          end
           route_setting :authentication, basic_auth_personal_access_token: true, job_token_allowed: :basic_auth
           delete do
             authorize! :admin_terraform_state, user_project
+            legacy_state_name! if not_found_for_dots?
 
             remote_state_handler.find_with_lock do |state|
               ::Terraform::States::TriggerDestroyService.new(state, current_user: current_user).execute
@@ -89,7 +148,17 @@ module API
             status :ok
           end
 
-          desc 'Lock a terraform state of a certain name'
+          desc 'Lock a Terraform state of a certain name' do
+            detail 'Lock a Terraform state of a certain name'
+            success code: 200
+            failure [
+              { code: 403, message: 'Forbidden' },
+              { code: 404, message: 'Not found' },
+              { code: 409, message: 'Conflict' },
+              { code: 422, message: 'Validation failure' }
+            ]
+            tags %w[terraform_state]
+          end
           route_setting :authentication, basic_auth_personal_access_token: true, job_token_allowed: :basic_auth
           params do
             requires :ID, type: String, limit: 255, desc: 'Terraform state lock ID'
@@ -101,6 +170,8 @@ module API
             requires :Path, type: String, desc: 'Terraform path'
           end
           post '/lock' do
+            not_found! if not_found_for_dots?
+
             authorize! :admin_terraform_state, user_project
 
             status_code = :ok
@@ -128,12 +199,24 @@ module API
             end
           end
 
-          desc 'Unlock a terraform state of a certain name'
+          desc 'Unlock a Terraform state of a certain name' do
+            detail 'Unlock a Terraform state of a certain name'
+            success code: 200
+            failure [
+              { code: 403, message: 'Forbidden' },
+              { code: 404, message: 'Not found' },
+              { code: 409, message: 'Conflict' },
+              { code: 422, message: 'Validation failure' }
+            ]
+            tags %w[terraform_state]
+          end
           route_setting :authentication, basic_auth_personal_access_token: true, job_token_allowed: :basic_auth
           params do
             optional :ID, type: String, limit: 255, desc: 'Terraform state lock ID'
           end
           delete '/lock' do
+            not_found! if not_found_for_dots?
+
             authorize! :admin_terraform_state, user_project
 
             remote_state_handler.unlock!

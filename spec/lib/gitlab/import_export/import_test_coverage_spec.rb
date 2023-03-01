@@ -86,7 +86,7 @@ RSpec.describe 'Test coverage of the Project Import' do
   end
 
   def relations_from_json(json_file)
-    json = Gitlab::Json.parse(IO.read(json_file))
+    json = Gitlab::Json.parse(File.read(json_file))
 
     [].tap { |res| gather_relations({ project: json }, res, []) }
       .map { |relation_names| relation_names.join('.') }
@@ -96,11 +96,11 @@ RSpec.describe 'Test coverage of the Project Import' do
     case item
     when Hash
       item.each do |k, v|
-        if (v.is_a?(Array) || v.is_a?(Hash)) && v.present?
-          new_path = path + [k]
-          res << new_path
-          gather_relations(v, res, new_path)
-        end
+        next unless (v.is_a?(Array) || v.is_a?(Hash)) && v.present?
+
+        new_path = path + [k]
+        res << new_path
+        gather_relations(v, res, new_path)
       end
     when Array
       item.each { |i| gather_relations(i, res, path) }

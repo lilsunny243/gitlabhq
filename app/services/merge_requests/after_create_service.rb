@@ -5,8 +5,12 @@ module MergeRequests
     include Gitlab::Utils::StrongMemoize
 
     def execute(merge_request)
+      merge_request.ensure_merge_request_diff
+
       prepare_for_mergeability(merge_request)
       prepare_merge_request(merge_request)
+
+      mark_merge_request_as_prepared(merge_request)
     end
 
     private
@@ -20,7 +24,7 @@ module MergeRequests
     def prepare_merge_request(merge_request)
       event_service.open_mr(merge_request, current_user)
 
-      merge_request_activity_counter.track_create_mr_action(user: current_user)
+      merge_request_activity_counter.track_create_mr_action(user: current_user, merge_request: merge_request)
       merge_request_activity_counter.track_mr_including_ci_config(user: current_user, merge_request: merge_request)
 
       notification_service.new_merge_request(merge_request, current_user)
@@ -28,7 +32,7 @@ module MergeRequests
       merge_request.diffs(include_stats: false).write_cache
       merge_request.create_cross_references!(current_user)
 
-      OnboardingProgressService.new(merge_request.target_project.namespace).execute(action: :merge_request_created)
+      Onboarding::ProgressService.new(merge_request.target_project.namespace).execute(action: :merge_request_created)
 
       todo_service.new_merge_request(merge_request, current_user)
       merge_request.cache_merge_request_closes_issues!(current_user)
@@ -50,6 +54,10 @@ module MergeRequests
       # it'll be a no-op.
       merge_request.mark_as_unchecked
       merge_request.check_mergeability(async: true)
+    end
+
+    def mark_merge_request_as_prepared(merge_request)
+      merge_request.update!(prepared_at: Time.current)
     end
   end
 end

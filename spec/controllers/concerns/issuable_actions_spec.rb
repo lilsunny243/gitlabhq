@@ -6,16 +6,15 @@ RSpec.describe IssuableActions do
   let(:project) { double('project') }
   let(:user) { double('user') }
   let(:issuable) { double('issuable') }
-  let(:finder_params_for_issuable) { {} }
-  let(:notes_result) { double('notes_result') }
+  let(:finder_params_for_issuable) { { project: project, target: issuable } }
+  let(:notes_result) { [] }
   let(:discussion_serializer) { double('discussion_serializer') }
 
   let(:controller) do
     klass = Class.new do
       attr_reader :current_user, :project, :issuable
 
-      def self.before_action(action = nil, params = nil)
-      end
+      def self.before_action(action = nil, params = nil); end
 
       include IssuableActions
 
@@ -40,8 +39,7 @@ RSpec.describe IssuableActions do
         []
       end
 
-      def render(options)
-      end
+      def render(options); end
     end
 
     klass.new(issuable, project, user, finder_params_for_issuable)
@@ -55,13 +53,20 @@ RSpec.describe IssuableActions do
     end
 
     it 'instantiates and calls NotesFinder as expected' do
+      expect(issuable).to receive(:to_ability_name).and_return('issue')
+      expect(issuable).to receive(:project).and_return(project)
+      expect(Ability).to receive(:allowed?).at_least(1).and_return(true)
       expect(Discussion).to receive(:build_collection).and_return([])
       expect(DiscussionSerializer).to receive(:new).and_return(discussion_serializer)
       expect(NotesFinder).to receive(:new).with(user, finder_params_for_issuable).and_call_original
 
       expect_any_instance_of(NotesFinder).to receive(:execute).and_return(notes_result)
 
-      expect(notes_result).to receive_messages(inc_relations_for_view: notes_result, includes: notes_result, fresh: notes_result)
+      expect(notes_result).to receive_messages(
+        with_web_entity_associations: notes_result,
+        inc_relations_for_view: notes_result,
+        fresh: notes_result
+      )
 
       controller.discussions
     end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database::LoadBalancing, :suppress_gitlab_schemas_validate_connection do
+RSpec.describe Gitlab::Database::LoadBalancing, :suppress_gitlab_schemas_validate_connection, feature_category: :pods do
   describe '.base_models' do
     it 'returns the models to apply load balancing to' do
       models = described_class.base_models
@@ -468,9 +468,10 @@ RSpec.describe Gitlab::Database::LoadBalancing, :suppress_gitlab_schemas_validat
           payload = event.payload
 
           assert =
-            if payload[:name] == 'SCHEMA'
+            case payload[:name]
+            when 'SCHEMA'
               false
-            elsif payload[:name] == 'SQL' # Custom query
+            when 'SQL' # Custom query
               true
             else
               keywords = %w[_test_load_balancing_test]

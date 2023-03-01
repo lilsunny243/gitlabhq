@@ -9,6 +9,55 @@ module Gitlab
     # see https://docs.gitlab.com/ee/development/database/batched_background_migrations.html#job-arguments.
     class BatchedMigrationJob
       include Gitlab::Database::DynamicModelHelpers
+      include Gitlab::ClassAttributes
+
+      DEFAULT_FEATURE_CATEGORY = :database
+
+      class << self
+        def generic_instance(batch_table:, batch_column:, job_arguments: [], connection:)
+          new(
+            batch_table: batch_table, batch_column: batch_column,
+            job_arguments: job_arguments, connection: connection,
+            start_id: 0, end_id: 0, sub_batch_size: 0, pause_ms: 0
+          )
+        end
+
+        def job_arguments_count
+          0
+        end
+
+        def operation_name(operation)
+          define_method(:operation_name) do
+            operation
+          end
+        end
+
+        def job_arguments(*args)
+          args.each.with_index do |arg, index|
+            define_method(arg) do
+              @job_arguments[index]
+            end
+          end
+
+          define_singleton_method(:job_arguments_count) do
+            args.count
+          end
+        end
+
+        def scope_to(scope)
+          define_method(:filter_batch) do |relation|
+            instance_exec(relation, &scope)
+          end
+        end
+
+        def feature_category(feature_category_name = nil)
+          if feature_category_name.present?
+            set_class_attribute(:feature_category, feature_category_name)
+          else
+            get_class_attribute(:feature_category) || DEFAULT_FEATURE_CATEGORY
+          end
+        end
+      end
 
       def initialize(
         start_id:, end_id:, batch_table:, batch_column:, sub_batch_size:, pause_ms:, job_arguments: [], connection:
@@ -22,36 +71,6 @@ module Gitlab
         @pause_ms = pause_ms
         @job_arguments = job_arguments
         @connection = connection
-      end
-
-      def self.generic_instance(batch_table:, batch_column:, job_arguments: [], connection:)
-        new(
-          batch_table: batch_table, batch_column: batch_column,
-          job_arguments: job_arguments, connection: connection,
-          start_id: 0, end_id: 0, sub_batch_size: 0, pause_ms: 0
-        )
-      end
-
-      def self.job_arguments_count
-        0
-      end
-
-      def self.job_arguments(*args)
-        args.each.with_index do |arg, index|
-          define_method(arg) do
-            @job_arguments[index]
-          end
-        end
-
-        define_singleton_method(:job_arguments_count) do
-          args.count
-        end
-      end
-
-      def self.scope_to(scope)
-        define_method(:filter_batch) do |relation|
-          instance_exec(relation, &scope)
-        end
       end
 
       def filter_batch(relation)
@@ -70,7 +89,7 @@ module Gitlab
 
       attr_reader :start_id, :end_id, :batch_table, :batch_column, :sub_batch_size, :pause_ms, :connection
 
-      def each_sub_batch(operation_name: :default, batching_arguments: {}, batching_scope: nil)
+      def each_sub_batch(batching_arguments: {}, batching_scope: nil)
         all_batching_arguments = { column: batch_column, of: sub_batch_size }.merge(batching_arguments)
 
         relation = filter_batch(base_relation)
@@ -85,7 +104,7 @@ module Gitlab
         end
       end
 
-      def distinct_each_batch(operation_name: :default, batching_arguments: {})
+      def distinct_each_batch(batching_arguments: {})
         if base_relation != filter_batch(base_relation)
           raise 'distinct_each_batch can not be used when additional filters are defined with scope_to'
         end
@@ -110,6 +129,10 @@ module Gitlab
         return relation unless batching_scope
 
         batching_scope.call(relation)
+      end
+
+      def operation_name
+        raise('Operation name is required, please define it with `operation_name`')
       end
     end
   end

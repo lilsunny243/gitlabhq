@@ -1,16 +1,18 @@
 <script>
-import { GlSprintf, GlSafeHtmlDirective as SafeHtml, GlAvatarLink, GlAvatar } from '@gitlab/ui';
+import { GlSprintf, GlAvatarLink, GlAvatar } from '@gitlab/ui';
 import $ from 'jquery';
 import { escape, isEmpty } from 'lodash';
 import { mapGetters, mapActions } from 'vuex';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
 import { INLINE_DIFF_LINES_KEY } from '~/diffs/constants';
-import createFlash from '~/flash';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { createAlert } from '~/flash';
+import { HTTP_STATUS_GONE } from '~/lib/utils/http_status';
 import { ignoreWhilePending } from '~/lib/utils/ignore_while_pending';
 import { truncateSha } from '~/lib/utils/text_utility';
 import TimelineEntryItem from '~/vue_shared/components/notes/timeline_entry_item.vue';
 import { __, s__, sprintf } from '~/locale';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import eventHub from '../event_hub';
 import noteable from '../mixins/noteable';
 import resolvable from '../mixins/resolvable';
@@ -41,6 +43,11 @@ export default {
     SafeHtml,
   },
   mixins: [noteable, resolvable],
+  inject: {
+    reportAbusePath: {
+      default: '',
+    },
+  },
   props: {
     note: {
       type: Object,
@@ -91,6 +98,11 @@ export default {
       required: false,
       default: false,
     },
+    shouldScrollToNote: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
   },
   data() {
     return {
@@ -122,7 +134,7 @@ export default {
       };
     },
     canReportAsAbuse() {
-      return Boolean(this.note.report_abuse_path) && this.author.id !== this.getUserData.id;
+      return Boolean(this.reportAbusePath) && this.author.id !== this.getUserData.id;
     },
     noteAnchorId() {
       return `note_${this.note.id}`;
@@ -199,9 +211,6 @@ export default {
     isMRDiffView() {
       return this.line && !this.isOverviewTab;
     },
-    authorAvatarAdaptiveSize() {
-      return { default: 24, md: 32 };
-    },
   },
   created() {
     const line = this.note.position?.line_range?.start || this.line;
@@ -225,7 +234,7 @@ export default {
   },
 
   mounted() {
-    if (this.isTarget) {
+    if (this.isTarget && this.shouldScrollToNote) {
       this.scrollToNoteIfNeeded($(this.$el));
     }
   },
@@ -273,7 +282,7 @@ export default {
             this.isDeleting = false;
           })
           .catch(() => {
-            createFlash({
+            createAlert({
               message: __('Something went wrong while deleting your note. Please try again.'),
             });
             this.isDeleting = false;
@@ -284,7 +293,7 @@ export default {
       this.isEditing = false;
       this.isRequesting = false;
       this.oldContent = null;
-      $(this.$refs.noteBody.$el).renderGFM();
+      renderGFM(this.$refs.noteBody.$el);
       this.$refs.noteBody.resetAutoSave();
       this.$emit('updateSuccess');
     },
@@ -334,7 +343,7 @@ export default {
           callback();
         })
         .catch((response) => {
-          if (response.status === httpStatusCodes.GONE) {
+          if (response.status === HTTP_STATUS_GONE) {
             this.removeNote(this.note);
             this.updateSuccess();
             callback();
@@ -352,7 +361,7 @@ export default {
     },
     handleUpdateError() {
       const msg = __('Something went wrong while editing your comment. Please try again.');
-      createFlash({
+      createAlert({
         message: msg,
         parent: this.$el,
       });
@@ -409,13 +418,13 @@ export default {
     :class="{ ...classNameBindings, 'internal-note': note.internal }"
     :data-award-url="note.toggle_award_path"
     :data-note-id="note.id"
-    class="note note-wrapper"
+    class="note note-wrapper note-comment"
     data-qa-selector="noteable_note_container"
   >
     <div
       v-if="showMultiLineComment"
       data-testid="multiline-comment"
-      class="gl-mb-5 gl-text-gray-500 gl-border-gray-100 gl-border-b-solid gl-border-b-1 gl-pb-4"
+      class="gl-text-gray-500 gl-border-gray-100 gl-border-b-solid gl-border-b-1 gl-px-5 gl-py-3"
     >
       <gl-sprintf :message="__('Comment on lines %{startLine} to %{endLine}')">
         <template #startLine>
@@ -427,7 +436,7 @@ export default {
       </gl-sprintf>
     </div>
 
-    <div v-if="isMRDiffView" class="gl-float-left gl-mt-n1 gl-mr-3">
+    <div v-if="isMRDiffView" class="timeline-avatar gl-float-left gl-pt-2">
       <gl-avatar-link :href="author.path">
         <gl-avatar
           :src="author.avatar_url"
@@ -440,13 +449,13 @@ export default {
       </gl-avatar-link>
     </div>
 
-    <div v-else class="gl-float-left gl-pl-3 gl-md-pl-2">
+    <div v-else class="timeline-avatar gl-float-left">
       <gl-avatar-link :href="author.path">
         <gl-avatar
           :src="author.avatar_url"
           :entity-name="author.username"
           :alt="author.name"
-          :size="authorAvatarAdaptiveSize"
+          :size="32"
         />
 
         <slot name="avatar-badge"></slot>
@@ -484,7 +493,6 @@ export default {
           :can-delete="note.current_user.can_edit"
           :can-report-as-abuse="canReportAsAbuse"
           :can-resolve="canResolve"
-          :report-abuse-path="note.report_abuse_path"
           :resolvable="note.resolvable || note.isDraft"
           :is-resolved="note.resolved || note.resolve_discussion"
           :is-resolving="isResolving"
@@ -513,6 +521,9 @@ export default {
           @handleFormUpdate="formUpdateHandler"
           @cancelForm="formCancelHandler"
         />
+        <div class="timeline-discussion-body-footer">
+          <slot name="after-note-body"></slot>
+        </div>
       </div>
     </div>
   </timeline-entry-item>

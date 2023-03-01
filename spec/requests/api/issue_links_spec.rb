@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::IssueLinks do
+RSpec.describe API::IssueLinks, feature_category: :team_planning do
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project) }
   let_it_be(:issue) { create(:issue, project: project) }
@@ -138,6 +138,8 @@ RSpec.describe API::IssueLinks do
                params: { target_project_id: project.id, target_issue_iid: target_issue.iid, link_type: 'relates_to' }
 
           expect_link_response(link_type: 'relates_to')
+          expect(json_response['source_issue']['id']).to eq(issue.id)
+          expect(json_response['target_issue']['id']).to eq(target_issue.id)
         end
 
         it 'returns 201 when sending full path of target project' do
@@ -189,6 +191,8 @@ RSpec.describe API::IssueLinks do
     end
 
     context 'when authenticated' do
+      let_it_be(:target_issue) { create(:issue, project: project) }
+
       context 'when issue link does not exist' do
         it 'returns 404' do
           perform_request(non_existing_record_id, user)
@@ -196,8 +200,6 @@ RSpec.describe API::IssueLinks do
           expect(response).to have_gitlab_http_status(:not_found)
         end
       end
-
-      let_it_be(:target_issue) { create(:issue, project: project) }
 
       context 'when issue link does not belong to the specified issue' do
         it 'returns 404' do

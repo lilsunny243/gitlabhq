@@ -29,7 +29,7 @@ RSpec.describe WorkItems::CreateService do
   describe '#execute' do
     let(:service) do
       described_class.new(
-        project: project,
+        container: project,
         current_user: current_user,
         params: opts,
         spam_params: spam_params,
@@ -118,7 +118,7 @@ RSpec.describe WorkItems::CreateService do
 
       let(:service) do
         described_class.new(
-          project: project,
+          container: project,
           current_user: current_user,
           params: opts,
           spam_params: spam_params,
@@ -159,7 +159,7 @@ RSpec.describe WorkItems::CreateService do
             {
               title: 'Awesome work_item',
               description: 'please fix',
-              work_item_type: create(:work_item_type, :task)
+              work_item_type: WorkItems::Type.default_by_type(:task)
             }
           end
 
@@ -176,17 +176,7 @@ RSpec.describe WorkItems::CreateService do
           let_it_be(:parent) { create(:work_item, :task, project: project) }
 
           it_behaves_like 'fails creating work item and returns errors' do
-            let(:error_message) { 'only Issue and Incident can be parent of Task.' }
-          end
-        end
-
-        context 'when hierarchy feature flag is disabled' do
-          before do
-            stub_feature_flags(work_items_hierarchy: false)
-          end
-
-          it_behaves_like 'fails creating work item and returns errors' do
-            let(:error_message) { '`work_items_hierarchy` feature flag disabled for this project' }
+            let(:error_message) { 'is not allowed to add this type of parent' }
           end
         end
       end
@@ -198,12 +188,12 @@ RSpec.describe WorkItems::CreateService do
           {
             title: 'Awesome work_item',
             description: 'please fix',
-            work_item_type: create(:work_item_type, :task)
+            work_item_type: WorkItems::Type.default_by_type(:task)
           }
         end
 
         it_behaves_like 'fails creating work item and returns errors' do
-          let(:error_message) { 'No matching task found. Make sure that you are adding a valid task ID.' }
+          let(:error_message) { 'No matching work item found. Make sure that you are adding a valid work item ID.' }
         end
       end
     end

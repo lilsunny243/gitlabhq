@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage do
+  RSpec.describe 'Package', :skip_live_env, :orchestrated, :packages, :object_storage, product_group: :package_registry do
     describe 'Helm Registry' do
       using RSpec::Parameterized::TableSyntax
       include Runtime::Fixtures
@@ -43,7 +43,10 @@ module QA
           end
         end
 
-        it "pushes and pulls a helm chart", testcase: params[:testcase] do
+        it "pushes and pulls a helm chart", testcase: params[:testcase], quarantine: {
+          type: :stale,
+          issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/391649'
+        } do
           Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
             Resource::Repository::Commit.fabricate_via_api! do |commit|
               helm_upload_yaml = ERB.new(read_fixture('package_managers/helm', 'helm_upload_package.yaml.erb')).result(binding)
@@ -51,16 +54,11 @@ module QA
 
               commit.project = package_project
               commit.commit_message = 'Add .gitlab-ci.yml'
-              commit.add_files([
-                                {
-                                  file_path: '.gitlab-ci.yml',
-                                  content: helm_upload_yaml
-                                },
-                                {
-                                  file_path: 'Chart.yaml',
-                                  content: helm_chart_yaml
-                                }
-              ])
+              commit.add_files(
+                [
+                  { file_path: '.gitlab-ci.yml', content: helm_upload_yaml },
+                  { file_path: 'Chart.yaml', content: helm_chart_yaml }
+                ])
             end
           end
 
@@ -94,12 +92,7 @@ module QA
 
               commit.project = client_project
               commit.commit_message = 'Add .gitlab-ci.yml'
-              commit.add_files([
-                {
-                  file_path: '.gitlab-ci.yml',
-                  content: helm_install_yaml
-                }
-              ])
+              commit.add_files([{ file_path: '.gitlab-ci.yml', content: helm_install_yaml }])
             end
           end
 

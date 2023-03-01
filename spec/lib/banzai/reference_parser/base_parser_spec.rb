@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::ReferenceParser::BaseParser do
+RSpec.describe Banzai::ReferenceParser::BaseParser, feature_category: :team_planning do
   include ReferenceParserHelpers
 
   let(:user) { create(:user) }
@@ -16,6 +16,29 @@ RSpec.describe Banzai::ReferenceParser::BaseParser do
 
   subject do
     parser_class.new(context)
+  end
+
+  describe '.reference_class' do
+    context 'when the method is not defined' do
+      it 'build the reference class' do
+        dummy = Class.new(described_class)
+        dummy.reference_type = :issue
+
+        expect(dummy.reference_class).to eq(Issue)
+      end
+    end
+
+    context 'when the method is redefined' do
+      it 'uses specified reference class' do
+        dummy = Class.new(described_class) do
+          def self.reference_class
+            AlertManagement::Alert
+          end
+        end
+
+        expect(dummy.reference_class).to eq(AlertManagement::Alert)
+      end
+    end
   end
 
   describe '.reference_type=' do
@@ -63,7 +86,7 @@ RSpec.describe Banzai::ReferenceParser::BaseParser do
 
     context 'when the link does not have a data-project attribute' do
       it 'returns the nodes' do
-        expect(subject.nodes_visible_to_user(user, [link])).to eq([link])
+        expect(subject.nodes_visible_to_user(user, [link])).to match_array([link])
       end
     end
   end

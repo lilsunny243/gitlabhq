@@ -20,12 +20,12 @@ type KeyWatcher struct {
 	subscribers      map[string][]chan string
 	shutdown         chan struct{}
 	reconnectBackoff backoff.Backoff
+	conn             *redis.PubSubConn
 }
 
 func NewKeyWatcher() *KeyWatcher {
 	return &KeyWatcher{
-		subscribers: make(map[string][]chan string),
-		shutdown:    make(chan struct{}),
+		shutdown: make(chan struct{}),
 		reconnectBackoff: backoff.Backoff{
 			Min:    100 * time.Millisecond,
 			Max:    60 * time.Second,
@@ -40,6 +40,12 @@ var (
 		prometheus.GaugeOpts{
 			Name: "gitlab_workhorse_keywatcher_keywatchers",
 			Help: "The number of keys that is being watched by gitlab-workhorse",
+		},
+	)
+	redisSubscriptions = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "gitlab_workhorse_keywatcher_redis_subscriptions",
+			Help: "Current number of keywatcher Redis pubsub subscriptions",
 		},
 	)
 	totalMessages = promauto.NewCounter(
@@ -63,32 +69,45 @@ var (
 	)
 )
 
-const (
-	keySubChannel = "workhorse:notifications"
-)
+const channelPrefix = "workhorse:notifications:"
 
 func countAction(action string) { totalActions.WithLabelValues(action).Add(1) }
 
 func (kw *KeyWatcher) receivePubSubStream(conn redis.Conn) error {
-	defer conn.Close()
-	psc := redis.PubSubConn{Conn: conn}
-	if err := psc.Subscribe(keySubChannel); err != nil {
-		return err
-	}
-	defer psc.Unsubscribe(keySubChannel)
+	kw.mu.Lock()
+	// We must share kw.conn with the goroutines that call SUBSCRIBE and
+	// UNSUBSCRIBE because Redis pubsub subscriptions are tied to the
+	// connection.
+	kw.conn = &redis.PubSubConn{Conn: conn}
+	kw.mu.Unlock()
+
+	defer func() {
+		kw.mu.Lock()
+		defer kw.mu.Unlock()
+		kw.conn.Close()
+		kw.conn = nil
+
+		// Reset kw.subscribers because it is tied to Redis server side state of
+		// kw.conn and we just closed that connection.
+		for _, chans := range kw.subscribers {
+			for _, ch := range chans {
+				close(ch)
+				keyWatchers.Dec()
+			}
+		}
+		kw.subscribers = nil
+	}()
 
 	for {
-		switch v := psc.Receive().(type) {
+		switch v := kw.conn.Receive().(type) {
 		case redis.Message:
 			totalMessages.Inc()
-			dataStr := string(v.Data)
-			receivedBytes.Add(float64(len(dataStr)))
-			msg := strings.SplitN(dataStr, "=", 2)
-			if len(msg) != 2 {
-				log.WithError(fmt.Errorf("keywatcher: invalid notification: %q", dataStr)).Error()
-				continue
+			receivedBytes.Add(float64(len(v.Data)))
+			if strings.HasPrefix(v.Channel, channelPrefix) {
+				kw.notifySubscribers(v.Channel[len(channelPrefix):], string(v.Data))
 			}
-			kw.notifySubscribers(msg[0], msg[1])
+		case redis.Subscription:
+			redisSubscriptions.Set(float64(v.Count))
 		case error:
 			log.WithError(fmt.Errorf("keywatcher: pubsub receive: %v", v)).Error()
 			// Intermittent error, return nil so that it doesn't wait before reconnect
@@ -156,21 +175,38 @@ func (kw *KeyWatcher) notifySubscribers(key, value string) {
 
 	countAction("deliver-message")
 	for _, c := range chanList {
-		c <- value
-		keyWatchers.Dec()
+		select {
+		case c <- value:
+		default:
+		}
 	}
-	delete(kw.subscribers, key)
 }
 
-func (kw *KeyWatcher) addSubscription(key string, notify chan string) {
+func (kw *KeyWatcher) addSubscription(key string, notify chan string) error {
 	kw.mu.Lock()
 	defer kw.mu.Unlock()
 
+	if kw.conn == nil {
+		// This can happen because CI long polling is disabled in this Workhorse
+		// process. It can also be that we are waiting for the pubsub connection
+		// to be established. Either way it is OK to fail fast.
+		return errors.New("no redis connection")
+	}
+
+	if len(kw.subscribers[key]) == 0 {
+		countAction("create-subscription")
+		if err := kw.conn.Subscribe(channelPrefix + key); err != nil {
+			return err
+		}
+	}
+
+	if kw.subscribers == nil {
+		kw.subscribers = make(map[string][]chan string)
+	}
 	kw.subscribers[key] = append(kw.subscribers[key], notify)
 	keyWatchers.Inc()
-	if len(kw.subscribers[key]) == 1 {
-		countAction("create-subscription")
-	}
+
+	return nil
 }
 
 func (kw *KeyWatcher) delSubscription(key string, notify chan string) {
@@ -179,6 +215,8 @@ func (kw *KeyWatcher) delSubscription(key string, notify chan string) {
 
 	chans, ok := kw.subscribers[key]
 	if !ok {
+		// This can happen if the pubsub connection dropped while we were
+		// waiting.
 		return
 	}
 
@@ -192,6 +230,9 @@ func (kw *KeyWatcher) delSubscription(key string, notify chan string) {
 	if len(kw.subscribers[key]) == 0 {
 		delete(kw.subscribers, key)
 		countAction("delete-subscription")
+		if kw.conn != nil {
+			kw.conn.Unsubscribe(channelPrefix + key)
+		}
 	}
 }
 
@@ -212,7 +253,9 @@ const (
 
 func (kw *KeyWatcher) WatchKey(key, value string, timeout time.Duration) (WatchKeyStatus, error) {
 	notify := make(chan string, 1)
-	kw.addSubscription(key, notify)
+	if err := kw.addSubscription(key, notify); err != nil {
+		return WatchKeyStatusNoChange, err
+	}
 	defer kw.delSubscription(key, notify)
 
 	currentValue, err := GetString(key)

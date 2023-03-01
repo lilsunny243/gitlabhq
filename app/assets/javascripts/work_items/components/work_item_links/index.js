@@ -6,17 +6,20 @@ import WorkItemLinks from './work_item_links.vue';
 Vue.use(GlToast);
 
 export default function initWorkItemLinks() {
-  if (!window.gon.features.workItemsHierarchy) {
-    return;
-  }
-
   const workItemLinksRoot = document.querySelector('.js-work-item-links-root');
 
   if (!workItemLinksRoot) {
     return;
   }
 
-  const { projectPath, wiHasIssueWeightsFeature, iid } = workItemLinksRoot.dataset;
+  const {
+    projectPath,
+    wiHasIssueWeightsFeature,
+    wiHasIterationsFeature,
+    wiHasIssuableHealthStatusFeature,
+    registerPath,
+    signInPath,
+  } = workItemLinksRoot.dataset;
 
   // eslint-disable-next-line no-new
   new Vue({
@@ -28,9 +31,12 @@ export default function initWorkItemLinks() {
     },
     provide: {
       projectPath,
-      iid,
       fullPath: projectPath,
       hasIssueWeightsFeature: wiHasIssueWeightsFeature,
+      hasIterationsFeature: wiHasIterationsFeature,
+      hasIssuableHealthStatusFeature: wiHasIssuableHealthStatusFeature,
+      registerPath,
+      signInPath,
     },
     render: (createElement) =>
       createElement('work-item-links', {

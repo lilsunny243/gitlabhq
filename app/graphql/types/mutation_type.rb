@@ -6,6 +6,8 @@ module Types
 
     include Gitlab::Graphql::MountMutation
 
+    mount_mutation Mutations::Achievements::Award, alpha: { milestone: '15.10' }
+    mount_mutation Mutations::Achievements::Create
     mount_mutation Mutations::Admin::SidekiqQueues::DeleteJobs
     mount_mutation Mutations::AlertManagement::CreateAlertIssue
     mount_mutation Mutations::AlertManagement::UpdateAlertStatus
@@ -47,10 +49,11 @@ module Types
     mount_mutation Mutations::DependencyProxy::ImageTtlGroupPolicy::Update
     mount_mutation Mutations::DependencyProxy::GroupSettings::Update
     mount_mutation Mutations::Environments::CanaryIngress::Update
-    mount_mutation Mutations::IncidentManagement::TimelineEvent::Create
+    mount_mutation Mutations::IncidentManagement::TimelineEvent::Create, alpha: { milestone: '15.6' }
     mount_mutation Mutations::IncidentManagement::TimelineEvent::PromoteFromNote
     mount_mutation Mutations::IncidentManagement::TimelineEvent::Update
     mount_mutation Mutations::IncidentManagement::TimelineEvent::Destroy
+    mount_mutation Mutations::IncidentManagement::TimelineEventTag::Create
     mount_mutation Mutations::Issues::Create
     mount_mutation Mutations::Issues::SetAssignees
     mount_mutation Mutations::Issues::SetCrmContacts
@@ -62,7 +65,11 @@ module Types
     mount_mutation Mutations::Issues::SetEscalationStatus
     mount_mutation Mutations::Issues::Update
     mount_mutation Mutations::Issues::Move
+    mount_mutation Mutations::Issues::LinkAlerts
+    mount_mutation Mutations::Issues::UnlinkAlert
+    mount_mutation Mutations::Issues::BulkUpdate, alpha: { milestone: '15.9' }
     mount_mutation Mutations::Labels::Create
+    mount_mutation Mutations::Members::Groups::BulkUpdate
     mount_mutation Mutations::MergeRequests::Accept
     mount_mutation Mutations::MergeRequests::Create
     mount_mutation Mutations::MergeRequests::Update
@@ -83,6 +90,7 @@ module Types
     mount_mutation Mutations::Notes::Update::ImageDiffNote
     mount_mutation Mutations::Notes::RepositionImageDiffNote
     mount_mutation Mutations::Notes::Destroy
+    mount_mutation Mutations::Projects::SyncFork, calls_gitaly: true, alpha: { milestone: '15.9' }
     mount_mutation Mutations::Releases::Create
     mount_mutation Mutations::Releases::Update
     mount_mutation Mutations::Releases::Delete
@@ -114,18 +122,26 @@ module Types
     mount_mutation Mutations::Ci::Pipeline::Cancel
     mount_mutation Mutations::Ci::Pipeline::Destroy
     mount_mutation Mutations::Ci::Pipeline::Retry
+    mount_mutation Mutations::Ci::PipelineSchedule::Delete
+    mount_mutation Mutations::Ci::PipelineSchedule::TakeOwnership
+    mount_mutation Mutations::Ci::PipelineSchedule::Play
+    mount_mutation Mutations::Ci::PipelineSchedule::Create
+    mount_mutation Mutations::Ci::PipelineSchedule::Update
     mount_mutation Mutations::Ci::CiCdSettingsUpdate, deprecated: {
       reason: :renamed,
       replacement: 'ProjectCiCdSettingsUpdate',
       milestone: '15.0'
     }
     mount_mutation Mutations::Ci::ProjectCiCdSettingsUpdate
+    mount_mutation Mutations::Ci::Job::ArtifactsDestroy
     mount_mutation Mutations::Ci::Job::Play
     mount_mutation Mutations::Ci::Job::Retry
     mount_mutation Mutations::Ci::Job::Cancel
     mount_mutation Mutations::Ci::Job::Unschedule
+    mount_mutation Mutations::Ci::JobArtifact::Destroy
     mount_mutation Mutations::Ci::JobTokenScope::AddProject
     mount_mutation Mutations::Ci::JobTokenScope::RemoveProject
+    mount_mutation Mutations::Ci::Runner::Create, alpha: { milestone: '15.10' }
     mount_mutation Mutations::Ci::Runner::Update
     mount_mutation Mutations::Ci::Runner::Delete
     mount_mutation Mutations::Ci::Runner::BulkDelete, alpha: { milestone: '15.3' }
@@ -135,6 +151,8 @@ module Types
     mount_mutation Mutations::UserCallouts::Create
     mount_mutation Mutations::UserPreferences::Update
     mount_mutation Mutations::Packages::Destroy
+    mount_mutation Mutations::Packages::BulkDestroy,
+                   extensions: [::Gitlab::Graphql::Limit::FieldCallCount => { limit: 1 }]
     mount_mutation Mutations::Packages::DestroyFile
     mount_mutation Mutations::Packages::DestroyFiles
     mount_mutation Mutations::Packages::Cleanup::Policy::Update
@@ -144,7 +162,6 @@ module Types
     mount_mutation Mutations::WorkItems::Delete, alpha: { milestone: '15.1' }
     mount_mutation Mutations::WorkItems::DeleteTask, alpha: { milestone: '15.1' }
     mount_mutation Mutations::WorkItems::Update, alpha: { milestone: '15.1' }
-    mount_mutation Mutations::WorkItems::UpdateWidgets, alpha: { milestone: '15.1' }
     mount_mutation Mutations::WorkItems::UpdateTask, alpha: { milestone: '15.1' }
     mount_mutation Mutations::SavedReplies::Create
     mount_mutation Mutations::SavedReplies::Update

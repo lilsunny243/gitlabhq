@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Back up and restore GitLab **(FREE SELF)**
@@ -79,10 +79,21 @@ For detailed information on restoring GitLab, see [Restore GitLab](restore_gitla
 
 ## Alternative backup strategies
 
-If your GitLab instance contains a lot of Git repository data, you may find the
-GitLab backup script to be too slow. If your GitLab instance has a lot of forked
-projects, the regular backup task also duplicates the Git data for all of them.
-In these cases, consider using file system snapshots as part of your backup strategy.
+In the following cases, consider using file system data transfer or snapshots as part of your backup strategy:
+
+- Your GitLab instance contains a lot of Git repository data and the GitLab backup script is too slow.
+- Your GitLab instance has a lot of forked projects and the regular backup task duplicates the Git data for all of them.
+- Your GitLab instance has a problem and using the regular backup and import Rake tasks isn't possible.
+
+WARNING:
+Gitaly Cluster [does not support snapshot backups](../administration/gitaly/index.md#snapshot-backup-and-recovery-limitations).
+
+When considering using file system data transfer or snapshots:
+
+- Don't use these methods to migrate from one operating system to another. The operating systems of the source and destination should be as similar as possible. For example,
+  don't use these methods to migrate from Ubuntu to Fedora.
+- Data consistency is very important. We recommend stopping GitLab with `sudo gitlab-ctl stop` before taking doing a file system transfer (with rsync, for example) or taking a
+  snapshot.
 
 Example: Amazon Elastic Block Store (EBS)
 
@@ -318,7 +329,7 @@ To prepare the new server:
       ```
 
 1. Disable periodic background jobs:
-   1. On the top bar, select **Menu > Admin**.
+   1. On the top bar, select **Main menu > Admin**.
    1. On the left sidebar, select **Monitoring > Background Jobs**.
    1. Under the Sidekiq dashboard, select **Cron** tab and then
       **Disable All**.
@@ -398,7 +409,7 @@ To prepare the new server:
 
 1. [Restore the GitLab backup](#restore-gitlab).
 1. Verify that the Redis database restored correctly:
-   1. On the top bar, select **Menu > Admin**.
+   1. On the top bar, select **Main menu > Admin**.
    1. On the left sidebar, select **Monitoring > Background Jobs**.
    1. Under the Sidekiq dashboard, verify that the numbers
       match with what was shown on the old server.
@@ -750,7 +761,9 @@ Backup failed
 
 If this happens, examine the following:
 
-- Confirm there is sufficient disk space for the Gzip operation.
+- Confirm there is sufficient disk space for the Gzip operation. It's not uncommon for backups that
+  use the [default strategy](backup_gitlab.md#backup-strategy-option) to require half the instance size
+  in free disk space during backup creation.
 - If NFS is being used, check if the mount option `timeout` is set. The
   default is `600`, and changing this to smaller values results in this error.
 
@@ -800,7 +813,7 @@ You must truncate the files referenced by the database that are causing the prob
 
 - In the `uploads` table.
 - In the references found. Any reference found from other database tables and columns.
-- On the filesystem.
+- On the file system.
 
 Truncate the filenames in the `uploads` table:
 
@@ -879,7 +892,7 @@ Truncate the filenames in the `uploads` table:
 
       - `current_filename`: a filename that is currently more than 246 characters long.
       - `new_filename`: a filename that has been truncated to 246 characters maximum.
-      - `new_path`: new path considering the new_filename (truncated).
+      - `new_path`: new path considering the `new_filename` (truncated).
 
    Once you validate the batch results, you must change the batch size (`row_id`) using the following sequence of numbers (10000 to 20000). Repeat this process until you reach the last record in the `uploads` table.
 
@@ -968,8 +981,103 @@ Truncate the filenames in the references found:
 
 1. Replace those long filenames using the new filenames obtained from querying the `uploads` table.
 
-Truncate the filenames on the filesystem. You must manually rename the files in your filesystem to the new filenames obtained from querying the `uploads` table.
+Truncate the filenames on the file system. You must manually rename the files in your file system to the new filenames obtained from querying the `uploads` table.
 
 #### Re-run the backup task
 
 After following all the previous steps, re-run the backup task.
+
+### Restoring database backup fails when `pg_stat_statements` was previously enabled
+
+The GitLab backup of the PostgreSQL database includes all SQL statements required to enable extensions that were
+previously enabled in the database.
+
+The `pg_stat_statements` extension can only be enabled or disabled by a PostgreSQL user with `superuser` role.
+As the restore process uses a database user with limited permissions, it can't execute the following SQL statements:
+
+```sql
+DROP EXTENSION IF EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public;
+```
+
+When trying to restore the backup in a PostgreSQL instance that doesn't have the `pg_stats_statements` extension,
+the following error message is displayed:
+
+```plaintext
+ERROR: permission denied to create extension "pg_stat_statements"
+HINT: Must be superuser to create this extension.
+ERROR: extension "pg_stat_statements" does not exist
+```
+
+When trying to restore in an instance that has the `pg_stats_statements` extension enabled, the cleaning up step
+fails with an error message similar to the following:
+
+```plaintext
+rake aborted!
+ActiveRecord::StatementInvalid: PG::InsufficientPrivilege: ERROR: must be owner of view pg_stat_statements
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/db.rake:42:in `block (4 levels) in <top (required)>'
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/db.rake:41:in `each'
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/db.rake:41:in `block (3 levels) in <top (required)>'
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/backup.rake:71:in `block (3 levels) in <top (required)>'
+/opt/gitlab/embedded/bin/bundle:23:in `load'
+/opt/gitlab/embedded/bin/bundle:23:in `<main>'
+Caused by:
+PG::InsufficientPrivilege: ERROR: must be owner of view pg_stat_statements
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/db.rake:42:in `block (4 levels) in <top (required)>'
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/db.rake:41:in `each'
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/db.rake:41:in `block (3 levels) in <top (required)>'
+/opt/gitlab/embedded/service/gitlab-rails/lib/tasks/gitlab/backup.rake:71:in `block (3 levels) in <top (required)>'
+/opt/gitlab/embedded/bin/bundle:23:in `load'
+/opt/gitlab/embedded/bin/bundle:23:in `<main>'
+Tasks: TOP => gitlab:db:drop_tables
+(See full trace by running task with --trace)
+```
+
+#### Prevent the dump file to include `pg_stat_statements`
+
+To prevent the inclusion of the extension in the PostgreSQL dump file that is part of the backup bundle,
+enable the extension in any schema except the `public` schema:
+
+```sql
+CREATE SCHEMA adm;
+CREATE EXTENSION pg_stat_statements SCHEMA adm;
+```
+
+If the extension was previously enabled in the `public` schema, move it to a new one:
+
+```sql
+CREATE SCHEMA adm;
+ALTER EXTENSION pg_stat_statements SET SCHEMA adm;
+```
+
+To query the `pg_stat_statements` data after changing the schema, prefix the view name with the new schema:
+
+```sql
+SELECT * FROM adm.pg_stat_statements limit 0;
+```
+
+To make it compatible with third-party monitoring solutions that expect it to be enabled in the `public` schema,
+you need to include it in the `search_path`:
+
+```sql
+set search_path to public,adm;
+```
+
+#### Fix an existing dump file to remove references to `pg_stat_statements`
+
+To fix an existing backup file, do the following changes:
+
+1. Extract from the backup the following file: `db/database.sql.gz`.
+1. Decompress the file or use an editor that is capable of handling it compressed.
+1. Remove the following lines, or similar ones:
+
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public;
+   ```
+
+   ```sql
+   COMMENT ON EXTENSION pg_stat_statements IS 'track planning and execution statistics of all SQL statements executed';
+   ```
+
+1. Save the changes and recompress the file.
+1. Update the backup file with the modified `db/database.sql.gz`.

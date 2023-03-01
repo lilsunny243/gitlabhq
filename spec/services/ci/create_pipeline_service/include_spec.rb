@@ -2,7 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectness do
+RSpec.describe Ci::CreatePipelineService,
+:yaml_processor_feature_flag_corectness, feature_category: :pipeline_composition do
+  include RepoHelpers
+
   context 'include:' do
     let_it_be(:project) { create(:project, :repository) }
     let_it_be(:user)    { project.first_owner }
@@ -16,14 +19,17 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
     let(:file_location) { 'spec/fixtures/gitlab/ci/external_files/.gitlab-ci-template-1.yml' }
 
-    before do
-      allow(project.repository)
-        .to receive(:blob_data_at).with(project.commit.id, '.gitlab-ci.yml')
-        .and_return(config)
+    let(:project_files) do
+      {
+        '.gitlab-ci.yml' => config,
+        file_location => File.read(Rails.root.join(file_location))
+      }
+    end
 
-      allow(project.repository)
-        .to receive(:blob_data_at).with(project.commit.id, file_location)
-        .and_return(File.read(Rails.root.join(file_location)))
+    around do |example|
+      create_and_delete_files(project, project_files) do
+        example.run
+      end
     end
 
     shared_examples 'not including the file' do
@@ -125,52 +131,6 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
         it_behaves_like 'not including the file'
       end
-    end
-
-    context 'with ci_increase_includes_to_250 enabled on root project' do
-      let_it_be(:included_project) do
-        create(:project, :repository).tap { |p| p.add_developer(user) }
-      end
-
-      before do
-        stub_const('::Gitlab::Ci::Config::External::Context::MAX_INCLUDES', 0)
-        stub_const('::Gitlab::Ci::Config::External::Context::TRIAL_MAX_INCLUDES', 3)
-
-        stub_feature_flags(ci_increase_includes_to_250: false)
-        stub_feature_flags(ci_increase_includes_to_250: project)
-
-        allow(Project)
-          .to receive(:find_by_full_path)
-          .with(included_project.full_path)
-          .and_return(included_project)
-
-        allow(included_project.repository)
-          .to receive(:blob_data_at).with(included_project.commit.id, '.gitlab-ci.yml')
-          .and_return(local_config)
-
-        allow(included_project.repository)
-         .to receive(:blob_data_at).with(included_project.commit.id, file_location)
-          .and_return(File.read(Rails.root.join(file_location)))
-      end
-
-      let(:config) do
-        <<~EOY
-          include:
-            - project: #{included_project.full_path}
-              file: .gitlab-ci.yml
-        EOY
-      end
-
-      let(:local_config) do
-        <<~EOY
-        include: #{file_location}
-
-        job:
-          script: exit 0
-        EOY
-      end
-
-      it_behaves_like 'including the file'
     end
   end
 end

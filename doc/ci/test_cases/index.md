@@ -1,7 +1,7 @@
 ---
 stage: Plan
-group: Certify
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Product Planning
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: Test cases in GitLab can help your teams create testing scenarios in their existing development platform.
 type: reference
 ---
@@ -25,9 +25,9 @@ Prerequisite:
 To create a test case in a GitLab project:
 
 1. Go to **CI/CD > Test Cases**.
-1. Select the **New test case** button. You are taken to the new test case form. Here you can enter
+1. Select **New test case**. You are taken to the new test case form. Here you can enter
    the new case's title, [description](../../user/markdown.md), attach a file, and assign [labels](../../user/project/labels.md).
-1. Select the **Submit test case** button. You are taken to view the new test case.
+1. Select **Submit test case**. You are taken to view the new test case.
 
 ## View a test case
 
@@ -36,7 +36,10 @@ issue list with a search query, including labels or the test case's title.
 
 Prerequisite:
 
-- You must have at least the Guest role.
+Whether you can view an test case depends on the [project visibility level](../../user/public_access.md):
+
+- Public project: You don't have to be a member of the project.
+- Private project: You must have at least the Guest role for the project.
 
 To view a test case:
 
@@ -70,7 +73,7 @@ Prerequisite:
 
 - You must have at least the Reporter role.
 
-To archive a test case, on the test case's page, select the **Archive test case** button.
+To archive a test case, on the test case's page, select **Archive test case**.
 
 To view archived test cases:
 

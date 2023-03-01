@@ -3,6 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe ApplicationHelper do
+  include Devise::Test::ControllerHelpers
+
   describe 'current_controller?' do
     before do
       stub_controller_name('foo')
@@ -161,6 +163,13 @@ RSpec.describe ApplicationHelper do
       expect(timeago_element.attr('class')).to eq 'js-short-timeago'
       expect(timeago_element.next_element).to eq nil
     end
+
+    it 'returns blank if time is nil' do
+      el = helper.time_ago_with_tooltip(nil)
+
+      expect(el).to eq('')
+      expect(el.html_safe).to eq('')
+    end
   end
 
   describe '#active_when' do
@@ -202,7 +211,7 @@ RSpec.describe ApplicationHelper do
 
   describe '#support_url' do
     context 'when alternate support url is specified' do
-      let(:alternate_url) { 'http://company.example.com/getting-help' }
+      let(:alternate_url) { 'http://company.example.com/get-help' }
 
       it 'returns the alternate support url' do
         stub_application_setting(help_page_support_url: alternate_url)
@@ -213,34 +222,49 @@ RSpec.describe ApplicationHelper do
 
     context 'when alternate support url is not specified' do
       it 'builds the support url from the promo_url' do
-        expect(helper.support_url).to eq(helper.promo_url + '/getting-help/')
+        expect(helper.support_url).to eq(helper.promo_url + '/get-help/')
       end
     end
   end
 
   describe '#instance_review_permitted?' do
-    let_it_be(:non_admin_user) { create :user }
-    let_it_be(:admin_user) { create :user, :admin }
+    shared_examples 'returns expected result depending on instance setting' do |instance_setting, expected_result|
+      before do
+        allow(::Gitlab::CurrentSettings).to receive(:instance_review_permitted?).and_return(instance_setting)
+        allow(helper).to receive(:current_user).and_return(current_user)
+      end
 
-    before do
-      allow(::Gitlab::CurrentSettings).to receive(:instance_review_permitted?).and_return(app_setting)
-      allow(helper).to receive(:current_user).and_return(current_user)
+      it { is_expected.to be(expected_result) }
     end
 
     subject { helper.instance_review_permitted? }
 
-    where(app_setting: [true, false], is_admin: [true, false, nil])
+    context 'as admin' do
+      let_it_be(:current_user) { build(:user, :admin) }
 
-    with_them do
-      let(:current_user) do
-        if is_admin.nil?
-          nil
-        else
-          is_admin ? admin_user : non_admin_user
-        end
+      context 'when admin mode setting is disabled', :do_not_mock_admin_mode_setting do
+        it_behaves_like 'returns expected result depending on instance setting', true, true
+        it_behaves_like 'returns expected result depending on instance setting', false, false
       end
 
-      it { is_expected.to be(app_setting && is_admin) }
+      context 'when admin mode setting is enabled' do
+        context 'when in admin mode', :enable_admin_mode do
+          it_behaves_like 'returns expected result depending on instance setting', true, true
+          it_behaves_like 'returns expected result depending on instance setting', false, false
+        end
+
+        context 'when not in admin mode' do
+          it_behaves_like 'returns expected result depending on instance setting', true, false
+          it_behaves_like 'returns expected result depending on instance setting', false, false
+        end
+      end
+    end
+
+    context 'as normal user' do
+      let_it_be(:current_user) { build(:user) }
+
+      it_behaves_like 'returns expected result depending on instance setting', true, false
+      it_behaves_like 'returns expected result depending on instance setting', false, false
     end
   end
 
@@ -253,17 +277,44 @@ RSpec.describe ApplicationHelper do
   end
 
   describe '#client_class_list' do
-    it 'returns string containing CSS classes representing client browser and platform' do
-      class_list = helper.client_class_list
-      expect(class_list).to eq('gl-browser-generic gl-platform-other')
+    context 'when browser or platform are unknown' do
+      it 'returns string containing CSS classes representing fallbacks' do
+        class_list = helper.client_class_list
+        expect(class_list).to eq('gl-browser-generic gl-platform-other')
+      end
+    end
+
+    context 'when browser and platform are known' do
+      before do
+        allow(helper.controller).to receive(:browser).and_return(::Browser.new('Google Chrome/Linux'))
+      end
+
+      it 'returns string containing CSS classes representing them' do
+        class_list = helper.client_class_list
+        expect(class_list).to eq('gl-browser-chrome gl-platform-linux')
+      end
     end
   end
 
   describe '#client_js_flags' do
-    it 'returns map containing JS flags representing client browser and platform' do
-      flags_list = helper.client_js_flags
-      expect(flags_list[:isGeneric]).to eq(true)
-      expect(flags_list[:isOther]).to eq(true)
+    context 'when browser or platform are unknown' do
+      it 'returns map containing JS flags representing falllbacks' do
+        flags_list = helper.client_js_flags
+        expect(flags_list[:isGeneric]).to eq(true)
+        expect(flags_list[:isOther]).to eq(true)
+      end
+    end
+
+    context 'when browser and platform are known' do
+      before do
+        allow(helper.controller).to receive(:browser).and_return(::Browser.new('Google Chrome/Linux'))
+      end
+
+      it 'returns map containing JS flags representing client browser and platform' do
+        flags_list = helper.client_js_flags
+        expect(flags_list[:isChrome]).to eq(true)
+        expect(flags_list[:isLinux]).to eq(true)
+      end
     end
   end
 
@@ -392,7 +443,7 @@ RSpec.describe ApplicationHelper do
       end
 
       it 'includes all possible body data elements and associates the project elements with project' do
-        expect(helper).to receive(:can?).with(nil, :download_code, project)
+        expect(helper).to receive(:can?).with(nil, :read_code, project)
         expect(helper.body_data).to eq(
           {
             page: 'application',
@@ -410,7 +461,7 @@ RSpec.describe ApplicationHelper do
         let_it_be(:project) { create(:project, :repository, group: create(:group)) }
 
         it 'includes all possible body data elements and associates the project elements with project' do
-          expect(helper).to receive(:can?).with(nil, :download_code, project)
+          expect(helper).to receive(:can?).with(nil, :read_code, project)
           expect(helper.body_data).to eq(
             {
               page: 'application',
@@ -436,7 +487,7 @@ RSpec.describe ApplicationHelper do
             stub_controller_method(:action_name, 'show')
             stub_controller_method(:params, { id: issue.id })
 
-            expect(helper).to receive(:can?).with(nil, :download_code, project).and_return(false)
+            expect(helper).to receive(:can?).with(nil, :read_code, project).and_return(false)
             expect(helper.body_data).to eq(
               {
                 page: 'projects:issues:show',
@@ -452,18 +503,57 @@ RSpec.describe ApplicationHelper do
         end
       end
 
-      context 'when current_user has download_code permission' do
-        it 'returns find_file with the default branch' do
-          allow(helper).to receive(:current_user).and_return(user)
+      describe 'find_file attribute' do
+        subject { helper.body_data[:find_file] }
 
-          expect(helper).to receive(:can?).with(user, :download_code, project).and_return(true)
-          expect(helper.body_data[:find_file]).to end_with(project.default_branch)
+        before do
+          allow(helper).to receive(:current_user).and_return(user)
+        end
+
+        context 'when the project has no repository' do
+          before do
+            allow(project).to receive(:empty_repo?).and_return(true)
+          end
+
+          it { is_expected.to be_nil }
+        end
+
+        context 'when user cannot read_code for the project' do
+          before do
+            allow(helper).to receive(:can?).with(user, :read_code, project).and_return(false)
+          end
+
+          it { is_expected.to be_nil }
+        end
+
+        context 'when current_user has read_code permission' do
+          it 'returns find_file with the default branch' do
+            expect(helper).to receive(:can?).with(user, :read_code, project).and_return(true)
+            expect(subject).to end_with(project.default_branch)
+          end
         end
       end
     end
 
     def stub_controller_method(method_name, value)
       allow(helper.controller).to receive(method_name).and_return(value)
+    end
+  end
+
+  describe '#profile_social_links' do
+    context 'when discord is set' do
+      let_it_be(:user) { build(:user) }
+      let(:discord) { discord_url(user) }
+
+      it 'returns an empty string if discord is not set' do
+        expect(discord).to eq('')
+      end
+
+      it 'returns discord url when discord id is set' do
+        user.discord = '1234567890123456789'
+
+        expect(discord).to eq('https://discord.com/users/1234567890123456789')
+      end
     end
   end
 
@@ -486,44 +576,35 @@ RSpec.describe ApplicationHelper do
     end
   end
 
-  describe '#page_class' do
-    context 'when logged_out_marketing_header experiment is enabled' do
-      let_it_be(:expected_class) { 'logged-out-marketing-header-candidate' }
+  describe '#gitlab_ui_form_with' do
+    let_it_be(:user) { build(:user) }
 
-      let(:current_user) { nil }
-      let(:variant) { :candidate }
-
-      subject do
-        helper.page_class.flatten
-      end
-
-      before do
-        stub_experiments(logged_out_marketing_header: variant)
-        allow(helper).to receive(:current_user) { current_user }
-      end
-
-      context 'when candidate' do
-        it { is_expected.to include(expected_class) }
-      end
-
-      context 'when candidate (:trial_focused variant)' do
-        let(:variant) { :trial_focused }
-
-        it { is_expected.to include(expected_class) }
-      end
-
-      context 'when control' do
-        let(:variant) { :control }
-
-        it { is_expected.not_to include(expected_class) }
-      end
-
-      context 'when a user is logged in' do
-        let(:current_user) { create(:user) }
-
-        it { is_expected.not_to include(expected_class) }
-      end
+    before do
+      allow(helper).to receive(:users_path).and_return('/root')
+      allow(helper).to receive(:form_with).and_call_original
     end
+
+    it 'adds custom form builder to options and calls `form_with`' do
+      options = { model: user, html: { class: 'foo-bar' } }
+      expected_options = options.merge({ builder: ::Gitlab::FormBuilders::GitlabUiFormBuilder })
+
+      expect do |b|
+        helper.gitlab_ui_form_with(**options, &b)
+      end.to yield_with_args(::Gitlab::FormBuilders::GitlabUiFormBuilder)
+      expect(helper).to have_received(:form_with).with(expected_options)
+    end
+  end
+
+  describe '#page_class' do
+    subject(:page_class) do
+      helper.page_class.flatten
+    end
+
+    before do
+      allow(helper).to receive(:current_user).and_return(nil)
+    end
+
+    it { is_expected.not_to include('logged-out-marketing-header') }
   end
 
   describe '#dispensable_render' do
@@ -554,16 +635,6 @@ RSpec.describe ApplicationHelper do
 
         it 'returns nil' do
           expect(helper.dispensable_render).to be_nil
-        end
-
-        context 'when the feature flag is disabled' do
-          before do
-            stub_feature_flags(dispensable_render: false)
-          end
-
-          it 'raises an error' do
-            expect { helper.dispensable_render }.to raise_error(StandardError)
-          end
         end
       end
     end
@@ -609,16 +680,6 @@ RSpec.describe ApplicationHelper do
         it 'returns nil' do
           expect(helper.dispensable_render_if_exists).to be_nil
         end
-
-        context 'when the feature flag is disabled' do
-          before do
-            stub_feature_flags(dispensable_render: false)
-          end
-
-          it 'raises an error' do
-            expect { helper.dispensable_render_if_exists }.to raise_error(StandardError)
-          end
-        end
       end
     end
 
@@ -631,6 +692,18 @@ RSpec.describe ApplicationHelper do
         expect(Gitlab::ErrorTracking).not_to receive(:track_and_raise_for_dev_exception)
         expect(helper.dispensable_render_if_exists).to eq('foo')
       end
+    end
+  end
+
+  describe 'stylesheet_link_tag_defer' do
+    it 'uses print stylesheet by default' do
+      expect(helper.stylesheet_link_tag_defer('test')).to eq( '<link rel="stylesheet" media="print" href="/stylesheets/test.css" />')
+    end
+
+    it 'uses regular stylesheet when no_startup_css param present' do
+      allow(helper.controller).to receive(:params).and_return({ no_startup_css: '' })
+
+      expect(helper.stylesheet_link_tag_defer('test')).to eq( '<link rel="stylesheet" media="screen" href="/stylesheets/test.css" />')
     end
   end
 end

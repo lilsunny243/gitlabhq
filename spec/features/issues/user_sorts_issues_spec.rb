@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe "User sorts issues" do
+RSpec.describe "User sorts issues", feature_category: :team_planning do
   include SortingHelper
   include IssueHelpers
 
@@ -24,7 +24,7 @@ RSpec.describe "User sorts issues" do
     sign_in(user)
   end
 
-  it 'keeps the sort option', :js do
+  it 'keeps the sort option', :js, quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/378184' do
     visit(project_issues_path(project))
 
     click_button 'Created date'

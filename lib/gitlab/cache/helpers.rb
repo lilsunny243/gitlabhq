@@ -45,7 +45,14 @@ module Gitlab
       def contextual_cache_key(presenter, object, context)
         return object.cache_key if context.nil?
 
-        [presenter.class.name, object.cache_key, context.call(object)].flatten.join(":")
+        [presenter_class_name(presenter), object.cache_key, context.call(object)].flatten.join(":")
+      end
+
+      def presenter_class_name(presenter)
+        return presenter.class.name if presenter.is_a?(BaseSerializer)
+        return presenter.name if presenter.is_a?(Class) && presenter < Grape::Entity
+
+        raise ArgumentError, "presenter #{presenter} is not supported"
       end
 
       # Used for fetching or rendering a single object
@@ -81,7 +88,6 @@ module Gitlab
       # @param expires_in [ActiveSupport::Duration, Integer] an expiry time for the cache entry
       # @return [Array<String>]
       def cached_collection(collection, presenter:, presenter_args:, context:, expires_in:)
-        total_count = collection.size
         misses = 0
 
         json = fetch_multi(presenter, collection, context: context, expires_in: expires_in) do |obj|
@@ -92,7 +98,7 @@ module Gitlab
           end
         end
 
-        increment_cache_metric(render_type: :collection, total_count: total_count, miss_count: misses)
+        increment_cache_metric(render_type: :collection, total_count: collection.length, miss_count: misses)
 
         json.values
       end
@@ -127,7 +133,6 @@ module Gitlab
       end
 
       def increment_cache_metric(render_type:, total_count:, miss_count:)
-        return unless Feature.enabled?(:add_timing_to_certain_cache_actions)
         return unless caller_id
 
         metric_name = :cached_object_operations_total
@@ -147,17 +152,13 @@ module Gitlab
       end
 
       def time_action(render_type:, &block)
-        if Feature.enabled?(:add_timing_to_certain_cache_actions)
-          real_start = Gitlab::Metrics::System.monotonic_time
+        real_start = Gitlab::Metrics::System.monotonic_time
 
-          presented_object = yield
+        presented_object = yield
 
-          real_duration_histogram(render_type).observe({}, Gitlab::Metrics::System.monotonic_time - real_start)
+        real_duration_histogram(render_type).observe({}, Gitlab::Metrics::System.monotonic_time - real_start)
 
-          presented_object
-        else
-          yield
-        end
+        presented_object
       end
 
       def real_duration_histogram(render_type)

@@ -1,0 +1,93 @@
+<script>
+import { darkModeEnabled } from '~/lib/utils/color_utils';
+import { setUrlParams } from '~/lib/utils/url_utility';
+
+import { MESSAGE_EVENT_TYPE, SKELETON_VARIANTS_BY_ROUTE } from '../constants';
+import ObservabilitySkeleton from './skeleton/index.vue';
+
+export default {
+  components: {
+    ObservabilitySkeleton,
+  },
+  props: {
+    observabilityIframeSrc: {
+      type: String,
+      required: true,
+    },
+  },
+  computed: {
+    iframeSrcWithParams() {
+      return setUrlParams(
+        { theme: darkModeEnabled() ? 'dark' : 'light', username: gon?.current_username },
+        this.observabilityIframeSrc,
+      );
+    },
+    getSkeletonVariant() {
+      const [, variant] =
+        Object.entries(SKELETON_VARIANTS_BY_ROUTE).find(([path]) =>
+          this.$route.path.endsWith(path),
+        ) || [];
+
+      const DEFAULT_SKELETON = 'dashboards';
+
+      if (!variant) return DEFAULT_SKELETON;
+
+      return variant;
+    },
+  },
+  mounted() {
+    window.addEventListener('message', this.messageHandler);
+  },
+  destroyed() {
+    window.removeEventListener('message', this.messageHandler);
+  },
+  methods: {
+    messageHandler(e) {
+      const isExpectedOrigin = e.origin === new URL(this.observabilityIframeSrc)?.origin;
+      if (!isExpectedOrigin) return;
+
+      const {
+        data: { type, payload },
+      } = e;
+      switch (type) {
+        case MESSAGE_EVENT_TYPE.GOUI_LOADED:
+          this.$refs.observabilitySkeleton.onContentLoaded();
+          break;
+        case MESSAGE_EVENT_TYPE.GOUI_ROUTE_UPDATE:
+          this.routeUpdateHandler(payload);
+          break;
+        default:
+          break;
+      }
+    },
+    routeUpdateHandler(payload) {
+      const isNewObservabilityPath = this.$route?.query?.observability_path !== payload?.url;
+
+      const shouldNotHandleMessage = !payload.url || !isNewObservabilityPath;
+
+      if (shouldNotHandleMessage) {
+        return;
+      }
+
+      // this will update the `observability_path` query param on each route change inside Observability UI
+      this.$router.replace({
+        name: this.$route.pathname,
+        query: { ...this.$route.query, observability_path: payload.url },
+      });
+    },
+  },
+};
+</script>
+
+<template>
+  <observability-skeleton ref="observabilitySkeleton" :variant="getSkeletonVariant">
+    <iframe
+      id="observability-ui-iframe"
+      data-testid="observability-ui-iframe"
+      frameborder="0"
+      height="100%"
+      :src="iframeSrcWithParams"
+      sandbox="allow-same-origin allow-forms allow-scripts"
+    ></iframe>
+  </observability-skeleton>
+</template>

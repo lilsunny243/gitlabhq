@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, howto
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/lfs/lfs/index.html'
 ---
@@ -30,7 +30,7 @@ Documentation for GitLab instance administrators is under [LFS administration do
 ## Requirements
 
 - Git LFS must be [enabled in project settings](../../../user/project/settings/index.md#configure-project-visibility-features-and-permissions).
-- [Git LFS client](https://git-lfs.github.com) version 1.0.1 or higher must be installed.
+- [Git LFS client](https://git-lfs.com/) version 1.0.1 or higher must be installed.
 
 ## Known limitations
 
@@ -42,6 +42,24 @@ Documentation for GitLab instance administrators is under [LFS administration do
 - Git LFS always assumes HTTPS so if you have GitLab server on HTTP you must
   [add the URL to Git configuration manually](#troubleshooting).
 - [Group wikis](../../../user/project/wiki/group.md) do not support Git LFS.
+
+## How LFS objects affect repository size
+
+When you add an LFS object to a repository, GitLab:
+
+1. Creates an LFS object.
+1. Associates the LFS object with the repository.
+1. Queues a job to recalculate your project's statistics, including storage size and
+   LFS object storage. Your LFS object storage is the sum of the size of all LFS objects
+   associated with the repository.
+
+When your repository is forked, LFS objects from the upstream project are associated
+with the fork. When the fork is created, the LFS object storage for the fork is equal
+to the storage used by the upstream project. If new LFS objects are added to the fork,
+the total object storage changes for the fork, but not the upstream project.
+
+If you create a merge request from the fork back to the upstream project,
+any new LFS objects in the fork become associated with the upstream project.
 
 ## Using Git LFS
 
@@ -129,6 +147,12 @@ In GitLab version 13.5 and later, these pointers are converted to the uploaded
 LFS object.
 
 Technical details about how this works can be found in the [development documentation for LFS](../../../development/lfs.md#including-lfs-blobs-in-project-archives).
+
+## Related topics
+
+- Blog post: [Getting started with Git LFS](https://about.gitlab.com/blog/2017/01/30/getting-started-with-git-lfs-tutorial/)
+- [Git LFS developer information](../../../development/lfs.md)
+- [GitLab Git Large File Storage (LFS) Administration](../../../administration/lfs/index.md) for self-managed instances
 
 ## Troubleshooting
 
@@ -230,7 +254,7 @@ Git LFS authenticates the user with HTTP Basic Authentication on every push for
 every object, so user HTTPS credentials are required.
 
 By default, Git has support for remembering the credentials for each repository
-you use. To learn more, read the [Git credentials man pages](https://git-scm.com/docs/gitcredentials).
+you use. For more information, see the [official Git documentation](https://git-scm.com/docs/gitcredentials).
 
 For example, you can tell Git to remember the password for a period of time in
 which you expect to push the objects:

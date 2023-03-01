@@ -24,7 +24,7 @@ module Spam
 
       label = spamcheck_error ? 'ERROR' : spamcheck_result.to_s.upcase
 
-      histogram.observe( { result: label }, external_spam_check_round_trip_time )
+      histogram.observe({ result: label }, external_spam_check_round_trip_time)
 
       # assign result to a var for logging it before reassigning to nil when monitorMode is true
       original_spamcheck_result = spamcheck_result
@@ -42,7 +42,7 @@ module Spam
       # Favour the most restrictive result.
       verdict = valid_results.min_by { |v| SUPPORTED_VERDICTS[v][:priority] }
 
-      # The target can override the verdict via the `allow_possible_spam` feature flag
+      # The target can override the verdict via the `allow_possible_spam` application setting
       verdict = OVERRIDE_VIA_ALLOW_POSSIBLE_SPAM if override_via_allow_possible_spam?(verdict: verdict)
 
       logger.info(class: self.class.name,
@@ -85,7 +85,7 @@ module Spam
         [result, attribs]
 
       rescue StandardError => e
-        Gitlab::ErrorTracking.log_exception(e)
+        Gitlab::ErrorTracking.log_exception(e, error: ERROR_TYPE)
 
         # Default to ALLOW if any errors occur
         [ALLOW, attribs, true]

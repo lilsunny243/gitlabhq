@@ -1,9 +1,19 @@
 import packageJsonLinker from './utils/package_json_linker';
 import gemspecLinker from './utils/gemspec_linker';
+import godepsJsonLinker from './utils/godeps_json_linker';
+import gemfileLinker from './utils/gemfile_linker';
+import podspecJsonLinker from './utils/podspec_json_linker';
+import composerJsonLinker from './utils/composer_json_linker';
+import goSumLinker from './utils/go_sum_linker';
 
 const DEPENDENCY_LINKERS = {
   package_json: packageJsonLinker,
   gemspec: gemspecLinker,
+  godeps_json: godepsJsonLinker,
+  gemfile: gemfileLinker,
+  podspec_json: podspecJsonLinker,
+  composer_json: composerJsonLinker,
+  go_sum: goSumLinker,
 };
 
 /**

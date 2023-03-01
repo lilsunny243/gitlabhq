@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Tutorial: Create a GitLab Pages website from scratch **(FREE)**
@@ -27,7 +27,7 @@ To create a GitLab Pages website:
 
 ## Prerequisites
 
-You must have a [blank project](../../working_with_projects.md#create-a-blank-project) in GitLab.
+You must have a [blank project](../../index.md#create-a-blank-project) in GitLab.
 
 ## Create the project files
 
@@ -175,9 +175,11 @@ deploy your website:
 
 1. Save and commit the `.gitlab-ci.yml` file.
 1. Go to **CI/CD > Pipelines** to watch the pipeline.
-1. When the pipeline succeeds, go to **Settings > Pages**
-   to view the URL where your site is now available.
+1. When the pipeline is finished, go to **Settings > Pages** to find the link to
+   your Pages website.
 
+   If this path is not visible, select **Deployments > Pages**.
+   [This location is part of an experiment](../index.md#menu-position-test).
 When this `pages` job completes successfully, a special `pages:deploy` job
 appears in the pipeline view. It prepares the content of the website for the
 GitLab Pages daemon. GitLab runs it in the background and doesn't use a runner.
@@ -266,6 +268,7 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  environment: production
 ```
 
 Now add another job to the CI file, telling it to
@@ -289,6 +292,7 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  environment: production
 
 test:
   stage: test
@@ -342,6 +346,7 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  environment: production
 
 test:
   stage: test
@@ -386,6 +391,7 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  environment: production
 
 test:
   stage: test
@@ -416,6 +422,9 @@ Now GitLab CI/CD not only builds the website, but also:
 - **Caches** dependencies installed with Bundler.
 - **Continuously deploys** every push to the `main` branch.
 
+To view the HTML and other assets that were created for the site,
+[download the job artifacts](../../../../ci/pipelines/job_artifacts.md#download-job-artifacts).
+
 ## Related topics
 
 For more information, see the following blog posts.
@@ -423,7 +432,7 @@ For more information, see the following blog posts.
 - Use GitLab CI/CD `environments` to
   [deploy your web app to staging and production](https://about.gitlab.com/blog/2021/02/05/ci-deployment-and-environments/).
 - Learn how to run jobs
-  [sequentially, in parallel, or build a custom pipeline](https://about.gitlab.com/blog/2016/07/29/the-basics-of-gitlab-ci/).
+  [sequentially, in parallel, or build a custom pipeline](https://about.gitlab.com/blog/2020/12/10/basics-of-gitlab-ci-updated/).
 - Learn [how to pull specific directories from different projects](https://about.gitlab.com/blog/2016/12/07/building-a-new-gitlab-docs-site-with-nanoc-gitlab-ci-and-gitlab-pages/)
   to deploy this website, <https://docs.gitlab.com>.
 - Learn [how to use GitLab Pages to produce a code coverage report](https://about.gitlab.com/blog/2016/11/03/publish-code-coverage-report-with-gitlab-pages/).

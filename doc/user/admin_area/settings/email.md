@@ -2,7 +2,7 @@
 type: reference
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Email **(FREE SELF)**
@@ -21,7 +21,7 @@ address in the body of the email instead.
 
 To include the author's email address in the email body:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences** (`/admin/application_settings/preferences`).
 1. Expand **Email**.
 1. Select the **Include author name in email notification email body** checkbox.
@@ -33,7 +33,7 @@ GitLab can send email in multipart format (HTML and plain text) or plain text on
 
 To enable multipart email:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences** (`/admin/application_settings/preferences`).
 1. Expand **Email**.
 1. Select **Enable multipart email**.
@@ -48,7 +48,7 @@ This configuration option sets the email hostname for [private commit emails](..
 
 To change the hostname used in private commit emails:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences** (`/admin/application_settings/preferences`).
 1. Expand **Email**.
 1. Enter the desired hostname in the **Custom hostname (for private commit emails)** field.
@@ -66,7 +66,7 @@ can be used for legal, auditing, or compliance reasons, for example.
 
 To add additional text to emails:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences** (`/admin/application_settings/preferences`).
 1. Expand **Email**.
 1. Enter your text in the **Additional text** field.
@@ -78,10 +78,31 @@ GitLab sends email notifications to users when their account has been deactivate
 
 To disable these notifications:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences** (`/admin/application_settings/preferences`).
 1. Expand **Email**.
 1. Clear the **Enable user deactivation emails** checkbox.
+1. Select **Save changes**.
+
+### Custom additional text in deactivation emails **(FREE SELF)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/355964) in GitLab 15.9 [with a flag](../../../administration/feature_flags.md) named `deactivation_email_additional_text`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, ask an
+administrator to [enable the feature flag](../../../administration/feature_flags.md) named
+`deactivation_email_additional_text`. On GitLab.com, this feature is unavailable.
+
+You can add additional text at the bottom of the email that GitLab sends to users when their account
+is deactivated. This email text is separate from the [custom additional text](#custom-additional-text)
+setting.
+
+To add additional text to deactivation emails:
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Settings > Preferences** (`/admin/application_settings/preferences`).
+1. Expand **Email**.
+1. Enter your text in the **Additional text for deactivation email** field.
 1. Select **Save changes**.
 
 <!-- ## Troubleshooting
@@ -92,6 +113,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

@@ -48,11 +48,13 @@ RSpec.describe Import::BitbucketController do
       let(:expires_at) { Time.current + 1.day }
       let(:expires_in) { 1.day }
       let(:access_token) do
-        double(token: token,
-               secret: secret,
-               expires_at: expires_at,
-               expires_in: expires_in,
-               refresh_token: refresh_token)
+        double(
+          token: token,
+          secret: secret,
+          expires_at: expires_at,
+          expires_in: expires_in,
+          refresh_token: refresh_token
+        )
       end
 
       before do
@@ -63,10 +65,10 @@ RSpec.describe Import::BitbucketController do
         allow_any_instance_of(OAuth2::Client)
           .to receive(:get_token)
           .with(hash_including(
-                  'grant_type' => 'authorization_code',
-                  'code' => code,
-                  'redirect_uri' => users_import_bitbucket_callback_url),
-                {})
+            'grant_type' => 'authorization_code',
+            'code' => code,
+            'redirect_uri' => users_import_bitbucket_callback_url),
+            {})
           .and_return(access_token)
         stub_omniauth_provider('bitbucket')
 
@@ -185,6 +187,14 @@ RSpec.describe Import::BitbucketController do
 
       post :create, format: :json
 
+      expect_snowplow_event(
+        category: 'Import::BitbucketController',
+        action: 'create',
+        label: 'import_access_level',
+        user: user,
+        extra: { user_role: 'Owner', import_type: 'bitbucket' }
+      )
+
       expect(response).to have_gitlab_http_status(:ok)
     end
 
@@ -297,6 +307,14 @@ RSpec.describe Import::BitbucketController do
               .to receive(:new).and_return(double(execute: project))
 
             expect { post :create, format: :json }.not_to change(Namespace, :count)
+
+            expect_snowplow_event(
+              category: 'Import::BitbucketController',
+              action: 'create',
+              label: 'import_access_level',
+              user: user,
+              extra: { user_role: 'Owner', import_type: 'bitbucket' }
+            )
           end
 
           it "takes the current user's namespace" do
@@ -417,6 +435,14 @@ RSpec.describe Import::BitbucketController do
         post :create, params: { target_namespace: other_namespace.name }, format: :json
 
         expect(response).to have_gitlab_http_status(:unprocessable_entity)
+
+        expect_snowplow_event(
+          category: 'Import::BitbucketController',
+          action: 'create',
+          label: 'import_access_level',
+          user: user,
+          extra: { user_role: 'Not a member', import_type: 'bitbucket' }
+        )
       end
     end
   end

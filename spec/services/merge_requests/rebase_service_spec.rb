@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::RebaseService do
+RSpec.describe MergeRequests::RebaseService, feature_category: :source_code_management do
   include ProjectForksHelper
 
   let(:user) { create(:user) }
@@ -22,6 +22,45 @@ RSpec.describe MergeRequests::RebaseService do
 
   before do
     project.add_maintainer(user)
+  end
+
+  describe '#validate' do
+    subject { service.validate(merge_request) }
+
+    it { is_expected.to be_success }
+
+    context 'when source branch does not exist' do
+      before do
+        merge_request.update!(source_branch: 'does_not_exist')
+      end
+
+      it 'returns an error' do
+        is_expected.to be_error
+        expect(subject.message).to eq('Source branch does not exist')
+      end
+    end
+
+    context 'when user has no permissions to rebase' do
+      before do
+        project.add_guest(user)
+      end
+
+      it 'returns an error' do
+        is_expected.to be_error
+        expect(subject.message).to eq('Cannot push to source branch')
+      end
+    end
+
+    context 'when branch is protected' do
+      before do
+        create(:protected_branch, project: project, name: merge_request.source_branch, allow_force_push: false)
+      end
+
+      it 'returns an error' do
+        is_expected.to be_error
+        expect(subject.message).to eq('Source branch is protected from force push')
+      end
+    end
   end
 
   describe '#execute' do

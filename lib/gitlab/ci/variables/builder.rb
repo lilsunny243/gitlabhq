@@ -8,16 +8,18 @@ module Gitlab
 
         def initialize(pipeline)
           @pipeline = pipeline
+          @pipeline_variables_builder = Builder::Pipeline.new(pipeline)
           @instance_variables_builder = Builder::Instance.new
           @project_variables_builder = Builder::Project.new(project)
           @group_variables_builder = Builder::Group.new(project&.group)
+          @release_variables_builder = Builder::Release.new(release)
         end
 
         def scoped_variables(job, environment:, dependencies:)
           Gitlab::Ci::Variables::Collection.new.tap do |variables|
             variables.concat(predefined_variables(job))
             variables.concat(project.predefined_variables)
-            variables.concat(pipeline.predefined_variables)
+            variables.concat(pipeline_variables_builder.predefined_variables)
             variables.concat(job.runner.predefined_variables) if job.runnable? && job.runner
             variables.concat(kubernetes_variables(environment: environment, job: job))
             variables.concat(job.yaml_variables)
@@ -28,6 +30,7 @@ module Gitlab
             variables.concat(secret_project_variables(environment: environment))
             variables.concat(pipeline.variables)
             variables.concat(pipeline_schedule_variables)
+            variables.concat(release_variables)
           end
         end
 
@@ -36,7 +39,7 @@ module Gitlab
             break variables unless project
 
             variables.concat(project.predefined_variables)
-            variables.concat(pipeline.predefined_variables)
+            variables.concat(pipeline_variables_builder.predefined_variables)
             variables.concat(secret_instance_variables)
             variables.concat(secret_group_variables(environment: nil))
             variables.concat(secret_project_variables(environment: nil))
@@ -51,7 +54,7 @@ module Gitlab
             # https://gitlab.com/groups/gitlab-org/configure/-/epics/8
             # Until then, we need to make both the old and the new KUBECONFIG contexts available
             collection.concat(deployment_variables(environment: environment, job: job))
-            template = ::Ci::GenerateKubeconfigService.new(pipeline, token: job.try(:token)).execute
+            template = ::Ci::GenerateKubeconfigService.new(pipeline, token: job.try(:token), environment: environment).execute
             kubeconfig_yaml = collection['KUBECONFIG']&.value
             template.merge_yaml(kubeconfig_yaml) if kubeconfig_yaml.present?
 
@@ -106,24 +109,36 @@ module Gitlab
           end
         end
 
+        def release_variables
+          strong_memoize(:release_variables) do
+            release_variables_builder.variables
+          end
+        end
+
         private
 
         attr_reader :pipeline
+        attr_reader :pipeline_variables_builder
         attr_reader :instance_variables_builder
         attr_reader :project_variables_builder
         attr_reader :group_variables_builder
+        attr_reader :release_variables_builder
 
         delegate :project, to: :pipeline
 
         def predefined_variables(job)
           Gitlab::Ci::Variables::Collection.new.tap do |variables|
             variables.append(key: 'CI_JOB_NAME', value: job.name)
+            variables.append(key: 'CI_JOB_NAME_SLUG', value: job_name_slug(job))
             variables.append(key: 'CI_JOB_STAGE', value: job.stage_name)
             variables.append(key: 'CI_JOB_MANUAL', value: 'true') if job.action?
             variables.append(key: 'CI_PIPELINE_TRIGGERED', value: 'true') if job.trigger_request
 
             variables.append(key: 'CI_NODE_INDEX', value: job.options[:instance].to_s) if job.options&.include?(:instance)
             variables.append(key: 'CI_NODE_TOTAL', value: ci_node_total_value(job).to_s)
+
+            # Set environment name here so we can access it when evaluating the job's rules
+            variables.append(key: 'CI_ENVIRONMENT_NAME', value: job.environment) if job.environment
 
             # legacy variables
             variables.append(key: 'CI_BUILD_NAME', value: job.name)
@@ -145,6 +160,10 @@ module Gitlab
           end
         end
 
+        def job_name_slug(job)
+          job.name && Gitlab::Utils.slugify(job.name)
+        end
+
         def ci_node_total_value(job)
           parallel = job.options&.dig(:parallel)
           parallel = parallel.dig(:total) if parallel.is_a?(Hash)
@@ -157,14 +176,10 @@ module Gitlab
           end
         end
 
-        def strong_memoize_with(name, *args)
-          container = strong_memoize(name) { {} }
+        def release
+          return unless @pipeline.tag?
 
-          if container.key?(args)
-            container[args]
-          else
-            container[args] = yield
-          end
+          project.releases.find_by_tag(@pipeline.ref)
         end
       end
     end

@@ -2,38 +2,15 @@
 
 require 'spec_helper'
 
-RSpec.describe GitlabSchema.types['Query'] do
+RSpec.describe GitlabSchema.types['Query'], feature_category: :shared do
+  include_context 'with FOSS query type fields'
+
   it 'is called Query' do
     expect(described_class.graphql_name).to eq('Query')
   end
 
   it 'has the expected fields' do
-    expected_fields = %i[
-      project
-      namespace
-      group
-      echo
-      metadata
-      current_user
-      snippets
-      design_management
-      milestone
-      user
-      users
-      issue
-      merge_request
-      usage_trends_measurements
-      runner_platforms
-      runner
-      runners
-      timelogs
-      board_list
-      topics
-      gitpod_enabled
-      ci_variables
-    ]
-
-    expect(described_class).to have_graphql_fields(*expected_fields).at_least
+    expect(described_class).to have_graphql_fields(*expected_foss_fields).at_least
   end
 
   describe 'namespace field' do
@@ -135,7 +112,7 @@ RSpec.describe GitlabSchema.types['Query'] do
     subject { described_class.fields['timelogs'] }
 
     it 'returns timelogs' do
-      is_expected.to have_graphql_arguments(:startDate, :endDate, :startTime, :endTime, :username, :projectId, :groupId, :after, :before, :first, :last)
+      is_expected.to have_graphql_arguments(:startDate, :endDate, :startTime, :endTime, :username, :projectId, :groupId, :after, :before, :first, :last, :sort)
       is_expected.to have_graphql_type(Types::TimelogType.connection_type)
       is_expected.to have_graphql_resolver(Resolvers::TimelogResolver)
     end

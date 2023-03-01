@@ -1,7 +1,6 @@
 import * as Sentry from '@sentry/browser';
 import { sortBy } from 'lodash';
 import {
-  BoardType,
   ListType,
   inactiveId,
   flashAnimationDuration,
@@ -11,7 +10,6 @@ import {
   deleteListQueries,
   listsQuery,
   updateListQueries,
-  issuableTypes,
   FilterFields,
   ListTypeTitles,
   DraggableItemTypes,
@@ -34,11 +32,12 @@ import issueMoveListMutation from 'ee_else_ce/boards/graphql/issue_move_list.mut
 import totalCountAndWeightQuery from 'ee_else_ce/boards/graphql/board_lists_deferred.query.graphql';
 import { fetchPolicies } from '~/lib/graphql';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
+import { defaultClient as gqlClient } from '~/graphql_shared/issuable_client';
+import { TYPE_ISSUE, WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import { convertObjectPropsToCamelCase } from '~/lib/utils/common_utils';
 import { queryToObject } from '~/lib/utils/url_utility';
 import { s__ } from '~/locale';
 import eventHub from '../eventhub';
-import { gqlClient } from '../graphql';
 import projectBoardQuery from '../graphql/project_board.query.graphql';
 import groupBoardQuery from '../graphql/group_board.query.graphql';
 import boardLabelsQuery from '../graphql/board_labels.query.graphql';
@@ -61,7 +60,7 @@ export default {
 
     return gqlClient
       .query({
-        query: boardType === BoardType.group ? groupBoardQuery : projectBoardQuery,
+        query: boardType === WORKSPACE_GROUP ? groupBoardQuery : projectBoardQuery,
         variables,
       })
       .then(({ data }) => {
@@ -138,9 +137,9 @@ export default {
       fullPath,
       boardId: fullBoardId,
       filters: filterParams,
-      ...(issuableType === issuableTypes.issue && {
-        isGroup: boardType === BoardType.group,
-        isProject: boardType === BoardType.project,
+      ...(issuableType === TYPE_ISSUE && {
+        isGroup: boardType === WORKSPACE_GROUP,
+        isProject: boardType === WORKSPACE_PROJECT,
       }),
     };
 
@@ -149,6 +148,9 @@ export default {
         query: listsQuery[issuableType].query,
         variables,
         ...(resetLists ? { fetchPolicy: fetchPolicies.NO_CACHE } : {}),
+        context: {
+          isSingleRequest: true,
+        },
       })
       .then(({ data }) => {
         const { lists, hideBacklogList } = data[boardType].board;
@@ -231,8 +233,8 @@ export default {
     const variables = {
       fullPath,
       searchTerm,
-      isGroup: boardType === BoardType.group,
-      isProject: boardType === BoardType.project,
+      isGroup: boardType === WORKSPACE_GROUP,
+      isProject: boardType === WORKSPACE_PROJECT,
     };
 
     commit(types.RECEIVE_LABELS_REQUEST);
@@ -265,10 +267,10 @@ export default {
     };
 
     let query;
-    if (boardType === BoardType.project) {
+    if (boardType === WORKSPACE_PROJECT) {
       query = projectBoardMilestonesQuery;
     }
-    if (boardType === BoardType.group) {
+    if (boardType === WORKSPACE_GROUP) {
       query = groupBoardMilestonesQuery;
     }
 
@@ -283,8 +285,8 @@ export default {
         variables,
       })
       .then(({ data }) => {
-        const errors = data[boardType]?.errors;
-        const milestones = data[boardType]?.milestones.nodes;
+        const errors = data.workspace?.errors;
+        const milestones = data.workspace?.milestones.nodes;
 
         if (errors?.[0]) {
           throw new Error(errors[0]);
@@ -428,8 +430,8 @@ export default {
       boardId: fullBoardId,
       id: listId,
       filters: filterParams,
-      isGroup: boardType === BoardType.group,
-      isProject: boardType === BoardType.project,
+      isGroup: boardType === WORKSPACE_GROUP,
+      isProject: boardType === WORKSPACE_PROJECT,
       first: DEFAULT_BOARD_LIST_ITEMS_SIZE,
       after: fetchNext ? state.pageInfoByListId[listId].endCursor : undefined,
     };
@@ -479,9 +481,15 @@ export default {
       toListId,
       moveBeforeId,
       moveAfterId,
+      positionInList,
+      allItemsLoadedInList,
     } = moveData;
 
     commit(types.REMOVE_BOARD_ITEM_FROM_LIST, { itemId, listId: fromListId });
+
+    if (reordering && !allItemsLoadedInList && positionInList === -1) {
+      return;
+    }
 
     if (reordering) {
       commit(types.ADD_BOARD_ITEM_TO_LIST, {
@@ -489,6 +497,9 @@ export default {
         listId: toListId,
         moveBeforeId,
         moveAfterId,
+        positionInList,
+        atIndex: originalIndex,
+        allItemsLoadedInList,
       });
 
       return;
@@ -500,6 +511,7 @@ export default {
         listId: toListId,
         moveBeforeId,
         moveAfterId,
+        positionInList,
       });
     }
 
@@ -553,7 +565,15 @@ export default {
 
   updateIssueOrder: async ({ commit, dispatch, state }, { moveData, mutationVariables = {} }) => {
     try {
-      const { itemId, fromListId, toListId, moveBeforeId, moveAfterId, itemNotInToList } = moveData;
+      const {
+        itemId,
+        fromListId,
+        toListId,
+        moveBeforeId,
+        moveAfterId,
+        itemNotInToList,
+        positionInList,
+      } = moveData;
       const {
         fullBoardId,
         filterParams,
@@ -561,6 +581,8 @@ export default {
           [itemId]: { iid, referencePath },
         },
       } = state;
+
+      commit(types.MUTATE_ISSUE_IN_PROGRESS, true);
 
       const { data } = await gqlClient.mutate({
         mutation: issueMoveListMutation,
@@ -572,6 +594,7 @@ export default {
           toListId: getIdFromGraphQLId(toListId),
           moveBeforeId: moveBeforeId ? getIdFromGraphQLId(moveBeforeId) : undefined,
           moveAfterId: moveAfterId ? getIdFromGraphQLId(moveAfterId) : undefined,
+          positionInList,
           // 'mutationVariables' allows EE code to pass in extra parameters.
           ...mutationVariables,
         },
@@ -643,7 +666,9 @@ export default {
       }
 
       commit(types.MUTATE_ISSUE_SUCCESS, { issue: data.issueMoveList.issue });
+      commit(types.MUTATE_ISSUE_IN_PROGRESS, false);
     } catch {
+      commit(types.MUTATE_ISSUE_IN_PROGRESS, false);
       commit(
         types.SET_ERROR,
         s__('Boards|An error occurred while moving the issue. Please try again.'),
@@ -684,7 +709,7 @@ export default {
   ) => {
     const input = formatIssueInput(issueInput, boardConfig);
 
-    if (boardType === BoardType.project) {
+    if (boardType === WORKSPACE_PROJECT) {
       input.projectPath = fullPath;
     }
 
@@ -902,4 +927,5 @@ export default {
 
   // EE action needs CE empty equivalent
   setActiveItemWeight: () => {},
+  setActiveItemHealthStatus: () => {},
 };

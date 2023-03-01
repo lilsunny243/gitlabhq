@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dashboard Groups page', :js do
+RSpec.describe 'Dashboard Groups page', :js, feature_category: :subgroups do
   let(:user) { create :user }
   let(:group) { create(:group) }
   let(:nested_group) { create(:group, :nested) }
@@ -18,6 +18,8 @@ RSpec.describe 'Dashboard Groups page', :js do
   def click_options_menu(group)
     page.find("[data-testid='group-#{group.id}-dropdown-button'").click
   end
+
+  it_behaves_like 'a dashboard page with sidebar', :dashboard_groups_path, :groups
 
   it 'shows groups user is member of' do
     group.add_owner(user)

@@ -1,14 +1,15 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: index, reference
 ---
 
 # Merge requests **(FREE)**
 
-Merge requests (MRs) are the way you check source code changes into a branch.
-When you open a merge request, you can visualize and collaborate on the code changes before merge.
+To incorporate changes from a source branch to a target branch, you use a *merge request* (MR).
+
+When you open a merge request, you can visualize and collaborate on the changes before merge.
 Merge requests include:
 
 - A description of the request.
@@ -17,7 +18,13 @@ Merge requests include:
 - A comment section for discussion threads.
 - The list of commits.
 
-Read more about [how to get started](getting_started.md).
+<i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
+For a quick overview of merge requests,
+view [this GitLab Flow video](https://www.youtube.com/watch?v=InKNIvky2KE).
+
+## Create a merge request
+
+Learn the various ways to [create a merge request](creating_merge_requests.md).
 
 ## View merge requests
 
@@ -27,7 +34,7 @@ You can view merge requests for your project, group, or yourself.
 
 To view all merge requests for a project:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests**.
 
 Or, to use a [keyboard shortcut](../../shortcuts.md), press <kbd>g</kbd> + <kbd>m</kbd>.
@@ -36,7 +43,7 @@ Or, to use a [keyboard shortcut](../../shortcuts.md), press <kbd>g</kbd> + <kbd>
 
 To view merge requests for all projects in a group:
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Merge requests**.
 
 If your group contains subgroups, this view also displays merge requests from the subgroup projects.
@@ -58,60 +65,40 @@ or:
 
 or:
 
-1. On the top bar, on the top right, select **{merge-request-open}** **Merge requests**.
+1. On the top bar, in the upper-right corner, select **Merge requests** (**{merge-request-open}**).
 1. From the dropdown list, select **Assigned to you**.
 
 ## Filter the list of merge requests
 
+> - Filtering by `approved-by` [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/30335) in GitLab 13.0.
+> - Filtering by `reviewer` [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/47605) in GitLab 13.7.
+> - Filtering by potential approvers was moved to GitLab Premium in 13.9.
+> - Filtering by `approved-by` moved to GitLab Premium in 13.9.
+
 To filter the list of merge requests:
 
 1. Above the list of merge requests, select **Search or filter results...**.
-1. In the dropdown list that appears, select the attribute you wish to filter by.
+1. From the dropdown list, select the attribute you wish to filter by. Some examples:
+   - [**By environment or deployment date**](#filter-merge-requests-by-environment-or-deployment-date).
+   - **ID**: Enter filter `#30` to return only merge request 30.
+   - User filters: Type (or select from the dropdown list) any of these filters to display a list of users:
+     - **Approved-By**, for merge requests already approved by a user. **(PREMIUM)**.
+     - **Approver**, for merge requests that this user is eligible to approve.
+       (For more information, read about [Code owners](../code_owners.md)). **(PREMIUM)**
+     - **Reviewer**, for merge requests reviewed by this user.
 1. Select or type the operator to use for filtering the attribute. The following operators are
    available:
    - `=`: Is
-   - `!=`: Is not ([Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/18059) in GitLab 12.7)
+   - `!=`: Is not
 1. Enter the text to filter the attribute by.
    You can filter some attributes by **None** or **Any**.
 1. Repeat this process to filter by multiple attributes. Multiple attributes are joined by a logical
    `AND`.
+1. Select a **Sort direction**, either **{sort-lowest}** for descending order,
+   or **{sort-highest}** for ascending order.
 
 GitLab displays the results on-screen, but you can also
 [retrieve them as an RSS feed](../../search/index.md#retrieve-search-results-as-feed).
-
-### Filter merge requests by ID
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/39908) in GitLab 12.1.
-
-You can filter the **Merge Request** list to find merge requests by their ID.
-
-For example, enter filter `#30` to return only merge request 30.
-
-### Filter merge requests by approvers **(PREMIUM)**
-
-> Moved to GitLab Premium in 13.9.
-
-To filter merge requests by an individual eligible approver ([Code owner](../code_owners.md)), you can type (or select from
-the dropdown list) **Approver** and select the user.
-
-![Filter MRs by an approver](img/filter_approver_merge_requests_v14_6.png)
-
-### Filter merge requests by "approved by" **(PREMIUM)**
-
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/30335) in GitLab 13.0.
-> - Moved to GitLab Premium in 13.9.
-
-To filter merge requests already approved by a specific individual, you can type (or select from
-the dropdown list) **Approved-By** and select the user.
-
-![Filter MRs by approved by](img/filter_approved_by_merge_requests_v14_6.png)
-
-### Filter merge requests by reviewer
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/47605) in GitLab 13.7.
-
-To filter review requested merge requests for a specific individual, you can type (or select from
-the dropdown list) **Reviewer** and select the user.
 
 ### Filter merge requests by environment or deployment date
 
@@ -160,13 +147,11 @@ change and whether you need access to a development environment:
 
 ## Assign a user to a merge request
 
-When a merge request is created, it's assigned by default to the person who created it.
-This person owns the merge request, but isn't responsible for [reviewing it](reviews/index.md).
-To assign the merge request to someone else, use the `/assign @user`
+To assign the merge request to a user, use the `/assign @user`
 [quick action](../quick_actions.md#issues-merge-requests-and-epics) in a text area in
 a merge request, or:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests** and find your merge request.
 1. On the right sidebar, expand the right sidebar and locate the **Assignees** section.
 1. Select **Edit**.
@@ -186,7 +171,7 @@ accountable for it:
 To assign multiple assignees to a merge request, use the `/assign @user`
 [quick action](../quick_actions.md#issues-merge-requests-and-epics) in a text area, or:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests** and find your merge request.
 1. On the right sidebar, expand the right sidebar and locate the **Assignees** section.
 1. Select **Edit** and, from the dropdown list, select all users you want
@@ -223,6 +208,15 @@ To delete a merge request:
 1. Go to the merge request you want to delete, and select **Edit**.
 1. Scroll to the bottom of the page, and select **Delete merge request**.
 
+### Delete the source branch on merge
+
+You can delete the source branch for a merge request:
+
+- When you create a merge request, by selecting **Delete source branch when merge request accepted**.
+- When you merge a merge request, if you have the Maintainer role, by selecting **Delete source branch**.
+
+An administrator can make this option the default in the project's settings.
+
 ### Update merge requests when target branch merges **(FREE SELF)**
 
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/320902) in GitLab 13.9.
@@ -252,11 +246,33 @@ This feature works only when a merge request is merged. Selecting **Remove sourc
 after merging does not retarget open merge requests. This improvement is
 [proposed as a follow-up](https://gitlab.com/gitlab-org/gitlab/-/issues/321559).
 
+## Move sidebar actions
+
+<!-- When the `moved_mr_sidebar` feature flag is removed, delete this topic and update the steps for these actions
+like in https://gitlab.com/gitlab-org/gitlab/-/merge_requests/87727/diffs?diff_id=522279685#5d9afba799c4af9920dab533571d7abb8b9e9163 -->
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/85584) in GitLab 14.10 [with a flag](../../../administration/feature_flags.md) named `moved_mr_sidebar`. Disabled by default.
+
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available per project or for your entire instance, ask an administrator to [enable the feature flag](../../../administration/feature_flags.md) named `moved_mr_sidebar`.
+On GitLab.com, this feature is enabled in the following projects: `gitlab-org/gitlab`, `gitlab-com/www-gitlab-com`, and `gitlab-org/customers-gitlab-com`.
+
+When this feature flag is enabled, in the upper-right corner,
+**Merge request actions** (**{ellipsis_v}**) contains the following actions:
+
+- The [notifications](../../profile/notifications.md#edit-notification-settings-for-issues-merge-requests-and-epics) toggle
+- Mark merge request as ready or [draft](../merge_requests/drafts.md)
+- Close merge request
+- [Lock discussion](../../discussions/index.md#prevent-comments-by-locking-the-discussion)
+- Copy reference
+
+When this feature flag is disabled, these actions are in the right sidebar.
+
 ## Merge request workflows
 
 For a software developer working in a team:
 
-1. You checkout a new branch, and submit your changes through a merge request.
+1. You check out a new branch, and submit your changes through a merge request.
 1. You gather feedback from your team.
 1. You work on the implementation optimizing code with [Code Quality reports](../../../ci/testing/code_quality.md).
 1. You verify your changes with [Unit test reports](../../../ci/testing/unit_test_reports.md) in GitLab CI/CD.
@@ -271,7 +287,7 @@ For a software developer working in a team:
 
 For a web developer writing a webpage for your company's website:
 
-1. You checkout a new branch and submit a new page through a merge request.
+1. You check out a new branch and submit a new page through a merge request.
 1. You gather feedback from your reviewers.
 1. You preview your changes with [Review Apps](../../../ci/review_apps/index.md).
 1. You request your web designers for their implementation.
@@ -291,3 +307,76 @@ For a web developer writing a webpage for your company's website:
 - [Commits](commits.md)
 - [CI/CD pipelines](../../../ci/index.md)
 - [Push options](../push_options.md) for merge requests
+
+## Troubleshooting
+
+### Rebase a merge request from the Rails console **(FREE SELF)**
+
+In addition to the `/rebase` [quick action](../quick_actions.md#issues-merge-requests-and-epics),
+users with access to the [Rails console](../../../administration/operations/rails_console.md)
+can rebase a merge request from the Rails console. Replace `<username>`,
+`<namespace/project>`, and `<iid>` with appropriate values:
+
+WARNING:
+Any command that changes data directly could be damaging if not run correctly,
+or under the right conditions. We highly recommend running them in a test environment
+with a backup of the instance ready to be restored, just in case.
+
+```ruby
+u = User.find_by_username('<username>')
+p = Project.find_by_full_path('<namespace/project>')
+m = p.merge_requests.find_by(iid: <iid>)
+MergeRequests::RebaseService.new(project: m.target_project, current_user: u).execute(m)
+```
+
+### Fix incorrect merge request status **(FREE SELF)**
+
+If a merge request remains **Open** after its changes are merged,
+users with access to the [Rails console](../../../administration/operations/rails_console.md)
+can correct the merge request's status. Replace `<username>`, `<namespace/project>`,
+and `<iid>` with appropriate values:
+
+WARNING:
+Any command that changes data directly could be damaging if not run correctly,
+or under the right conditions. We highly recommend running them in a test environment
+with a backup of the instance ready to be restored, just in case.
+
+```ruby
+u = User.find_by_username('<username>')
+p = Project.find_by_full_path('<namespace/project>')
+m = p.merge_requests.find_by(iid: <iid>)
+MergeRequests::PostMergeService.new(project: p, current_user: u).execute(m)
+```
+
+Running this command against a merge request with unmerged changes causes the
+merge request to display an incorrect message: `merged into <branch-name>`.
+
+### Close a merge request from the Rails console **(FREE SELF)**
+
+If closing a merge request doesn't work through the UI or API, you may want to attempt to close it in a [Rails console session](../../../administration/operations/rails_console.md#starting-a-rails-console-session):
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+u = User.find_by_username('<username>')
+p = Project.find_by_full_path('<namespace/project>')
+m = p.merge_requests.find_by(iid: <iid>)
+MergeRequests::CloseService.new(project: p, current_user: u).execute(m)
+```
+
+### Delete a merge request from the Rails console **(FREE SELF)**
+
+If deleting a merge request doesn't work through the UI or API, you may want to attempt to delete it in a [Rails console session](../../../administration/operations/rails_console.md#starting-a-rails-console-session):
+
+WARNING:
+Any command that changes data directly could be damaging if not run correctly,
+or under the right conditions. We highly recommend running them in a test environment
+with a backup of the instance ready to be restored, just in case.
+
+```ruby
+u = User.find_by_username('<username>')
+p = Project.find_by_full_path('<namespace/project>')
+m = p.merge_requests.find_by(iid: <iid>)
+Issuable::DestroyService.new(container: m.project, current_user: u).execute(m)
+```

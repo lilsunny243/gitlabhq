@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project issue boards sidebar', :js do
+RSpec.describe 'Project issue boards sidebar', :js, feature_category: :team_planning do
   include BoardHelpers
 
   let_it_be(:user)    { create(:user) }
@@ -15,6 +15,7 @@ RSpec.describe 'Project issue boards sidebar', :js do
   let_it_be(:issue, reload: true) { create(:issue, project: project, relative_position: 1) }
 
   before do
+    stub_feature_flags(apollo_boards: false)
     project.add_maintainer(user)
 
     sign_in(user)

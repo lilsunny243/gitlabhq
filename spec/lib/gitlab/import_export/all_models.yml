@@ -52,6 +52,7 @@ issues:
 - user_mentions
 - system_note_metadata
 - alert_management_alert
+- alert_management_alerts
 - status_page_published_incident
 - namespace
 - note_authors
@@ -61,6 +62,8 @@ issues:
 - requirement
 - incident_management_issuable_escalation_status
 - incident_management_timeline_events
+- incident_management_timeline_event_tags
+- incident_management_timeline_event_links
 - pending_escalations
 - customer_relations_contacts
 - issue_customer_relations_contacts
@@ -89,12 +92,27 @@ notes:
 - suggestions
 - diff_note_positions
 - review
+commit_notes:
+- award_emoji
+- noteable
+- author
+- updated_by
+- last_edited_by
+- resolved_by
+- todos
+- events
+- system_note_metadata
+- note_diff_file
+- suggestions
+- diff_note_positions
+- review
 label_links:
 - target
 - label
 label:
 - subscriptions
 - project
+- parent_container
 - lists
 - label_links
 - issues
@@ -153,6 +171,7 @@ merge_requests:
 - author
 - assignee
 - reviewers
+- reviewed_by_users
 - updated_by
 - milestone
 - iteration
@@ -211,6 +230,8 @@ merge_requests:
 - user_note_authors
 - cleanup_schedule
 - compliance_violations
+- created_environments
+- predictions
 external_pull_requests:
 - project
 merge_request_diff:
@@ -276,6 +297,7 @@ ci_pipelines:
 - job_artifacts
 - vulnerabilities_finding_pipelines
 - vulnerability_findings
+- vulnerability_state_transitions
 - pipeline_config
 - security_scans
 - security_findings
@@ -294,6 +316,10 @@ ci_pipelines:
 - package_build_infos
 - package_file_build_infos
 - build_trace_chunks
+- pipeline_metadata
+pipeline_metadata:
+- project
+- pipeline
 ci_refs:
 - project
 - ci_pipelines
@@ -306,6 +332,7 @@ stages:
 - processables
 - builds
 - bridges
+- generic_commit_statuses
 - latest_statuses
 - retried_statuses
 statuses:
@@ -316,6 +343,92 @@ statuses:
 - auto_canceled_by
 - needs
 - ci_stage
+builds:
+- user
+- auto_canceled_by
+- ci_stage
+- needs
+- resource
+- pipeline
+- sourced_pipeline
+- resource_group
+- metadata
+- runner
+- trigger_request
+- erased_by
+- deployment
+- pending_state
+- queuing_entry
+- runtime_metadata
+- trace_chunks
+- report_results
+- namespace
+- job_artifacts
+- job_variables
+- sourced_pipelines
+- pages_deployments
+- job_artifacts_archive
+- job_artifacts_metadata
+- job_artifacts_trace
+- job_artifacts_junit
+- job_artifacts_sast
+- job_artifacts_dependency_scanning
+- job_artifacts_container_scanning
+- job_artifacts_dast
+- job_artifacts_codequality
+- job_artifacts_license_scanning
+- job_artifacts_performance
+- job_artifacts_metrics
+- job_artifacts_metrics_referee
+- job_artifacts_network_referee
+- job_artifacts_lsif
+- job_artifacts_dotenv
+- job_artifacts_cobertura
+- job_artifacts_terraform
+- job_artifacts_accessibility
+- job_artifacts_cluster_applications
+- job_artifacts_secret_detection
+- job_artifacts_requirements
+- job_artifacts_coverage_fuzzing
+- job_artifacts_browser_performance
+- job_artifacts_load_performance
+- job_artifacts_api_fuzzing
+- job_artifacts_cluster_image_scanning
+- job_artifacts_cyclonedx
+- job_artifacts_requirements_v2
+- runner_machine
+- runner_machine_build
+- runner_session
+- trace_metadata
+- terraform_state_versions
+- taggings
+- base_tags
+- tag_taggings
+- tags
+- security_scans
+- dast_site_profiles_build
+- dast_site_profile
+- dast_scanner_profiles_build
+- dast_scanner_profile
+bridges:
+- user
+- pipeline
+- auto_canceled_by
+- ci_stage
+- needs
+- resource
+- sourced_pipeline
+- resource_group
+- metadata
+- trigger_request
+- downstream_pipeline
+- upstream_pipeline
+generic_commit_statuses:
+- user
+- pipeline
+- auto_canceled_by
+- ci_stage
+- needs
 variables:
 - project
 triggers:
@@ -352,10 +465,12 @@ hooks:
 - web_hook_logs
 protected_branches:
 - project
+- group
 - merge_access_levels
 - push_access_levels
 - unprotect_access_levels
 - approval_project_rules
+- external_status_checks
 - required_code_owners_sections
 protected_tags:
 - project
@@ -373,6 +488,7 @@ create_access_levels:
 - user
 - protected_tag
 - group
+- deploy_key
 container_repositories:
 - project
 - name
@@ -394,14 +510,32 @@ project:
 - project_namespace
 - management_clusters
 - boards
+- application_setting
 - last_event
 - integrations
+- push_hooks_integrations
+- tag_push_hooks_integrations
+- issue_hooks_integrations
+- confidential_issue_hooks_integrations
+- merge_request_hooks_integrations
+- note_hooks_integrations
+- confidential_note_hooks_integrations
+- job_hooks_integrations
+- archive_trace_hooks_integrations
+- pipeline_hooks_integrations
+- wiki_page_hooks_integrations
+- deployment_hooks_integrations
+- alert_hooks_integrations
+- incident_hooks_integrations
+- vulnerability_hooks_integrations
+- apple_app_store_integration
 - campfire_integration
 - confluence_integration
 - datadog_integration
 - discord_integration
 - drone_ci_integration
 - emails_on_push_integration
+- google_play_integration
 - pipelines_email_integration
 - mattermost_slash_commands_integration
 - shimo_integration
@@ -411,7 +545,6 @@ project:
 - packagist_integration
 - pivotaltracker_integration
 - prometheus_integration
-- flowdock_integration
 - assembla_integration
 - asana_integration
 - slack_integration
@@ -456,6 +589,9 @@ project:
 - project_repository
 - users
 - requesters
+- namespace_members
+- namespace_requesters
+- namespace_members_and_requesters
 - deploy_keys_projects
 - deploy_keys
 - users_star_projects
@@ -529,6 +665,7 @@ project:
 - jenkins_integration
 - index_status
 - feature_usage
+- regular_or_any_approver_approval_rules
 - approval_rules
 - approval_merge_request_rules
 - approval_merge_request_rule_sources
@@ -539,6 +676,8 @@ project:
 - path_locks
 - approver_groups
 - repository_state
+- wiki_repository
+- wiki_repository_state
 - source_pipelines
 - sourced_pipelines
 - prometheus_metrics
@@ -565,6 +704,7 @@ project:
 - project_registry
 - packages
 - package_files
+- repository_files
 - packages_cleanup_policy
 - alerting_setting
 - project_setting
@@ -613,6 +753,7 @@ project:
 - incident_management_oncall_rotations
 - incident_management_escalation_policies
 - incident_management_issuable_escalation_statuses
+- incident_management_timeline_event_tags
 - debian_distributions
 - merge_request_metrics
 - security_orchestration_policy_configuration
@@ -630,6 +771,12 @@ project:
 - vulnerability_reads
 - build_artifacts_size_refresh
 - project_callouts
+- pipeline_metadata
+- disable_download_button
+- dependency_list_exports
+- sbom_occurrences
+- analytics_dashboards_configuration_project
+- analytics_dashboards_pointer
 award_emoji:
 - awardable
 - user
@@ -645,8 +792,6 @@ timelogs:
 - note
 push_event_payload:
 - event
-issuable_severity:
-- issue
 issue_assignees:
 - issue
 - assignee
@@ -671,6 +816,7 @@ metrics:
 resource_label_events:
 - user
 - issue
+- work_item
 - merge_request
 - epic
 - label
@@ -823,11 +969,28 @@ approvals:
 resource_milestone_events:
   - user
   - issue
+  - work_item
   - merge_request
   - milestone
 resource_state_events:
   - user
   - issue
+  - work_item
   - merge_request
   - source_merge_request
   - epic
+iteration:
+  - group
+  - iterations_cadence
+  - issues
+  - labels
+  - merge_requests
+resource_iteration_events:
+  - user
+  - issue
+  - work_item
+  - merge_request
+  - iteration
+iterations_cadence:
+  - group
+  - iterations

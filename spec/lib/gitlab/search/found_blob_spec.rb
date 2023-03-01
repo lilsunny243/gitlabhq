@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Search::FoundBlob do
+RSpec.describe Gitlab::Search::FoundBlob, feature_category: :global_search do
   let(:project) { create(:project, :public, :repository) }
 
   describe 'parsing content results' do
@@ -17,6 +17,7 @@ RSpec.describe Gitlab::Search::FoundBlob do
       expect(subject.path).to eq('CHANGELOG')
       expect(subject.basename).to eq('CHANGELOG')
       expect(subject.ref).to eq('master')
+      expect(subject.matched_lines_count).to be_nil
       expect(subject.startline).to eq(188)
       expect(subject.data.lines[2]).to eq("  - Feature: Replace teams with group membership\n")
     end
@@ -141,9 +142,8 @@ RSpec.describe Gitlab::Search::FoundBlob do
       subject { described_class.new(blob_path: path, project: project, ref: 'master') }
 
       before do
-        allow(Gitlab::Git::Blob).to receive(:batch).and_return([
-          Gitlab::Git::Blob.new(path: path)
-        ])
+        allow(Gitlab::Git::Blob)
+          .to receive(:batch).and_return([Gitlab::Git::Blob.new(path: path)])
       end
 
       it { expect(subject.path).to eq('a/b/c.md') }

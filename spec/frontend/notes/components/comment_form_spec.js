@@ -5,10 +5,12 @@ import MockAdapter from 'axios-mock-adapter';
 import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
+import Autosave from '~/autosave';
 import batchComments from '~/batch_comments/stores/modules/batch_comments';
 import { refreshUserMergeRequestCounts } from '~/commons/nav/user_merge_requests';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_UNPROCESSABLE_ENTITY } from '~/lib/utils/http_status';
 import CommentForm from '~/notes/components/comment_form.vue';
 import CommentTypeDropdown from '~/notes/components/comment_type_dropdown.vue';
 import * as constants from '~/notes/constants';
@@ -20,6 +22,7 @@ import { loggedOutnoteableData, notesDataMock, userDataMock, noteableDataMock } 
 jest.mock('autosize');
 jest.mock('~/commons/nav/user_merge_requests');
 jest.mock('~/flash');
+jest.mock('~/autosave');
 
 Vue.use(Vuex);
 
@@ -71,11 +74,19 @@ describe('issue_comment_form component', () => {
   };
 
   const notableDataMockCanUpdateIssuable = createNotableDataMock({
-    current_user: { can_update: true, can_create_note: true },
+    current_user: { can_update: true, can_create_note: true, can_create_confidential_note: true },
   });
 
   const notableDataMockCannotUpdateIssuable = createNotableDataMock({
-    current_user: { can_update: false, can_create_note: true },
+    current_user: {
+      can_update: false,
+      can_create_note: false,
+      can_create_confidential_note: false,
+    },
+  });
+
+  const notableDataMockCannotCreateConfidentialNote = createNotableDataMock({
+    current_user: { can_update: false, can_create_note: true, can_create_confidential_note: false },
   });
 
   const mountComponent = ({
@@ -152,11 +163,11 @@ describe('issue_comment_form component', () => {
       });
 
       it.each`
-        httpStatus | errors
-        ${400}     | ${[COMMENT_FORM.GENERIC_UNSUBMITTABLE_NETWORK]}
-        ${422}     | ${['error 1']}
-        ${422}     | ${['error 1', 'error 2']}
-        ${422}     | ${['error 1', 'error 2', 'error 3']}
+        httpStatus                          | errors
+        ${400}                              | ${[COMMENT_FORM.GENERIC_UNSUBMITTABLE_NETWORK]}
+        ${HTTP_STATUS_UNPROCESSABLE_ENTITY} | ${['error 1']}
+        ${HTTP_STATUS_UNPROCESSABLE_ENTITY} | ${['error 1', 'error 2']}
+        ${HTTP_STATUS_UNPROCESSABLE_ENTITY} | ${['error 1', 'error 2', 'error 3']}
       `(
         'displays the correct errors ($errors) for a $httpStatus network response',
         async ({ errors, httpStatus }) => {
@@ -188,7 +199,10 @@ describe('issue_comment_form component', () => {
         store = createStore({
           actions: {
             saveNote: jest.fn().mockRejectedValue({
-              response: { status: 422, data: { errors: { commands_only: [...commandErrors] } } },
+              response: {
+                status: HTTP_STATUS_UNPROCESSABLE_ENTITY,
+                data: { errors: { commands_only: [...commandErrors] } },
+              },
             }),
           },
         });
@@ -328,8 +342,11 @@ describe('issue_comment_form component', () => {
         });
 
         it('inits autosave', () => {
-          expect(wrapper.vm.autosave).toBeDefined();
-          expect(wrapper.vm.autosave.key).toBe(`autosave/Note/Issue/${noteableDataMock.id}`);
+          expect(Autosave).toHaveBeenCalledWith(expect.any(Element), [
+            'Note',
+            'Issue',
+            noteableDataMock.id,
+          ]);
         });
       });
 
@@ -490,7 +507,7 @@ describe('issue_comment_form component', () => {
               await nextTick();
               await nextTick();
 
-              expect(createFlash).toHaveBeenCalledWith({
+              expect(createAlert).toHaveBeenCalledWith({
                 message: `Something went wrong while closing the ${type}. Please try again later.`,
               });
             });
@@ -526,7 +543,7 @@ describe('issue_comment_form component', () => {
             await nextTick();
             await nextTick();
 
-            expect(createFlash).toHaveBeenCalledWith({
+            expect(createAlert).toHaveBeenCalledWith({
               message: `Something went wrong while reopening the ${type}. Please try again later.`,
             });
           });
@@ -560,6 +577,17 @@ describe('issue_comment_form component', () => {
         const checkbox = findConfidentialNoteCheckbox();
         expect(checkbox.exists()).toBe(true);
         expect(checkbox.element.checked).toBe(false);
+      });
+
+      it('should not render checkbox if user is not at least a reporter', () => {
+        mountComponent({
+          mountFunction: mount,
+          initialData: { note: 'confidential note' },
+          noteableData: { ...notableDataMockCannotCreateConfidentialNote },
+        });
+
+        const checkbox = findConfidentialNoteCheckbox();
+        expect(checkbox.exists()).toBe(false);
       });
 
       it.each`
@@ -679,7 +707,7 @@ describe('issue_comment_form component', () => {
           );
         });
 
-        it('clicking `add comment now`, should call note endpoint, set `isDraft` false ', () => {
+        it('clicking `add comment now`, should call note endpoint, set `isDraft` false', () => {
           mountComponent({ mountFunction: mount, initialData: { note: 'a comment' } });
 
           jest.spyOn(store, 'dispatch').mockResolvedValue();

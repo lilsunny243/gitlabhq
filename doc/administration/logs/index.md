@@ -1,14 +1,13 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Log system **(FREE SELF)**
 
-GitLab has an advanced log system where everything is logged, so you
-can analyze your instance using various system log files. In addition to
-system log files, GitLab Enterprise Edition provides [Audit Events](../audit_events.md).
+GitLab has an advanced log system where everything is logged, so you can analyze your instance using various system log
+files. The log system is similar to [audit events](../audit_events.md).
 
 System log files are typically plain text in a standard log file format.
 This guide talks about how to read and use these system log files.
@@ -86,24 +85,24 @@ except those captured by `runit`.
 
 | Log type                                        | Managed by logrotate    | Managed by svlogd/runit |
 |:------------------------------------------------|:------------------------|:------------------------|
-| [Alertmanager Logs](#alertmanager-logs)         | **{dotted-circle}** No  | **{check-circle}** Yes  |
-| [Crond Logs](#crond-logs)                       | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [Alertmanager logs](#alertmanager-logs)         | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [crond logs](#crond-logs)                       | **{dotted-circle}** No  | **{check-circle}** Yes  |
 | [Gitaly](#gitaly-logs)                          | **{check-circle}** Yes  | **{check-circle}** Yes  |
 | [GitLab Exporter for Omnibus](#gitlab-exporter) | **{dotted-circle}** No  | **{check-circle}** Yes  |
-| [GitLab Pages Logs](#pages-logs)                | **{check-circle}** Yes  | **{check-circle}** Yes  |
+| [GitLab Pages logs](#pages-logs)                | **{check-circle}** Yes  | **{check-circle}** Yes  |
 | GitLab Rails                                    | **{check-circle}** Yes  | **{dotted-circle}** No  |
-| [GitLab Shell Logs](#gitlab-shelllog)           | **{check-circle}** Yes  | **{dotted-circle}** No  |
-| [Grafana Logs](#grafana-logs)                   | **{dotted-circle}** No  | **{check-circle}** Yes  |
-| [LogRotate Logs](#logrotate-logs)               | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [GitLab Shell logs](#gitlab-shelllog)           | **{check-circle}** Yes  | **{dotted-circle}** No  |
+| [Grafana logs](#grafana-logs)                   | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [LogRotate logs](#logrotate-logs)               | **{dotted-circle}** No  | **{check-circle}** Yes  |
 | [Mailroom](#mail_room_jsonlog-default)          | **{check-circle}** Yes  | **{check-circle}** Yes  |
 | [NGINX](#nginx-logs)                            | **{check-circle}** Yes  | **{check-circle}** Yes  |
-| [PostgreSQL Logs](#postgresql-logs)             | **{dotted-circle}** No  | **{check-circle}** Yes  |
-| [Praefect Logs](#praefect-logs)                 | **{dotted-circle}** Yes | **{check-circle}** Yes  |
-| [Prometheus Logs](#prometheus-logs)             | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [PostgreSQL logs](#postgresql-logs)             | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [Praefect logs](#praefect-logs)                 | **{dotted-circle}** Yes | **{check-circle}** Yes  |
+| [Prometheus logs](#prometheus-logs)             | **{dotted-circle}** No  | **{check-circle}** Yes  |
 | [Puma](#puma-logs)                              | **{check-circle}** Yes  | **{check-circle}** Yes  |
-| [Redis Logs](#redis-logs)                       | **{dotted-circle}** No  | **{check-circle}** Yes  |
-| [Registry Logs](#registry-logs)                 | **{dotted-circle}** No  | **{check-circle}** Yes  |
-| [Workhorse Logs](#workhorse-logs)               | **{check-circle}** Yes  | **{check-circle}** Yes  |
+| [Redis logs](#redis-logs)                       | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [Registry logs](#registry-logs)                 | **{dotted-circle}** No  | **{check-circle}** Yes  |
+| [Workhorse logs](#workhorse-logs)               | **{check-circle}** Yes  | **{check-circle}** Yes  |
 
 ## `production_json.log`
 
@@ -161,10 +160,14 @@ seconds:
 - `gitaly_duration_s`: Total time by Gitaly calls
 - `gitaly_calls`: Total number of calls made to Gitaly
 - `redis_calls`: Total number of calls made to Redis
+- `redis_cross_slot_calls`: Total number of cross-slot calls made to Redis
+- `redis_allowed_cross_slot_calls`: Total number of allowed cross-slot calls made to Redis
 - `redis_duration_s`: Total time to retrieve data from Redis
 - `redis_read_bytes`: Total bytes read from Redis
 - `redis_write_bytes`: Total bytes written to Redis
 - `redis_<instance>_calls`: Total number of calls made to a Redis instance
+- `redis_<instance>_cross_slot_calls`: Total number of cross-slot calls made to a Redis instance
+- `redis_<instance>_allowed_cross_slot_calls`: Total number of allowed cross-slot calls made to a Redis instance
 - `redis_<instance>_duration_s`: Total time to retrieve data from a Redis instance
 - `redis_<instance>_read_bytes`: Total bytes read from a Redis instance
 - `redis_<instance>_write_bytes`: Total bytes written to a Redis instance
@@ -340,6 +343,12 @@ associated SSH key can download the project in question by using a `git fetch` o
 - `params`: Key-value pairs passed in a query string or HTTP body (sensitive parameters, such as passwords and tokens, are filtered out)
 - `ua`: The User-Agent of the requester
 
+NOTE:
+As of [`Grape Logging`](https://github.com/aserafin/grape_logging) v1.8.4,
+the `view_duration_s` is calculated by [`duration_s - db_duration_s`](https://github.com/aserafin/grape_logging/blob/v1.8.4/lib/grape_logging/middleware/request_logger.rb#L117-L119).
+Therefore, `view_duration_s` can be affected by multiple different factors, like read-write
+process on Redis or external HTTP, not only the serialization process.
+
 ## `application.log`
 
 Depending on your installation method, this file is located at:
@@ -417,44 +426,16 @@ like this example:
 }
 ```
 
-## `kubernetes.log`
+## `kubernetes.log` (DEPRECATED)
+
+> [Deprecated](https://gitlab.com/groups/gitlab-org/configure/-/epics/8) in GitLab 14.5.
 
 Depending on your installation method, this file is located at:
 
 - Omnibus GitLab: `/var/log/gitlab/gitlab-rails/kubernetes.log`
 - Installations from source: `/home/git/gitlab/log/kubernetes.log`
 
-It logs information related to the Kubernetes Integration, including errors
-during installing cluster applications on your managed Kubernetes
-clusters.
-
-Each line contains JSON that can be ingested by services like Elasticsearch and Splunk.
-Line breaks have been added to the following example for clarity:
-
-```json
-{
-  "severity":"ERROR",
-  "time":"2018-11-23T15:14:54.652Z",
-  "exception":"Kubeclient::HttpError",
-  "error_code":401,
-  "service":"Clusters::Applications::CheckInstallationProgressService",
-  "app_id":14,
-  "project_ids":[1],
-  "group_ids":[],
-  "message":"Unauthorized"
-}
-{
-  "severity":"ERROR",
-  "time":"2018-11-23T15:42:11.647Z",
-  "exception":"Kubeclient::HttpError",
-  "error_code":null,
-  "service":"Clusters::Applications::InstallService",
-  "app_id":2,
-  "project_ids":[19],
-  "group_ids":[],
-  "message":"SSL_connect returned=1 errno=0 state=error: certificate verify failed (unable to get local issuer certificate)"
-}
-```
+It logs information related to [certificate-based clusters](../../user/project/clusters/index.md), such as connectivity errors. Each line contains JSON that can be ingested by services like Elasticsearch and Splunk.
 
 ## `git_json.log`
 
@@ -512,7 +493,7 @@ are logged to this file. For example:
 }
 ```
 
-## Sidekiq Logs
+## Sidekiq logs
 
 NOTE:
 In Omnibus GitLab `12.10` or earlier, the Sidekiq log is at `/var/log/gitlab/gitlab-rails/sidekiq.log`.
@@ -692,7 +673,7 @@ I, [2015-02-13T06:17:00.679433 #9291]  INFO -- : Moving existing hooks directory
 User clone/fetch activity using SSH transport appears in this log as
 `executing git command <gitaly-upload-pack...`.
 
-## Gitaly Logs
+## Gitaly logs
 
 This file is in `/var/log/gitlab/gitaly/current` and is produced by [runit](http://smarden.org/runit/).
 `runit` is packaged with Omnibus GitLab and a brief explanation of its purpose
@@ -719,7 +700,7 @@ This file is at `/var/log/gitlab/gitaly/gitaly_hooks.log` and is
 produced by `gitaly-hooks` command. It also contains records about
 failures received during processing of the responses from GitLab API.
 
-## Puma Logs
+## Puma logs
 
 ### `puma_stdout.log`
 
@@ -789,6 +770,24 @@ are recorded in this file. For example:
 {"severity":"INFO","time":"2020-11-24T02:31:29.203Z","correlation_id":null,"key":"cd_auto_rollback","action":"disable_percentage_of_actors"}
 {"severity":"INFO","time":"2020-11-24T02:31:29.329Z","correlation_id":null,"key":"cd_auto_rollback","action":"remove"}
 ```
+
+## `ci_resource_groups_json.log`
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/384180) in GitLab 15.9.
+
+Depending on your installation method, this file is located at:
+
+- Omnibus GitLab: `/var/log/gitlab/gitlab-rails/ci_resource_group_json.log`
+- Installations from source: `/home/git/gitlab/log/ci_resource_group_json.log`
+
+It contains information about [resource group](../../ci/resource_groups/index.md) acquisition. For example:
+
+```json
+{"severity":"INFO","time":"2023-02-10T23:02:06.095Z","correlation_id":"01GRYS10C2DZQ9J1G12ZVAD4YD","resource_group_id":1,"processable_id":288,"message":"attempted to assign resource to processable","success":true}
+{"severity":"INFO","time":"2023-02-10T23:02:08.945Z","correlation_id":"01GRYS138MYEG32C0QEWMC4BDM","resource_group_id":1,"processable_id":288,"message":"attempted to release resource from processable","success":true}
+```
+
+The examples show the `resource_group_id`, `processable_id`, `message`, and `success` fields for each entry.
 
 ## `auth.log`
 
@@ -884,6 +883,19 @@ Depending on your installation method, this file is located at:
 
 - Omnibus GitLab: `/var/log/gitlab/gitlab-rails/database_load_balancing.log`
 - Installations from source: `/home/git/gitlab/log/database_load_balancing.log`
+
+## `zoekt.log` **(PREMIUM SELF)**
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/110980) in GitLab 15.9.
+
+This file logs information related to the
+[Exact code search](../../user/search/exact_code_search.md) feature which is
+powered by Zoekt.
+
+Depending on your installation method, this file is located at:
+
+- Omnibus GitLab: `/var/log/gitlab/gitlab-rails/zoekt.log`
+- Installations from source: `/home/git/gitlab/log/zoekt.log`
 
 ## `elasticsearch.log` **(PREMIUM SELF)**
 
@@ -1002,11 +1014,11 @@ can be used.
 }
 ```
 
-## Registry Logs
+## Registry logs
 
 For Omnibus GitLab installations, Container Registry logs are in `/var/log/gitlab/registry/current`.
 
-## NGINX Logs
+## NGINX logs
 
 For Omnibus GitLab installations, NGINX logs are in:
 
@@ -1025,7 +1037,7 @@ Below is the default GitLab NGINX access log format:
 $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"
 ```
 
-## Pages Logs
+## Pages logs
 
 For Omnibus GitLab installations, Pages logs are in `/var/log/gitlab/gitlab-pages/current`.
 
@@ -1054,50 +1066,50 @@ For example:
 }
 ```
 
-## Mattermost Logs
+## Mattermost logs
 
 For Omnibus GitLab installations, Mattermost logs are in these locations:
 
 - `/var/log/gitlab/mattermost/mattermost.log`
 - `/var/log/gitlab/mattermost/current`
 
-## Workhorse Logs
+## Workhorse logs
 
 For Omnibus GitLab installations, Workhorse logs are in `/var/log/gitlab/gitlab-workhorse/current`.
 
-## PostgreSQL Logs
+## PostgreSQL logs
 
 For Omnibus GitLab installations, PostgreSQL logs are in `/var/log/gitlab/postgresql/current`.
 
-## Prometheus Logs
+## Prometheus logs
 
 For Omnibus GitLab installations, Prometheus logs are in `/var/log/gitlab/prometheus/current`.
 
-## Redis Logs
+## Redis logs
 
 For Omnibus GitLab installations, Redis logs are in `/var/log/gitlab/redis/current`.
 
-## Alertmanager Logs
+## Alertmanager logs
 
 For Omnibus GitLab installations, Alertmanager logs are in `/var/log/gitlab/alertmanager/current`.
 
 <!-- vale gitlab.Spelling = NO -->
 
-## Crond Logs
+## crond logs
 
 For Omnibus GitLab installations, crond logs are in `/var/log/gitlab/crond/`.
 
 <!-- vale gitlab.Spelling = YES -->
 
-## Grafana Logs
+## Grafana logs
 
 For Omnibus GitLab installations, Grafana logs are in `/var/log/gitlab/grafana/current`.
 
-## LogRotate Logs
+## LogRotate logs
 
 For Omnibus GitLab installations, `logrotate` logs are in `/var/log/gitlab/logrotate/current`.
 
-## GitLab Monitor Logs
+## GitLab Monitor logs
 
 For Omnibus GitLab installations, GitLab Monitor logs are in `/var/log/gitlab/gitlab-monitor/`.
 
@@ -1110,7 +1122,7 @@ For Omnibus GitLab installations, GitLab Exporter logs are in `/var/log/gitlab/g
 For Omnibus GitLab installations, GitLab agent server logs are
 in `/var/log/gitlab/gitlab-kas/current`.
 
-## Praefect Logs
+## Praefect logs
 
 For Omnibus GitLab installations, Praefect logs are in `/var/log/gitlab/praefect/`.
 

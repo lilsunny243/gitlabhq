@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Helpers do
+RSpec.describe API::Helpers, feature_category: :not_owned do
   using RSpec::Parameterized::TableSyntax
 
   subject(:helper) { Class.new.include(described_class).new }
@@ -11,7 +11,7 @@ RSpec.describe API::Helpers do
     include Rack::Test::Methods
 
     let(:user) { build(:user, id: 42) }
-
+    let(:request) { instance_double(Rack::Request) }
     let(:helper) do
       Class.new(Grape::API::Instance) do
         helpers API::APIGuard::HelperMethods
@@ -108,6 +108,13 @@ RSpec.describe API::Helpers do
           helper.find_project(non_existing_id)
         end
       end
+    end
+
+    context 'when ID is a negative number' do
+      let(:existing_id) { project.id }
+      let(:non_existing_id) { -1 }
+
+      it_behaves_like 'project finder'
     end
 
     context 'when project is pending delete' do
@@ -325,6 +332,13 @@ RSpec.describe API::Helpers do
 
         it_behaves_like 'group finder'
       end
+
+      context 'when ID is a negative number' do
+        let(:existing_id) { group.id }
+        let(:non_existing_id) { -1 }
+
+        it_behaves_like 'group finder'
+      end
     end
   end
 
@@ -418,6 +432,13 @@ RSpec.describe API::Helpers do
     context 'when PATH is used as an argument' do
       let(:existing_id) { namespace.path }
       let(:non_existing_id) { 'non-existing-path' }
+
+      it_behaves_like 'namespace finder'
+    end
+
+    context 'when ID is a negative number' do
+      let(:existing_id) { namespace.id }
+      let(:non_existing_id) { -1 }
 
       it_behaves_like 'namespace finder'
     end
@@ -773,6 +794,71 @@ RSpec.describe API::Helpers do
     end
   end
 
+  describe '#present_artifacts_file!' do
+    context 'with object storage' do
+      let(:artifact) { create(:ci_job_artifact, :zip, :remote_store) }
+      let(:is_head_request) { false }
+
+      subject { helper.present_artifacts_file!(artifact.file) }
+
+      before do
+        allow(helper).to receive(:env).and_return({})
+        allow(helper).to receive(:request).and_return(instance_double(Rack::Request, head?: is_head_request))
+        stub_artifacts_object_storage(enabled: true)
+      end
+
+      it 'redirects to a CDN-fronted URL' do
+        expect(helper).to receive(:redirect)
+        expect(helper).to receive(:cdn_fronted_url).and_call_original
+        expect(Gitlab::ApplicationContext).to receive(:push).with(artifact: artifact.file.model).and_call_original
+        expect(Gitlab::ApplicationContext).to receive(:push).with(artifact_used_cdn: false).and_call_original
+
+        subject
+      end
+
+      context 'requested with HEAD' do
+        let(:is_head_request) { true }
+
+        it 'redirects to a CDN-fronted URL' do
+          expect(helper).to receive(:redirect)
+          expect(ObjectStorage::S3).to receive(:signed_head_url).and_call_original
+          expect(Gitlab::ApplicationContext).to receive(:push).with(artifact: artifact.file.model).and_call_original
+
+          subject
+        end
+      end
+    end
+  end
+
+  describe '#cdn_frontend_url' do
+    before do
+      allow(helper).to receive(:env).and_return({})
+
+      stub_artifacts_object_storage(enabled: true)
+    end
+
+    context 'with a CI artifact' do
+      let(:artifact) { create(:ci_job_artifact, :zip, :remote_store) }
+
+      it 'retrieves a CDN-fronted URL' do
+        expect(artifact.file).to receive(:cdn_enabled_url).and_call_original
+        expect(Gitlab::ApplicationContext).to receive(:push).with(artifact_used_cdn: false).and_call_original
+        expect(helper.cdn_fronted_url(artifact.file)).to be_a(String)
+      end
+    end
+
+    context 'with a file upload' do
+      let(:url) { 'https://example.com/path/to/upload' }
+
+      it 'retrieves the file URL' do
+        file = double(url: url)
+
+        expect(Gitlab::ApplicationContext).not_to receive(:push)
+        expect(helper.cdn_fronted_url(file)).to eq(url)
+      end
+    end
+  end
+
   describe '#order_by_similarity?' do
     where(:params, :allow_unauthorized, :current_user_set, :expected) do
       {}                                          | false | false | false
@@ -915,43 +1001,6 @@ RSpec.describe API::Helpers do
       let(:headers) { gitlab_shell_internal_api_request_header }
 
       it_behaves_like 'authorized'
-    end
-
-    context 'when gitlab_shell_jwt_token is disabled' do
-      let(:valid_secret_token) { +'valid' } # mutable string to use chomp!
-      let(:invalid_secret_token) { +'invalid' } # mutable string to use chomp!
-
-      before do
-        stub_feature_flags(gitlab_shell_jwt_token: false)
-      end
-
-      context 'when shared secret is not provided' do
-        it_behaves_like 'unauthorized'
-      end
-
-      context 'when shared secret provided via params' do
-        let(:params) { { 'secret_token' => valid_secret_token } }
-
-        it_behaves_like 'authorized'
-
-        context 'but it is invalid' do
-          let(:params) { { 'secret_token' => invalid_secret_token } }
-
-          it_behaves_like 'unauthorized'
-        end
-      end
-
-      context 'when shared secret provided via headers' do
-        let(:headers) { { described_class::GITLAB_SHARED_SECRET_HEADER => Base64.encode64(valid_secret_token) } }
-
-        it_behaves_like 'authorized'
-
-        context 'but it is invalid' do
-          let(:headers) { { described_class::GITLAB_SHARED_SECRET_HEADER => Base64.encode64(invalid_secret_token) } }
-
-          it_behaves_like 'unauthorized'
-        end
-      end
     end
   end
 end

@@ -12,12 +12,19 @@ module BulkImports
     worker_has_external_dependencies!
 
     def perform(entity_id, current_stage = nil)
+      @entity = ::BulkImports::Entity.find(entity_id)
+
       if stage_running?(entity_id, current_stage)
         logger.info(
           structured_payload(
-            entity_id: entity_id,
+            bulk_import_entity_id: entity_id,
+            bulk_import_id: entity.bulk_import_id,
+            bulk_import_entity_type: entity.source_type,
+            source_full_path: entity.source_full_path,
             current_stage: current_stage,
-            message: 'Stage running'
+            message: 'Stage running',
+            source_version: source_version,
+            importer: 'gitlab_migration'
           )
         )
 
@@ -26,9 +33,14 @@ module BulkImports
 
       logger.info(
         structured_payload(
-          entity_id: entity_id,
+          bulk_import_entity_id: entity_id,
+          bulk_import_id: entity.bulk_import_id,
+          bulk_import_entity_type: entity.source_type,
+          source_full_path: entity.source_full_path,
           current_stage: current_stage,
-          message: 'Stage starting'
+          message: 'Stage starting',
+          source_version: source_version,
+          importer: 'gitlab_migration'
         )
       )
 
@@ -40,18 +52,35 @@ module BulkImports
         )
       end
     rescue StandardError => e
-      logger.error(
-        structured_payload(
-          entity_id: entity_id,
+      log_exception(e,
+        {
+          bulk_import_entity_id: entity_id,
+          bulk_import_id: entity.bulk_import_id,
+          bulk_import_entity_type: entity.source_type,
+          source_full_path: entity.source_full_path,
           current_stage: current_stage,
-          message: e.message
-        )
+          message: 'Entity failed',
+          source_version: source_version,
+          importer: 'gitlab_migration'
+        }
       )
 
-      Gitlab::ErrorTracking.track_exception(e, entity_id: entity_id)
+      Gitlab::ErrorTracking.track_exception(
+        e,
+        bulk_import_entity_id: entity_id,
+        bulk_import_id: entity.bulk_import_id,
+        bulk_import_entity_type: entity.source_type,
+        source_full_path: entity.source_full_path,
+        source_version: source_version,
+        importer: 'gitlab_migration'
+      )
+
+      entity.fail_op!
     end
 
     private
+
+    attr_reader :entity
 
     def stage_running?(entity_id, stage)
       return unless stage
@@ -63,8 +92,18 @@ module BulkImports
       BulkImports::Tracker.next_pipeline_trackers_for(entity_id).update(status_event: 'enqueue')
     end
 
+    def source_version
+      entity.bulk_import.source_version_info.to_s
+    end
+
     def logger
       @logger ||= Gitlab::Import::Logger.build
+    end
+
+    def log_exception(exception, payload)
+      Gitlab::ExceptionLogFormatter.format!(exception, payload)
+
+      logger.error(structured_payload(payload))
     end
   end
 end

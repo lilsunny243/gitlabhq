@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Database Load Balancing **(FREE SELF)**
@@ -76,18 +76,20 @@ Database Load Balancing can be configured in one of two ways:
 
 ### Hosts
 
-To configure a list of hosts, add the `gitlab_rails['db_load_balancing']` setting into the
-`gitlab.rb` file in the GitLab Rails / Sidekiq nodes for each environment you want to balance.
+To configure a list of hosts, perform these steps on all GitLab Rails (Sidekiq)
+nodes for each environment you want to balance:
 
-For example, on an environment that has PostgreSQL running on the hosts `host1.example.com`,
-`host2.example.com` and `host3.example.com` and reachable on the same port configured with
-`gitlab_rails['db_port']`:
+1. Edit the `/etc/gitlab/gitlab.rb` file.
+1. In `gitlab_rails['db_load_balancing']`, create an array of the read-only
+   replicas you want to balance. Do not add the primary host. For example, on
+   an environment with PostgreSQL running on the hosts `primary.example.com`,
+   `host1.example.com`, `host2.example.com`, and `host3.example.com`:
 
-1. On each GitLab Rails / Sidekiq node, edit `/etc/gitlab/gitlab.rb` and add the following line:
+   ```ruby
+   gitlab_rails['db_load_balancing'] = { 'hosts' => ['host1.example.com', 'host2.example.com', `host3.example.com`] }
+   ```
 
-  ```ruby
-  gitlab_rails['db_load_balancing'] = { 'hosts' => ['host1.example.com', 'host2.example.com', `host3.example.com`] }
-  ```
+   These replicas must be reachable on the same port configured with `gitlab_rails['db_port']`.
 
 1. Save the file and [reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure).
 
@@ -130,6 +132,7 @@ record. For example:
 | `interval`           | The minimum time in seconds between checking the DNS record.                                      | 60        |
 | `disconnect_timeout` | The time in seconds after which an old connection is closed, after the list of hosts was updated. | 120       |
 | `use_tcp`            | Lookup DNS resources using TCP instead of UDP                                                     | false     |
+| `max_replica_pools`  | The maximum number of replicas each Rails process connects to. This is useful if you run a lot of Postgres replicas and a lot of Rails processes because without this limit every Rails process connects to every replica by default. The default behavior is unlimited if not set.                                            | nil     |
 
 If `record_type` is set to `SRV`, then GitLab continues to use round-robin algorithm
 and ignores the `weight` and `priority` in the record. Since `SRV` records usually

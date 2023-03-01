@@ -65,6 +65,14 @@ describe('CreateMergeRequestDropdown', () => {
       expect(dropdown.createMrPath).toBe(
         `${TEST_HOST}/create_merge_request?merge_request%5Bsource_branch%5D=contains%23hash&merge_request%5Btarget_branch%5D=master&merge_request%5Bissue_iid%5D=42`,
       );
+
+      expect(dropdown.wrapperEl.dataset.createBranchPath).toBe(
+        `${TEST_HOST}/branches?branch_name=contains%23hash&issue=42`,
+      );
+
+      expect(dropdown.wrapperEl.dataset.createMrPath).toBe(
+        `${TEST_HOST}/create_merge_request?merge_request%5Bsource_branch%5D=contains%23hash&merge_request%5Btarget_branch%5D=master&merge_request%5Bissue_iid%5D=42`,
+      );
     });
   });
 
@@ -106,7 +114,7 @@ describe('CreateMergeRequestDropdown', () => {
       loading  | hasClass
       ${true}  | ${false}
       ${false} | ${true}
-    `('it toggle loading spinner when loading is $loading', ({ loading, hasClass }) => {
+    `('toggle loading spinner when loading is $loading', ({ loading, hasClass }) => {
       dropdown.setLoading(loading);
 
       expect(document.querySelector('.js-spinner').classList.contains('gl-display-none')).toEqual(

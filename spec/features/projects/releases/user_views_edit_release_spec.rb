@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User edits Release', :js do
+RSpec.describe 'User edits Release', :js, feature_category: :continuous_delivery do
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:user) { create(:user) }
 
-  let(:release) { create(:release, :with_milestones, milestones_count: 1, project: project, name: 'The first release', tag: "v1.1.0" ) }
+  let(:release) { create(:release, :with_milestones, milestones_count: 1, project: project, name: 'The first release', tag: "v1.1.0") }
   let(:release_link) { create(:release_link, release: release) }
 
   before do
@@ -41,7 +41,7 @@ RSpec.describe 'User edits Release', :js do
   end
 
   it 'renders the edit Release form' do
-    expect(page).to have_content('Releases are based on Git tags. We recommend tags that use semantic versioning, for example v1.0.0, v2.1.0-pre.')
+    expect(page).to have_content('Releases are based on Git tags. We recommend tags that use semantic versioning, for example 1.0.0, 2.1.0-pre.')
 
     expect(find_field('Tag name', disabled: true).value).to eq(release.tag)
     expect(find_field('Release title').value).to eq(release.name)

@@ -32,7 +32,7 @@ describe('Issuable Time Tracker', () => {
   const mountComponent = ({ props = {}, issuableType = 'issue', loading = false } = {}) => {
     return mount(TimeTracker, {
       propsData: { ...defaultProps, ...props },
-      directives: { GlTooltip: createMockDirective() },
+      directives: { GlTooltip: createMockDirective('gl-tooltip') },
       stubs: {
         transition: stubTransition(),
       },
@@ -268,47 +268,32 @@ describe('Issuable Time Tracker', () => {
       });
     });
 
-    describe('Help pane', () => {
-      const findHelpButton = () => findByTestId('helpButton');
-      const findCloseHelpButton = () => findByTestId('closeHelpButton');
+    describe('Add button', () => {
+      const findAddButton = () => findByTestId('add-time-entry-button');
 
-      beforeEach(async () => {
-        wrapper = mountComponent({
-          props: {
-            initialTimeTracking: {
-              timeEstimate: 0,
-              totalTimeSpent: 0,
-              humanTimeEstimate: '',
-              humanTotalTimeSpent: '',
+      it.each`
+        visibility       | canAddTimeEntries
+        ${'not visible'} | ${false}
+        ${'visible'}     | ${true}
+      `(
+        'is $visibility when canAddTimeEntries is $canAddTimeEntries',
+        async ({ canAddTimeEntries }) => {
+          wrapper = mountComponent({
+            props: {
+              initialTimeTracking: {
+                timeEstimate: 0,
+                totalTimeSpent: 0,
+                humanTimeEstimate: '',
+                humanTotalTimeSpent: '',
+              },
+              canAddTimeEntries,
             },
-          },
-        });
-        await nextTick();
-      });
+          });
+          await nextTick();
 
-      it('should not show the "Help" pane by default', () => {
-        expect(findByTestId('helpPane').exists()).toBe(false);
-      });
-
-      it('should show the "Help" pane when help button is clicked', async () => {
-        findHelpButton().trigger('click');
-
-        await nextTick();
-
-        expect(findByTestId('helpPane').exists()).toBe(true);
-      });
-
-      it('should not show the "Help" pane when help button is clicked and then closed', async () => {
-        findHelpButton().trigger('click');
-        await nextTick();
-
-        expect(findByTestId('helpPane').exists()).toBe(true);
-
-        findCloseHelpButton().trigger('click');
-        await nextTick();
-
-        expect(findByTestId('helpPane').exists()).toBe(false);
-      });
+          expect(findAddButton().exists()).toBe(canAddTimeEntries);
+        },
+      );
     });
   });
 

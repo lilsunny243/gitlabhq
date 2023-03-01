@@ -35,7 +35,7 @@ module Gitlab
 
         Timeout.timeout(TIMEOUT_LIMIT) do
           stderr_r, stderr_w = IO.pipe
-          stdout, wait_threads = Open3.pipeline_r(*command, pgroup: true, err: stderr_w )
+          stdout, wait_threads = Open3.pipeline_r(*command, pgroup: true, err: stderr_w)
 
           # When validation is performed on a small archive (e.g. 100 bytes)
           # `wait_thr` finishes before we can get process group id. Do not
@@ -87,7 +87,6 @@ module Gitlab
       def validate_archive_path
         Gitlab::Utils.check_path_traversal!(@archive_path)
 
-        raise(ServiceError, 'Archive path is not a string') unless @archive_path.is_a?(String)
         raise(ServiceError, 'Archive path is a symlink') if File.lstat(@archive_path).symlink?
         raise(ServiceError, 'Archive path is not a file') unless File.file?(@archive_path)
       end

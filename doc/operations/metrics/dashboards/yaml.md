@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Dashboard YAML properties (DEPRECATED) **(FREE)**
@@ -149,14 +149,14 @@ This works by converting the value of `label` to lower-case and, if there are mo
 
 To confirm your dashboard definition contains valid YAML syntax:
 
-1. Navigate to **{doc-text}** **Repository > Files**.
-1. Navigate to your dashboard file in your repository.
+1. Go to **Repository > Files**.
+1. Go to your dashboard file in your repository.
 1. Review the information pane about the file, displayed above the file contents.
 
 Files with valid syntax display **Metrics Dashboard YAML definition is valid**,
 and files with invalid syntax display **Metrics Dashboard YAML definition is invalid**.
 
-![Metrics Dashboard_YAML_syntax_validation](img/prometheus_dashboard_yaml_validation_v13_1.png)
+![Metrics dashboard YAML syntax validation](img/prometheus_dashboard_yaml_validation_v13_1.png)
 
 When **Metrics Dashboard YAML definition is invalid** at least one of the following messages is displayed:
 

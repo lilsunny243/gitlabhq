@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe "Admin Runners" do
+RSpec.describe "Admin Runners", feature_category: :runner_fleet do
   include Spec::Support::Helpers::Features::RunnersHelpers
   include Spec::Support::Helpers::ModalHelpers
 
@@ -21,20 +21,34 @@ RSpec.describe "Admin Runners" do
     let_it_be(:namespace) { create(:namespace) }
     let_it_be(:project) { create(:project, namespace: namespace, creator: user) }
 
+    describe "runners creation" do
+      before do
+        stub_feature_flags(create_runner_workflow: true)
+
+        visit admin_runners_path
+      end
+
+      it 'shows a create button' do
+        expect(page).to have_link s_('Runner|New instance runner'), href: new_admin_runner_path
+      end
+    end
+
     describe "runners registration" do
       before do
+        stub_feature_flags(create_runner_workflow: false)
+
         visit admin_runners_path
       end
 
       it_behaves_like "shows and resets runner registration token" do
-        let(:dropdown_text) { 'Register an instance runner' }
+        let(:dropdown_text) { s_('Runners|Register an instance runner') }
         let(:registration_token) { Gitlab::CurrentSettings.runners_registration_token }
       end
     end
 
     context "when there are runners" do
       context "with an instance runner" do
-        let!(:instance_runner) { create(:ci_runner, :instance) }
+        let_it_be(:instance_runner) { create(:ci_runner, :instance) }
 
         before do
           visit admin_runners_path
@@ -50,7 +64,7 @@ RSpec.describe "Admin Runners" do
 
         it 'shows an instance badge' do
           within_runner_row(instance_runner.id) do
-            expect(page).to have_selector '.badge', text: 'shared'
+            expect(page).to have_selector '.badge', text: s_('Runners|Instance')
           end
         end
       end
@@ -65,10 +79,14 @@ RSpec.describe "Admin Runners" do
         end
 
         it 'has all necessary texts' do
-          expect(page).to have_text "Register an instance runner"
-          expect(page).to have_text "Online 1"
-          expect(page).to have_text "Offline 2"
-          expect(page).to have_text "Stale 1"
+          expect(page).to have_text "#{s_('Runners|All')} 3"
+          expect(page).to have_text "#{s_('Runners|Online')} 1"
+          expect(page).to have_text "#{s_('Runners|Offline')} 2"
+          expect(page).to have_text "#{s_('Runners|Stale')} 1"
+        end
+
+        it_behaves_like 'deletes runners in bulk' do
+          let(:runner_count) { '3' }
         end
       end
 
@@ -85,11 +103,29 @@ RSpec.describe "Admin Runners" do
         end
       end
 
+      it 'shows a running status badge that links to jobs tab' do
+        runner = create(:ci_runner, :project, projects: [project])
+        job = create(:ci_build, :running, runner: runner)
+
+        visit admin_runners_path
+
+        within_runner_row(runner.id) do
+          click_on(s_('Runners|Running'))
+        end
+
+        expect(current_url).to match(admin_runner_path(runner))
+
+        expect(find("[data-testid='td-status']")).to have_content "running"
+        expect(find("[data-testid='td-job']")).to have_content "##{job.id}"
+      end
+
       describe 'search' do
-        before do
+        before_all do
           create(:ci_runner, :instance, description: 'runner-foo')
           create(:ci_runner, :instance, description: 'runner-bar')
+        end
 
+        before do
           visit admin_runners_path
         end
 
@@ -130,10 +166,12 @@ RSpec.describe "Admin Runners" do
       end
 
       describe 'filter by paused' do
-        before do
+        before_all do
           create(:ci_runner, :instance, description: 'runner-active')
           create(:ci_runner, :instance, description: 'runner-paused', active: false)
+        end
 
+        before do
           visit admin_runners_path
         end
 
@@ -145,7 +183,7 @@ RSpec.describe "Admin Runners" do
         end
 
         it 'shows paused runners' do
-          input_filtered_search_filter_is_only('Paused', 'Yes')
+          input_filtered_search_filter_is_only(s_('Runners|Paused'), 'Yes')
 
           expect(page).to have_link('All 1')
 
@@ -154,7 +192,7 @@ RSpec.describe "Admin Runners" do
         end
 
         it 'shows active runners' do
-          input_filtered_search_filter_is_only('Paused', 'No')
+          input_filtered_search_filter_is_only(s_('Runners|Paused'), 'No')
 
           expect(page).to have_link('All 1')
 
@@ -164,15 +202,17 @@ RSpec.describe "Admin Runners" do
       end
 
       describe 'filter by status' do
-        let!(:never_contacted) do
+        let_it_be(:never_contacted) do
           create(:ci_runner, :instance, description: 'runner-never-contacted', contacted_at: nil)
         end
 
-        before do
+        before_all do
           create(:ci_runner, :instance, description: 'runner-1', contacted_at: Time.zone.now)
           create(:ci_runner, :instance, description: 'runner-2', contacted_at: Time.zone.now)
           create(:ci_runner, :instance, description: 'runner-offline', contacted_at: 1.week.ago)
+        end
 
+        before do
           visit admin_runners_path
         end
 
@@ -186,7 +226,7 @@ RSpec.describe "Admin Runners" do
         end
 
         it 'shows correct runner when status matches' do
-          input_filtered_search_filter_is_only('Status', 'Online')
+          input_filtered_search_filter_is_only('Status', s_('Runners|Online'))
 
           expect(page).to have_link('All 2')
 
@@ -197,7 +237,7 @@ RSpec.describe "Admin Runners" do
         end
 
         it 'shows correct runner when status is selected and search term is entered' do
-          input_filtered_search_filter_is_only('Status', 'Online')
+          input_filtered_search_filter_is_only('Status', s_('Runners|Online'))
           input_filtered_search_keys('runner-1')
 
           expect(page).to have_link('All 1')
@@ -220,7 +260,7 @@ RSpec.describe "Admin Runners" do
           expect(page).to have_content 'runner-never-contacted'
 
           within_runner_row(never_contacted.id) do
-            expect(page).to have_selector '.badge', text: 'never contacted'
+            expect(page).to have_selector '.badge', text: s_('Runners|Never contacted')
           end
         end
 
@@ -238,7 +278,7 @@ RSpec.describe "Admin Runners" do
       end
 
       describe 'filter by type' do
-        before do
+        before_all do
           create(:ci_runner, :project, description: 'runner-project', projects: [project])
           create(:ci_runner, :group, description: 'runner-group', groups: [group])
         end
@@ -308,7 +348,7 @@ RSpec.describe "Admin Runners" do
 
           visit admin_runners_path
 
-          input_filtered_search_filter_is_only('Paused', 'No')
+          input_filtered_search_filter_is_only(s_('Runners|Paused'), 'No')
 
           expect(page).to have_content 'runner-project'
           expect(page).to have_content 'runner-group'
@@ -345,14 +385,15 @@ RSpec.describe "Admin Runners" do
       end
 
       describe 'filter by tag' do
+        let_it_be(:runner_1) { create(:ci_runner, :instance, description: 'runner-blue', tag_list: ['blue']) }
+        let_it_be(:runner_2) { create(:ci_runner, :instance, description: 'runner-2-blue', tag_list: ['blue']) }
+        let_it_be(:runner_3) { create(:ci_runner, :instance, description: 'runner-red', tag_list: ['red']) }
+
         before do
-          create(:ci_runner, :instance, description: 'runner-blue', tag_list: ['blue'])
-          create(:ci_runner, :instance, description: 'runner-red', tag_list: ['red'])
+          visit admin_runners_path
         end
 
         it 'shows tags suggestions' do
-          visit admin_runners_path
-
           open_filtered_search_suggestions('Tags')
 
           page.within(search_bar_selector) do
@@ -361,23 +402,25 @@ RSpec.describe "Admin Runners" do
           end
         end
 
-        it 'shows correct runner when tag matches' do
-          visit admin_runners_path
+        it_behaves_like 'filters by tag' do
+          let(:tag) { 'blue' }
+          let(:found_runner) { runner_1.description }
+          let(:missing_runner) { runner_3.description }
+        end
 
-          expect(page).to have_content 'runner-blue'
-          expect(page).to have_content 'runner-red'
+        context 'when tag does not match' do
+          before do
+            input_filtered_search_filter_is_only('Tags', 'green')
+          end
 
-          input_filtered_search_filter_is_only('Tags', 'blue')
+          it_behaves_like 'shows no runners found'
 
-          expect(page).to have_content 'runner-blue'
-          expect(page).not_to have_content 'runner-red'
+          it 'shows no runner' do
+            expect(page).not_to have_content 'runner-blue'
+          end
         end
 
         it 'shows correct runner when tag is selected and search term is entered' do
-          create(:ci_runner, :instance, description: 'runner-2-blue', tag_list: ['blue'])
-
-          visit admin_runners_path
-
           input_filtered_search_filter_is_only('Tags', 'blue')
 
           expect(page).to have_content 'runner-blue'
@@ -389,19 +432,6 @@ RSpec.describe "Admin Runners" do
           expect(page).to have_content 'runner-2-blue'
           expect(page).not_to have_content 'runner-blue'
           expect(page).not_to have_content 'runner-red'
-        end
-
-        context 'when tag does not match' do
-          before do
-            visit admin_runners_path
-            input_filtered_search_filter_is_only('Tags', 'green')
-          end
-
-          it_behaves_like 'shows no runners found'
-
-          it 'shows no runner' do
-            expect(page).not_to have_content 'runner-blue'
-          end
         end
       end
 
@@ -464,7 +494,7 @@ RSpec.describe "Admin Runners" do
   end
 
   describe "Runner show page", :js do
-    let(:runner) do
+    let_it_be(:runner) do
       create(
         :ci_runner,
         description: 'runner-foo',
@@ -473,6 +503,8 @@ RSpec.describe "Admin Runners" do
         tag_list: ['tag1']
       )
     end
+
+    let_it_be(:runner_job) { create(:ci_build, runner: runner) }
 
     before do
       visit admin_runner_path(runner)
@@ -500,6 +532,11 @@ RSpec.describe "Admin Runners" do
       end
     end
 
+    it_behaves_like 'shows runner jobs tab' do
+      let(:job_count) { '1' }
+      let(:job) { runner_job }
+    end
+
     describe 'when a runner is deleted' do
       before do
         click_on 'Delete runner'
@@ -520,9 +557,9 @@ RSpec.describe "Admin Runners" do
   end
 
   describe "Runner edit page" do
-    let(:project_runner) { create(:ci_runner, :project) }
-    let!(:project1) { create(:project) }
-    let!(:project2) { create(:project) }
+    let_it_be(:project1) { create(:project) }
+    let_it_be(:project2) { create(:project) }
+    let_it_be(:project_runner) { create(:ci_runner, :project) }
 
     before do
       visit edit_admin_runner_path(project_runner)
@@ -533,6 +570,36 @@ RSpec.describe "Admin Runners" do
     it_behaves_like 'submits edit runner form' do
       let(:runner) { project_runner }
       let(:runner_page_path) { admin_runner_path(project_runner) }
+    end
+
+    describe 'breadcrumbs' do
+      it 'contains the current runner id and token' do
+        page.within '[data-testid="breadcrumb-links"]' do
+          expect(page).to have_link("##{project_runner.id} (#{project_runner.short_sha})")
+          expect(page.find('[data-testid="breadcrumb-current-link"]')).to have_content("Edit")
+        end
+      end
+    end
+
+    describe 'runner header', :js do
+      it 'contains the runner status, type and id' do
+        expect(page).to have_content("#{s_('Runners|Never contacted')} Project Runner ##{project_runner.id} created")
+      end
+    end
+
+    context 'when a runner is updated', :js do
+      before do
+        click_on _('Save changes')
+        wait_for_requests
+      end
+
+      it 'show success alert' do
+        expect(page.find('[data-testid="alert-success"]')).to have_content('saved')
+      end
+
+      it 'redirects to runner page' do
+        expect(current_url).to match(admin_runner_path(project_runner))
+      end
     end
 
     describe 'projects' do
@@ -597,7 +664,7 @@ RSpec.describe "Admin Runners" do
         visit edit_admin_runner_path(runner)
       end
 
-      it 'removed specific runner from project' do
+      it 'removed project runner from project' do
         within '[data-testid="assigned-projects"]' do
           click_on 'Disable'
         end

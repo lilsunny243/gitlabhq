@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Auto DevOps **(FREE)**
@@ -13,7 +13,7 @@ Auto DevOps, and any available workarounds.
 
 Set the CI/CD variable `TRACE` to any value to make Helm commands produce verbose output. You can use this output to diagnose Auto DevOps deployment problems.
 
-You can resolve some problems with Auto DevOps deployment by changing advanced Auto DevOps configuration variables. Read more about [customizing Auto DevOps CI/CD variables](customize.md#cicd-variables).
+You can resolve some problems with Auto DevOps deployment by changing advanced Auto DevOps configuration variables. Read more about [customizing Auto DevOps CI/CD variables](cicd_variables.md).
 
 ## Unable to select a buildpack
 
@@ -40,7 +40,7 @@ The following are possible reasons:
 If your pipeline fails with the following message:
 
 ```plaintext
-Found errors in your .gitlab-ci.yml:
+Unable to create pipeline
 
   jobs:test config key may not be used with `rules`: only
 ```
@@ -230,7 +230,7 @@ LAST SEEN   TYPE      REASON                   OBJECT                           
 ```
 
 To change the port used for the liveness checks, pass
-[custom values to the Helm chart](customize.md#customize-values-for-helm-chart)
+[custom values to the Helm chart](customize.md#customize-helm-chart-values)
 used by Auto DevOps:
 
 1. Create a directory and file at the root of your repository named `.gitlab/auto-deploy-values.yaml`.

@@ -1,17 +1,18 @@
-import { shallowMount } from '@vue/test-utils';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import RecentSearchesDropdownContent from '~/filtered_search/components/recent_searches_dropdown_content.vue';
 import eventHub from '~/filtered_search/event_hub';
 import IssuableFilteredSearchTokenKeys from '~/filtered_search/issuable_filtered_search_token_keys';
+import { TOKEN_TYPE_AUTHOR } from '~/vue_shared/components/filtered_search_bar/constants';
 
 describe('Recent Searches Dropdown Content', () => {
   let wrapper;
 
-  const findLocalStorageNote = () => wrapper.find({ ref: 'localStorageNote' });
-  const findDropdownItems = () => wrapper.findAll({ ref: 'dropdownItem' });
-  const findDropdownNote = () => wrapper.find({ ref: 'dropdownNote' });
+  const findLocalStorageNote = () => wrapper.findByTestId('local-storage-note');
+  const findDropdownItems = () => wrapper.findAllByTestId('dropdown-item');
+  const findDropdownNote = () => wrapper.findByTestId('dropdown-note');
 
   const createComponent = (props) => {
-    wrapper = shallowMount(RecentSearchesDropdownContent, {
+    wrapper = shallowMountExtended(RecentSearchesDropdownContent, {
       propsData: {
         allowedKeys: IssuableFilteredSearchTokenKeys.getKeys(),
         items: [],
@@ -60,7 +61,7 @@ describe('Recent Searches Dropdown Content', () => {
         items: [
           'foo',
           'author:@root label:~foo bar',
-          [{ type: 'author_username', value: { data: 'toby', operator: '=' } }],
+          [{ type: TOKEN_TYPE_AUTHOR, value: { data: 'toby', operator: '=' } }],
         ],
         isLocalStorageAvailable: true,
       });
@@ -94,7 +95,7 @@ describe('Recent Searches Dropdown Content', () => {
     });
 
     it('emits requestClearRecentSearches on Clear resent searches button', () => {
-      wrapper.find({ ref: 'clearButton' }).trigger('click');
+      wrapper.findByTestId('clear-button').trigger('click');
 
       expect(onRequestClearRecentSearchesSpy).toHaveBeenCalled();
     });

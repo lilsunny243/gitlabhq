@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Stages of Auto DevOps **(FREE)**
@@ -63,7 +63,7 @@ For the requirements of other languages and frameworks, read the
 NOTE:
 Auto Test still uses Herokuish, as test suite detection is not
 yet part of the Cloud Native Buildpack specification. For more information, see
-[this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/212689).
+[issue 212689](https://gitlab.com/gitlab-org/gitlab/-/issues/212689).
 
 #### Mount volumes into the build container
 
@@ -89,9 +89,15 @@ buildjob:
 
 Read more about defining volumes in the [`pack build` documentation](https://buildpacks.io/docs/tools/pack/cli/pack_build/).
 
-### Auto Build using Herokuish
+<!--- start_remove The following content will be removed on remove_date: '2024-08-22' -->
+
+### Auto Build using Herokuish (deprecated)
 
 > [Replaced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/63351) with Cloud Native Buildpacks in GitLab 14.0.
+
+WARNING:
+Support for Herokuish was [deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/108234) in GitLab 15.8,
+and is planned for removal in 17.0. Use [Cloud Native Buildpacks](#moving-from-herokuish-to-cloud-native-buildpacks) instead.
 
 Prior to GitLab 14.0, [Herokuish](https://github.com/gliderlabs/herokuish) was
 the default build method for projects without a `Dockerfile`. Herokuish can
@@ -102,6 +108,8 @@ NOTE:
 If Auto Build fails despite the project meeting the buildpack requirements, set
 a project CI/CD variable `TRACE=true` to enable verbose logging, which may help you
 troubleshoot.
+
+<!--- end_remove -->
 
 ### Moving from Herokuish to Cloud Native Buildpacks
 
@@ -118,7 +126,15 @@ Herokuish, with the following caveats:
   Instead, custom commands should be prefixed with `/cnb/lifecycle/launcher`
   to receive the correct execution environment.
 
-## Auto Test
+<!--- start_remove The following content will be removed on remove_date: '2024-08-22' -->
+
+## Auto Test (deprecated)
+
+WARNING:
+Support for Herokuish was
+[deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/108234)
+in GitLab 15.8, and is planned for removal in 17.0. Because Auto Test uses
+Herokuish, Auto Test is also deprecated.
 
 Auto Test runs the appropriate tests for your application using
 [Herokuish](https://github.com/gliderlabs/herokuish) and
@@ -140,10 +156,11 @@ Cloud Native Buildpacks, and only buildpacks that implement the
 [Testpack API](https://devcenter.heroku.com/articles/testpack-api) are supported.
 
 <!-- vale gitlab.Spelling = YES -->
+<!--- end_remove -->
 
 ### Currently supported languages
 
-Note that not all buildpacks support Auto Test yet, as it's a relatively new
+Not all buildpacks support Auto Test yet, as it's a relatively new
 enhancement. All of Heroku's
 [officially supported languages](https://devcenter.heroku.com/articles/heroku-ci#supported-languages)
 support Auto Test. The languages supported by Heroku's Herokuish buildpacks all
@@ -193,13 +210,13 @@ After creating the report, it's uploaded as an artifact which you can later
 download and check out. The merge request widget also displays any security
 warnings on [Ultimate](https://about.gitlab.com/pricing/) licenses.
 
-To learn more about [how SAST works](../../user/application_security/sast/index.md),
-see the documentation.
+For more information, see
+[Static Application Security Testing (SAST)](../../user/application_security/sast/index.md).
 
 ## Auto Secret Detection
 
 > - Introduced in GitLab 13.1.
-> - Select functionality [made available](../../user/application_security/secret_detection/index.md#making-secret-detection-available-to-all-gitlab-tiers) in all tiers in GitLab 13.3
+> - Select functionality [made available](../../user/application_security/secret_detection/index.md#features-per-tier) in all tiers in GitLab 13.3
 
 Secret Detection uses the
 [Secret Detection Docker image](https://gitlab.com/gitlab-org/security-products/analyzers/secrets) to run Secret Detection on the current code, and checks for leaked secrets. Auto Secret Detection requires [GitLab Runner](https://docs.gitlab.com/runner/) 11.5 or above.
@@ -208,7 +225,7 @@ After creating the report, it's uploaded as an artifact which you can later
 download and evaluate. The merge request widget also displays any security
 warnings on [Ultimate](https://about.gitlab.com/pricing/) licenses.
 
-To learn more, see [Secret Detection](../../user/application_security/secret_detection/index.md).
+For more information, see [Secret Detection](../../user/application_security/secret_detection/index.md).
 
 ## Auto Dependency Scanning **(ULTIMATE)**
 
@@ -220,9 +237,8 @@ The Auto Dependency Scanning stage is skipped on licenses other than
 After creating the report, it's uploaded as an artifact which you can later download and
 check out. The merge request widget displays any security warnings detected,
 
-To learn more about
-[Dependency Scanning](../../user/application_security/dependency_scanning/index.md),
-see the documentation.
+For more information, see
+[Dependency Scanning](../../user/application_security/dependency_scanning/index.md).
 
 ## Auto License Compliance **(ULTIMATE)**
 
@@ -236,9 +252,8 @@ is skipped on licenses other than [Ultimate](https://about.gitlab.com/pricing/).
 After creating the report, it's uploaded as an artifact which you can later download and
 check out. The merge request displays any detected licenses.
 
-To learn more about
-[License Compliance](../../user/compliance/license_compliance/index.md), see the
-documentation.
+For more information, see
+[License Compliance](../../user/compliance/license_compliance/index.md).
 
 ## Auto Container Scanning
 
@@ -249,9 +264,8 @@ skipped on licenses other than [Ultimate](https://about.gitlab.com/pricing/).
 After creating the report, it's uploaded as an artifact which you can later download and
 check out. The merge request displays any detected security issues.
 
-To learn more about
-[Container Scanning](../../user/application_security/container_scanning/index.md),
-see the documentation.
+For more information, see
+[Container Scanning](../../user/application_security/container_scanning/index.md).
 
 ## Auto Review Apps
 
@@ -306,9 +320,8 @@ After the DAST scan completes, any security warnings are displayed
 on the [Security Dashboard](../../user/application_security/security_dashboard/index.md)
 and the merge request widget.
 
-To learn more about
-[Dynamic Application Security Testing](../../user/application_security/dast/index.md),
-see the documentation.
+For more information, see
+[Dynamic Application Security Testing (DAST)](../../user/application_security/dast/index.md).
 
 ### Overriding the DAST target
 
@@ -316,7 +329,7 @@ To use a custom target instead of the auto-deployed review apps,
 set a `DAST_WEBSITE` CI/CD variable to the URL for DAST to scan.
 
 WARNING:
-If [DAST Full Scan](../../user/application_security/dast/index.md#full-scan) is
+If [DAST Full Scan](../../user/application_security/dast/proxy-based.md#full-scan) is
 enabled, GitLab strongly advises **not**
 to set `DAST_WEBSITE` to any staging or production environment. DAST Full Scan
 actively attacks the target, which can take down your application and lead to
@@ -385,7 +398,7 @@ default, but the
 [Auto DevOps template](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Auto-DevOps.gitlab-ci.yml)
 contains job definitions for these tasks if you want to enable them.
 
-You can use [CI/CD variables](customize.md#cicd-variables) to automatically
+You can use [CI/CD variables](cicd_variables.md) to automatically
 scale your pod replicas, and to apply custom arguments to the Auto DevOps `helm upgrade`
 commands. This is an easy way to
 [customize the Auto Deploy Helm chart](customize.md#custom-helm-chart).
@@ -451,7 +464,7 @@ To use Auto Deploy on a Kubernetes 1.16+ cluster:
 1. If you are deploying your application for the first time in GitLab 13.0 or
    later, no configuration should be required.
 
-1. In GitLab 12.10 and earlier, set the following in the [`.gitlab/auto-deploy-values.yaml` file](customize.md#customize-values-for-helm-chart):
+1. In GitLab 12.10 and earlier, set the following in the [`.gitlab/auto-deploy-values.yaml` file](customize.md#customize-helm-chart-values):
 
    ```yaml
    deploymentApiVersion: apps/v1
@@ -485,9 +498,9 @@ as a Helm post-install hook. As some applications can't run without a successful
 database initialization step, GitLab deploys the first release without the
 application deployment, and only the database initialization step. After the database
 initialization completes, GitLab deploys a second release with the application
-deployment as normal.
+deployment as standard.
 
-Note that a post-install hook means that if any deploy succeeds,
+A post-install hook means that if any deploy succeeds,
 `DB_INITIALIZE` isn't processed thereafter.
 
 If present, `DB_MIGRATE` is run as a shell command within an application pod as
@@ -502,7 +515,7 @@ For example, in a Rails application in an image built with
 Unless your repository contains a `Dockerfile`, your image is built with
 Cloud Native Buildpacks, and you must prefix commands run in these images with
 `/cnb/lifecycle/launcher`, (or `/bin/herokuish procfile exec` when
-using [Herokuish](#auto-build-using-herokuish))
+using [Herokuish](#auto-build-using-herokuish-deprecated))
 to replicate the environment where your
 application runs.
 
@@ -535,7 +548,7 @@ you must:
 
 After configuring your worker to respond to health checks, run a Sidekiq
 worker for your Rails application. You can enable workers by setting the
-following in the [`.gitlab/auto-deploy-values.yaml` file](customize.md#customize-values-for-helm-chart):
+following in the [`.gitlab/auto-deploy-values.yaml` file](customize.md#customize-helm-chart-values):
 
 ```yaml
 workers:
@@ -620,4 +633,4 @@ for updates.
 
 This stage is enabled by default. You can disable it by adding the
 `CODE_INTELLIGENCE_DISABLED` CI/CD variable. Read more about
-[disabling Auto DevOps jobs](../../topics/autodevops/customize.md#disable-jobs).
+[disabling Auto DevOps jobs](../../topics/autodevops/cicd_variables.md#job-disabling-variables).

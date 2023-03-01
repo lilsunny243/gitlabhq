@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -12,7 +12,7 @@ self-managed instances. If you are an administrator, you can access the Admin Ar
 by visiting `/admin` on your self-managed instance. You can also access it through
 the UI:
 
-- GitLab versions 14.0 and later: on the top bar, select **Menu > Admin**.
+- GitLab versions 14.0 and later: on the top bar, select **Main menu > Admin**.
 - GitLab versions 13.12 and earlier: on the top bar, select the Admin Area icon (**{admin}**).
 
 NOTE:
@@ -47,7 +47,7 @@ The Dashboard provides statistics and system information about the GitLab instan
 
 To access the Dashboard, either:
 
-- On the top bar, select **Menu > Admin**.
+- On the top bar, select **Main menu > Admin**.
 - Visit `/admin` on your self-managed instance.
 
 The Dashboard is the default view of the Admin Area, and is made up of the following sections:
@@ -71,7 +71,7 @@ You can administer all projects in the GitLab instance from the Admin Area's Pro
 
 To access the Projects page:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Projects**.
 1. Select the **All**, **Private**, **Internal**, or **Public** tab to list only
    projects of that criteria.
@@ -112,7 +112,7 @@ You can combine the filter options. For example, to list only public projects wi
 
 You can administer all users in the GitLab instance from the Admin Area's Users page:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users**.
 
 To list users matching a specific criteria, select one of the following tabs on the **Users** page:
@@ -135,16 +135,15 @@ For each user, the following are listed:
 1. Date of account creation
 1. Date of last activity
 
-To edit a user, select the **Edit** button in that user's
-row. To delete the user, or delete the user and their contributions, select the cog dropdown in
+To edit a user, in the user's row, select **Edit**. To delete the user, or delete the user and their contributions, select the cog dropdown list in
 that user's row, and select the desired option.
 
 To change the sort order:
 
-1. Select the sort dropdown.
+1. Select the sort dropdown list.
 1. Select the desired order.
 
-By default the sort dropdown shows **Name**.
+By default the sort dropdown list shows **Name**.
 
 To search for users, enter your criteria in the search field. The user search is case
 insensitive, and applies partial matching to name and username. To search for an email address,
@@ -157,15 +156,15 @@ This allows the administrator to "see what the user sees," and take actions on b
 You can impersonate a user in the following ways:
 
 - Through the UI:
-  1. On the top bar, select **Menu > Admin**.
+  1. On the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Overview > Users**.
   1. From the list of users, select a user.
   1. Select **Impersonate**.
-- With the API, using [impersonation tokens](../../api/index.md#impersonation-tokens).
+- With the API, using [impersonation tokens](../../api/rest/index.md#impersonation-tokens).
 
-All impersonation activities are [captured with audit events](../../administration/audit_events.md#impersonation-data).
+All impersonation activities are [captured with audit events](../../administration/audit_events.md#user-impersonation).
 
-By default, impersonation is enabled. GitLab can be configured to [disable impersonation](../../api/index.md#disable-impersonation).
+By default, impersonation is enabled. GitLab can be configured to [disable impersonation](../../api/rest/index.md#disable-impersonation).
 
 ![user impersonation button](img/impersonate_user_button_v13_8.png)
 
@@ -175,7 +174,7 @@ By default, impersonation is enabled. GitLab can be configured to [disable imper
 
 When using authentication providers, administrators can see the identities for a user:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users**.
 1. From the list of users, select a user.
 1. Select **Identities**.
@@ -221,7 +220,7 @@ GitLab billing is based on the number of [**Billable users**](../../subscription
 
 You must be an administrator to manually add emails to users:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users** (`/admin/users`).
 1. Locate the user and select them.
 1. Select **Edit**.
@@ -237,7 +236,7 @@ The [Cohorts](user_cohorts.md) tab displays the monthly cohorts of new users and
 
 By default, users can create groups. To prevent a user from creating a top level group:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Users** (`/admin/users`).
 1. Locate the user and select them.
 1. Select **Edit**.
@@ -252,15 +251,13 @@ You can administer all groups in the GitLab instance from the Admin Area's Group
 
 To access the Groups page:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Groups**.
 
 For each group, the page displays their name, description, size, number of projects in the group,
-number of members, and whether the group is private, internal, or public. To edit a group, select
-the **Edit** button in that group's row. To delete the group, select the **Delete** button in
-that group's row.
+number of members, and whether the group is private, internal, or public. To edit a group, in the group's row, select **Edit**. To delete the group, in the group's row, select **Delete**.
 
-To change the sort order, select the sort dropdown and select the desired order. The default
+To change the sort order, select the sort dropdown list and select the desired order. The default
 sort order is by **Last created**.
 
 To search for groups by name, enter your criteria in the search field. The group search is case
@@ -270,14 +267,16 @@ To [Create a new group](../group/manage.md#create-a-group) select **New group**.
 
 ### Administering Topics
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/340920) in GitLab 14.4.
+- > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/340920) in GitLab 14.4.
+- > Merging topics [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/366884) in GitLab 15.5.
 
-You can administer all [topics](../project/working_with_projects.md#explore-topics) in the
-GitLab instance from the Admin Area's Topics page.
+[Topics](../project/working_with_projects.md#explore-topics) are used to categorize and find similar projects.
+
+You can administer all topics in the GitLab instance from the Admin Area's Topics page.
 
 To access the Topics page:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Topics**.
 
 For each topic, the page displays its name and the number of projects labeled with the topic.
@@ -295,42 +294,41 @@ insensitive and applies partial matching.
 
 NOTE:
 The assigned topics are visible only to everyone with access to the project,
-but everyone can see which topics exist at all on the GitLab instance.
+but everyone can see which topics exist on the GitLab instance.
 Do not include sensitive information in the name of a topic.
 
-### Administering Jobs
+### Administering Gitaly servers
 
-You can administer all jobs in the GitLab instance from the Admin Area's Jobs page.
+You can list all Gitaly servers in the GitLab instance from the Admin Area's **Gitaly Servers**
+page. For more details, see [Gitaly](../../administration/gitaly/index.md).
 
-To access the Jobs page:
+To access the **Gitaly Servers** page:
 
-1. On the top bar, select **Menu > Admin**.
-1. On the left sidebar, select **Overview > Jobs**. All jobs are listed, in descending order of job ID.
-1. Select the **All** tab to list all jobs. Select the **Pending**, **Running**, or **Finished**
-   tab to list only jobs of that status.
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Overview > Gitaly Servers**.
 
-For each job, the following details are listed:
+For each Gitaly server, the following details are listed:
 
-| Field    | Description |
-|----------|-------------|
-| Status   | Job status, either **passed**, **skipped**, or **failed**.              |
-| Job      | Includes links to the job, branch, and the commit that started the job. |
-| Pipeline | Includes a link to the specific pipeline.                               |
-| Project  | Name of the project, and organization, to which the job belongs.        |
-| Runner   | Name of the CI runner assigned to execute the job.                      |
-| Stage    | Stage that the job is declared in a `.gitlab-ci.yml` file.              |
-| Name     | Name of the job specified in a `.gitlab-ci.yml` file.                   |
-| Timing   | Duration of the job, and how long ago the job completed.                |
-| Coverage | Percentage of tests coverage.                                           |
+| Field          | Description |
+|----------------|-------------|
+| Storage        | Repository storage |
+| Address        | Network address on which the Gitaly server is listening |
+| Server version | Gitaly version |
+| Git version    | Version of Git installed on the Gitaly server |
+| Up to date     | Indicates if the Gitaly server version is the latest version available. A green dot indicates the server is up to date. |
+
+## CI/CD section
 
 ### Administering runners
+
+> [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/340859) from **Overview > Runners** to **CI/CD > Runners** in GitLab 15.8.
 
 You can administer all runners in the GitLab instance from the Admin Area's **Runners** page. See
 [GitLab Runner](https://docs.gitlab.com/runner/) for more information.
 
 To access the **Runners** page:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Runners**.
 
 #### Search and filter runners
@@ -349,6 +347,20 @@ You can also filter runners by status, type, and tag. To filter:
 
 ![Attributes of a runner, with the **Search or filter results...** field active](img/index_runners_search_or_filter_v14_5.png)
 
+#### Bulk delete runners
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/370241) in GitLab 15.4.
+> - [Feature flag removed](https://gitlab.com/gitlab-org/gitlab/-/issues/353981) in GitLab 15.5.
+
+You can delete multiple runners at the same time.
+
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **Overview > Runners**.
+1. To the left of the runners you want to delete, select the checkbox.
+   To select all of the runners on the page, select the checkbox above
+   the list.
+1. Select **Delete selected**.
+
 #### Runner attributes
 
 For each runner, the following attributes are listed:
@@ -364,25 +376,32 @@ For each runner, the following attributes are listed:
 
 You can also edit, pause, or remove each runner.
 
-### Administering Gitaly servers
+### Administering Jobs
 
-You can list all Gitaly servers in the GitLab instance from the Admin Area's **Gitaly Servers**
-page. For more details, see [Gitaly](../../administration/gitaly/index.md).
+> [Moved](https://gitlab.com/gitlab-org/gitlab/-/issues/386311) from **Overview > Jobs** to **CI/CD > Jobs** in GitLab 15.8.
 
-To access the **Gitaly Servers** page:
+You can administer all jobs in the GitLab instance from the Admin Area's Jobs page.
 
-1. On the top bar, select **Menu > Admin**.
-1. On the left sidebar, select **Overview > Gitaly Servers**.
+To access the Jobs page:
 
-For each Gitaly server, the following details are listed:
+1. On the top bar, select **Main menu > Admin**.
+1. On the left sidebar, select **CI/CD > Jobs**. All jobs are listed, in descending order of job ID.
+1. Select the **All** tab to list all jobs. Select the **Pending**, **Running**, or **Finished**
+   tab to list only jobs of that status.
 
-| Field          | Description |
-|----------------|-------------|
-| Storage        | Repository storage |
-| Address        | Network address on which the Gitaly server is listening |
-| Server version | Gitaly version |
-| Git version    | Version of Git installed on the Gitaly server |
-| Up to date     | Indicates if the Gitaly server version is the latest version available. A green dot indicates the server is up to date. |
+For each job, the following details are listed:
+
+| Field    | Description |
+|----------|-------------|
+| Status   | Job status, either **passed**, **skipped**, or **failed**.              |
+| Job      | Includes links to the job, branch, and the commit that started the job. |
+| Pipeline | Includes a link to the specific pipeline.                               |
+| Project  | Name of the project, and organization, to which the job belongs.        |
+| Runner   | Name of the CI runner assigned to execute the job.                      |
+| Stage    | Stage that the job is declared in a `.gitlab-ci.yml` file.              |
+| Name     | Name of the job specified in a `.gitlab-ci.yml` file.                   |
+| Timing   | Duration of the job, and how long ago the job completed.                |
+| Coverage | Percentage of tests coverage.                                           |
 
 ## Monitoring section
 

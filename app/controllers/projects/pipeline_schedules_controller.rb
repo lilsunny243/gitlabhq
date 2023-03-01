@@ -8,8 +8,8 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
   before_action :authorize_read_pipeline_schedule!
   before_action :authorize_create_pipeline_schedule!, only: [:new, :create]
   before_action :authorize_update_pipeline_schedule!, only: [:edit, :update]
-  before_action :authorize_take_ownership_pipeline_schedule!, only: [:take_ownership]
-  before_action :authorize_admin_pipeline_schedule!, only: [:destroy]
+  before_action :authorize_admin_pipeline_schedule!, only: [:take_ownership, :destroy]
+  before_action :push_schedule_feature_flag, only: [:index, :new, :edit]
 
   feature_category :continuous_integration
   urgency :low
@@ -40,7 +40,9 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
   end
 
   def update
-    if schedule.update(schedule_params)
+    response = Ci::PipelineSchedules::UpdateService.new(schedule, current_user, schedule_params).execute
+
+    if response.success?
       redirect_to project_pipeline_schedules_path(@project)
     else
       render :edit
@@ -62,7 +64,9 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
   end
 
   def take_ownership
-    if schedule.update(owner: current_user)
+    response = Ci::PipelineSchedules::TakeOwnershipService.new(schedule, current_user).execute
+
+    if response.success?
       redirect_to pipeline_schedules_path(@project)
     else
       redirect_to pipeline_schedules_path(@project), alert: _("Failed to change the owner")
@@ -73,9 +77,7 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
     if schedule.destroy
       redirect_to pipeline_schedules_path(@project), status: :found
     else
-      redirect_to pipeline_schedules_path(@project),
-                  status: :forbidden,
-                  alert: _("Failed to remove the pipeline schedule")
+      redirect_to pipeline_schedules_path(@project), status: :forbidden, alert: _("Failed to remove the pipeline schedule")
     end
   end
 
@@ -97,7 +99,7 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
   def schedule_params
     params.require(:schedule)
       .permit(:description, :cron, :cron_timezone, :ref, :active,
-        variables_attributes: [:id, :variable_type, :key, :secret_value, :_destroy] )
+        variables_attributes: [:id, :variable_type, :key, :secret_value, :_destroy])
   end
 
   def authorize_play_pipeline_schedule!
@@ -108,11 +110,11 @@ class Projects::PipelineSchedulesController < Projects::ApplicationController
     return access_denied! unless can?(current_user, :update_pipeline_schedule, schedule)
   end
 
-  def authorize_take_ownership_pipeline_schedule!
-    return access_denied! unless can?(current_user, :take_ownership_pipeline_schedule, schedule)
-  end
-
   def authorize_admin_pipeline_schedule!
     return access_denied! unless can?(current_user, :admin_pipeline_schedule, schedule)
+  end
+
+  def push_schedule_feature_flag
+    push_frontend_feature_flag(:pipeline_schedules_vue, @project)
   end
 end

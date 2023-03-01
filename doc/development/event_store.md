@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab EventStore
@@ -348,6 +348,12 @@ RSpec.describe MergeRequests::UpdateHeadPipelineWorker do
   # This shared example ensures that an event is published and correctly processed by
   # the current subscriber (`described_class`). It also ensures that the worker is idempotent.
   it_behaves_like 'subscribes to event' do
+    let(:event) { pipeline_created_event }
+  end
+
+  # This shared example ensures that an published event is ignored. This might be useful for
+  # conditional dispatch testing.
+  it_behaves_like 'ignores the published event' do
     let(:event) { pipeline_created_event }
   end
 

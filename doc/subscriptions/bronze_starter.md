@@ -1,7 +1,7 @@
 ---
 stage: Fulfillment
 group: Purchase
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Features available to Starter and Bronze subscribers
@@ -63,7 +63,7 @@ the tiers are no longer mentioned in GitLab documentation:
   - [`audit_json.log`](../administration/logs/index.md#audit_jsonlog) (specific entries)
   - [`elasticsearch.log`](../administration/logs/index.md#elasticsearchlog)
 - Merge requests:
-  - [Full code quality reports in the code quality tab](../ci/testing/code_quality.md#code-quality-reports)
+  - [Full code quality reports in the code quality tab](../ci/testing/code_quality.md#pipeline-details-view)
   - [Merge request approvals](../user/project/merge_requests/approvals/index.md)
   - [Multiple assignees](../user/project/merge_requests/index.md#assign-multiple-users)
   - [Approval Rule information for Reviewers](../user/project/merge_requests/reviews/index.md#approval-rule-information-for-reviewers)
@@ -82,8 +82,7 @@ the tiers are no longer mentioned in GitLab documentation:
 - Rake tasks:
   - [Displaying GitLab license information](../administration/raketasks/maintenance.md#show-gitlab-license-information)
 - Reference Architecture information:
-  - [Traffic load balancers](../administration/reference_architectures/index.md#traffic-load-balancer)
-  - [Zero downtime updates](../administration/reference_architectures/index.md#zero-downtime-updates)
+  - [Zero downtime upgrades](../administration/reference_architectures/index.md#zero-downtime-upgrades)
 - Repositories:
   - [Repository size limit](../user/admin_area/settings/account_and_limit_settings.md#repository-size-limit)
   - Repository mirroring:
@@ -105,8 +104,8 @@ the tiers are no longer mentioned in GitLab documentation:
   - [External groups](../integration/saml.md#external-groups)
   - [Required groups](../integration/saml.md#required-groups)
 - Search:
-  - [Filtering merge requests by approvers](../user/project/merge_requests/index.md#filter-merge-requests-by-approvers)
-  - [Filtering merge requests by "approved by"](../user/project/merge_requests/index.md#filter-merge-requests-by-approved-by)
+  - [Filtering merge requests](../user/project/merge_requests/index.md#filter-the-list-of-merge-requests) by approvers
+  - [Filtering merge requests](../user/project/merge_requests/index.md#filter-the-list-of-merge-requests) by "approved by"
   - [Advanced Search (Elasticsearch)](../user/search/advanced_search.md)
 - [Service Desk](../user/project/service_desk.md)
 - [Storage usage statistics](../user/usage_quotas.md#storage-usage-statistics)

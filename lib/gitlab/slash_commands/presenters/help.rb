@@ -4,9 +4,10 @@ module Gitlab
   module SlashCommands
     module Presenters
       class Help < Presenters::Base
-        def initialize(project, commands)
+        def initialize(project, commands, params = {})
           @project = project
           @commands = commands
+          @params = params
         end
 
         def present(trigger, text)
@@ -25,7 +26,7 @@ module Gitlab
             MESSAGE
           end
 
-          if text.start_with?('help')
+          if text && text.start_with?('help')
             <<~MESSAGE
               #{full_commands_message(trigger)}
 
@@ -66,7 +67,13 @@ module Gitlab
 
         def full_commands_message(trigger)
           list = @commands
-            .map { |command| "#{trigger} #{command.help_message}" }
+            .map do |command|
+              if command < Gitlab::SlashCommands::IncidentManagement::IncidentCommand
+                "#{trigger} #{command.help_message}"
+              else
+                "#{trigger} [project name or alias] #{command.help_message}"
+              end
+            end
             .join("\n")
 
           <<~MESSAGE

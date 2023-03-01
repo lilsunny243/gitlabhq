@@ -18,10 +18,7 @@ module Ci
 
     belongs_to :project
     belongs_to :trigger_request
-    has_many :sourced_pipelines, class_name: "::Ci::Sources::Pipeline",
-                                 foreign_key: :source_job_id
 
-    has_one :sourced_pipeline, class_name: "::Ci::Sources::Pipeline", foreign_key: :source_job_id
     has_one :downstream_pipeline, through: :sourced_pipeline, source: :pipeline
 
     validates :ref, presence: true
@@ -77,22 +74,22 @@ module Ci
       %i[pipeline project ref tag options name
          allow_failure stage stage_idx
          yaml_variables when description needs_attributes
-         scheduling_type ci_stage].freeze
+         scheduling_type ci_stage partition_id].freeze
     end
 
     def inherit_status_from_downstream!(pipeline)
       case pipeline.status
       when 'success'
-        self.success!
+        success!
       when 'failed', 'canceled', 'skipped'
-        self.drop!
+        drop!
       else
         false
       end
     end
 
     def has_downstream_pipeline?
-      sourced_pipelines.exists?
+      sourced_pipeline.present?
     end
 
     def downstream_pipeline_params
@@ -183,10 +180,18 @@ module Ci
       false
     end
 
+    def outdated_deployment?
+      false
+    end
+
     def expanded_environment_name
     end
 
     def persisted_environment
+    end
+
+    def deployment_job?
+      false
     end
 
     def execute_hooks
@@ -284,7 +289,11 @@ module Ci
       return [] unless forward_yaml_variables?
 
       yaml_variables.to_a.map do |hash|
-        { key: hash[:key], value: ::ExpandVariables.expand(hash[:value], expand_variables) }
+        if hash[:raw]
+          { key: hash[:key], value: hash[:value], raw: true }
+        else
+          { key: hash[:key], value: ::ExpandVariables.expand(hash[:value], expand_variables) }
+        end
       end
     end
 
@@ -292,7 +301,11 @@ module Ci
       return [] unless forward_pipeline_variables?
 
       pipeline.variables.to_a.map do |variable|
-        { key: variable.key, value: ::ExpandVariables.expand(variable.value, expand_variables) }
+        if variable.raw?
+          { key: variable.key, value: variable.value, raw: true }
+        else
+          { key: variable.key, value: ::ExpandVariables.expand(variable.value, expand_variables) }
+        end
       end
     end
 
@@ -301,7 +314,11 @@ module Ci
       return [] unless pipeline.pipeline_schedule
 
       pipeline.pipeline_schedule.variables.to_a.map do |variable|
-        { key: variable.key, value: ::ExpandVariables.expand(variable.value, expand_variables) }
+        if variable.raw?
+          { key: variable.key, value: variable.value, raw: true }
+        else
+          { key: variable.key, value: ::ExpandVariables.expand(variable.value, expand_variables) }
+        end
       end
     end
 

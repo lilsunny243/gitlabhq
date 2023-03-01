@@ -2,7 +2,7 @@
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/notifications.html'
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Notification emails **(FREE)**
@@ -47,7 +47,7 @@ anyone else.
 
 To edit your notification settings:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **Notifications**.
 1. Edit the desired global, group, or project notification settings.
@@ -76,7 +76,7 @@ For each project and group you can select one of the following levels:
 | Participate | Receive notifications for threads you have participated in. |
 | On mention  | Receive notifications when you are [mentioned](../discussions/index.md#mentions) in a comment. |
 | Disabled    | Receive no notifications.                                   |
-| Custom      | Receive notifications for selected events.                  |
+| Custom      | Receive notifications for selected events and threads you have participated in.                  |
 
 ### Global notification settings
 
@@ -100,7 +100,7 @@ You can select a notification level and email address for each group.
 
 To select a notification level for a group, use either of these methods:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **Notifications**.
 1. Locate the project in the **Groups** section.
@@ -108,8 +108,8 @@ To select a notification level for a group, use either of these methods:
 
 Or:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. Select the notification dropdown, next to the bell icon (**{notifications}**).
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. Select the notification dropdown list, next to the bell icon (**{notifications}**).
 1. Select the desired [notification level](#notification-levels).
 
 #### Change email address used for group notifications
@@ -119,7 +119,7 @@ Or:
 You can select an email address to receive notifications for each group you belong to.
 You can use group notifications, for example, if you work freelance, and want to keep email about clients' projects separate.
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **Notifications**.
 1. Locate the project in the **Groups** section.
@@ -131,7 +131,7 @@ To help you stay up to date, you can select a notification level for each projec
 
 To select a notification level for a project, use either of these methods:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **Notifications**.
 1. Locate the project in the **Projects** section.
@@ -139,8 +139,8 @@ To select a notification level for a project, use either of these methods:
 
 Or:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. Select the notification dropdown, next to the bell icon (**{notifications}**).
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. Select the notification dropdown list, next to the bell icon (**{notifications}**).
 1. Select the desired [notification level](#notification-levels).
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
@@ -153,7 +153,7 @@ These emails are enabled by default.
 
 To opt out:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **Notifications**.
 1. Clear the **Receive product marketing emails** checkbox.
@@ -194,6 +194,7 @@ Users are notified of the following events:
 | Personal access tokens expiring soon     | User            | Security email, always sent.                                                                                                            |
 | Personal access tokens have been created | User            | Security email, always sent. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/337591) in GitLab 14.9._                       |
 | Personal access tokens have expired      | User            | Security email, always sent.                                                                                                            |
+| Personal access token has been revoked   | User            | Security email, always sent.  [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/98911) in GitLab 15.5.                 |
 | Project access level changed             | User            | Sent when user project access level is changed.                                                                                         |
 | SSH key has expired                      | User            | Security email, always sent. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/322637) in GitLab 13.12._                      |
 | Two-factor authentication disabled       | User            | Security email, always sent.                                                                                                            |
@@ -227,64 +228,91 @@ to change their user notification settings to **Watch** instead.
 
 ### Edit notification settings for issues, merge requests, and epics
 
-To enable notifications on a specific issue, merge request, or epic, you must turn on the
-**Notifications** toggle in the right sidebar.
+To toggle notifications on an issue, merge request, or epic: on the right sidebar, turn on or off the **Notifications** toggle.
 
-- To subscribe, **turn on** if you are not a participant in the discussion, but want to receive
-  notifications on each update.
+When you **turn on** notifications, you start receiving notifications on each update, even if you
+haven't participated in the discussion.
+When you turn notifications on in an epic, you aren't automatically subscribed to the issues linked
+to the epic.
 
-  When you turn notifications on in an epic, you aren't automatically subscribed to the issues linked
-  to the epic.
+When you **turn off** notifications, you stop receiving notifications for updates.
+Turning this toggle off only unsubscribes you from updates related to this issue, merge request, or epic.
+Learn how to [opt out of all emails from GitLab](#opt-out-of-all-gitlab-emails).
 
-- To unsubscribe, **turn off** if you are receiving notifications for updates but no longer want to
-  receive them.
-
-  Turning this toggle off only unsubscribes you from updates related to this issue, merge request, or epic.
-  Learn how to [opt out of all emails from GitLab](#opt-out-of-all-gitlab-emails).
+<!-- Delete when the `moved_mr_sidebar` feature flag is removed -->
+If you don't see this action on the right sidebar, your project or instance may have
+enabled a feature flag for [moved sidebar actions](../project/merge_requests/index.md#move-sidebar-actions).
 
 ### Notification events on issues, merge requests, and epics
 
 The following table presents the events that generate notifications for issues, merge requests, and
 epics:
 
-| Event                  | Sent to |
-|------------------------|---------|
-| Change milestone issue | Subscribers and participants mentioned. |
-| Change milestone merge request | Subscribers and participants mentioned. |
-| Close epic             |         |
-| Close issue            |         |
-| Close merge request    |         |
-| Failed pipeline        | The author of the pipeline. |
-| Fixed pipeline         | The author of the pipeline. Enabled by default. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24309) in GitLab 13.1._ |
-| Issue due              | Participants and Custom notification level with this event selected. |
-| Merge merge request    |         |
-| Merge when pipeline succeeds | Author, Participants, Watchers, Subscribers, and Custom notification level with this event selected. Custom notification level is ignored for Author, Watchers and Subscribers. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/211961) in GitLab 13.4._ |
-| Merge request [marked as ready](../project/merge_requests/drafts.md) | Watchers and participants. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15332) in GitLab 13.10._ |
-| New epic               |         |
-| New issue              |         |
-| New merge request      |         |
-| New note               | Participants, Watchers, Subscribers, and Custom notification level with this event selected. Also anyone mentioned by username in the comment, with notification level "Mention" or higher. |
-| Push to merge request  | Participants and Custom notification level with this event selected. |
-| Reassign issue         | Participants, Watchers, Subscribers, Custom notification level with this event selected, and the old assignee. |
-| Reassign merge request | Participants, Watchers, Subscribers, Custom notification level with this event selected, and the old assignee. |
-| Remove milestone issue | Subscribers and participants mentioned. |
-| Remove milestone merge request | Subscribers and participants mentioned. |
-| Reopen epic            |         |
-| Reopen issue           |         |
-| Reopen merge request   |         |
-| Successful pipeline    | The author of the pipeline, with Custom notification level for successful pipelines. If the pipeline failed previously, a "Fixed pipeline" message is sent for the first successful pipeline after the failure, and then a "Successful pipeline" message for any further successful pipelines. |
-
-If the title or description of an issue or merge request is
-changed, notifications are sent to any **new** mentions by username as
-if they had been mentioned in the original text.
-
-If an open merge request becomes unmergeable due to conflict, its author is notified about the cause.
-If a user has also set the merge request to automatically merge when pipeline succeeds,
-then that user is also notified.
+| Type | Event | Sent to |
+|------|-------|---------|
+| Epic | Closed | Subscribers and participants. |
+| Epic | New | Anyone mentioned by username in the description, with notification level "Mention" or higher. |
+| Epic | New note | Participants, Watchers, Subscribers, and Custom notification level with this event selected. Also anyone mentioned by username in the comment, with notification level "Mention" or higher. |
+| Epic | Reopened | Subscribers and participants. |
+| Issue | Closed | Subscribers and participants. |
+| Issue | Due | Participants and Custom notification level with this event selected. |
+| Issue | Milestone changed | Subscribers and participants. |
+| Issue | Milestone removed | Subscribers and participants. |
+| Issue | New | Anyone mentioned by username in the description, with notification level "Mention" or higher. |
+| Issue | New note | Participants, Watchers, Subscribers, and Custom notification level with this event selected. Also anyone mentioned by username in the comment, with notification level "Mention" or higher. |
+| Issue | Title or description changed | Any new mentions by username. |
+| Issue | Reassigned | Participants, Watchers, Subscribers, Custom notification level with this event selected, and the old assignee. |
+| Issue | Reopened | Subscribers and participants. |
+| Merge Request | Closed | Subscribers and participants. |
+| Merge Request | Conflict | Author and any user that has set the merge request to automatically merge when pipeline succeeds. |
+| Merge Request | [Marked as ready](../project/merge_requests/drafts.md) | Watchers and participants. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/15332) in GitLab 13.10._ |
+| Merge Request | Merged | Subscribers and participants. |
+| Merge Request | Merged when pipeline succeeds | Author, Participants, Watchers, Subscribers, and Custom notification level with this event selected. Custom notification level is ignored for Author, Watchers and Subscribers. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/211961) in GitLab 13.4._ |
+| Merge Request | Milestone changed | Subscribers and participants. |
+| Merge Request | Milestone removed | Subscribers and participants. |
+| Merge Request | New | Anyone mentioned by username in the description, with notification level "Mention" or higher. |
+| Merge Request | New note | Participants, Watchers, Subscribers, and Custom notification level with this event selected. Also anyone mentioned by username in the comment, with notification level "Mention" or higher. |
+| Merge Request | Pushed | Participants and Custom notification level with this event selected. |
+| Merge Request | Reassigned | Participants, Watchers, Subscribers, Custom notification level with this event selected, and the old assignee. |
+| Merge Request | Reopened | Subscribers and participants. |
+| Merge Request | Title or description changed | Any new mentions by username. |
+| Pipeline | Failed | The author of the pipeline. |
+| Pipeline | Fixed | The author of the pipeline. Enabled by default. _[Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/24309) in GitLab 13.1._ |
+| Pipeline | Successful | The author of the pipeline, with Custom notification level for successful pipelines. If the pipeline failed previously, a "Fixed pipeline" message is sent for the first successful pipeline after the failure, and then a "Successful pipeline" message for any further successful pipelines. |
 
 By default, you don't receive notifications for issues, merge requests, or epics created by yourself.
 To always receive notifications on your own issues, merge requests, and so on, turn on
 [notifications about your own activity](#global-notification-settings).
+
+## Notifications for unknown sign-ins
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/27211) in GitLab 13.0.
+
+NOTE:
+This feature is enabled by default for self-managed instances. Administrators may disable this feature
+through the [Sign-in restrictions](../admin_area/settings/sign_in_restrictions.md#email-notification-for-unknown-sign-ins) section of the UI.
+The feature is always enabled on GitLab.com.
+
+When a user successfully signs in from a previously unknown IP address or device,
+GitLab notifies the user by email. In this way, GitLab proactively alerts users of potentially
+malicious or unauthorized sign-ins.
+
+GitLab uses several methods to identify a known sign-in. All methods must fail for a notification email to be sent.
+
+- Last sign-in IP: The current sign-in IP address is checked against the last sign-in
+  IP address.
+- Current active sessions: If the user has an existing active session from the
+  same IP address. See [Active Sessions](active_sessions.md).
+- Cookie: After successful sign in, an encrypted cookie is stored in the browser.
+  This cookie is set to expire 14 days after the last successful sign in.
+
+## Notifications for attempted sign-ins using incorrect verification codes
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/374740) in GitLab 15.5.
+
+GitLab sends you an email notification if it detects an attempt to sign in to your account using a wrong two-factor
+authentication (2FA) code. This can help you detect that a bad actor gained access to your username and password, and is trying
+to brute force 2FA.
 
 ## Notifications on designs
 
@@ -302,7 +330,7 @@ The participants are:
 
 If you no longer wish to receive any email notifications:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **Notifications**.
 1. Clear the **Receive product marketing emails** checkbox.
@@ -326,13 +354,13 @@ a merge request or an issue.
 The following table lists all GitLab-specific email headers:
 
 | Header                                                        | Description                                                                                                                                    |
-|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `List-Id`                                                     | The path of the project in an RFC 2919 mailing list identifier. You can use it for email organization with filters.                            |
 | `X-GitLab-(Resource)-ID`                                      | The ID of the resource the notification is for. The resource, for example, can be `Issue`, `MergeRequest`, `Commit`, or another such resource. |
 | `X-GitLab-Discussion-ID`                                      | The ID of the thread the comment belongs to, in notification emails for comments.                                                              |
 | `X-GitLab-Group-Id`                                           | The group's ID. Only present on notification emails for [epics](../group/epics/index.md).                                                      |
 | `X-GitLab-Group-Path`                                         | The group's path. Only present on notification emails for [epics](../group/epics/index.md)                                                     |
-| [`X-GitLab-NotificationReason`](#x-gitlab-notificationreason) | The reason for the notification. This can be `mentioned`, `assigned`, or `own_activity`.                                                       |
+| `X-GitLab-NotificationReason` | The reason for the notification. [See possible values.](#x-gitlab-notificationreason). |
 | `X-GitLab-Pipeline-Id`                                        | The ID of the pipeline the notification is for, in notification emails for pipelines.                                                          |
 | `X-GitLab-Project-Id`                                         | The project's ID.                                                                                                                              |
 | `X-GitLab-Project-Path`                                       | The project's path.                                                                                                                            |
@@ -346,20 +374,34 @@ The value is one of the following, in order of priority:
 
 - `own_activity`
 - `assigned`
+- `review_requested`
 - `mentioned`
+- `subscribed`
 
 The reason for the notification is also included in the footer of the notification email.
 For example, an email with the reason `assigned` has this sentence in the footer:
 
 > You are receiving this email because you have been assigned an item on \<configured GitLab hostname>.
 
-For example, an alert notification email can have one of
-[the alert's](../../operations/incident_management/alerts.md) statuses:
+#### On-call alerts notifications **(PREMIUM)**
+
+An [on-call alert](../../operations/incident_management/oncall_schedules.md)
+notification email can have one of [the alert's](../../operations/incident_management/alerts.md) statuses:
 
 - `alert_triggered`
 - `alert_acknowledged`
 - `alert_resolved`
 - `alert_ignored`
+
+#### Incident escalation notifications **(PREMIUM)**
+
+An [incident escalation](../../operations/incident_management/escalation_policies.md)
+notification email can have one of [the incident's](../../operations/incident_management/incidents.md) status:
+
+- `incident_triggered`
+- `incident_acknowledged`
+- `incident_resolved`
+- `incident_ignored`
 
 Expanding the list of events included in the `X-GitLab-NotificationReason` header is tracked in
 [issue 20689](https://gitlab.com/gitlab-org/gitlab/-/issues/20689).

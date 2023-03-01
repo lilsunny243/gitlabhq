@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Cluster Environments (DEPRECATED) **(PREMIUM)**
@@ -38,7 +38,7 @@ Access to cluster environments is restricted to
 
 ## Usage
 
-In order to:
+To:
 
 - Track environments for the cluster, you must
   [deploy to a Kubernetes cluster](../project/clusters/deploy_to_cluster.md)

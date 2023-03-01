@@ -152,10 +152,10 @@ RSpec.describe MergeRequestPollCachedWidgetEntity do
             .to eq(closed_event.author_id)
 
           expect(subject.dig(:metrics, :merged_at).to_s)
-            .to eq(merge_event.updated_at.to_s)
+            .to eq(merge_event.updated_at.iso8601)
 
           expect(subject.dig(:metrics, :closed_at).to_s)
-            .to eq(closed_event.updated_at.to_s)
+            .to eq(closed_event.updated_at.iso8601)
         end
       end
 
@@ -180,22 +180,6 @@ RSpec.describe MergeRequestPollCachedWidgetEntity do
       expect(commits_in_widget.length).to eq(resource.commits.without_merge_commits.length)
       commits_in_widget.each do |c|
         expect(find_matching_commit(c[:short_id]).merge_commit?).to eq(false)
-      end
-    end
-  end
-
-  describe 'auto merge' do
-    context 'when auto merge is enabled' do
-      let(:resource) { create(:merge_request, :merge_when_pipeline_succeeds) }
-
-      it 'returns auto merge related information' do
-        expect(subject[:auto_merge_enabled]).to be_truthy
-      end
-    end
-
-    context 'when auto merge is not enabled' do
-      it 'returns auto merge related information' do
-        expect(subject[:auto_merge_enabled]).to be_falsy
       end
     end
   end

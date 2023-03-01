@@ -1,12 +1,7 @@
 <script>
-import {
-  GlDropdown,
-  GlSearchBoxByType,
-  GlDropdownItem,
-  GlDropdownText,
-  GlLoadingIcon,
-} from '@gitlab/ui';
+import { GlCollapsibleListbox } from '@gitlab/ui';
 import { mapActions, mapGetters, mapState } from 'vuex';
+import { debounce, uniqBy } from 'lodash';
 import {
   I18N_NO_RESULTS_MESSAGE,
   I18N_BRANCH_HEADER,
@@ -16,11 +11,7 @@ import {
 export default {
   name: 'BranchesDropdown',
   components: {
-    GlDropdown,
-    GlSearchBoxByType,
-    GlDropdownItem,
-    GlDropdownText,
-    GlLoadingIcon,
+    GlCollapsibleListbox,
   },
   props: {
     value: {
@@ -36,76 +27,55 @@ export default {
   },
   data() {
     return {
-      searchTerm: this.value,
+      searchTerm: '',
     };
   },
   computed: {
     ...mapGetters(['joinedBranches']),
-    ...mapState(['isFetching', 'branch', 'branches']),
-    filteredResults() {
-      const lowerCasedSearchTerm = this.searchTerm.toLowerCase();
-      return this.joinedBranches.filter((resultString) =>
-        resultString.toLowerCase().includes(lowerCasedSearchTerm),
-      );
-    },
-  },
-  watch: {
-    // Parent component can set the branch value (e.g. when the user selects a different project)
-    // and we need to keep the search term in sync with the selected value
-    value(val) {
-      this.searchTermChanged(val);
+    ...mapState(['isFetching', 'branch']),
+    listboxItems() {
+      const selectedItem = { value: this.branch, text: this.branch };
+      const transformedList = this.joinedBranches.map((value) => ({ value, text: value }));
+
+      if (this.searchTerm) {
+        return transformedList;
+      }
+
+      // Add selected item to top of list if not searching
+      return uniqBy([selectedItem].concat(transformedList), 'value');
     },
   },
   mounted() {
-    this.fetchBranches(this.searchTerm);
+    this.fetchBranches();
   },
   methods: {
     ...mapActions(['fetchBranches']),
     selectBranch(branch) {
-      this.$emit('selectBranch', branch);
-      this.searchTerm = branch; // enables isSelected to work as expected
+      this.$emit('input', branch);
     },
-    isSelected(selectedBranch) {
-      return selectedBranch === this.branch;
-    },
+    debouncedSearch: debounce(function debouncedSearch() {
+      this.fetchBranches(this.searchTerm);
+    }, 250),
     searchTermChanged(value) {
-      this.searchTerm = value;
-      this.fetchBranches(value);
+      this.searchTerm = value.trim();
+      this.debouncedSearch(value);
     },
   },
 };
 </script>
 <template>
-  <gl-dropdown :text="value" :header-text="$options.i18n.branchHeaderTitle">
-    <gl-search-box-by-type
-      :value="searchTerm"
-      trim
-      autocomplete="off"
-      :debounce="250"
-      :placeholder="$options.i18n.branchSearchPlaceholder"
-      data-testid="dropdown-search-box"
-      @input="searchTermChanged"
-    />
-    <gl-dropdown-item
-      v-for="branch in filteredResults"
-      v-show="!isFetching"
-      :key="branch"
-      :name="branch"
-      :is-checked="isSelected(branch)"
-      is-check-item
-      data-testid="dropdown-item"
-      @click="selectBranch(branch)"
-    >
-      {{ branch }}
-    </gl-dropdown-item>
-    <gl-dropdown-text v-show="isFetching" data-testid="dropdown-text-loading-icon">
-      <gl-loading-icon size="sm" class="gl-mx-auto" />
-    </gl-dropdown-text>
-    <gl-dropdown-text
-      v-if="!filteredResults.length && !isFetching"
-      data-testid="empty-result-message"
-    >
-      <span class="gl-text-gray-500">{{ $options.i18n.noResultsMessage }}</span>
-    </gl-dropdown-text>
-  </gl-dropdown>
+  <gl-collapsible-listbox
+    class="gl-max-w-full"
+    :header-text="$options.i18n.branchHeaderTitle"
+    :toggle-text="value"
+    toggle-class="gl-w-full"
+    :items="listboxItems"
+    searchable
+    :search-placeholder="$options.i18n.branchSearchPlaceholder"
+    :searching="isFetching"
+    :selected="value"
+    :no-results-text="$options.i18n.noResultsMessage"
+    @search="searchTermChanged"
+    @select="selectBranch"
+  />
 </template>

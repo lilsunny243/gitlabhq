@@ -2,9 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Auth::OAuth::User do
+RSpec.describe Gitlab::Auth::OAuth::User, feature_category: :system_access do
   include LdapHelpers
-  include TermsHelper
 
   let(:oauth_user) { described_class.new(auth_hash) }
   let(:oauth_user_2) { described_class.new(auth_hash_2) }
@@ -109,7 +108,7 @@ RSpec.describe Gitlab::Auth::OAuth::User do
 
       context 'when user confirmation email is enabled' do
         before do
-          stub_application_setting send_user_confirmation_email: true
+          stub_application_setting_enum('email_confirmation_setting', 'hard')
         end
 
         it 'creates and confirms the user anyway' do
@@ -143,49 +142,6 @@ RSpec.describe Gitlab::Auth::OAuth::User do
 
         expect(gl_user).to be_persisted
         expect(gl_user).to be_password_automatically_set
-      end
-
-      context 'terms of service' do
-        context 'when terms are enforced' do
-          before do
-            enforce_terms
-          end
-
-          context 'when feature flag update_oauth_registration_flow is enabled' do
-            before do
-              stub_feature_flags(update_oauth_registration_flow: true)
-            end
-
-            it 'creates the user with accepted terms' do
-              oauth_user.save # rubocop:disable Rails/SaveBang
-
-              expect(gl_user).to be_persisted
-              expect(gl_user.terms_accepted?).to be(true)
-            end
-          end
-
-          context 'when feature flag update_oauth_registration_flow is disabled' do
-            before do
-              stub_feature_flags(update_oauth_registration_flow: false)
-            end
-
-            it 'creates the user without accepted terms' do
-              oauth_user.save # rubocop:disable Rails/SaveBang
-
-              expect(gl_user).to be_persisted
-              expect(gl_user.terms_accepted?).to be(false)
-            end
-          end
-        end
-
-        context 'when terms are not enforced' do
-          it 'creates the user without accepted terms' do
-            oauth_user.save # rubocop:disable Rails/SaveBang
-
-            expect(gl_user).to be_persisted
-            expect(gl_user.terms_accepted?).to be(false)
-          end
-        end
       end
 
       shared_examples 'to verify compliance with allow_single_sign_on' do
@@ -373,7 +329,7 @@ RSpec.describe Gitlab::Auth::OAuth::User do
 
         context "and no LDAP provider defined" do
           before do
-            stub_ldap_config(providers: [])
+            allow(Gitlab::Auth::Ldap::Config).to receive(:providers).at_least(:once).and_return([])
           end
 
           include_examples "to verify compliance with allow_single_sign_on"
@@ -462,25 +418,55 @@ RSpec.describe Gitlab::Auth::OAuth::User do
             end
 
             context "and LDAP user has an account already" do
-              let!(:existing_user) { create(:omniauth_user, name: 'John Doe', email: 'john@example.com', extern_uid: dn, provider: 'ldapmain', username: 'john') }
+              context 'when sync_name is disabled' do
+                before do
+                  allow(Gitlab.config.ldap).to receive(:enabled).and_return(true)
+                  allow(Gitlab.config.ldap).to receive(:sync_name).and_return(false)
+                end
 
-              it "adds the omniauth identity to the LDAP account" do
-                allow(Gitlab::Auth::Ldap::Person).to receive(:find_by_uid).and_return(ldap_user)
+                let!(:existing_user) { create(:omniauth_user, name: 'John Doe', email: 'john@example.com', extern_uid: dn, provider: 'ldapmain', username: 'john') }
 
-                oauth_user.save # rubocop:disable Rails/SaveBang
+                it "adds the omniauth identity to the LDAP account" do
+                  allow(Gitlab::Auth::Ldap::Person).to receive(:find_by_uid).and_return(ldap_user)
 
-                expect(gl_user).to be_valid
-                expect(gl_user.username).to eql 'john'
-                expect(gl_user.name).to eql 'John Doe'
-                expect(gl_user.email).to eql 'john@example.com'
-                expect(gl_user.identities.length).to be 2
-                identities_as_hash = gl_user.identities.map { |id| { provider: id.provider, extern_uid: id.extern_uid } }
-                expect(identities_as_hash).to match_array(
-                  [
-                    { provider: 'ldapmain', extern_uid: dn },
-                    { provider: 'twitter', extern_uid: uid }
-                  ]
-                )
+                  oauth_user.save # rubocop:disable Rails/SaveBang
+
+                  expect(gl_user).to be_valid
+                  expect(gl_user.username).to eql 'john'
+                  expect(gl_user.name).to eql 'John Doe'
+                  expect(gl_user.email).to eql 'john@example.com'
+                  expect(gl_user.identities.length).to be 2
+                  identities_as_hash = gl_user.identities.map { |id| { provider: id.provider, extern_uid: id.extern_uid } }
+                  expect(identities_as_hash).to match_array(
+                    [
+                      { provider: 'ldapmain', extern_uid: dn },
+                      { provider: 'twitter', extern_uid: uid }
+                    ]
+                  )
+                end
+              end
+
+              context 'when sync_name is enabled' do
+                let!(:existing_user) { create(:omniauth_user, name: 'John Swift', email: 'john@example.com', extern_uid: dn, provider: 'ldapmain', username: 'john') }
+
+                it "adds the omniauth identity to the LDAP account" do
+                  allow(Gitlab::Auth::Ldap::Person).to receive(:find_by_uid).and_return(ldap_user)
+
+                  oauth_user.save # rubocop:disable Rails/SaveBang
+
+                  expect(gl_user).to be_valid
+                  expect(gl_user.username).to eql 'john'
+                  expect(gl_user.name).to eql 'John Swift'
+                  expect(gl_user.email).to eql 'john@example.com'
+                  expect(gl_user.identities.length).to be 2
+                  identities_as_hash = gl_user.identities.map { |id| { provider: id.provider, extern_uid: id.extern_uid } }
+                  expect(identities_as_hash).to match_array(
+                    [
+                      { provider: 'ldapmain', extern_uid: dn },
+                      { provider: 'twitter', extern_uid: uid }
+                    ]
+                  )
+                end
               end
             end
 
@@ -553,6 +539,8 @@ RSpec.describe Gitlab::Auth::OAuth::User do
           context "and no corresponding LDAP person" do
             before do
               allow(Gitlab::Auth::Ldap::Person).to receive(:find_by_uid).and_return(nil)
+              allow(Gitlab::Auth::Ldap::Person).to receive(:find_by_email).and_return(nil)
+              allow(Gitlab::Auth::Ldap::Person).to receive(:find_by_dn).and_return(nil)
             end
 
             include_examples "to verify compliance with allow_single_sign_on"
@@ -979,7 +967,7 @@ RSpec.describe Gitlab::Auth::OAuth::User do
       end
 
       it "does not update the user location" do
-        expect(gl_user.location).to be_nil
+        expect(gl_user.location).to be_blank
         expect(gl_user.user_synced_attributes_metadata.location_synced).to be(false)
       end
     end

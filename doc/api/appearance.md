@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Appearance API **(FREE SELF)**
@@ -30,6 +30,10 @@ Example response:
 {
   "title": "GitLab Test Instance",
   "description": "gitlab-test.example.com",
+  "pwa_name": "GitLab PWA",
+  "pwa_short_name": "GitLab",
+  "pwa_description": "GitLab as PWA",
+  "pwa_icon": "/uploads/-/system/appearance/pwa_icon/1/pwa_logo.png",
   "logo": "/uploads/-/system/appearance/logo/1/logo.png",
   "header_logo": "/uploads/-/system/appearance/header_logo/1/header.png",
   "favicon": "/uploads/-/system/appearance/favicon/1/favicon.png",
@@ -55,6 +59,10 @@ PUT /application/appearance
 | --------------------------------- | ------- | -------- | ----------- |
 | `title`                           | string  | no       | Instance title on the sign in / sign up page
 | `description`                     | string  | no       | Markdown text shown on the sign in / sign up page
+| `pwa_name`                        | string  | no       | Full name of the Progressive Web App. Used for the attribute `name` in `manifest.json`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/375708) in GitLab 15.8.
+| `pwa_short_name`                  | string  | no       | Short name for Progressive Web App. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/375708) in GitLab 15.8.
+| `pwa_description`                 | string  | no       | An explanation of what the Progressive Web App does. Used for the attribute `description` in `manifest.json`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/375708) in GitLab 15.8.
+| `pwa_icon`                        | mixed   | no       | Icon used for Progressive Web App. See [Change logo](#change-logo). [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/375708) in GitLab 15.8.
 | `logo`                            | mixed   | no       | Instance image used on the sign in / sign up page. See [Change logo](#change-logo)
 | `header_logo`                     | mixed   | no       | Instance image used for the main navigation bar
 | `favicon`                         | mixed   | no       | Instance favicon in `.ico` or `.png` format
@@ -76,6 +84,10 @@ Example response:
 {
   "title": "GitLab Test Instance",
   "description": "gitlab-test.example.com",
+  "pwa_name": "GitLab PWA",
+  "pwa_short_name": "GitLab",
+  "pwa_description": "GitLab as PWA",
+  "pwa_icon": "/uploads/-/system/appearance/pwa_icon/1/pwa_logo.png",
   "logo": "/uploads/-/system/appearance/logo/1/logo.png",
   "header_logo": "/uploads/-/system/appearance/header_logo/1/header.png",
   "favicon": "/uploads/-/system/appearance/favicon/1/favicon.png",
@@ -102,9 +114,10 @@ preceded by `@`.
 PUT /application/appearance
 ```
 
-| Attribute | Type   | Required | Description    |
-| --------- | ------ | -------- | -------------- |
-| `logo`    | mixed | Yes      | File to upload |
+| Attribute   | Type   | Required | Description    |
+| ---------   | ------ | -------- | -------------- |
+| `logo`      | mixed  | Yes      | File to upload |
+| `pwa_icon`  | mixed  | Yes      | File to upload. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/375708) in GitLab 15.8. |
 
 Example request:
 
@@ -120,4 +133,5 @@ Returned object:
 ```json
 {
    "logo":"/uploads/-/system/appearance/logo/1/logo.png"
+}
 ```

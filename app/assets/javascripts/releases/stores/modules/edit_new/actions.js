@@ -1,5 +1,5 @@
 import { getTag } from '~/rest_api';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { redirectTo } from '~/lib/utils/url_utility';
 import { s__ } from '~/locale';
 import createReleaseMutation from '~/releases/graphql/mutations/create_release.mutation.graphql';
@@ -15,6 +15,8 @@ import {
 } from '~/releases/util';
 
 import * as types from './mutation_types';
+
+class GraphQLError extends Error {}
 
 export const initializeRelease = ({ commit, dispatch, state }) => {
   if (state.isExistingRelease) {
@@ -46,7 +48,7 @@ export const fetchRelease = async ({ commit, state }) => {
     commit(types.RECEIVE_RELEASE_SUCCESS, release);
   } catch (error) {
     commit(types.RECEIVE_RELEASE_ERROR, error);
-    createFlash({
+    createAlert({
       message: s__('Release|Something went wrong while getting the release details.'),
     });
   }
@@ -54,6 +56,9 @@ export const fetchRelease = async ({ commit, state }) => {
 
 export const updateReleaseTagName = ({ commit }, tagName) =>
   commit(types.UPDATE_RELEASE_TAG_NAME, tagName);
+
+export const updateReleaseTagMessage = ({ commit }, tagMessage) =>
+  commit(types.UPDATE_RELEASE_TAG_MESSAGE, tagMessage);
 
 export const updateCreateFrom = ({ commit }, createFrom) =>
   commit(types.UPDATE_CREATE_FROM, createFrom);
@@ -110,35 +115,35 @@ export const saveRelease = ({ commit, dispatch, state }) => {
  *
  * @param {Object} gqlResponse The response object returned by the GraphQL client
  * @param {String} mutationName The name of the mutation that was executed
- * @param {String} messageIfError An message to build into the error object if something went wrong
  */
-const checkForErrorsAsData = (gqlResponse, mutationName, messageIfError) => {
+const checkForErrorsAsData = (gqlResponse, mutationName) => {
   const allErrors = gqlResponse.data[mutationName].errors;
   if (allErrors.length > 0) {
-    const allErrorMessages = JSON.stringify(allErrors);
-    throw new Error(`${messageIfError}: ${allErrorMessages}`);
+    throw new GraphQLError(allErrors[0]);
   }
 };
 
-export const createRelease = async ({ commit, dispatch, state, getters }) => {
+export const createRelease = async ({ commit, dispatch, getters }) => {
   try {
     const response = await gqClient.mutate({
       mutation: createReleaseMutation,
       variables: getters.releaseCreateMutatationVariables,
     });
 
-    checkForErrorsAsData(
-      response,
-      'releaseCreate',
-      `Something went wrong while creating a new release with projectPath "${state.projectPath}" and tagName "${state.release.tagName}"`,
-    );
+    checkForErrorsAsData(response, 'releaseCreate');
 
     dispatch('receiveSaveReleaseSuccess', response.data.releaseCreate.release.links.selfUrl);
   } catch (error) {
     commit(types.RECEIVE_SAVE_RELEASE_ERROR, error);
-    createFlash({
-      message: s__('Release|Something went wrong while creating a new release.'),
-    });
+    if (error instanceof GraphQLError) {
+      createAlert({
+        message: error.message,
+      });
+    } else {
+      createAlert({
+        message: s__('Release|Something went wrong while creating a new release.'),
+      });
+    }
   }
 };
 
@@ -146,7 +151,7 @@ export const createRelease = async ({ commit, dispatch, state, getters }) => {
  * Deletes a single release link.
  * Throws an error if any network or validation errors occur.
  */
-const deleteReleaseLinks = async ({ state, id }) => {
+const deleteReleaseLinks = async ({ id }) => {
   const deleteResponse = await gqClient.mutate({
     mutation: deleteReleaseAssetLinkMutation,
     variables: {
@@ -154,11 +159,7 @@ const deleteReleaseLinks = async ({ state, id }) => {
     },
   });
 
-  checkForErrorsAsData(
-    deleteResponse,
-    'releaseAssetLinkDelete',
-    `Something went wrong while deleting release asset link for release with projectPath "${state.projectPath}", tagName "${state.tagName}", and link id "${id}"`,
-  );
+  checkForErrorsAsData(deleteResponse, 'releaseAssetLinkDelete');
 };
 
 /**
@@ -180,11 +181,7 @@ const createReleaseLink = async ({ state, link }) => {
     },
   });
 
-  checkForErrorsAsData(
-    createResponse,
-    'releaseAssetLinkCreate',
-    `Something went wrong while creating a release asset link for release with projectPath "${state.projectPath}" and tagName "${state.tagName}"`,
-  );
+  checkForErrorsAsData(createResponse, 'releaseAssetLinkCreate');
 };
 
 export const updateRelease = async ({ commit, dispatch, state, getters }) => {
@@ -210,11 +207,7 @@ export const updateRelease = async ({ commit, dispatch, state, getters }) => {
       variables: getters.releaseUpdateMutatationVariables,
     });
 
-    checkForErrorsAsData(
-      updateReleaseResponse,
-      'releaseUpdate',
-      `Something went wrong while updating release with projectPath "${state.projectPath}" and tagName "${state.tagName}"`,
-    );
+    checkForErrorsAsData(updateReleaseResponse, 'releaseUpdate');
 
     // Delete all links currently associated with this Release
     await Promise.all(
@@ -229,7 +222,7 @@ export const updateRelease = async ({ commit, dispatch, state, getters }) => {
     dispatch('receiveSaveReleaseSuccess', state.release._links.self);
   } catch (error) {
     commit(types.RECEIVE_SAVE_RELEASE_ERROR, error);
-    createFlash({
+    createAlert({
       message: s__('Release|Something went wrong while saving the release details.'),
     });
   }
@@ -243,7 +236,7 @@ export const fetchTagNotes = ({ commit, state }, tagName) => {
       commit(types.RECEIVE_TAG_NOTES_SUCCESS, data);
     })
     .catch((error) => {
-      createFlash({
+      createAlert({
         message: s__('Release|Unable to fetch the tag notes.'),
       });
 
@@ -266,7 +259,7 @@ export const deleteRelease = ({ commit, getters, dispatch, state }) => {
       mutation: deleteReleaseMutation,
       variables: getters.releaseDeleteMutationVariables,
     })
-    .then((response) => checkForErrorsAsData(response, 'releaseDelete', ''))
+    .then((response) => checkForErrorsAsData(response, 'releaseDelete'))
     .then(() => {
       window.sessionStorage.setItem(
         deleteReleaseSessionKey(state.projectPath),
@@ -276,7 +269,7 @@ export const deleteRelease = ({ commit, getters, dispatch, state }) => {
     })
     .catch((error) => {
       commit(types.RECEIVE_SAVE_RELEASE_ERROR, error);
-      createFlash({
+      createAlert({
         message: s__('Release|Something went wrong while deleting the release.'),
       });
     });

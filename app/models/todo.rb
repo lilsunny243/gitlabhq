@@ -4,6 +4,9 @@ class Todo < ApplicationRecord
   include Sortable
   include FromUnion
   include EachBatch
+  include IgnorableColumns
+
+  ignore_column :note_id_convert_to_bigint, remove_with: '16.0', remove_after: '2023-05-22'
 
   # Time to wait for todos being removed when not visible for user anymore.
   # Prevents TODOs being removed by mistake, for example, removing access from a user
@@ -19,6 +22,7 @@ class Todo < ApplicationRecord
   DIRECTLY_ADDRESSED  = 7
   MERGE_TRAIN_REMOVED = 8 # This is an EE-only feature
   REVIEW_REQUESTED    = 9
+  MEMBER_ACCESS_REQUESTED = 10
 
   ACTION_NAMES = {
     ASSIGNED => :assigned,
@@ -29,10 +33,11 @@ class Todo < ApplicationRecord
     APPROVAL_REQUIRED => :approval_required,
     UNMERGEABLE => :unmergeable,
     DIRECTLY_ADDRESSED => :directly_addressed,
-    MERGE_TRAIN_REMOVED => :merge_train_removed
+    MERGE_TRAIN_REMOVED => :merge_train_removed,
+    MEMBER_ACCESS_REQUESTED => :member_access_requested
   }.freeze
 
-  ACTIONS_MULTIPLE_ALLOWED = [Todo::MENTIONED, Todo::DIRECTLY_ADDRESSED].freeze
+  ACTIONS_MULTIPLE_ALLOWED = [Todo::MENTIONED, Todo::DIRECTLY_ADDRESSED, Todo::MEMBER_ACCESS_REQUESTED].freeze
 
   belongs_to :author, class_name: "User"
   belongs_to :note
@@ -70,7 +75,9 @@ class Todo < ApplicationRecord
   scope :for_type, -> (type) { where(target_type: type) }
   scope :for_target, -> (id) { where(target_id: id) }
   scope :for_commit, -> (id) { where(commit_id: id) }
-  scope :with_entity_associations, -> { preload(:target, :author, :note, group: :route, project: [:route, { namespace: [:route, :owner] }]) }
+  scope :with_entity_associations, -> do
+    preload(:target, :author, :note, group: :route, project: [:route, { namespace: [:route, :owner] }, :project_setting])
+  end
   scope :joins_issue_and_assignees, -> { left_joins(issue: :assignees) }
   scope :for_internal_notes, -> { joins(:note).where(note: { confidential: true }) }
 
@@ -94,12 +101,13 @@ class Todo < ApplicationRecord
     #
     # Returns an `ActiveRecord::Relation`.
     def for_group_ids_and_descendants(group_ids)
-      groups = Group.groups_including_descendants_by(group_ids)
+      groups = Group.where(id: group_ids).self_and_descendants
 
-      from_union([
-        for_project(Project.for_group(groups)),
-        for_group(groups)
-      ])
+      from_union(
+        [
+          for_project(Project.for_group(groups)),
+          for_group(groups)
+        ])
     end
 
     # Returns `true` if the current user has any todos for the given target with the optional given state.
@@ -166,6 +174,7 @@ class Todo < ApplicationRecord
       done = grouped_count.where(state: :done).select("'done' AS state")
       pending = grouped_count.where(state: :pending).select("'pending' AS state")
       union = unscoped.from_union([done, pending], remove_duplicates: false)
+        .select(:user_id, :count, :state)
 
       connection.select_all(union).each_with_object({}) do |row, counts|
         counts[[row['user_id'], row['state']]] = row['count']
@@ -174,7 +183,7 @@ class Todo < ApplicationRecord
   end
 
   def resource_parent
-    project
+    project || group
   end
 
   def unmergeable?
@@ -197,6 +206,24 @@ class Todo < ApplicationRecord
     action == MERGE_TRAIN_REMOVED
   end
 
+  def member_access_requested?
+    action == MEMBER_ACCESS_REQUESTED
+  end
+
+  def member_access_type
+    target.class.name.downcase
+  end
+
+  def access_request_url(only_path: false)
+    if target.instance_of? Group
+      Gitlab::Routing.url_helpers.group_group_members_url(self.target, tab: 'access_requests', only_path: only_path)
+    elsif target.instance_of? Project
+      Gitlab::Routing.url_helpers.project_project_members_url(self.target, tab: 'access_requests', only_path: only_path)
+    else
+      ""
+    end
+  end
+
   def done?
     state == 'done'
   end
@@ -208,6 +235,8 @@ class Todo < ApplicationRecord
   def body
     if note.present?
       note.note
+    elsif member_access_requested?
+      target.full_path
     else
       target.title
     end
@@ -226,7 +255,7 @@ class Todo < ApplicationRecord
   end
 
   def for_issue_or_work_item?
-    [Issue.name, WorkItem.name].any? { |klass_name| target_type == klass_name }
+    [Issue.name, WorkItem.name].any?(target_type)
   end
 
   # override to return commits, which are not active record
@@ -245,6 +274,8 @@ class Todo < ApplicationRecord
   def target_reference
     if for_commit?
       target.reference_link_text
+    elsif member_access_requested?
+      target.full_path
     else
       target.to_reference
     end

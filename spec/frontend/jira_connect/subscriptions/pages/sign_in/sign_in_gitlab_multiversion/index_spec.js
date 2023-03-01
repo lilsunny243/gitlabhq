@@ -1,15 +1,31 @@
 import { nextTick } from 'vue';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 
+import SetupInstructions from '~/jira_connect/subscriptions/pages/sign_in/sign_in_gitlab_multiversion/setup_instructions.vue';
 import SignInGitlabMultiversion from '~/jira_connect/subscriptions/pages/sign_in/sign_in_gitlab_multiversion/index.vue';
-import VersionSelectForm from '~/jira_connect/subscriptions/pages/sign_in/sign_in_gitlab_multiversion/version_select_form.vue';
 import SignInOauthButton from '~/jira_connect/subscriptions/components/sign_in_oauth_button.vue';
+import VersionSelectForm from '~/jira_connect/subscriptions/pages/sign_in/sign_in_gitlab_multiversion/version_select_form.vue';
+
+import { updateInstallation } from '~/jira_connect/subscriptions/api';
+import { reloadPage, persistBaseUrl, retrieveBaseUrl } from '~/jira_connect/subscriptions/utils';
+import { GITLAB_COM_BASE_PATH } from '~/jira_connect/subscriptions/constants';
+
+jest.mock('~/jira_connect/subscriptions/api', () => {
+  return {
+    updateInstallation: jest.fn(),
+    setApiBaseURL: jest.fn(),
+  };
+});
+jest.mock('~/jira_connect/subscriptions/utils');
 
 describe('SignInGitlabMultiversion', () => {
   let wrapper;
 
-  const findVersionSelectForm = () => wrapper.findComponent(VersionSelectForm);
+  const mockBasePath = 'gitlab.mycompany.com';
+
+  const findSetupInstructions = () => wrapper.findComponent(SetupInstructions);
   const findSignInOauthButton = () => wrapper.findComponent(SignInOauthButton);
+  const findVersionSelectForm = () => wrapper.findComponent(VersionSelectForm);
   const findSubtitle = () => wrapper.findByTestId('subtitle');
 
   const createComponent = () => {
@@ -29,30 +45,65 @@ describe('SignInGitlabMultiversion', () => {
       });
 
       describe('when form emits "submit" event', () => {
-        it('hides the version select form and shows the sign in button', async () => {
+        it('updates the backend, then saves the baseUrl and reloads', async () => {
+          updateInstallation.mockResolvedValue({});
+
           createComponent();
 
-          findVersionSelectForm().vm.$emit('submit', 'gitlab.mycompany.com');
+          findVersionSelectForm().vm.$emit('submit', mockBasePath);
           await nextTick();
 
-          expect(findVersionSelectForm().exists()).toBe(false);
-          expect(findSignInOauthButton().exists()).toBe(true);
+          expect(updateInstallation).toHaveBeenCalled();
+          expect(persistBaseUrl).toHaveBeenCalledWith(mockBasePath);
+          expect(reloadPage).toHaveBeenCalled();
         });
       });
     });
   });
 
   describe('when version is selected', () => {
-    beforeEach(async () => {
-      createComponent();
+    describe('when on self-managed', () => {
+      beforeEach(() => {
+        retrieveBaseUrl.mockReturnValue(mockBasePath);
+        createComponent();
+      });
 
-      findVersionSelectForm().vm.$emit('submit', 'gitlab.mycompany.com');
-      await nextTick();
+      it('renders correct subtitle', () => {
+        expect(findSubtitle().text()).toBe(SignInGitlabMultiversion.i18n.signInSubtitle);
+      });
+
+      it('renders setup instructions', () => {
+        expect(findSetupInstructions().exists()).toBe(true);
+      });
+
+      describe('when SetupInstructions emits `next` event', () => {
+        beforeEach(async () => {
+          findSetupInstructions().vm.$emit('next');
+          await nextTick();
+        });
+
+        it('renders sign in button', () => {
+          expect(findSignInOauthButton().props('gitlabBasePath')).toBe(mockBasePath);
+        });
+
+        it('hides setup instructions', () => {
+          expect(findSetupInstructions().exists()).toBe(false);
+        });
+      });
     });
 
-    describe('sign in button', () => {
+    describe('when on GitLab.com', () => {
+      beforeEach(() => {
+        retrieveBaseUrl.mockReturnValue(GITLAB_COM_BASE_PATH);
+        createComponent();
+      });
+
+      it('does not render setup instructions', () => {
+        expect(findSetupInstructions().exists()).toBe(false);
+      });
+
       it('renders sign in button', () => {
-        expect(findSignInOauthButton().exists()).toBe(true);
+        expect(findSignInOauthButton().props('gitlabBasePath')).toBe(GITLAB_COM_BASE_PATH);
       });
 
       describe('when button emits `sign-in` event', () => {
@@ -71,13 +122,9 @@ describe('SignInGitlabMultiversion', () => {
           const button = findSignInOauthButton();
           button.vm.$emit('error');
 
-          expect(wrapper.emitted('error')).toBeTruthy();
+          expect(wrapper.emitted('error')).toHaveLength(1);
         });
       });
-    });
-
-    it('renders correct subtitle', () => {
-      expect(findSubtitle().text()).toBe(SignInGitlabMultiversion.i18n.signInSubtitle);
     });
   });
 });

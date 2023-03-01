@@ -1,25 +1,18 @@
 # frozen_string_literal: true
 require 'spec_helper'
 
-RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectness do
+RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectness, feature_category: :pipeline_composition do
   let(:project)     { create(:project, :repository) }
   let(:user)        { project.first_owner }
   let(:ref)         { 'refs/heads/master' }
   let(:source)      { :push }
-  let(:service)     { described_class.new(project, user, { ref: ref }) }
-  let(:response)    { execute_service }
+  let(:service)     { described_class.new(project, user, initialization_params) }
+  let(:response)    { service.execute(source) }
   let(:pipeline)    { response.payload }
   let(:build_names) { pipeline.builds.pluck(:name) }
 
-  def execute_service(before: '00000000', variables_attributes: nil)
-    params = { ref: ref, before: before, after: project.commit(ref).sha, variables_attributes: variables_attributes }
-
-    described_class
-      .new(project, user, params)
-      .execute(source) do |pipeline|
-      yield(pipeline) if block_given?
-    end
-  end
+  let(:base_initialization_params) { { ref: ref, before: '00000000', after: project.commit(ref).sha, variables_attributes: nil } }
+  let(:initialization_params)      { base_initialization_params }
 
   context 'job:rules' do
     let(:regular_job) { find_job('regular-job') }
@@ -516,10 +509,9 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
           )
         end
 
+        let(:initialization_params) { base_initialization_params.merge(before: nil) }
         let(:changed_file) { 'file2.txt' }
         let(:ref) { 'feature_2' }
-
-        let(:response) { execute_service(before: nil) }
 
         context 'for jobs rules' do
           let(:config) do
@@ -540,19 +532,10 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
             let(:compare_to) { 'invalid-branch' }
 
             it 'returns an error' do
-              expect(pipeline.errors.full_messages).to eq([
-                'Failed to parse rule for job1: rules:changes:compare_to is not a valid ref'
-              ])
-            end
-
-            context 'when the FF ci_rules_changes_compare is not enabled' do
-              before do
-                stub_feature_flags(ci_rules_changes_compare: false)
-              end
-
-              it 'ignores compare_to and changes is always true' do
-                expect(build_names).to contain_exactly('job1', 'job2')
-              end
+              expect(pipeline.errors.full_messages).to eq(
+                [
+                  'Failed to parse rule for job1: rules:changes:compare_to is not a valid ref'
+                ])
             end
           end
 
@@ -563,16 +546,6 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
               it 'creates job1 and job2' do
                 expect(build_names).to contain_exactly('job1', 'job2')
               end
-
-              context 'when the FF ci_rules_changes_compare is not enabled' do
-                before do
-                  stub_feature_flags(ci_rules_changes_compare: false)
-                end
-
-                it 'ignores compare_to and changes is always true' do
-                  expect(build_names).to contain_exactly('job1', 'job2')
-                end
-              end
             end
 
             context 'when the rule does not match' do
@@ -580,16 +553,6 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
               it 'does not create job1' do
                 expect(build_names).to contain_exactly('job2')
-              end
-
-              context 'when the FF ci_rules_changes_compare is not enabled' do
-                before do
-                  stub_feature_flags(ci_rules_changes_compare: false)
-                end
-
-                it 'ignores compare_to and changes is always true' do
-                  expect(build_names).to contain_exactly('job1', 'job2')
-                end
               end
             end
           end
@@ -615,17 +578,6 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
             it 'creates job1' do
               expect(pipeline).to be_created_successfully
               expect(build_names).to contain_exactly('job1')
-            end
-
-            context 'when the FF ci_rules_changes_compare is not enabled' do
-              before do
-                stub_feature_flags(ci_rules_changes_compare: false)
-              end
-
-              it 'ignores compare_to and changes is always true' do
-                expect(pipeline).to be_created_successfully
-                expect(build_names).to contain_exactly('job1')
-              end
             end
           end
 
@@ -952,7 +904,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
         context 'when outside freeze period' do
           it 'creates two jobs' do
-            Timecop.freeze(2020, 4, 10, 22, 59) do
+            travel_to(Time.utc(2020, 4, 10, 22, 59)) do
               expect(pipeline).to be_persisted
               expect(build_names).to contain_exactly('test-job', 'deploy-job')
             end
@@ -961,7 +913,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
         context 'when inside freeze period' do
           it 'creates one job' do
-            Timecop.freeze(2020, 4, 10, 23, 1) do
+            travel_to(Time.utc(2020, 4, 10, 23, 1)) do
               expect(pipeline).to be_persisted
               expect(build_names).to contain_exactly('test-job')
             end
@@ -986,7 +938,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
         context 'when outside freeze period' do
           it 'creates two jobs' do
-            Timecop.freeze(2020, 4, 10, 22, 59) do
+            travel_to(Time.utc(2020, 4, 10, 22, 59)) do
               expect(pipeline).to be_persisted
               expect(build_names).to contain_exactly('deploy-job')
             end
@@ -995,7 +947,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
 
         context 'when inside freeze period' do
           it 'does not create the pipeline', :aggregate_failures do
-            Timecop.freeze(2020, 4, 10, 23, 1) do
+            travel_to(Time.utc(2020, 4, 10, 23, 1)) do
               expect(response).to be_error
               expect(pipeline).not_to be_persisted
             end
@@ -1206,7 +1158,8 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         let(:ref) { 'refs/heads/master' }
 
         it 'invalidates the pipeline with an empty jobs error' do
-          expect(pipeline.errors[:base]).to include('No stages / jobs for this pipeline.')
+          expect(pipeline.errors[:base]).to include('Pipeline will not run for the selected trigger. ' \
+            'The rules configuration prevented any jobs from being added to the pipeline.')
           expect(pipeline).not_to be_persisted
         end
       end
@@ -1269,9 +1222,7 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
     end
 
     context 'with pipeline variables' do
-      let(:pipeline) do
-        execute_service(variables_attributes: variables_attributes).payload
-      end
+      let(:initialization_params) { base_initialization_params.merge(variables_attributes: variables_attributes) }
 
       let(:config) do
         <<-EOY
@@ -1306,10 +1257,10 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
     end
 
     context 'with trigger variables' do
-      let(:pipeline) do
-        execute_service do |pipeline|
+      let(:response) do
+        service.execute(source) do |pipeline|
           pipeline.variables.build(variables)
-        end.payload
+        end
       end
 
       let(:config) do
@@ -1463,6 +1414,44 @@ RSpec.describe Ci::CreatePipelineService, :yaml_processor_feature_flag_corectnes
         end
 
         it_behaves_like 'comparing file changes with workflow rules'
+      end
+    end
+
+    context 'workflow name with rules' do
+      let(:ref) { 'refs/heads/feature' }
+
+      let(:variables) do
+        [{ key: 'SOME_VARIABLE', secret_value: 'SOME_VAL' }]
+      end
+
+      let(:response) do
+        service.execute(source) do |pipeline|
+          pipeline.variables.build(variables)
+        end
+      end
+
+      let(:config) do
+        <<-EOY
+          workflow:
+            name: '$PIPELINE_NAME $SOME_VARIABLE'
+            rules:
+              - if: $CI_COMMIT_REF_NAME =~ /master/
+                variables:
+                  PIPELINE_NAME: 'Name 1'
+              - if: $CI_COMMIT_REF_NAME =~ /feature/
+                variables:
+                  PIPELINE_NAME: 'Name 2'
+
+          job:
+            stage: test
+            script: echo 'hello'
+        EOY
+      end
+
+      it 'substitutes variables in pipeline name' do
+        expect(response).not_to be_error
+        expect(pipeline).to be_persisted
+        expect(pipeline.name).to eq('Name 2 SOME_VAL')
       end
     end
   end

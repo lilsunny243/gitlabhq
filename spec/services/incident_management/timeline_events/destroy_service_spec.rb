@@ -48,10 +48,10 @@ RSpec.describe IncidentManagement::TimelineEvents::DestroyService do
         timeline_event.errors.add(:note, 'cannot be removed')
       end
 
-      it_behaves_like 'error response', 'Note cannot be removed'
+      it_behaves_like 'error response', 'Timeline text cannot be removed'
     end
 
-    context 'success response' do
+    context 'with success response' do
       it 'successfully returns the timeline event', :aggregate_failures do
         expect(execute).to be_success
 
@@ -60,26 +60,18 @@ RSpec.describe IncidentManagement::TimelineEvents::DestroyService do
         expect(result.id).to eq(timeline_event.id)
       end
 
-      it_behaves_like 'an incident management tracked event', :incident_management_timeline_event_deleted
-    end
-
-    context 'when incident_timeline feature flag is enabled' do
-      before do
-        stub_feature_flags(incident_timeline: project)
-      end
-
       it 'creates a system note' do
         expect { execute }.to change { incident.notes.reload.count }.by(1)
       end
-    end
 
-    context 'when incident_timeline feature flag is disabled' do
-      before do
-        stub_feature_flags(incident_timeline: false)
-      end
+      it_behaves_like 'an incident management tracked event', :incident_management_timeline_event_deleted
 
-      it 'does not create a system note' do
-        expect { execute }.not_to change { incident.notes.reload.count }
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+        let(:namespace) { project.namespace.reload }
+        let(:category) { described_class.to_s }
+        let(:user) { current_user }
+        let(:action) { 'incident_management_timeline_event_deleted' }
+        let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
       end
     end
   end

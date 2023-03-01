@@ -1,5 +1,5 @@
 import $ from 'jquery';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { queryToObject } from '~/lib/utils/url_utility';
 import { loadingIconForLegacyJS } from '~/loading_icon_for_legacy_js';
@@ -13,13 +13,13 @@ export default class GpgBadges {
       return Promise.resolve();
     }
 
-    const badges = $('.js-loading-gpg-badge');
+    const badges = $('.js-loading-signature-badge');
 
     badges.html(loadingIconForLegacyJS());
     badges.children().attr('aria-label', __('Loading'));
 
     const displayError = () =>
-      createFlash({
+      createAlert({
         message: __('An error occurred while loading commit signatures'),
       });
 

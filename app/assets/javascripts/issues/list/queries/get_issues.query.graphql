@@ -10,6 +10,7 @@ query getIssues(
   $search: String
   $sort: IssueSort
   $state: IssuableState
+  $in: [IssuableSearchableField!]
   $assigneeId: String
   $assigneeUsernames: [String!]
   $authorUsername: String
@@ -24,12 +25,13 @@ query getIssues(
   $crmContactId: String
   $crmOrganizationId: String
   $not: NegatedIssueFilterInput
+  $or: UnionedIssueFilterInput
   $beforeCursor: String
   $afterCursor: String
   $firstPageSize: Int
   $lastPageSize: Int
 ) {
-  group(fullPath: $fullPath) @skip(if: $isProject) {
+  group(fullPath: $fullPath) @skip(if: $isProject) @persist {
     id
     issues(
       includeSubgroups: true
@@ -37,6 +39,7 @@ query getIssues(
       search: $search
       sort: $sort
       state: $state
+      in: $in
       assigneeId: $assigneeId
       assigneeUsernames: $assigneeUsernames
       authorUsername: $authorUsername
@@ -49,27 +52,31 @@ query getIssues(
       crmContactId: $crmContactId
       crmOrganizationId: $crmOrganizationId
       not: $not
+      or: $or
       before: $beforeCursor
       after: $afterCursor
       first: $firstPageSize
       last: $lastPageSize
     ) {
+      __persist
       pageInfo {
         ...PageInfo
       }
       nodes {
+        __persist
         ...IssueFragment
         reference(full: true)
       }
     }
   }
-  project(fullPath: $fullPath) @include(if: $isProject) {
+  project(fullPath: $fullPath) @include(if: $isProject) @persist {
     id
     issues(
       iid: $iid
       search: $search
       sort: $sort
       state: $state
+      in: $in
       assigneeId: $assigneeId
       assigneeUsernames: $assigneeUsernames
       authorUsername: $authorUsername
@@ -84,15 +91,18 @@ query getIssues(
       crmContactId: $crmContactId
       crmOrganizationId: $crmOrganizationId
       not: $not
+      or: $or
       before: $beforeCursor
       after: $afterCursor
       first: $firstPageSize
       last: $lastPageSize
     ) {
+      __persist
       pageInfo {
         ...PageInfo
       }
       nodes {
+        __persist
         ...IssueFragment
       }
     }

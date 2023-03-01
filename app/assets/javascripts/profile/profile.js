@@ -1,11 +1,11 @@
 import $ from 'jquery';
+import Vue from 'vue';
 import { VARIANT_DANGER, VARIANT_INFO, createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import { parseBoolean } from '~/lib/utils/common_utils';
+import { parseRailsFormFields } from '~/lib/utils/forms';
 import { Rails } from '~/lib/utils/rails_ujs';
-import TimezoneDropdown, {
-  formatTimezone,
-} from '~/pages/projects/pipeline_schedules/shared/components/timezone_dropdown';
+import UserProfileSetStatusWrapper from '~/set_status_modal/user_profile_set_status_wrapper.vue';
 
 export default class Profile {
   constructor({ form } = {}) {
@@ -14,21 +14,12 @@ export default class Profile {
     this.setRepoRadio();
     this.bindEvents();
     this.initAvatarGlCrop();
-
-    this.$inputEl = $('#user_timezone');
-
-    this.timezoneDropdown = new TimezoneDropdown({
-      $inputEl: this.$inputEl,
-      $dropdownEl: $('.js-timezone-dropdown'),
-      displayFormat: (selectedItem) => formatTimezone(selectedItem),
-      allowEmpty: true,
-    });
   }
 
   initAvatarGlCrop() {
     const cropOpts = {
       filename: '.js-avatar-filename',
-      previewImage: '.avatar-image .avatar',
+      previewImage: '.avatar-image .gl-avatar',
       modalCrop: '.modal-profile-crop',
       pickImageEl: '.js-choose-user-avatar-button',
       uploadImageBtn: '.js-upload-user-avatar',
@@ -39,10 +30,6 @@ export default class Profile {
 
   bindEvents() {
     $('.js-preferences-form').on('change.preference', 'input[type=radio]', this.submitForm);
-    $('.js-group-notification-email').on('change', this.submitForm);
-    $('#user_notification_email').on('select2-selecting', (event) => {
-      setTimeout(this.submitForm.bind(event.currentTarget));
-    });
     $('#user_email_opted_in').on('change', this.submitForm);
     $('#user_notified_of_own_activity').on('change', this.submitForm);
     this.form.on('submit', this.onSubmitForm);
@@ -116,3 +103,24 @@ export default class Profile {
     }
   }
 }
+
+export const initSetStatusForm = () => {
+  const el = document.getElementById('js-user-profile-set-status-form');
+
+  if (!el) {
+    return null;
+  }
+
+  const fields = parseRailsFormFields(el);
+
+  return new Vue({
+    el,
+    name: 'UserProfileStatusForm',
+    provide: {
+      fields,
+    },
+    render(h) {
+      return h(UserProfileSetStatusWrapper);
+    },
+  });
+};

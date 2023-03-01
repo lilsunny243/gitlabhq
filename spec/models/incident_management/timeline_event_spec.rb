@@ -13,6 +13,12 @@ RSpec.describe IncidentManagement::TimelineEvent do
     it { is_expected.to belong_to(:incident) }
     it { is_expected.to belong_to(:updated_by_user) }
     it { is_expected.to belong_to(:promoted_from_note) }
+    it { is_expected.to have_many(:timeline_event_tag_links).class_name('IncidentManagement::TimelineEventTagLink') }
+
+    it do
+      is_expected.to have_many(:timeline_event_tags)
+      .class_name('IncidentManagement::TimelineEventTag').through(:timeline_event_tag_links)
+    end
   end
 
   describe 'validations' do
@@ -21,15 +27,15 @@ RSpec.describe IncidentManagement::TimelineEvent do
     it { is_expected.to validate_presence_of(:project) }
     it { is_expected.to validate_presence_of(:incident) }
     it { is_expected.to validate_presence_of(:note) }
+    it { is_expected.to validate_length_of(:note).is_at_most(280).on(:user_input) }
     it { is_expected.to validate_length_of(:note).is_at_most(10_000) }
-    it { is_expected.to validate_presence_of(:note_html) }
     it { is_expected.to validate_length_of(:note_html).is_at_most(10_000) }
     it { is_expected.to validate_presence_of(:occurred_at) }
     it { is_expected.to validate_presence_of(:action) }
     it { is_expected.to validate_length_of(:action).is_at_most(128) }
   end
 
-  describe '.order_occurred_at_asc' do
+  describe '.order_occurred_at_asc_id_asc' do
     let_it_be(:occurred_3mins_ago) do
       create(:incident_management_timeline_event, project: project, occurred_at: 3.minutes.ago)
     end
@@ -38,10 +44,22 @@ RSpec.describe IncidentManagement::TimelineEvent do
       create(:incident_management_timeline_event, project: project, occurred_at: 2.minutes.ago)
     end
 
-    subject(:order) { described_class.order_occurred_at_asc }
+    subject(:order) { described_class.order_occurred_at_asc_id_asc }
 
     it 'sorts timeline events by occurred_at' do
       is_expected.to eq([occurred_3mins_ago, occurred_2mins_ago, timeline_event])
+    end
+
+    context 'when two events occured at the same time' do
+      let_it_be(:also_occurred_2mins_ago) do
+        create(:incident_management_timeline_event, project: project, occurred_at: occurred_2mins_ago.occurred_at)
+      end
+
+      it 'sorts timeline events by occurred_at then sorts by id' do
+        occurred_2mins_ago.touch # Interact with record of earlier id to switch default DB ordering
+
+        is_expected.to eq([occurred_3mins_ago, occurred_2mins_ago, also_occurred_2mins_ago, timeline_event])
+      end
     end
   end
 

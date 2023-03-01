@@ -9,11 +9,13 @@ RSpec.describe Emails::ServiceDesk do
   include EmailHelpers
 
   include_context 'gitlab email notification'
+  include_context 'with service desk mailer'
 
   let_it_be(:user) { create(:user) }
   let_it_be(:project) { create(:project) }
   let_it_be(:issue) { create(:issue, project: project) }
   let_it_be(:email) { 'someone@gitlab.com' }
+  let_it_be(:expected_unsubscribe_url) { unsubscribe_sent_notification_url('b7721fc7e8419911a8bea145236a0519') }
 
   let(:template) { double(content: template_content) }
 
@@ -21,44 +23,7 @@ RSpec.describe Emails::ServiceDesk do
     issue.issue_email_participants.create!(email: email)
   end
 
-  before do
-    stub_const('ServiceEmailClass', Class.new(ApplicationMailer))
-
-    ServiceEmailClass.class_eval do
-      include GitlabRoutingHelper
-      include EmailsHelper
-      include Emails::ServiceDesk
-
-      helper GitlabRoutingHelper
-      helper EmailsHelper
-
-      # this method is implemented in Notify class, we don't need to test it
-      def reply_key
-        'test-key'
-      end
-
-      # this method is implemented in Notify class, we don't need to test it
-      def sender(author_id, params = {})
-        author_id
-      end
-
-      # this method is implemented in Notify class
-      #
-      # We do not need to test the Notify method, it is already tested in notify_spec
-      def mail_new_thread(issue, options)
-        # we need to rewrite this in order to look up templates in the correct directory
-        self.class.mailer_name = 'notify'
-
-        # this is needed for default layout
-        @unsubscribe_url = 'http://unsubscribe.example.com'
-
-        mail(options)
-      end
-      alias_method :mail_answer_thread, :mail_new_thread
-    end
-  end
-
-  shared_examples 'handle template content' do |template_key|
+  shared_examples 'handle template content' do |template_key, attachments_count|
     before do
       expect(Gitlab::Template::ServiceDeskTemplate).to receive(:find)
         .with(template_key, issue.project)
@@ -69,7 +34,8 @@ RSpec.describe Emails::ServiceDesk do
       aggregate_failures do
         is_expected.to have_referable_subject(issue, include_project: false, reply: reply_in_subject)
         is_expected.to have_body_text(expected_body)
-        expect(subject.content_type).to include('text/html')
+        expect(subject.attachments.count).to eq(attachments_count.to_i)
+        expect(subject.content_type).to include(attachments_count.to_i > 0 ? 'multipart/mixed' : 'text/html')
       end
     end
   end
@@ -133,11 +99,29 @@ RSpec.describe Emails::ServiceDesk do
         it_behaves_like 'handle template content', 'thank_you'
       end
 
-      context 'with an issue id and issue path placeholders' do
-        let(:template_content) { 'thank you, **your new issue:** %{ISSUE_ID}, path: %{ISSUE_PATH}' }
-        let(:expected_body) { "thank you, <strong>your new issue:</strong> ##{issue.iid}, path: #{project.full_path}##{issue.iid}" }
+      context 'with an issue id, issue path and unsubscribe url placeholders' do
+        let(:template_content) do
+          'thank you, **your new issue:** %{ISSUE_ID}, path: %{ISSUE_PATH}' \
+            '[Unsubscribe](%{UNSUBSCRIBE_URL})'
+        end
+
+        let(:expected_body) do
+          "<p dir=\"auto\">thank you, <strong>your new issue:</strong> ##{issue.iid}, path: #{project.full_path}##{issue.iid}" \
+            "<a href=\"#{expected_unsubscribe_url}\">Unsubscribe</a></p>"
+        end
 
         it_behaves_like 'handle template content', 'thank_you'
+      end
+
+      context 'with header and footer placeholders' do
+        let(:template_content) do
+          '%{SYSTEM_HEADER}' \
+            'thank you, **your new issue** has been created.' \
+            '%{SYSTEM_FOOTER}'
+        end
+
+        it_behaves_like 'appearance header and footer enabled'
+        it_behaves_like 'appearance header and footer not enabled'
       end
 
       context 'with an issue id placeholder with whitespace' do
@@ -173,11 +157,29 @@ RSpec.describe Emails::ServiceDesk do
         it_behaves_like 'handle template content', 'new_note'
       end
 
-      context 'with an issue id, issue path and note placeholders' do
-        let(:template_content) { 'thank you, **new note on issue:** %{ISSUE_ID}, path: %{ISSUE_PATH}: %{NOTE_TEXT}' }
-        let(:expected_body) { "thank you, <strong>new note on issue:</strong> ##{issue.iid}, path: #{project.full_path}##{issue.iid}: #{note.note}" }
+      context 'with an issue id, issue path, note and unsubscribe url placeholders' do
+        let(:template_content) do
+          'thank you, **new note on issue:** %{ISSUE_ID}, path: %{ISSUE_PATH}: %{NOTE_TEXT}' \
+            '[Unsubscribe](%{UNSUBSCRIBE_URL})'
+        end
+
+        let(:expected_body) do
+          "<p dir=\"auto\">thank you, <strong>new note on issue:</strong> ##{issue.iid}, path: #{project.full_path}##{issue.iid}: #{note.note}" \
+            "<a href=\"#{expected_unsubscribe_url}\">Unsubscribe</a></p>"
+        end
 
         it_behaves_like 'handle template content', 'new_note'
+      end
+
+      context 'with header and footer placeholders' do
+        let(:template_content) do
+          '%{SYSTEM_HEADER}' \
+            'thank you, **your new issue** has been created.' \
+            '%{SYSTEM_FOOTER}'
+        end
+
+        it_behaves_like 'appearance header and footer enabled'
+        it_behaves_like 'appearance header and footer not enabled'
       end
 
       context 'with an issue id placeholder with whitespace' do
@@ -195,13 +197,102 @@ RSpec.describe Emails::ServiceDesk do
       end
 
       context 'with upload link in the note' do
-        let_it_be(:upload_path) { '/uploads/e90decf88d8f96fe9e1389afc2e4a91f/test.jpg' }
-        let_it_be(:note) { create(:note_on_issue, noteable: issue, project: project, note: "a new comment with [file](#{upload_path})") }
+        let_it_be(:secret) { 'e90decf88d8f96fe9e1389afc2e4a91f' }
+        let_it_be(:filename) { 'test.jpg' }
+        let_it_be(:path) { "#{secret}/#{filename}" }
+        let_it_be(:upload_path) { "/uploads/#{path}" }
+        let_it_be(:template_content) { 'some text %{ NOTE_TEXT  }' }
+        let_it_be(:note) { create(:note_on_issue, noteable: issue, project: project, note: "a new comment with [#{filename}](#{upload_path})") }
+        let!(:upload) { create(:upload, :issuable_upload, :with_file, model: note.project, path: path, secret: secret) }
 
-        let(:template_content) { 'some text %{ NOTE_TEXT  }' }
-        let(:expected_body) { %Q(some text a new comment with <a href="#{project.web_url}#{upload_path}" data-canonical-src="#{upload_path}" data-link="true" class="gfm">file</a>) }
+        context 'when total uploads size is more than 10mb' do
+          before do
+            allow_next_instance_of(FileUploader) do |instance|
+              allow(instance).to receive(:size).and_return(10.1.megabytes)
+            end
+          end
 
-        it_behaves_like 'handle template content', 'new_note'
+          let_it_be(:expected_body) { %Q(some text a new comment with <a href="#{project.web_url}#{upload_path}" data-canonical-src="#{upload_path}" data-link="true" class="gfm">#{filename}</a>) }
+
+          it_behaves_like 'handle template content', 'new_note'
+        end
+
+        context 'when total uploads size is less or equal 10mb' do
+          context 'when it has only one upload' do
+            before do
+              allow_next_instance_of(FileUploader) do |instance|
+                allow(instance).to receive(:size).and_return(10.megabytes)
+              end
+            end
+
+            context 'when upload name is not changed in markdown' do
+              let_it_be(:expected_body) { %Q(some text a new comment with <strong>#{filename}</strong>) }
+
+              it_behaves_like 'handle template content', 'new_note', 1
+            end
+
+            context 'when upload name is changed in markdown' do
+              let_it_be(:upload_name_in_markdown) { 'Custom name' }
+              let_it_be(:note) { create(:note_on_issue, noteable: issue, project: project, note: "a new comment with [#{upload_name_in_markdown}](#{upload_path})") }
+              let_it_be(:expected_body) { %Q(some text a new comment with <strong>#{upload_name_in_markdown} (#{filename})</strong>) }
+
+              it_behaves_like 'handle template content', 'new_note', 1
+            end
+          end
+
+          context 'when it has more than one upload' do
+            before do
+              allow_next_instance_of(FileUploader) do |instance|
+                allow(instance).to receive(:size).and_return(5.megabytes)
+              end
+            end
+
+            let_it_be(:secret_1) { '17817c73e368777e6f743392e334fb8a' }
+            let_it_be(:filename_1) { 'test1.jpg' }
+            let_it_be(:path_1) { "#{secret_1}/#{filename_1}" }
+            let_it_be(:upload_path_1) { "/uploads/#{path_1}" }
+            let_it_be(:note) { create(:note_on_issue, noteable: issue, project: project, note: "a new comment with [#{filename}](#{upload_path}) [#{filename_1}](#{upload_path_1})") }
+
+            context 'when all uploads processed correct' do
+              let_it_be(:upload_1) { create(:upload, :issuable_upload, :with_file, model: note.project, path: path_1, secret: secret_1) }
+              let_it_be(:expected_body) { %Q(some text a new comment with <strong>#{filename}</strong> <strong>#{filename_1}</strong>) }
+
+              it_behaves_like 'handle template content', 'new_note', 2
+            end
+
+            context 'when not all uploads processed correct' do
+              let_it_be(:expected_body) { %Q(some text a new comment with <strong>#{filename}</strong> <a href="#{project.web_url}#{upload_path_1}" data-canonical-src="#{upload_path_1}" data-link="true" class="gfm">#{filename_1}</a>) }
+
+              it_behaves_like 'handle template content', 'new_note', 1
+            end
+          end
+        end
+
+        context 'when UploaderFinder is raising error' do
+          before do
+            allow_next_instance_of(UploaderFinder) do |instance|
+              allow(instance).to receive(:execute).and_raise(StandardError)
+            end
+            expect(Gitlab::ErrorTracking).to receive(:track_exception).with(StandardError, project_id: note.project_id)
+          end
+
+          let_it_be(:expected_body) { %Q(some text a new comment with <a href="#{project.web_url}#{upload_path}" data-canonical-src="#{upload_path}" data-link="true" class="gfm">#{filename}</a>) }
+
+          it_behaves_like 'handle template content', 'new_note'
+        end
+
+        context 'when FileUploader is raising error' do
+          before do
+            allow_next_instance_of(FileUploader) do |instance|
+              allow(instance).to receive(:read).and_raise(StandardError)
+            end
+            expect(Gitlab::ErrorTracking).to receive(:track_exception).with(StandardError, project_id: note.project_id)
+          end
+
+          let_it_be(:expected_body) { %Q(some text a new comment with <a href="#{project.web_url}#{upload_path}" data-canonical-src="#{upload_path}" data-link="true" class="gfm">#{filename}</a>) }
+
+          it_behaves_like 'handle template content', 'new_note'
+        end
       end
 
       context 'with all-user reference in a an external author comment' do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rubocop-rspec'
+
 module RuboCop
   module Cop
     module RSpec
@@ -13,7 +15,7 @@ module RuboCop
       #   # good
       #   let(:users) { table(:users) }
       #   let(:user) { users.create!(name: 'User 1', username: 'user1') }
-      class FactoriesInMigrationSpecs < RuboCop::Cop::Cop
+      class FactoriesInMigrationSpecs < RuboCop::Cop::Base
         MESSAGE = "Don't use FactoryBot.%s in migration specs, use `table` instead."
         FORBIDDEN_METHODS = %i[build build_list create create_list attributes_for].freeze
 
@@ -29,7 +31,7 @@ module RuboCop
 
           method = node.children[1]
 
-          add_offense(node, location: :expression, message: MESSAGE % method)
+          add_offense(node, message: MESSAGE % method)
         end
       end
     end

@@ -63,12 +63,25 @@ module Projects
     end
 
     def build_commit_status
+      stage = create_stage
+
       GenericCommitStatus.new(
         user: build.user,
+        ci_stage: stage,
+        name: 'pages:deploy',
         stage: 'deploy',
-        name: 'pages:deploy'
+        stage_idx: stage.position
       )
     end
+
+    # rubocop: disable Performance/ActiveRecordSubtransactionMethods
+    def create_stage
+      build.pipeline.stages.safe_find_or_create_by(name: 'deploy', pipeline_id: build.pipeline.id) do |stage|
+        stage.position = GenericCommitStatus::EXTERNAL_STAGE_IDX
+        stage.project = build.project
+      end
+    end
+    # rubocop: enable Performance/ActiveRecordSubtransactionMethods
 
     def create_pages_deployment(artifacts_path, build)
       sha256 = build.job_artifacts_archive.file_sha256

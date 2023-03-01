@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Use SSH keys to communicate with GitLab **(FREE)**
@@ -12,6 +12,23 @@ then share or *push* your changes to a server. In this case, the server you push
 GitLab uses the SSH protocol to securely communicate with Git.
 When you use SSH keys to authenticate to the GitLab remote server,
 you don't need to supply your username and password each time.
+
+## What are SSH keys
+
+SSH uses two keys, a public key and a private key.
+
+- The public key can be distributed.
+- The private key should be protected.
+
+When you need to copy or upload your SSH public key, make sure you do not accidentally copy or upload your private key instead.
+
+You cannot expose data by uploading your public key. When you need to copy or upload your SSH public key, make sure you do not accidentally copy or upload your private key instead.  
+
+You can use your private key to [sign commits](project/repository/ssh_signed_commits/index.md),
+which makes your use of GitLab and your data even more secure.
+This signature then can be verified by anyone using your public key.
+
+For details, see [Asymmetric cryptography, also known as public-key cryptography](https://en.wikipedia.org/wiki/Public-key_cryptography).
 
 ## Prerequisites
 
@@ -252,9 +269,34 @@ To generate ED25519_SK or ECDSA_SK SSH keys, you must use OpenSSH 8.2 or later:
 A public and private key are generated.
 [Add the public SSH key to your GitLab account](#add-an-ssh-key-to-your-gitlab-account).
 
+## Generate an SSH key pair with a password manager
+
+### Generate an SSH key pair with 1Password
+
+You can use [1Password](https://1password.com/) and the [1Password browser extension](https://support.1password.com/getting-started-browser/) to either:
+
+- Automatically generate a new SSH key.
+- Use an existing SSH in your 1Password vault to authenticate with GitLab.
+
+1. Sign in to GitLab.
+1. On the top bar, in the upper-right corner, select your avatar.
+1. Select **Preferences**.
+1. On the left sidebar, select **SSH Keys**.
+1. Select **Key**, and you should see the 1Password helper appear.
+1. Select the 1Password icon and unlock 1Password.
+1. You can then select **Create SSH Key** or select an existing SSH key to fill in the public key.
+1. In the **Title** box, type a description, like `Work Laptop` or
+   `Home Workstation`.
+1. Optional. Select the **Usage type** of the key. It can be used either for `Authentication` or `Signing` or both. `Authentication & Signing` is the default value.
+1. Optional. Update **Expiration date** to modify the default expiration date.
+1. Select **Add key**.
+
+For more information about using 1Password with SSH keys, see the [1Password documentation](https://developer.1password.com/docs/ssh/get-started).
+
 ## Add an SSH key to your GitLab account
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/271239) in GitLab 15.4, default expiration date suggested in UI.
+> - Suggested default expiration date for keys [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/271239) in GitLab 15.4.
+> - Usage types for SSH keys [added](https://gitlab.com/gitlab-org/gitlab/-/issues/383046) in GitLab 15.7.
 
 To use SSH with GitLab, copy your public key to your GitLab account:
 
@@ -282,7 +324,7 @@ To use SSH with GitLab, copy your public key to your GitLab account:
    Replace `id_ed25519.pub` with your filename. For example, use `id_rsa.pub` for RSA.
 
 1. Sign in to GitLab.
-1. On the top bar, in the top right corner, select your avatar.
+1. On the top bar, in the upper-right corner, select your avatar.
 1. Select **Preferences**.
 1. On the left sidebar, select **SSH Keys**.
 1. In the **Key** box, paste the contents of your public key.
@@ -291,6 +333,7 @@ To use SSH with GitLab, copy your public key to your GitLab account:
    `ssh-ed25519`, `sk-ecdsa-sha2-nistp256@openssh.com`, or `sk-ssh-ed25519@openssh.com`, and may end with a comment.
 1. In the **Title** box, type a description, like `Work Laptop` or
    `Home Workstation`.
+1. Optional. Select the **Usage type** of the key. It can be used either for `Authentication` or `Signing` or both. `Authentication & Signing` is the default value.
 1. Optional. Update **Expiration date** to modify the default expiration date.
    In:
    - GitLab 13.12 and earlier, the expiration date is informational only. It doesn't prevent
@@ -351,6 +394,24 @@ git config core.sshCommand "ssh -o IdentitiesOnly=yes -i ~/.ssh/private-key-file
 This command does not use the SSH Agent and requires Git 2.10 or later. For more information
 on `ssh` command options, see the `man` pages for both `ssh` and `ssh_config`.
 
+## View your account's SSH keys
+
+1. Sign in to GitLab.
+1. On the top bar, in the upper-right corner, select your avatar.
+1. Select **Preferences**.
+1. On the left sidebar, select **SSH Keys**.
+
+Your existing SSH keys are listed at the bottom of the page. The information includes:
+
+- The key's:
+  - Name.
+  - Public fingerprint.
+  - Expiry date.
+  - Permitted usage types.
+- The time a key was last used. On GitLab.com this value is unavailable, and you are unable to see if or when an SSH key has been used. For more information, see [issue 324764](https://gitlab.com/gitlab-org/gitlab/-/issues/324764).
+
+Select **Delete** to permanently delete an SSH key.
+
 ## Use different accounts on a single GitLab instance
 
 You can use multiple accounts to connect to a single instance of GitLab. You
@@ -408,8 +469,8 @@ If you are using [EGit](https://www.eclipse.org/egit/), you can [add your SSH ke
 
 ## Use SSH on Microsoft Windows
 
-If you're running Windows 10, you can either use the [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/install)
-with [WSL 2](https://docs.microsoft.com/en-us/windows/wsl/install#update-to-wsl-2) which
+If you're running Windows 10, you can either use the [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install)
+with [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install#update-to-wsl-2) which
 has both `git` and `ssh` preinstalled, or install [Git for Windows](https://gitforwindows.org) to
 use SSH through PowerShell.
 
@@ -421,7 +482,7 @@ as both have a different home directory:
 
 You can either copy over the `.ssh/` directory to use the same key, or generate a key in each environment.
 
-If you're running Windows 11 and using [OpenSSH for Windows](https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_overview), ensure the `HOME`
+If you're running Windows 11 and using [OpenSSH for Windows](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_overview), ensure the `HOME`
 environment variable is set correctly. Otherwise, your private SSH key might not be found.
 
 Alternative tools include:
@@ -499,4 +560,4 @@ You can troubleshoot this by trying the following:
 - Verify your IDO/U2F hardware security key supports
   the key type provided.
 - Verify the version of OpenSSH is 8.2 or greater by
-  running `ssh -v`.
+  running `ssh -V`.

@@ -11,6 +11,7 @@ RSpec.describe GitlabSchema.types['WorkItem'] do
 
   it 'has specific fields' do
     fields = %i[
+      author
       confidential
       description
       description_html
@@ -26,10 +27,9 @@ RSpec.describe GitlabSchema.types['WorkItem'] do
       created_at
       updated_at
       closed_at
+      web_url
     ]
 
-    fields.each do |field_name|
-      expect(described_class).to have_graphql_fields(*fields)
-    end
+    expect(described_class).to have_graphql_fields(*fields)
   end
 end

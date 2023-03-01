@@ -10,8 +10,8 @@ RSpec.describe Gitlab::IncidentManagement::PagerDuty::IncidentIssueDescription d
       [{ 'summary' => 'Laura Haley', 'url' => 'https://webdemo.pagerduty.com/users/P553OPV' }]
     end
 
-    let(:impacted_services) do
-      [{ 'summary' => 'Production XDB Cluster', 'url' => 'https://webdemo.pagerduty.com/services/PN49J75' }]
+    let(:impacted_service) do
+      { 'summary' => 'Production XDB Cluster', 'url' => 'https://webdemo.pagerduty.com/services/PN49J75' }
     end
 
     let(:incident_payload) do
@@ -24,14 +24,14 @@ RSpec.describe Gitlab::IncidentManagement::PagerDuty::IncidentIssueDescription d
         'urgency' => 'high',
         'incident_key' => 'SOME-KEY',
         'assignees' => assignees,
-        'impacted_services' => impacted_services
+        'impacted_service' => impacted_service
       }
     end
 
-    subject(:to_s) { described_class.new(incident_payload).to_s }
+    subject(:description) { described_class.new(incident_payload).to_s }
 
     it 'returns description' do
-      expect(to_s).to eq(
+      expect(description).to eq(
         <<~MARKDOWN.chomp
           **Incident:** [My new incident](https://webdemo.pagerduty.com/incidents/PRORDTY)#{markdown_line_break}
           **Incident number:** 33#{markdown_line_break}
@@ -40,7 +40,7 @@ RSpec.describe Gitlab::IncidentManagement::PagerDuty::IncidentIssueDescription d
           **Incident key:** SOME-KEY#{markdown_line_break}
           **Created at:** 26 September 2017, 3:14PM (UTC)#{markdown_line_break}
           **Assignees:** [Laura Haley](https://webdemo.pagerduty.com/users/P553OPV)#{markdown_line_break}
-          **Impacted services:** [Production XDB Cluster](https://webdemo.pagerduty.com/services/PN49J75)
+          **Impacted service:** [Production XDB Cluster](https://webdemo.pagerduty.com/services/PN49J75)
         MARKDOWN
       )
     end
@@ -52,7 +52,7 @@ RSpec.describe Gitlab::IncidentManagement::PagerDuty::IncidentIssueDescription d
         freeze_time do
           now = Time.current.utc.strftime('%d %B %Y, %-l:%M%p (%Z)')
 
-          expect(to_s).to include(
+          expect(description).to include(
             <<~MARKDOWN.chomp
             **Created at:** #{now}#{markdown_line_break}
             MARKDOWN
@@ -70,7 +70,7 @@ RSpec.describe Gitlab::IncidentManagement::PagerDuty::IncidentIssueDescription d
       end
 
       it 'assignees is a list of links' do
-        expect(to_s).to include(
+        expect(description).to include(
           <<~MARKDOWN.chomp
             **Assignees:** [Laura Haley](https://laura.pagerduty.com), [John Doe](https://john.pagerduty.com)#{markdown_line_break}
           MARKDOWN
@@ -78,18 +78,15 @@ RSpec.describe Gitlab::IncidentManagement::PagerDuty::IncidentIssueDescription d
       end
     end
 
-    context 'when there are several impacted services' do
-      let(:impacted_services) do
-        [
-          { 'summary' => 'XDB Cluster', 'url' => 'https://xdb.pagerduty.com' },
-          { 'summary' => 'BRB Cluster', 'url' => 'https://brb.pagerduty.com' }
-        ]
+    context 'when there is an impacted service' do
+      let(:impacted_service) do
+        { 'summary' => 'XDB Cluster', 'url' => 'https://xdb.pagerduty.com' }
       end
 
-      it 'impacted services is a list of links' do
-        expect(to_s).to include(
+      it 'impacted service is a single link' do
+        expect(description).to include(
           <<~MARKDOWN.chomp
-            **Impacted services:** [XDB Cluster](https://xdb.pagerduty.com), [BRB Cluster](https://brb.pagerduty.com)
+            **Impacted service:** [XDB Cluster](https://xdb.pagerduty.com)
           MARKDOWN
         )
       end

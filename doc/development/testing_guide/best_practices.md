@@ -2,7 +2,7 @@
 type: reference, dev
 stage: none
 group: Development
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 description: "GitLab development guidelines - testing best practices."
 ---
 
@@ -110,7 +110,7 @@ If the specs fail the check they must be fixed before than can run in random ord
 
 ### Test speed
 
-GitLab has a massive test suite that, without [parallelization](../pipelines.md#test-suite-parallelization), can take hours
+GitLab has a massive test suite that, without [parallelization](../pipelines/index.md#test-suite-parallelization), can take hours
 to run. It's important that we make an effort to write tests that are accurate
 and effective _as well as_ fast.
 
@@ -154,6 +154,8 @@ To avoid creation, it is worth bearing in mind that:
   `spy`, or `instance_double`. Database persistence is slow!
 
 Use [Factory Doctor](https://test-prof.evilmartians.io/#/profilers/factory_doctor) to find cases where database persistence is not needed in a given test.
+
+Examples of factories optimization [1](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106796), [2](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/105329).
 
 ```shell
 # run test for path
@@ -282,7 +284,7 @@ end
 
 #### Stubbing methods within factories
 
-You should avoid using `allow(object).to receive(:method)` in factories, as this makes the factory unable to be used with `let_it_be`.
+You should avoid using `allow(object).to receive(:method)` in factories, as this makes the factory unable to be used with `let_it_be`, as described in [common test setup](#common-test-setup).
 
 Instead, you can use `stub_method` to stub the method:
 
@@ -356,6 +358,19 @@ a place to start. The most expensive examples here are in
 shared examples; any reductions generally have a larger impact as
 they are called in multiple places.
 
+#### Top slow tests
+
+We collect information about tests duration in [`rspec_profiling_stats`](https://gitlab.com/gitlab-org/rspec_profiling_stats) project. The data is showed using GitLab Pages in this
+[UI](https://gitlab-org.gitlab.io/rspec_profiling_stats/)
+
+With [issue](https://gitlab.com/gitlab-org/gitlab/-/issues/375983) we defined thresholds for tests duration that can act a guide.
+
+For tests that are not meeting the thresholds it is recommended to create issues and improve the tests duration.
+
+| Date | Feature tests | Controllers and Requests tests | Other |
+| --- | --- | --- | --- |
+| 2023-02-15 | 67.42 seconds | 44.66 seconds | 76.86 seconds |
+
 #### Avoid repeating expensive actions
 
 While isolated examples are very clear, and help serve the purpose of specs as
@@ -413,7 +428,7 @@ results are available, and not just the first failure.
 - Don't assert against the absolute value of a sequence-generated attribute (see
   [Gotchas](../gotchas.md#do-not-assert-against-the-absolute-value-of-a-sequence-generated-attribute)).
 - Avoid using `expect_any_instance_of` or `allow_any_instance_of` (see
-  [Gotchas](../gotchas.md#do-not-assert-against-the-absolute-value-of-a-sequence-generated-attribute)).
+  [Gotchas](../gotchas.md#avoid-using-expect_any_instance_of-or-allow_any_instance_of-in-rspec)).
 - Don't supply the `:each` argument to hooks because it's the default.
 - On `before` and `after` hooks, prefer it scoped to `:context` over `:all`
 - When using `evaluate_script("$('.js-foo').testSomething()")` (or `execute_script`) which acts on a given element,
@@ -425,6 +440,16 @@ results are available, and not just the first failure.
   when you need an ID/IID/access level that doesn't actually exists. Using 123, 1234,
   or even 999 is brittle as these IDs could actually exist in the database in the
   context of a CI run.
+
+### Feature category metadata
+
+You must [set feature category metadata for each RSpec example](../feature_categorization/index.md#rspec-examples).
+
+### Tests depending on EE license
+
+You can use `if: Gitlab.ee?` or `unless: Gitlab.ee?` on context/spec blocks to execute tests depending on whether running with `FOSS_ONLY=1`.
+
+Example: [SchemaValidator reads a different path depending on the license](https://gitlab.com/gitlab-org/gitlab/-/blob/7cdcf9819cfa02c701d6fa9f18c1e7a8972884ed/spec/lib/gitlab/ci/parsers/security/validators/schema_validator_spec.rb#L571)
 
 ### Coverage
 
@@ -827,7 +852,7 @@ To resolve, use `let`, or change the factory to not use stubs.
 
 ### Time-sensitive tests
 
-[`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/v6.0.3.1/classes/ActiveSupport/Testing/TimeHelpers.html)
+[`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/classes/ActiveSupport/Testing/TimeHelpers.html)
 can be used to verify things that are time-sensitive. Any test that exercises or verifies something time-sensitive
 should make use of these helpers to prevent transient test failures.
 
@@ -840,13 +865,15 @@ it 'is overdue' do
   travel_to(3.days.from_now) do
     expect(issue).to be_overdue
   end
+
+  travel_back # Returns the current time back to its original state
 end
 ```
 
 #### RSpec helpers
 
 You can use the `:freeze_time` and `:time_travel_to` RSpec metadata tag helpers to help reduce the amount of
-boilerplate code needed to wrap entire specs with the [`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/v6.0.3.1/classes/ActiveSupport/Testing/TimeHelpers.html)
+boilerplate code needed to wrap entire specs with the [`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/classes/ActiveSupport/Testing/TimeHelpers.html)
 methods.
 
 ```ruby
@@ -866,7 +893,7 @@ end
 ```
 
 [Under the hood](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/support/time_travel.rb), these helpers use the `around(:each)` hook and the block syntax of the
-[`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/v6.0.3.1/classes/ActiveSupport/Testing/TimeHelpers.html)
+[`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/classes/ActiveSupport/Testing/TimeHelpers.html)
 methods:
 
 ```ruby
@@ -918,10 +945,26 @@ sequence-generated column. To avoid accidental conflicts, specs should also
 avoid manually specifying any values in these kinds of columns. Instead, leave
 them unspecified, and look up the value after the row is created.
 
+##### TestProf in migration specs
+
+Because of what is described above, migration specs can't be run inside
+a database transaction. Our test suite uses
+[TestProf](https://github.com/test-prof/test-prof) to improve the runtime of the
+test suite, but `TestProf` uses database transactions to perform these optimizations.
+For this reason, we can't use `TestProf` methods in our migration specs.
+These are the methods that should not be used and should be replaced with
+default RSpec methods instead:
+
+- `let_it_be`: use `let` or `let!` instead.
+- `let_it_be_with_reload`: use `let` or `let!` instead.
+- `let_it_be_with_refind`: use `let` or `let!` instead.
+- `before_all`: use `before` or `before(:all)` instead.
+
 #### Redis
 
 GitLab stores two main categories of data in Redis: cached items, and Sidekiq
-jobs.
+jobs. [View the full list of `Gitlab::Redis::Wrapper` descendants](https://gitlab.com/gitlab-org/gitlab/-/tree/master/lib/gitlab/redis.rb) that are backed by
+a separate Redis instance.
 
 In most specs, the Rails cache is actually an in-memory store. This is replaced
 between specs, so calls to `Rails.cache.read` and `Rails.cache.write` are safe.
@@ -960,6 +1003,14 @@ it "really connects to Prometheus", :permit_dns do
 
 And if you need more specific control, the DNS blocking is implemented in
 `spec/support/helpers/dns_helpers.rb` and these methods can be called elsewhere.
+
+#### Rate Limiting
+
+[Rate limiting](../../security/rate_limits.md) is enabled in the test suite. Rate limits
+may be triggered in feature specs that use the `:js` trait. In most cases, triggering rate
+limiting can be avoided by marking the spec with the `:clean_gitlab_redis_rate_limiting`
+trait. This trait clears the rate limiting data stored in Redis cache between specs. If
+a single test triggers the rate limit, the `:disable_rate_limit` can be used instead.
 
 #### Stubbing File methods
 
@@ -1313,7 +1364,7 @@ Testing query performance allows us to:
 `QueryRecorder` allows profiling and testing of the number of database queries
 performed in a given block of code.
 
-See the [`QueryRecorder`](../query_recorder.md) section for more details.
+See the [`QueryRecorder`](../database/query_recorder.md) section for more details.
 
 #### GitalyClient
 
@@ -1382,9 +1433,50 @@ RSpec.configure do |config|
 end
 ```
 
+### Testing Ruby constants
+
+When testing code that uses Ruby constants, focus the test on the behavior that depends on the constant,
+rather than testing the values of the constant.
+
+For example, the following is preferred because it tests the behavior of the class method `.categories`.
+
+```ruby
+  describe '.categories' do
+    it 'gets CE unique category names' do
+      expect(described_class.categories).to include(
+        'deploy_token_packages',
+        'user_packages',
+        # ...
+        'kubernetes_agent'
+      )
+    end
+  end
+```
+
+On the other hand, testing the value of the constant itself, often only repeats the values
+in the code and the test, which provides little value.
+
+```ruby
+  describe CATEGORIES do
+  it 'has values' do
+    expect(CATEGORIES).to eq([
+                            'deploy_token_packages',
+                            'user_packages',
+                            # ...
+                            'kubernetes_agent'
+                             ])
+  end
+end
+```
+
+In critical cases where an error on a constant could have a catastrophic impact,
+testing the constant values might be useful as an added safeguard. For example,
+if it could bring down the entire GitLab service, cause a customer to be billed more than they should be,
+or [cause the universe to implode](../contributing/verify/index.md#do-not-cause-our-universe-to-implode).
+
 ### Factories
 
-GitLab uses [factory_bot](https://github.com/thoughtbot/factory_bot) as a test fixture replacement.
+GitLab uses [`factory_bot`](https://github.com/thoughtbot/factory_bot) as a test fixture replacement.
 
 - Factory definitions live in `spec/factories/`, named using the pluralization
   of their corresponding model (`User` factories are defined in `users.rb`).
@@ -1396,10 +1488,51 @@ GitLab uses [factory_bot](https://github.com/thoughtbot/factory_bot) as a test f
   resulting record to pass validation.
 - When instantiating from a factory, don't supply attributes that aren't
   required by the test.
-- Prefer [implicit](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#implicit-definition)
-  or [explicit](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#explicit-definition)
-  association definitions instead of using `create` / `build` for association setup.
+- Use [implicit](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#implicit-definition),
+  [explicit](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#explicit-definition), or
+  [inline](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#inline-definition) associations
+  instead of `create` / `build` for association setup in callbacks.
   See [issue #262624](https://gitlab.com/gitlab-org/gitlab/-/issues/262624) for further context.
+
+  When creating factories with a [`has_many`](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#has_many-associations) and `belongs_to` association, use the `instance` method to refer to the object being built.
+  This prevents [creation of unnecessary records](https://gitlab.com/gitlab-org/gitlab/-/issues/378183) by using [interconnected associations](https://github.com/thoughtbot/factory_bot/blob/master/GETTING_STARTED.md#interconnected-associations).
+
+  For example, if we have the following classes:
+
+  ```ruby
+  class Car < ApplicationRecord
+    has_many :wheels, inverse_of: :car, foreign_key: :car_id
+  end
+
+  class Wheel < ApplicationRecord
+    belongs_to :car, foreign_key: :car_id, inverse_of: :wheel, optional: false
+  end
+  ```
+
+  We can create the following factories:
+
+  ```ruby
+  FactoryBot.define do
+    factory :car do
+      transient do
+        wheels_count { 2 }
+      end
+
+      wheels do
+        Array.new(wheels_count) do
+          association(:wheel, car: instance)
+        end
+      end
+    end
+  end
+
+  FactoryBot.define do
+    factory :wheel do
+      car { association :car }
+    end
+  end
+  ```
+
 - Factories don't have to be limited to `ActiveRecord` objects.
   [See example](https://gitlab.com/gitlab-org/gitlab-foss/commit/0b8cefd3b2385a21cfed779bd659978c0402766d).
 - Factories and their traits should produce valid objects that are [verified by specs](https://gitlab.com/gitlab-org/gitlab/-/blob/master/spec/models/factories_spec.rb).

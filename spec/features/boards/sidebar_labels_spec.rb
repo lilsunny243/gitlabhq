@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Project issue boards sidebar labels', :js do
+RSpec.describe 'Project issue boards sidebar labels', :js, feature_category: :team_planning do
   include BoardHelpers
 
   let_it_be(:group)       { create(:group, :public) }
@@ -20,6 +20,7 @@ RSpec.describe 'Project issue boards sidebar labels', :js do
   let(:card)              { find('.board:nth-child(2)').first('.board-card') }
 
   before do
+    stub_feature_flags(apollo_boards: false)
     project.add_maintainer(user)
 
     sign_in(user)

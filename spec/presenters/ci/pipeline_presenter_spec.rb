@@ -90,17 +90,17 @@ RSpec.describe Ci::PipelinePresenter do
     end
   end
 
-  describe '#name' do
+  describe '#event_type_name' do
     before do
       allow(pipeline).to receive(:merge_request_event_type) { event_type }
     end
 
-    subject { presenter.name }
+    subject { presenter.event_type_name }
 
     context 'for a detached merge request pipeline' do
       let(:event_type) { :detached }
 
-      it { is_expected.to eq('Detached merge request pipeline') }
+      it { is_expected.to eq('Merge request pipeline') }
     end
 
     context 'for a merged result pipeline' do

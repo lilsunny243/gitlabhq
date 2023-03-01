@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage do
+  RSpec.describe 'Package', :skip_live_env, :orchestrated, :packages, :object_storage,
+product_group: :package_registry do
     describe 'NuGet project level endpoint' do
       include Support::Helpers::MaskToken
 
@@ -35,7 +36,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.name = "qa-runner-#{Time.now.to_i}"
           runner.tags = ["runner-for-#{project.name}"]
           runner.executor = :docker
@@ -101,9 +102,9 @@ module QA
               commit.commit_message = 'Add files'
               commit.update_files(
                 [
-                    {
-                        file_path: '.gitlab-ci.yml',
-                        content: <<~YAML
+                  {
+                      file_path: '.gitlab-ci.yml',
+                      content: <<~YAML
                         stages:
                           - deploy
                           - install
@@ -132,11 +133,11 @@ module QA
                             - if: '$CI_COMMIT_BRANCH == "#{project.default_branch}"'
                           tags:
                             - "runner-for-#{project.name}"
-                        YAML
-                    },
-                    {
-                      file_path: 'dotnetcore.csproj',
-                      content: <<~EOF
+                      YAML
+                  },
+                  {
+                    file_path: 'dotnetcore.csproj',
+                    content: <<~EOF
                           <Project Sdk="Microsoft.NET.Sdk">
 
                             <PropertyGroup>
@@ -145,8 +146,8 @@ module QA
                             </PropertyGroup>
 
                           </Project>
-                      EOF
-                  }
+                    EOF
+                }
                 ]
               )
             end

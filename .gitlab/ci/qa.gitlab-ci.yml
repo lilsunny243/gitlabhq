@@ -8,7 +8,6 @@
   variables:
     USE_BUNDLE_INSTALL: "false"
     SETUP_DB: "false"
-    QA_EXPORT_TEST_METRICS: "false"
   before_script:
     - !reference [.default-before_script, before_script]
     - cd qa && bundle install
@@ -66,48 +65,55 @@ qa:update-qa-cache:
   script:
     - echo "Cache has been updated and ready to be uploaded."
 
-populate-e2e-test-vars:
-  extends:
-    - .qa-job-base
-    - .qa:rules:determine-e2e-tests
-  stage: prepare
-  variables:
-    ENV_FILE: $CI_PROJECT_DIR/qa_tests_vars.env
-    COLORIZED_LOGS: "true"
-  script:
-    - bundle exec rake "ci:detect_changes[$ENV_FILE]"
-  artifacts:
-    expire_in: 1 day
-    reports:
-      dotenv: $ENV_FILE
-
-e2e-test-pipeline-generate:
-  extends:
-    - .qa:rules:determine-e2e-tests
-  stage: prepare
-  when: on_success
-  needs:
-    - populate-e2e-test-vars
-  variables:
-    PIPELINE_YML: package-and-test.yml
-  script:
-    - scripts/generate-e2e-pipeline $PIPELINE_YML
-  artifacts:
-    expire_in: 1 day
-    paths:
-      - $PIPELINE_YML
-
 e2e:package-and-test:
   extends:
+    - .production  # this makes sure GITLAB_ALLOW_SEPARATE_CI_DATABASE is passed to the child pipeline
     - .qa:rules:package-and-test
   stage: qa
-  when: on_success
   needs:
     - build-assets-image
     - build-qa-image
     - e2e-test-pipeline-generate
+  variables:
+    # This is needed by `trigger-omnibus-env` (`.gitlab/ci/package-and-test/main.gitlab-ci.yml`).
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    SKIP_MESSAGE: Skipping package-and-test due to mr containing only quarantine changes!
+    RELEASE: "${REGISTRY_HOST}/${REGISTRY_GROUP}/build/omnibus-gitlab-mirror/gitlab-ee:${CI_COMMIT_SHA}"
+    GITLAB_QA_IMAGE: "${CI_REGISTRY_IMAGE}/gitlab-ee-qa:${CI_COMMIT_SHA}"
+    RUN_WITH_BUNDLE: "true"  # instructs pipeline to install and run gitlab-qa gem via bundler
+    QA_PATH: qa  # sets the optional path for bundler to run from
+  inherit:
+    variables:
+      - CHROME_VERSION
+      - RUBY_VERSION
+      - DOCKER_VERSION
+      - REGISTRY_GROUP
+      - REGISTRY_HOST
+      - OMNIBUS_GITLAB_CACHE_EDITION
+      - OMNIBUS_GITLAB_RUBY3_BUILD
+      - OMNIBUS_GITLAB_RUBY2_BUILD
   trigger:
     strategy: depend
+    forward:
+      yaml_variables: true
+      pipeline_variables: true
     include:
-      - artifact: package-and-test.yml
+      - artifact: package-and-test-pipeline.yml
         job: e2e-test-pipeline-generate
+
+e2e:test-on-gdk:
+  extends:
+    - .qa:rules:e2e:test-on-gdk
+  stage: qa
+  needs:
+    # In scheduled master pipelines we wait for the image to be built.
+    # In MRs we assume the last scheduled master pipeline built the image already.
+    - job: build-qa-on-gdk-master-image
+      optional: true
+  allow_failure: true
+  trigger:
+    strategy: depend
+    forward:
+      yaml_variables: true
+      pipeline_variables: true
+    include: .gitlab/ci/test-on-gdk/main.gitlab-ci.yml

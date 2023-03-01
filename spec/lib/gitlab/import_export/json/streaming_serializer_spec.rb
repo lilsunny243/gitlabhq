@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::ImportExport::Json::StreamingSerializer do
+RSpec.describe Gitlab::ImportExport::Json::StreamingSerializer, feature_category: :importers do
   let_it_be(:user) { create(:user) }
   let_it_be(:release) { create(:release) }
   let_it_be(:group) { create(:group) }
@@ -32,18 +32,20 @@ RSpec.describe Gitlab::ImportExport::Json::StreamingSerializer do
   let(:hash) { { name: exportable.name, description: exportable.description }.stringify_keys }
   let(:include) { [] }
   let(:custom_orderer) { nil }
+  let(:include_if_exportable) { {} }
 
   let(:relations_schema) do
     {
       only: [:name, :description],
       include: include,
       preload: { issues: nil },
-      export_reorder: custom_orderer
+      export_reorder: custom_orderer,
+      include_if_exportable: include_if_exportable
     }
   end
 
   subject do
-    described_class.new(exportable, relations_schema, json_writer, exportable_path: exportable_path, logger: logger)
+    described_class.new(exportable, relations_schema, json_writer, exportable_path: exportable_path, logger: logger, current_user: user)
   end
 
   describe '#execute' do
@@ -210,11 +212,146 @@ RSpec.describe Gitlab::ImportExport::Json::StreamingSerializer do
         subject.execute
       end
     end
-  end
 
-  describe '.batch_size' do
-    it 'returns default batch size' do
-      expect(described_class.batch_size(exportable)).to eq(described_class::BATCH_SIZE)
+    describe 'with inaccessible associations' do
+      let_it_be(:milestone) { create(:milestone, project: exportable) }
+      let_it_be(:issue) { create(:issue, assignees: [user], project: exportable, milestone: milestone) }
+      let_it_be(:label1) { create(:label, project: exportable) }
+      let_it_be(:label2) { create(:label, project: exportable) }
+      let_it_be(:link1) { create(:label_link, label: label1, target: issue) }
+      let_it_be(:link2) { create(:label_link, label: label2, target: issue) }
+
+      let(:options) { { include: [{ label_links: { include: [:label] } }, { milestone: { include: [] } }] } }
+
+      let(:include) do
+        [{ issues: options }]
+      end
+
+      shared_examples 'record with exportable associations' do
+        it 'includes exportable association' do
+          expect(json_writer).to receive(:write_relation_array).with(exportable_path, :issues, array_including(expected_issue))
+
+          subject.execute
+        end
+      end
+
+      context 'conditional export of included associations' do
+        let(:include_if_exportable) do
+          { issues: [:label_links, :milestone] }
+        end
+
+        context 'when association is exportable' do
+          before do
+            allow_next_found_instance_of(Issue) do |issue|
+              allow(issue).to receive(:exportable_association?).with(:label_links, current_user: user).and_return(true)
+              allow(issue).to receive(:exportable_association?).with(:milestone, current_user: user).and_return(true)
+            end
+          end
+
+          it_behaves_like 'record with exportable associations' do
+            let(:expected_issue) { issue.to_json(options) }
+          end
+        end
+
+        context 'when an association is not exportable' do
+          before do
+            allow_next_found_instance_of(Issue) do |issue|
+              allow(issue).to receive(:exportable_association?).with(:label_links, current_user: user).and_return(true)
+              allow(issue).to receive(:exportable_association?).with(:milestone, current_user: user).and_return(false)
+            end
+          end
+
+          it_behaves_like 'record with exportable associations' do
+            let(:expected_issue) { issue.to_json(include: [{ label_links: { include: [:label] } }]) }
+          end
+        end
+
+        context 'when association does not respond to exportable_association?' do
+          before do
+            allow_next_found_instance_of(Issue) do |issue|
+              allow(issue).to receive(:respond_to?).and_call_original
+              allow(issue).to receive(:respond_to?).with(:exportable_association?).and_return(false)
+            end
+          end
+
+          it_behaves_like 'record with exportable associations' do
+            let(:expected_issue) { issue.to_json }
+          end
+        end
+      end
+
+      context 'export of included restricted associations' do
+        let(:many_relation) { :label_links }
+        let(:single_relation) { :milestone }
+        let(:issue_hash) { issue.as_json(options).with_indifferent_access }
+        let(:expected_issue) { issue.to_json(options) }
+
+        context 'when the association is restricted' do
+          context 'when some association records are exportable' do
+            before do
+              allow_next_found_instance_of(Issue) do |issue|
+                allow(issue).to receive(:restricted_associations).with([many_relation, single_relation]).and_return([many_relation])
+                allow(issue).to receive(:readable_records).with(many_relation, current_user: user).and_return([link1])
+              end
+            end
+
+            it_behaves_like 'record with exportable associations' do
+              let(:expected_issue) do
+                issue_hash[many_relation].delete_if { |record| record['id'] == link2.id }
+                issue_hash.to_json(options)
+              end
+            end
+          end
+
+          context 'when all association records are exportable' do
+            before do
+              allow_next_found_instance_of(Issue) do |issue|
+                allow(issue).to receive(:restricted_associations).with([many_relation, single_relation]).and_return([many_relation])
+                allow(issue).to receive(:readable_records).with(many_relation, current_user: user).and_return([link1, link2])
+              end
+            end
+
+            it_behaves_like 'record with exportable associations'
+          end
+
+          context 'when the single association record is exportable' do
+            before do
+              allow_next_found_instance_of(Issue) do |issue|
+                allow(issue).to receive(:restricted_associations).with([many_relation, single_relation]).and_return([single_relation])
+                allow(issue).to receive(:readable_records).with(single_relation, current_user: user).and_return(milestone)
+              end
+            end
+
+            it_behaves_like 'record with exportable associations'
+          end
+
+          context 'when the single association record is not exportable' do
+            before do
+              allow_next_found_instance_of(Issue) do |issue|
+                allow(issue).to receive(:restricted_associations).with([many_relation, single_relation]).and_return([single_relation])
+                allow(issue).to receive(:readable_records).with(single_relation, current_user: user).and_return(nil)
+              end
+            end
+
+            it_behaves_like 'record with exportable associations' do
+              let(:expected_issue) do
+                issue_hash[single_relation] = nil
+                issue_hash.to_json(options)
+              end
+            end
+          end
+        end
+
+        context 'when the associations are not restricted' do
+          before do
+            allow_next_found_instance_of(Issue) do |issue|
+              allow(issue).to receive(:restricted_associations).with([many_relation, single_relation]).and_return([])
+            end
+          end
+
+          it_behaves_like 'record with exportable associations'
+        end
+      end
     end
   end
 

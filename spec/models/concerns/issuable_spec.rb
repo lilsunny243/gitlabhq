@@ -65,7 +65,6 @@ RSpec.describe Issuable do
       it { is_expected.to validate_presence_of(:author) }
       it { is_expected.to validate_presence_of(:title) }
       it { is_expected.to validate_length_of(:title).is_at_most(described_class::TITLE_LENGTH_MAX) }
-      it { is_expected.to validate_length_of(:description).is_at_most(described_class::DESCRIPTION_LENGTH_MAX).on(:create) }
 
       it_behaves_like 'validates description length with custom validation' do
         before do
@@ -74,6 +73,24 @@ RSpec.describe Issuable do
       end
 
       it_behaves_like 'truncates the description to its allowed maximum length on import'
+    end
+
+    describe '#validate_assignee_length' do
+      let(:assignee_1) { create(:user) }
+      let(:assignee_2) { create(:user) }
+      let(:assignee_3) { create(:user) }
+
+      subject { create(:merge_request) }
+
+      before do
+        stub_const("Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS", 2)
+      end
+
+      it 'will not exceed the assignee limit' do
+        expect do
+          subject.update!(assignees: [assignee_1, assignee_2, assignee_3])
+        end.to raise_error(ActiveRecord::RecordInvalid)
+      end
     end
   end
 
@@ -317,31 +334,6 @@ RSpec.describe Issuable do
   describe '.to_ability_name' do
     it { expect(Issue.to_ability_name).to eq("issue") }
     it { expect(MergeRequest.to_ability_name).to eq("merge_request") }
-  end
-
-  describe "#today?" do
-    it "returns true when created today" do
-      # Avoid timezone differences and just return exactly what we want
-      allow(Date).to receive(:today).and_return(issue.created_at.to_date)
-      expect(issue.today?).to be_truthy
-    end
-
-    it "returns false when not created today" do
-      allow(Date).to receive(:today).and_return(Date.yesterday)
-      expect(issue.today?).to be_falsey
-    end
-  end
-
-  describe "#new?" do
-    it "returns false when created 30 hours ago" do
-      allow(issue).to receive(:created_at).and_return(Time.current - 30.hours)
-      expect(issue.new?).to be_falsey
-    end
-
-    it "returns true when created 20 hours ago" do
-      allow(issue).to receive(:created_at).and_return(Time.current - 20.hours)
-      expect(issue.new?).to be_truthy
-    end
   end
 
   describe "#sort_by_attribute" do
@@ -1034,6 +1026,22 @@ RSpec.describe Issuable do
       subject { issuable.supports_issue_type? }
 
       it { is_expected.to eq(supports_issue_type) }
+    end
+  end
+
+  describe '#supports_confidentiality?' do
+    where(:issuable_type, :supports_confidentiality) do
+      :issue         | true
+      :incident      | true
+      :merge_request | false
+    end
+
+    with_them do
+      let(:issuable) { build_stubbed(issuable_type) }
+
+      subject { issuable.supports_confidentiality? }
+
+      it { is_expected.to eq(supports_confidentiality) }
     end
   end
 

@@ -2,22 +2,22 @@
 
 module Types
   class BaseField < GraphQL::Schema::Field
-    include GitlabStyleDeprecations
+    include Gitlab::Graphql::Deprecations
 
     argument_class ::Types::BaseArgument
 
     DEFAULT_COMPLEXITY = 1
 
-    attr_reader :deprecation, :doc_reference
+    attr_reader :doc_reference
 
     def initialize(**kwargs, &block)
+      init_gitlab_deprecation(kwargs)
       @calls_gitaly = !!kwargs.delete(:calls_gitaly)
       @doc_reference = kwargs.delete(:see)
       @constant_complexity = kwargs[:complexity].is_a?(Integer) && kwargs[:complexity] > 0
       @requires_argument = !!kwargs.delete(:requires_argument)
       @authorize = Array.wrap(kwargs.delete(:authorize))
       kwargs[:complexity] = field_complexity(kwargs[:resolver_class], kwargs[:complexity])
-      @deprecation = gitlab_deprecation(kwargs)
       after_connection_extensions = kwargs.delete(:late_extensions) || []
 
       super(**kwargs, &block)
@@ -135,15 +135,16 @@ module Types
           :resolver_complexity, args, child_complexity: child_complexity
         ).to_i
         complexity += 1 if calls_gitaly?
-        complexity += complexity * connection_complexity_multiplier(ctx, args)
+        ext_conn = resolver&.try(:calculate_ext_conn_complexity)
+        complexity += complexity * connection_complexity_multiplier(ctx, args, calculate_ext_conn_complexity: ext_conn)
 
         complexity.to_i
       end
     end
 
-    def connection_complexity_multiplier(ctx, args)
+    def connection_complexity_multiplier(ctx, args, calculate_ext_conn_complexity:)
       # Resolvers may add extra complexity depending on number of items being loaded.
-      return 0 unless connection?
+      return 0 if !connection? && !calculate_ext_conn_complexity
 
       page_size   = max_page_size || ctx.schema.default_max_page_size
       limit_value = [args[:first], args[:last], page_size].compact.min

@@ -1,18 +1,54 @@
 # frozen_string_literal: true
 
+require_relative 'suggestor'
+
 module Tooling
   module Danger
     module Specs
+      include ::Tooling::Danger::Suggestor
+
       SPEC_FILES_REGEX = 'spec/'
       EE_PREFIX = 'ee/'
-      MATCH_WITH_ARRAY_REGEX = /(?<to>to\(?\s*)(?<matcher>match|eq)(?<expectation>[( ]?\[[^\]]+)/.freeze
-      SUGGEST_MR_COMMENT = <<~SUGGEST_COMMENT
-      ```suggestion
-      %<suggested_line>s
-      ```
 
+      PROJECT_FACTORIES = %w[
+        :project
+        :project_empty_repo
+        :forked_project_with_submodules
+        :project_with_design
+      ].freeze
+
+      PROJECT_FACTORY_REGEX = /
+        ^\+?                                 # Start of the line, which may or may not have a `+`
+        (?<head>\s*)                         # 0-many leading whitespace captured in a group named head
+        let!?                                # Literal `let` which may or may not end in `!`
+        (?<tail>                             # capture group named tail
+          \([^)]+\)                          # Two parenthesis with any non-parenthesis characters between them
+          \s*\{\s*                           # Opening curly brace surrounded by 0-many whitespace characters
+          create\(                           # literal
+          (?:#{PROJECT_FACTORIES.join('|')}) # Any of the project factory names
+          \W                                 # Non-word character, avoid matching factories like :project_authorization
+        )                                    # end capture group named tail
+      /x.freeze
+
+      PROJECT_FACTORY_REPLACEMENT = '\k<head>let_it_be\k<tail>'
+      PROJECT_FACTORY_SUGGESTION = <<~SUGGEST_COMMENT
+      Project creations are very slow. Use `let_it_be`, `build` or `build_stubbed` if possible.
+      See [testing best practices](https://docs.gitlab.com/ee/development/testing_guide/best_practices.html#optimize-factory-usage)
+      for background information and alternative options.
+      SUGGEST_COMMENT
+
+      MATCH_WITH_ARRAY_REGEX = /(?<to>to\(?\s*)(?<matcher>match|eq)(?<expectation>[( ]?\[(?=.*,)[^\]]+)/.freeze
+      MATCH_WITH_ARRAY_REPLACEMENT = '\k<to>match_array\k<expectation>'
+      MATCH_WITH_ARRAY_SUGGESTION = <<~SUGGEST_COMMENT
       If order of the result is not important, please consider using `match_array` to avoid flakiness.
       SUGGEST_COMMENT
+
+      RSPEC_TOP_LEVEL_DESCRIBE_REGEX = /^\+.?RSpec\.describe(.+)/.freeze
+      FEATURE_CATEGORY_SUGGESTION = <<~SUGGESTION_MARKDOWN
+      Consider adding `feature_category: <feature_category_name>` for this example if it is not set already.
+      See [testing best practices](https://docs.gitlab.com/ee/development/testing_guide/best_practices.html#feature-category-metadata).
+      SUGGESTION_MARKDOWN
+      FEATURE_CATEGORY_KEYWORD = 'feature_category'
 
       def changed_specs_files(ee: :include)
         changed_files = helper.all_changed_files
@@ -30,28 +66,42 @@ module Tooling
       end
 
       def add_suggestions_for_match_with_array(filename)
-        added_lines = added_line_matching_match_with_array(filename)
-        return if added_lines.empty?
-
-        spec_file_lines = project_helper.file_lines(filename)
-
-        added_lines.each_with_object([]) do |added_line, processed_line_numbers|
-          line_number = find_line_number(spec_file_lines, added_line.delete_prefix('+'), exclude_indexes: processed_line_numbers)
-          processed_line_numbers << line_number
-          markdown(format(SUGGEST_MR_COMMENT, suggested_line: spec_file_lines[line_number].gsub(MATCH_WITH_ARRAY_REGEX, '\k<to>match_array\k<expectation>')), file: filename, line: line_number.succ)
-        end
+        add_suggestion(
+          filename: filename,
+          regex: MATCH_WITH_ARRAY_REGEX,
+          replacement: MATCH_WITH_ARRAY_REPLACEMENT,
+          comment_text: MATCH_WITH_ARRAY_SUGGESTION
+        )
       end
 
-      def added_line_matching_match_with_array(filename)
-        helper.changed_lines(filename).grep(/\A\+ /).grep(MATCH_WITH_ARRAY_REGEX)
+      def add_suggestions_for_project_factory_usage(filename)
+        add_suggestion(
+          filename: filename,
+          regex: PROJECT_FACTORY_REGEX,
+          replacement: PROJECT_FACTORY_REPLACEMENT,
+          comment_text: PROJECT_FACTORY_SUGGESTION
+        )
       end
 
-      private
+      def add_suggestions_for_feature_category(filename)
+        file_lines = project_helper.file_lines(filename)
+        changed_lines = helper.changed_lines(filename)
 
-      def find_line_number(file_lines, searched_line, exclude_indexes: [])
-        file_lines.each_with_index do |file_line, index|
-          next if exclude_indexes.include?(index)
-          break index if file_line == searched_line
+        changed_lines.each_with_index do |changed_line, i|
+          next unless changed_line =~ RSPEC_TOP_LEVEL_DESCRIBE_REGEX
+
+          next_line_in_file = file_lines[file_lines.find_index(changed_line.delete_prefix('+')) + 1]
+
+          if changed_line.include?(FEATURE_CATEGORY_KEYWORD) || next_line_in_file.to_s.include?(FEATURE_CATEGORY_KEYWORD)
+            next
+          end
+
+          line_number = file_lines.find_index(changed_line.delete_prefix('+'))
+          next unless line_number
+
+          suggested_line = file_lines[line_number]
+
+          markdown(comment(FEATURE_CATEGORY_SUGGESTION, suggested_line), file: filename, line: line_number.succ)
         end
       end
     end

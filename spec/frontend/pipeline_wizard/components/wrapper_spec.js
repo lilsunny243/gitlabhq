@@ -132,7 +132,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
         expectStepDef,
         expectProgressBarValue,
       }) => {
-        beforeAll(async () => {
+        beforeEach(async () => {
           createComponent();
 
           for (const emittedValue of navigationEventChain) {
@@ -145,7 +145,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
           }
         });
 
-        afterAll(() => {
+        afterEach(() => {
           wrapper.destroy();
         });
 
@@ -184,11 +184,11 @@ describe('Pipeline Wizard - wrapper.vue', () => {
   });
 
   describe('editor overlay', () => {
-    beforeAll(() => {
+    beforeEach(() => {
       createComponent();
     });
 
-    afterAll(() => {
+    afterEach(() => {
       wrapper.destroy();
     });
 
@@ -236,11 +236,11 @@ describe('Pipeline Wizard - wrapper.vue', () => {
   });
 
   describe('line highlights', () => {
-    beforeAll(() => {
+    beforeEach(() => {
       createComponent();
     });
 
-    afterAll(() => {
+    afterEach(() => {
       wrapper.destroy();
     });
 
@@ -266,7 +266,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
   });
 
   describe('integration test', () => {
-    beforeAll(async () => {
+    beforeEach(async () => {
       createComponent({}, mountExtended);
     });
 
@@ -290,14 +290,25 @@ describe('Pipeline Wizard - wrapper.vue', () => {
     describe('navigating back', () => {
       let inputField;
 
-      beforeAll(async () => {
+      beforeEach(async () => {
+        createComponent({}, mountExtended);
+
+        findFirstInputFieldForTarget('$FOO').setValue('fooVal');
+        await nextTick();
+
+        findFirstVisibleStep().vm.$emit('next');
+        await nextTick();
+
+        findFirstInputFieldForTarget('$BAR').setValue('barVal');
+        await nextTick();
+
         findFirstVisibleStep().vm.$emit('back');
         await nextTick();
 
         inputField = findFirstInputFieldForTarget('$FOO');
       });
 
-      afterAll(() => {
+      afterEach(() => {
         wrapper.destroy();
         inputField = undefined;
       });
@@ -353,6 +364,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
         extra: {
           fromStep: 0,
           toStep: 1,
+          features: expect.any(Object),
         },
       });
     });
@@ -375,6 +387,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
         extra: {
           fromStep: 1,
           toStep: 0,
+          features: expect.any(Object),
         },
       });
     });
@@ -398,6 +411,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
         extra: {
           fromStep: 2,
           toStep: 1,
+          features: expect.any(Object),
         },
       });
     });
@@ -418,6 +432,9 @@ describe('Pipeline Wizard - wrapper.vue', () => {
         category: trackingCategory,
         label: 'pipeline_wizard_commit',
         property: 'commit',
+        extra: {
+          features: expect.any(Object),
+        },
       });
     });
 
@@ -432,6 +449,7 @@ describe('Pipeline Wizard - wrapper.vue', () => {
         label: 'pipeline_wizard_editor_interaction',
         extra: {
           currentStep: 0,
+          features: expect.any(Object),
         },
       });
     });

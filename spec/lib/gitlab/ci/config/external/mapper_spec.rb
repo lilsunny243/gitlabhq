@@ -2,8 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Ci::Config::External::Mapper do
+RSpec.describe Gitlab::Ci::Config::External::Mapper, feature_category: :pipeline_composition do
   include StubRequests
+  include RepoHelpers
 
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:user) { project.owner }
@@ -12,13 +13,13 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
   let(:remote_url) { 'https://gitlab.com/gitlab-org/gitlab-foss/blob/1234/.gitlab-ci-1.yml' }
   let(:template_file) { 'Auto-DevOps.gitlab-ci.yml' }
   let(:variables) { project.predefined_variables }
-  let(:context_params) { { project: project, sha: '123456', user: user, variables: variables } }
+  let(:context_params) { { project: project, sha: project.commit.sha, user: user, variables: variables } }
   let(:context) { Gitlab::Ci::Config::External::Context.new(**context_params) }
 
   let(:file_content) do
-    <<~HEREDOC
+    <<~YAML
     image: 'image:1.0'
-    HEREDOC
+    YAML
   end
 
   subject(:mapper) { described_class.new(values, context) }
@@ -38,7 +39,7 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
       it 'propagates the pipeline logger' do
         process
 
-        fetch_content_log_count = mapper
+        fetch_content_log_count = context
           .logger
           .observations_hash
           .dig(key, 'count')
@@ -113,7 +114,19 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
         it_behaves_like 'logging config file fetch', 'config_file_fetch_template_content_duration_s', 1
       end
 
-      context 'when the key is a hash of file and remote' do
+      context 'when the key is not valid' do
+        let(:local_file) { 'secret-file.yml' }
+        let(:values) do
+          { include: { invalid: local_file },
+            image: 'image:1.0' }
+        end
+
+        it 'returns ambigious specification error' do
+          expect { subject }.to raise_error(described_class::AmbigiousSpecificationError, /`{"invalid":"secret-file.yml"}` does not have a valid subkey for include. Valid subkeys are:/)
+        end
+      end
+
+      context 'when the key is a hash of local and remote' do
         let(:variables) { Gitlab::Ci::Variables::Collection.new([{ 'key' => 'GITLAB_TOKEN', 'value' => 'secret-file', 'masked' => true }]) }
         let(:local_file) { 'secret-file.yml' }
         let(:remote_url) { 'https://gitlab.com/secret-file.yml' }
@@ -123,7 +136,7 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
         end
 
         it 'returns ambigious specification error' do
-          expect { subject }.to raise_error(described_class::AmbigiousSpecificationError, 'Include `{"local":"xxxxxxxxxxx.yml","remote":"https://gitlab.com/xxxxxxxxxxx.yml"}` needs to match exactly one accessor!')
+          expect { subject }.to raise_error(described_class::AmbigiousSpecificationError, /Each include must use only one of/)
         end
       end
 
@@ -153,7 +166,7 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
             an_instance_of(Gitlab::Ci::Config::External::File::Project))
         end
 
-        it_behaves_like 'logging config file fetch', 'config_file_fetch_project_content_duration_s', 2
+        it_behaves_like 'logging config file fetch', 'config_file_fetch_project_content_duration_s', 1
       end
     end
 
@@ -207,19 +220,19 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
     context "when duplicate 'include's are defined" do
       let(:values) do
         { include: [
-          { 'local' => local_file },
-          { 'local' => local_file }
-        ],
-        image: 'image:1.0' }
+            { 'local' => local_file },
+            { 'local' => local_file }
+          ],
+          image: 'image:1.0' }
       end
 
       it 'does not raise an exception' do
         expect { process }.not_to raise_error
       end
 
-      it 'has expanset with one' do
+      it 'has expanset with two' do
         process
-        expect(mapper.expandset.size).to eq(1)
+        expect(context.expandset.size).to eq(2)
       end
     end
 
@@ -367,17 +380,28 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
     end
 
     context 'when local file path has wildcard' do
-      let(:project) { create(:project, :repository) }
+      let_it_be(:project) { create(:project, :repository) }
 
       let(:values) do
         { include: 'myfolder/*.yml' }
       end
 
-      before do
-        allow_next_instance_of(Repository) do |repository|
-          allow(repository).to receive(:search_files_by_wildcard_path).with('myfolder/*.yml', '123456') do
-            ['myfolder/file1.yml', 'myfolder/file2.yml']
-          end
+      let(:project_files) do
+        {
+          'myfolder/file1.yml' => <<~YAML,
+            my_build:
+              script: echo Hello World
+          YAML
+          'myfolder/file2.yml' => <<~YAML
+            my_test:
+              script: echo Hello World
+          YAML
+        }
+      end
+
+      around do |example|
+        create_and_delete_files(project, project_files) do
+          example.run
         end
       end
 
@@ -416,23 +440,24 @@ RSpec.describe Gitlab::Ci::Config::External::Mapper do
 
     context "when locations are same after masking variables" do
       let(:variables) do
-        Gitlab::Ci::Variables::Collection.new([
-          { 'key' => 'GITLAB_TOKEN', 'value' => 'secret-file1', 'masked' => true },
-          { 'key' => 'GITLAB_TOKEN', 'value' => 'secret-file2', 'masked' => true }
-        ])
+        Gitlab::Ci::Variables::Collection.new(
+          [
+            { 'key' => 'GITLAB_TOKEN', 'value' => 'secret-file1', 'masked' => true },
+            { 'key' => 'GITLAB_TOKEN', 'value' => 'secret-file2', 'masked' => true }
+          ])
       end
 
       let(:values) do
         { include: [
-          { 'local' => 'hello/secret-file1.yml' },
-          { 'local' => 'hello/secret-file2.yml' }
-        ],
-        image: 'ruby:2.7' }
+            { 'local' => 'hello/secret-file1.yml' },
+            { 'local' => 'hello/secret-file2.yml' }
+          ],
+          image: 'ruby:2.7' }
       end
 
       it 'has expanset with two' do
         process
-        expect(mapper.expandset.size).to eq(2)
+        expect(context.expandset.size).to eq(2)
       end
     end
   end

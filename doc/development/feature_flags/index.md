@@ -2,24 +2,20 @@
 type: reference, dev
 stage: none
 group: Development
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 ---
 
 # Feature flags in the development of GitLab
 
 NOTE:
-The documentation below covers feature flags used by GitLab to deploy its own features, which **is not** the same
-as the [feature flags offered as part of the product](../../operations/feature_flags.md).
-
-This document provides guidelines on how to use feature flags
-for the development of GitLab to conditionally and/or incrementally enable features
-and test them in production/staging.
+This document explains how to contribute to the development of the GitLab product.
+If you want to use feature flags to show and hide functionality in your own applications,
+view [this feature flags information](../../operations/feature_flags.md) instead.
 
 WARNING:
 All newly-introduced feature flags should be [disabled by default](https://about.gitlab.com/handbook/product-development-flow/feature-flag-lifecycle/#feature-flags-in-gitlab-development).
 
-NOTE:
-This document is the subject of continued work as part of an epic to [improve internal usage of Feature Flags](https://gitlab.com/groups/gitlab-org/-/epics/3551). Raise any suggestions as new issues and attach them to the epic.
+This document is the subject of continued work as part of an epic to [improve internal usage of feature flags](https://gitlab.com/groups/gitlab-org/-/epics/3551). Raise any suggestions as new issues and attach them to the epic.
 
 For an [overview of the feature flag lifecycle](https://about.gitlab.com/handbook/product-development-flow/feature-flag-lifecycle/#feature-flag-lifecycle), or if you need help deciding [if you should use a feature flag](https://about.gitlab.com/handbook/product-development-flow/feature-flag-lifecycle/#when-to-use-feature-flags) or not, please see the [feature flag lifecycle](https://about.gitlab.com/handbook/product-development-flow/feature-flag-lifecycle/) handbook page.
 
@@ -43,20 +39,25 @@ should be leveraged:
   existing feature flag because a feature is deemed stable must have the
   ~"feature flag" label assigned.
 
-When the feature implementation is delivered among multiple merge requests:
+When the feature implementation is delivered over multiple merge requests:
 
-  1. [Create a new feature flag](#create-a-new-feature-flag)
-     which is **off** by default, in the first merge request which uses the flag.
-     Flags [should not be added separately](#risk-of-a-broken-main-branch).
-  1. Submit incremental changes via one or more merge requests, ensuring that any
-     new code added can only be reached if the feature flag is **on**.
-     You can keep the feature flag enabled on your local GDK during development.
-  1. When the feature is ready to be tested, enable the feature flag for
-     a specific project and ensure that there are no issues with the implementation.
-  1. When the feature is ready to be announced, create a merge request that adds
-     documentation about the feature, including [documentation for the feature flag itself](../documentation/feature_flags.md),
-     and a [changelog entry](#changelog). In the same merge request either flip the feature flag to
-     be **on by default** or remove it entirely in order to enable the new behavior.
+1. [Create a new feature flag](#create-a-new-feature-flag)
+   which is **off** by default, in the first merge request which uses the flag.
+   Flags [should not be added separately](#risk-of-a-broken-main-branch).
+1. Submit incremental changes via one or more merge requests, ensuring that any
+   new code added can only be reached if the feature flag is **on**.
+   You can keep the feature flag enabled on your local GDK during development.
+1. When the feature is ready to be tested by other team members, [create the initial documentation](../documentation/feature_flags.md#when-to-document-features-behind-a-feature-flag).
+   Include details about the status of the [feature flag](../documentation/feature_flags.md#how-to-add-feature-flag-documentation).
+1. Enable the feature flag for a specific project and ensure that there are no issues
+   with the implementation. Do not enable the feature flag for a public project
+   like `gitlab` if there is no documentation. Team members and contributors might search for
+   documentation on how to use the feature if they see it enabled in a public project.
+1. When the feature is ready for production use, open a merge request to:
+   - Update the documentation to describe the latest flag status.
+   - Add a [changelog entry](#changelog).
+   - Flip the feature flag to be **on by default** or remove it entirely
+     to enable the new behavior.
 
 One might be tempted to think that feature flags will delay the release of a
 feature by at least one month (= one release). This is not the case. A feature
@@ -191,7 +192,7 @@ Only feature flags that have a YAML definition file can be used when running the
 ```shell
 $ bin/feature-flag my_feature_flag
 >> Specify the group introducing the feature flag, like `group::apm`:
-?> group::memory
+?> group::application performance
 
 >> URL of the MR introducing the feature flag (enter to skip):
 ?> https://gitlab.com/gitlab-org/gitlab/-/merge_requests/38602
@@ -206,7 +207,7 @@ create config/feature_flags/development/my_feature_flag.yml
 name: my_feature_flag
 introduced_by_url: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/38602
 rollout_issue_url: https://gitlab.com/gitlab-org/gitlab/-/issues/232533
-group: group::memory
+group: group::application performance
 type: development
 default_enabled: false
 ```
@@ -402,44 +403,8 @@ Feature.enabled?(:feature_flag, group)
 Feature.enabled?(:feature_flag, user)
 ```
 
-Please see [Feature flag controls](controls.md#process) for more details on working with feature flags.
-
-#### Selectively disable by actor
-
-By default you cannot selectively disable a feature flag by actor.
-
-```shell
-# This will not work how you would expect.
-/chatops run feature set some_feature true
-/chatops run feature set --project=gitlab-org/gitlab some_feature false
-```
-
-However, if you add two feature flags, you can write your conditional statement in such a way that the equivalent selective disable is possible.
-
-```ruby
-Feature.enabled?(:a_feature, project) && Feature.disabled?(:a_feature_override, project)
-```
-
-```shell
-# This will enable a feature flag globally, except for gitlab-org/gitlab
-/chatops run feature set a_feature true
-/chatops run feature set --project=gitlab-org/gitlab a_feature_override true
-```
-
-#### Percentage-based actor selection
-
-When using the percentage rollout of actors on multiple feature flags, the actors for each feature flag are selected separately.
-
-For example, the following feature flags are enabled for a certain percentage of actors:
-
-```plaintext
-/chatops run feature set feature-set-1 25 --actors
-/chatops run feature set feature-set-2 25 --actors
-```
-
-If a project A has `:feature-set-1` enabled, there is no guarantee that project A also has `:feature-set-2` enabled.
-
-For more detail, see [This is how percentages work in Flipper](https://www.hackwithpassion.com/this-is-how-percentages-work-in-flipper).
+See [Feature flags in the development of GitLab](controls.md#process) for details on how to use ChatOps
+to selectively enable or disable feature flags in GitLab-provided environments, like staging and production.
 
 #### Use actors for verifying in production
 
@@ -494,6 +459,18 @@ dynamic (querying the DB, for example).
 Once defined in `lib/feature.rb`, you can to activate a
 feature for a given feature group via the [`feature_group` parameter of the features API](../../api/features.md#set-or-create-a-feature)
 
+The available feature groups are:
+
+| Group name            | Scoped to | Description |
+| --------------------- | --------- | ----------- |
+| `gitlab_team_members` | Users     | Enables the feature for users who are members of [`gitlab-com`](https://gitlab.com/gitlab-com) |
+
+Feature groups can be enabled via the group name:
+
+```ruby
+Feature.enable(:feature_flag_name, :gitlab_team_members)
+```
+
 ### Enabling a feature flag locally (in development)
 
 In the rails console (`rails c`), enter the following command to enable a feature flag:
@@ -514,12 +491,12 @@ You can also enable a feature flag for a given gate:
 Feature.enable(:feature_flag_name, Project.find_by_full_path("root/my-project"))
 ```
 
-### Removing a feature flag locally (in development)
+### Disabling a feature flag locally (in development)
 
 When manually enabling or disabling a feature flag from the Rails console, its default value gets overwritten.
 This can cause confusion when changing the flag's `default_enabled` attribute.
 
-To reset the feature flag to the default status, you can remove it in the rails console (`rails c`)
+To reset the feature flag to the default status, you can disable it in the rails console (`rails c`)
 as follows:
 
 ```ruby
@@ -535,16 +512,18 @@ Feature.remove(:feature_flag_name)
 
   ```mermaid
   graph LR
-      A[flag: default off] -->|'added' / 'changed'| B(flag: default on)
+      A[flag: default off] -->|'added' / 'changed' / 'fixed' / '...'| B(flag: default on)
       B -->|'other'| C(remove flag, keep new code)
       B -->|'removed' / 'changed'| D(remove flag, keep old code)
-      A -->|'added' / 'changed'| C
+      A -->|'added' / 'changed' / 'fixed' / '...'| C
       A -->|no changelog| D
   ```
 
 - Any change behind a feature flag that is **enabled** by default **should** have a changelog entry.
 - The changelog for a feature flag should describe the feature and not the
   flag, unless a default on feature flag is removed keeping the new code (`other` in the flowchart above).
+- A feature flag can also be used for rolling out a bug fix or a maintenance work. In this scenario, the changelog
+  must be related to it, for example; `fixed` or `other`.
 
 ## Feature flags in tests
 

@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Users do
+RSpec.describe API::Users, feature_category: :user_profile do
+  include WorkhorseHelpers
+
   let_it_be(:admin) { create(:admin) }
   let_it_be(:user, reload: true) { create(:user, username: 'user.withdot') }
   let_it_be(:key) { create(:key, user: user) }
@@ -163,6 +165,7 @@ RSpec.describe API::Users do
 
           expect(json_response.first).not_to have_key('note')
           expect(json_response.first).not_to have_key('namespace_id')
+          expect(json_response.first).not_to have_key('created_by')
         end
       end
 
@@ -173,6 +176,7 @@ RSpec.describe API::Users do
 
             expect(json_response.first).not_to have_key('note')
             expect(json_response.first).not_to have_key('namespace_id')
+            expect(json_response.first).not_to have_key('created_by')
           end
         end
 
@@ -183,6 +187,26 @@ RSpec.describe API::Users do
             expect(response).to have_gitlab_http_status(:success)
             expect(json_response.first).to have_key('note')
             expect(json_response.first['note']).to eq '2018-11-05 | 2FA removed | user requested | www.gitlab.com'
+          end
+
+          context 'with `created_by` details' do
+            it 'has created_by as nil with a self-registered account' do
+              get api("/users", admin), params: { username: user.username }
+
+              expect(response).to have_gitlab_http_status(:success)
+              expect(json_response.first).to have_key('created_by')
+              expect(json_response.first['created_by']).to eq(nil)
+            end
+
+            it 'is created_by a user and has those details' do
+              created = create(:user, created_by_id: user.id)
+
+              get api("/users", admin), params: { username: created.username }
+
+              expect(response).to have_gitlab_http_status(:success)
+              expect(json_response.first['created_by'].symbolize_keys)
+                .to eq(API::Entities::UserBasic.new(user).as_json)
+            end
           end
         end
 
@@ -938,6 +962,17 @@ RSpec.describe API::Users do
         expect(user.followees).to contain_exactly(followee)
         expect(response).to have_gitlab_http_status(:created)
       end
+
+      it 'alerts and not follow when over followee limit' do
+        stub_const('Users::UserFollowUser::MAX_FOLLOWEE_LIMIT', 2)
+        Users::UserFollowUser::MAX_FOLLOWEE_LIMIT.times { user.follow(create(:user)) }
+
+        post api("/users/#{followee.id}/follow", user)
+        expect(response).to have_gitlab_http_status(:bad_request)
+        expected_message = format(_("You can't follow more than %{limit} users. To follow more users, unfollow some others."), limit: Users::UserFollowUser::MAX_FOLLOWEE_LIMIT)
+        expect(json_response['message']).to eq(expected_message)
+        expect(user.following?(followee)).to be_falsey
+      end
     end
 
     context 'on a followed user' do
@@ -1180,6 +1215,22 @@ RSpec.describe API::Users do
       expect(new_user.user_preference.view_diffs_file_by_file?).to eq(true)
     end
 
+    it "creates user with avatar" do
+      workhorse_form_with_file(
+        api('/users', admin),
+        method: :post,
+        file_key: :avatar,
+        params: attributes_for(:user, avatar: fixture_file_upload('spec/fixtures/banana_sample.gif', 'image/gif'))
+      )
+
+      expect(response).to have_gitlab_http_status(:created)
+
+      new_user = User.find_by(id: json_response['id'])
+
+      expect(new_user).not_to eq(nil)
+      expect(json_response['avatar_url']).to include(new_user.avatar_path)
+    end
+
     it "does not create user with invalid email" do
       post api('/users', admin),
         params: {
@@ -1237,7 +1288,21 @@ RSpec.describe API::Users do
       expect(json_response['message']['projects_limit'])
         .to eq(['must be greater than or equal to 0'])
       expect(json_response['message']['username'])
-        .to eq([Gitlab::PathRegex.namespace_format_message])
+        .to match_array([Gitlab::PathRegex.namespace_format_message, Gitlab::Regex.oci_repository_path_regex_message])
+    end
+
+    it 'tracks weak password errors' do
+      attributes = attributes_for(:user).merge({ password: "password" })
+      post api('/users', admin), params: attributes
+
+      expect(json_response['message']['password'])
+        .to eq(['must not contain commonly used combinations of words and letters'])
+      expect_snowplow_event(
+        category: 'Gitlab::Tracking::Helpers::WeakPasswordErrorEvent',
+        action: 'track_weak_password_error',
+        controller: 'API::Users',
+        method: 'create'
+      )
     end
 
     it "is not available for non admin users" do
@@ -1389,6 +1454,46 @@ RSpec.describe API::Users do
 
       include_examples 'does not allow the "read_user" scope'
     end
+
+    context "`private_profile` attribute" do
+      context "based on the application setting" do
+        before do
+          stub_application_setting(user_defaults_to_private_profile: true)
+        end
+
+        let(:params) { attributes_for(:user) }
+
+        shared_examples_for 'creates the user with the value of `private_profile` based on the application setting' do
+          specify do
+            post api("/users", admin), params: params
+
+            expect(response).to have_gitlab_http_status(:created)
+            user = User.find_by(id: json_response['id'], private_profile: true)
+            expect(user).to be_present
+          end
+        end
+
+        context 'when the attribute is not overridden in params' do
+          it_behaves_like 'creates the user with the value of `private_profile` based on the application setting'
+        end
+
+        context 'when the attribute is overridden in params' do
+          it 'creates the user with the value of `private_profile` same as the value of the overridden param' do
+            post api("/users", admin), params: params.merge(private_profile: false)
+
+            expect(response).to have_gitlab_http_status(:created)
+            user = User.find_by(id: json_response['id'], private_profile: false)
+            expect(user).to be_present
+          end
+
+          context 'overridden as `nil`' do
+            let(:params) { attributes_for(:user, private_profile: nil) }
+
+            it_behaves_like 'creates the user with the value of `private_profile` based on the application setting'
+          end
+        end
+      end
+    end
   end
 
   describe "PUT /users/:id" do
@@ -1441,6 +1546,21 @@ RSpec.describe API::Users do
             .not_to have_enqueued_mail(DeviseMailer, :password_change)
         end
       end
+
+      context 'with a weak password' do
+        it 'tracks weak password errors' do
+          update_password(user, admin, "password")
+
+          expect(json_response['message']['password'])
+            .to eq(['must not contain commonly used combinations of words and letters'])
+          expect_snowplow_event(
+            category: 'Gitlab::Tracking::Helpers::WeakPasswordErrorEvent',
+            action: 'track_weak_password_error',
+            controller: 'API::Users',
+            method: 'update'
+          )
+        end
+      end
     end
 
     it "updates user with new bio" do
@@ -1478,7 +1598,12 @@ RSpec.describe API::Users do
     end
 
     it 'updates user with avatar' do
-      put api("/users/#{user.id}", admin), params: { avatar: fixture_file_upload('spec/fixtures/banana_sample.gif', 'image/gif') }
+      workhorse_form_with_file(
+        api("/users/#{user.id}", admin),
+        method: :put,
+        file_key: :avatar,
+        params: { avatar: fixture_file_upload('spec/fixtures/banana_sample.gif', 'image/gif') }
+      )
 
       user.reload
 
@@ -1549,24 +1674,11 @@ RSpec.describe API::Users do
       expect(user.reload.external?).to be_truthy
     end
 
-    it "private profile is false by default" do
-      put api("/users/#{user.id}", admin), params: {}
-
-      expect(user.reload.private_profile).to eq(false)
-    end
-
     it "does have default values for theme and color-scheme ID" do
       put api("/users/#{user.id}", admin), params: {}
 
       expect(user.reload.theme_id).to eq(Gitlab::Themes.default.id)
       expect(user.reload.color_scheme_id).to eq(Gitlab::ColorSchemes.default.id)
-    end
-
-    it "updates private profile" do
-      put api("/users/#{user.id}", admin), params: { private_profile: true }
-
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(user.reload.private_profile).to eq(true)
     end
 
     it "updates viewing diffs file by file" do
@@ -1576,22 +1688,40 @@ RSpec.describe API::Users do
       expect(user.reload.user_preference.view_diffs_file_by_file?).to eq(true)
     end
 
-    it "updates private profile to false when nil is given" do
-      user.update!(private_profile: true)
+    context 'updating `private_profile`' do
+      it "updates private profile" do
+        current_value = user.private_profile
+        new_value = !current_value
 
-      put api("/users/#{user.id}", admin), params: { private_profile: nil }
+        put api("/users/#{user.id}", admin), params: { private_profile: new_value }
 
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(user.reload.private_profile).to eq(false)
-    end
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(user.reload.private_profile).to eq(new_value)
+      end
 
-    it "does not modify private profile when field is not provided" do
-      user.update!(private_profile: true)
+      context 'when `private_profile` is set to `nil`' do
+        before do
+          stub_application_setting(user_defaults_to_private_profile: true)
+        end
 
-      put api("/users/#{user.id}", admin), params: {}
+        it "updates private_profile to value of the application setting" do
+          user.update!(private_profile: false)
 
-      expect(response).to have_gitlab_http_status(:ok)
-      expect(user.reload.private_profile).to eq(true)
+          put api("/users/#{user.id}", admin), params: { private_profile: nil }
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(user.reload.private_profile).to eq(true)
+        end
+      end
+
+      it "does not modify private profile when field is not provided" do
+        user.update!(private_profile: true)
+
+        put api("/users/#{user.id}", admin), params: {}
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(user.reload.private_profile).to eq(true)
+      end
     end
 
     it "does not modify theme or color-scheme ID when field is not provided" do
@@ -1693,7 +1823,7 @@ RSpec.describe API::Users do
       expect(json_response['message']['projects_limit'])
         .to eq(['must be greater than or equal to 0'])
       expect(json_response['message']['username'])
-        .to eq([Gitlab::PathRegex.namespace_format_message])
+        .to match_array([Gitlab::PathRegex.namespace_format_message, Gitlab::Regex.oci_repository_path_regex_message])
     end
 
     it 'returns 400 if provider is missing for identity update' do
@@ -1903,11 +2033,19 @@ RSpec.describe API::Users do
       expect(json_response['error']).to eq('title is missing')
     end
 
-    it "creates ssh key" do
-      key_attrs = attributes_for :key
+    it "creates ssh key", :aggregate_failures do
+      key_attrs = attributes_for(:key, usage_type: :signing)
+
       expect do
         post api("/users/#{user.id}/keys", admin), params: key_attrs
       end.to change { user.keys.count }.by(1)
+
+      expect(response).to have_gitlab_http_status(:created)
+
+      key = user.keys.last
+      expect(key.title).to eq(key_attrs[:title])
+      expect(key.key).to eq(key_attrs[:key])
+      expect(key.usage_type).to eq(key_attrs[:usage_type].to_s)
     end
 
     it 'creates SSH key with `expires_at` attribute' do
@@ -2480,13 +2618,11 @@ RSpec.describe API::Users do
     let_it_be(:issue) { create(:issue, author: user) }
 
     it "deletes user", :sidekiq_inline do
-      namespace_id = user.namespace.id
-
       perform_enqueued_jobs { delete api("/users/#{user.id}", admin) }
 
       expect(response).to have_gitlab_http_status(:no_content)
-      expect { User.find(user.id) }.to raise_error ActiveRecord::RecordNotFound
-      expect { Namespace.find(namespace_id) }.to raise_error ActiveRecord::RecordNotFound
+      expect(Users::GhostUserMigration.where(user: user,
+                                             initiator_user: admin)).to be_exists
     end
 
     context "sole owner of a group" do
@@ -2556,7 +2692,9 @@ RSpec.describe API::Users do
 
         expect(response).to have_gitlab_http_status(:no_content)
         expect(issue.reload).to be_persisted
-        expect(issue.author.ghost?).to be_truthy
+        expect(Users::GhostUserMigration.where(user: user,
+                                               initiator_user: admin,
+                                               hard_delete: false)).to be_exists
       end
     end
 
@@ -2565,7 +2703,9 @@ RSpec.describe API::Users do
         perform_enqueued_jobs { delete api("/users/#{user.id}?hard_delete=true", admin) }
 
         expect(response).to have_gitlab_http_status(:no_content)
-        expect(Issue.exists?(issue.id)).to be_falsy
+        expect(Users::GhostUserMigration.where(user: user,
+                                               initiator_user: admin,
+                                               hard_delete: true)).to be_exists
       end
     end
   end
@@ -2761,12 +2901,19 @@ RSpec.describe API::Users do
   end
 
   describe "POST /user/keys" do
-    it "creates ssh key" do
-      key_attrs = attributes_for :key
+    it "creates ssh key", :aggregate_failures do
+      key_attrs = attributes_for(:key, usage_type: :signing)
+
       expect do
         post api("/user/keys", user), params: key_attrs
       end.to change { user.keys.count }.by(1)
+
       expect(response).to have_gitlab_http_status(:created)
+
+      key = user.keys.last
+      expect(key.title).to eq(key_attrs[:title])
+      expect(key.key).to eq(key_attrs[:key])
+      expect(key.usage_type).to eq(key_attrs[:usage_type].to_s)
     end
 
     it 'creates SSH key with `expires_at` attribute' do
@@ -3515,6 +3662,15 @@ RSpec.describe API::Users do
           expect(response.body).to eq('true')
           expect(user.reload.state).to eq('blocked')
         end
+
+        it 'saves a custom attribute', :freeze_time, feature_category: :insider_threat do
+          block_user
+
+          custom_attribute = user.custom_attributes.last
+
+          expect(custom_attribute.key).to eq(UserCustomAttribute::BLOCKED_BY)
+          expect(custom_attribute.value).to eq("#{admin.username}/#{admin.id}+#{Time.current}")
+        end
       end
 
       context 'with an ldap blocked user' do
@@ -3605,6 +3761,15 @@ RSpec.describe API::Users do
 
           expect(response).to have_gitlab_http_status(:created)
           expect(blocked_user.reload.state).to eq('active')
+        end
+
+        it 'saves a custom attribute', :freeze_time, feature_category: :insider_threat do
+          unblock_user
+
+          custom_attribute = blocked_user.custom_attributes.last
+
+          expect(custom_attribute.key).to eq(UserCustomAttribute::UNBLOCKED_BY)
+          expect(custom_attribute.value).to eq("#{admin.username}/#{admin.id}+#{Time.current}")
         end
       end
 
@@ -3943,60 +4108,164 @@ RSpec.describe API::Users do
     end
   end
 
-  describe 'GET /user/status' do
-    let(:path) { '/user/status' }
+  describe '/user/status' do
+    let(:user_status) { create(:user_status, clear_status_at: 8.hours.from_now) }
+    let(:user_with_status) { user_status.user }
+    let(:params) { {} }
+    let(:request_user) { user }
 
-    it_behaves_like 'rendering user status'
-  end
+    shared_examples '/user/status successful response' do
+      context 'when request is successful' do
+        let(:params) { { emoji: 'smirk', message: 'hello world' } }
 
-  describe 'PUT /user/status' do
-    it 'saves the status' do
-      put api('/user/status', user), params: { emoji: 'smirk', message: 'hello world' }
-
-      expect(response).to have_gitlab_http_status(:success)
-      expect(json_response['emoji']).to eq('smirk')
-    end
-
-    it 'renders errors when the status was invalid' do
-      put api('/user/status', user), params: { emoji: 'does not exist', message: 'hello world' }
-
-      expect(response).to have_gitlab_http_status(:bad_request)
-      expect(json_response['message']['emoji']).to be_present
-    end
-
-    it 'deletes the status when passing empty values' do
-      put api('/user/status', user)
-
-      expect(response).to have_gitlab_http_status(:success)
-      expect(user.reload.status).to be_nil
-    end
-
-    context 'when clear_status_after is given' do
-      it 'sets the clear_status_at column' do
-        freeze_time do
-          expected_clear_status_at = 3.hours.from_now
-
-          put api('/user/status', user), params: { emoji: 'smirk', message: 'hello world', clear_status_after: '3_hours' }
+        it 'saves the status' do
+          set_user_status
 
           expect(response).to have_gitlab_http_status(:success)
-          expect(user.status.reload.clear_status_at).to be_within(1.minute).of(expected_clear_status_at)
-          expect(Time.parse(json_response["clear_status_at"])).to be_within(1.minute).of(expected_clear_status_at)
+          expect(json_response['emoji']).to eq('smirk')
+          expect(json_response['message']).to eq('hello world')
+        end
+      end
+    end
+
+    shared_examples '/user/status unsuccessful response' do
+      context 'when request is unsuccessful' do
+        let(:params) { { emoji: 'does not exist', message: 'hello world' } }
+
+        it 'renders errors' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:bad_request)
+          expect(json_response['message']['emoji']).to be_present
+        end
+      end
+    end
+
+    shared_examples '/user/status passing nil for params' do
+      context 'when passing nil for params' do
+        let(:params) { { emoji: nil, message: nil, clear_status_after: nil } }
+        let(:request_user) { user_with_status }
+
+        it 'deletes the status' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user_with_status.status).to be_nil
+        end
+      end
+    end
+
+    shared_examples '/user/status clear_status_after field' do
+      context 'when clear_status_after is valid', :freeze_time do
+        let(:params) { { emoji: 'smirk', message: 'hello world', clear_status_after: '3_hours' } }
+
+        it 'sets the clear_status_at column' do
+          expected_clear_status_at = 3.hours.from_now
+
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user.status.clear_status_at).to be_like_time(expected_clear_status_at)
+          expect(Time.parse(json_response["clear_status_at"])).to be_like_time(expected_clear_status_at)
         end
       end
 
-      it 'unsets the clear_status_at column' do
-        user.create_status!(clear_status_at: 5.hours.ago)
+      context 'when clear_status_after is nil' do
+        let(:params) { { emoji: 'smirk', message: 'hello world', clear_status_after: nil } }
+        let(:request_user) { user_with_status }
 
-        put api('/user/status', user), params: { emoji: 'smirk', message: 'hello world', clear_status_after: nil }
+        it 'unsets the clear_status_at column' do
+          set_user_status
 
-        expect(response).to have_gitlab_http_status(:success)
-        expect(user.status.reload.clear_status_at).to be_nil
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user_with_status.status.clear_status_at).to be_nil
+        end
       end
 
-      it 'raises error when unknown status value is given' do
-        put api('/user/status', user), params: { emoji: 'smirk', message: 'hello world', clear_status_after: 'wrong' }
+      context 'when clear_status_after is invalid' do
+        let(:params) { { emoji: 'smirk', message: 'hello world', clear_status_after: 'invalid' } }
 
-        expect(response).to have_gitlab_http_status(:bad_request)
+        it 'raises error when unknown status value is given' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:bad_request)
+        end
+      end
+    end
+
+    describe 'GET' do
+      let(:path) { '/user/status' }
+
+      it_behaves_like 'rendering user status'
+    end
+
+    describe 'PUT' do
+      subject(:set_user_status) { put api('/user/status', request_user), params: params }
+
+      include_examples '/user/status successful response'
+
+      include_examples '/user/status unsuccessful response'
+
+      include_examples '/user/status passing nil for params'
+
+      include_examples '/user/status clear_status_after field'
+
+      context 'when passing empty params' do
+        let(:request_user) { user_with_status }
+
+        it 'deletes the status' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user_with_status.status).to be_nil
+        end
+      end
+
+      context 'when clear_status_after is not given' do
+        let(:params) { { emoji: 'smirk', message: 'hello world' } }
+        let(:request_user) { user_with_status }
+
+        it 'unsets clear_status_at column' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user_with_status.status.clear_status_at).to be_nil
+        end
+      end
+    end
+
+    describe 'PATCH' do
+      subject(:set_user_status) { patch api('/user/status', request_user), params: params }
+
+      include_examples '/user/status successful response'
+
+      include_examples '/user/status unsuccessful response'
+
+      include_examples '/user/status passing nil for params'
+
+      include_examples '/user/status clear_status_after field'
+
+      context 'when passing empty params' do
+        let(:request_user) { user_with_status }
+
+        it 'does not update the status' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user_with_status.status).to eq(user_status)
+        end
+      end
+
+      context 'when clear_status_after is not given' do
+        let(:params) { { emoji: 'smirk', message: 'hello world' } }
+        let(:request_user) { user_with_status }
+
+        it 'does not unset clear_status_at column' do
+          set_user_status
+
+          expect(response).to have_gitlab_http_status(:success)
+          expect(user_with_status.status.clear_status_at).not_to be_nil
+        end
       end
     end
   end
@@ -4285,6 +4554,74 @@ RSpec.describe API::Users do
       expect(response).to have_gitlab_http_status(:no_content)
       expect(impersonation_token.revoked).to be_falsey
       expect(impersonation_token.reload.revoked).to be_truthy
+    end
+  end
+
+  describe 'GET /users/:id/associations_count' do
+    let_it_be(:group) { create(:group) }
+    let_it_be(:project) { create(:project, :public, group: group) }
+    let(:associations) do
+      {
+        groups_count: 1,
+        projects_count: 1,
+        issues_count: 2,
+        merge_requests_count: 1
+      }.as_json
+    end
+
+    before :all do
+      group.add_member(user, Gitlab::Access::OWNER)
+      project.add_member(user, Gitlab::Access::OWNER)
+      create(:merge_request, source_project: project, source_branch: "my-personal-branch-1", author: user)
+      create_list(:issue, 2, project: project, author: user)
+    end
+
+    context 'as an unauthorized user' do
+      it 'returns 401 unauthorized' do
+        get api("/users/#{user.id}/associations_count", nil)
+
+        expect(response).to have_gitlab_http_status(:unauthorized)
+      end
+    end
+
+    context 'as a non-admin user' do
+      context 'with a different user id' do
+        it 'returns 403 Forbidden' do
+          get api("/users/#{omniauth_user.id}/associations_count", user)
+
+          expect(response).to have_gitlab_http_status(:forbidden)
+        end
+      end
+
+      context 'with the current user id' do
+        it 'returns valid JSON response' do
+          get api("/users/#{user.id}/associations_count", user)
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(json_response).to be_a Hash
+          expect(json_response).to match(associations)
+        end
+      end
+    end
+
+    context 'as an admin user' do
+      context 'with invalid user id' do
+        it 'returns 404 User Not Found' do
+          get api("/users/#{non_existing_record_id}/associations_count", admin)
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+
+      context 'with valid user id' do
+        it 'returns valid JSON response' do
+          get api("/users/#{user.id}/associations_count", admin)
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(json_response).to be_a Hash
+          expect(json_response).to match(associations)
+        end
+      end
     end
   end
 

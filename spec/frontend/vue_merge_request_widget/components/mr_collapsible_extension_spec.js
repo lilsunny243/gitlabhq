@@ -23,7 +23,7 @@ describe('Merge Request Collapsible Extension', () => {
 
   const findTitle = () => wrapper.find('[data-testid="mr-collapsible-title"]');
   const findErrorMessage = () => wrapper.find('.js-error-state');
-  const findIcon = () => wrapper.find(GlIcon);
+  const findIcon = () => wrapper.findComponent(GlIcon);
 
   afterEach(() => {
     wrapper.destroy();
@@ -42,8 +42,8 @@ describe('Merge Request Collapsible Extension', () => {
       expect(wrapper.find('[data-testid="collapsed-header"]').text()).toBe('hello there');
     });
 
-    it('renders chevron-lg-right icon', () => {
-      expect(findIcon().props('name')).toBe('chevron-lg-right');
+    it('renders chevron-right icon', () => {
+      expect(findIcon().props('name')).toBe('chevron-right');
     });
 
     describe('onClick', () => {
@@ -60,8 +60,8 @@ describe('Merge Request Collapsible Extension', () => {
         expect(findTitle().text()).toBe('Collapse');
       });
 
-      it('renders chevron-lg-down icon', () => {
-        expect(findIcon().props('name')).toBe('chevron-lg-down');
+      it('renders chevron-down icon', () => {
+        expect(findIcon().props('name')).toBe('chevron-down');
       });
     });
   });
@@ -77,7 +77,7 @@ describe('Merge Request Collapsible Extension', () => {
     });
 
     it('renders loading spinner', () => {
-      expect(wrapper.find(GlLoadingIcon).isVisible()).toBe(true);
+      expect(wrapper.findComponent(GlLoadingIcon).isVisible()).toBe(true);
     });
   });
 

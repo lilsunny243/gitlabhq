@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -31,6 +31,9 @@ Use secondary proxying for use-cases including:
 
 - Having all Geo sites behind a single URL.
 - Geographically load-balancing traffic without worrying about write access.
+
+NOTE:
+Geo proxying for secondary sites is separate from Geo proxying/redirecting for Git push operations.
 
 <i class="fa fa-youtube-play youtube" aria-hidden="true"></i>
 For an overview, see: [Secondary proxying using geographic load-balancer and AWS Route53](https://www.youtube.com/watch?v=TALLy7__Na8).
@@ -70,7 +73,110 @@ a single URL used by all Geo sites, including the primary.
 
 In Kubernetes, you can use the same domain under `global.hosts.domain` as for the primary site.
 
+## Geo proxying with Separate URLs
+
+> Geo secondary proxying for separate URLs is [enabled by default](https://gitlab.com/gitlab-org/gitlab/-/issues/346112) in GitLab 15.1.
+
+NOTE:
+The feature flag described in this section is planned to be deprecated and removed in a future release. Support for read-only Geo secondary sites is proposed in [issue 366810](https://gitlab.com/gitlab-org/gitlab/-/issues/366810), you can upvote and share your use cases in that issue.
+
+There are minor known issues linked in the
+["Geo secondary proxying with separate URLs" epic](https://gitlab.com/groups/gitlab-org/-/epics/6865).
+You can also add feedback in the epic about any use-cases that
+are not possible anymore with proxying enabled.
+
+If you run into issues, to disable this feature, disable the `geo_secondary_proxy_separate_urls` feature flag.
+
+1. SSH into one node running Rails on your primary Geo site and run:
+
+   ```shell
+   sudo gitlab-rails runner "Feature.disable(:geo_secondary_proxy_separate_urls)"
+   ```
+
+1. Restart Puma on all of the nodes running Rails on your secondary Geo site:
+
+   ```shell
+   sudo gitlab-ctl restart puma
+   ```
+
+In Kubernetes, you can run the same command in the toolbox pod. Refer to the
+[Kubernetes cheat sheet](https://docs.gitlab.com/charts/troubleshooting/kubernetes_cheat_sheet.html#gitlab-specific-kubernetes-information)
+for details.
+
+## Limitations
+
+- When secondary proxying is used, the asynchronous Geo replication can cause unexpected issues for accelerated
+  data types that may be replicated to the Geo secondaries with a delay.
+
+  For example, we found a potential issue where
+  [replication lag introduces read-after-write inconsistencies](https://gitlab.com/gitlab-org/gitlab/-/issues/345267).
+  If the replication lag is high enough, this can result in Git reads receiving stale data when hitting a secondary.
+
+- Non-Rails requests are not proxied, so other services may need to use a separate, non-unified URL to ensure requests
+  are always sent to the primary. These services include:
+
+  - GitLab Container Registry - [can be configured to use a separate domain](../../packages/container_registry.md#configure-container-registry-under-its-own-domain).
+  - GitLab Pages - should always use a separate domain, as part of [the prerequisites for running GitLab Pages](../../pages/index.md#prerequisites).
+
+- With a unified URL, Let's Encrypt can't generate certificates unless it can reach both IPs through the same domain.
+  To use TLS certificates with Let's Encrypt, you can manually point the domain to one of the Geo sites, generate
+  the certificate, then copy it to all other sites.
+
+- [Viewing projects and designs data from a primary site is not possible when using a unified URL](../index.md#view-replication-data-on-the-primary-site).
+
+- When secondary proxying is used together with separate URLs, registering [GitLab runners](https://docs.gitlab.com/runner/) to clone from
+secondary sites is not supported. The runner registration succeeds, but the clone URL defaults to the primary site. The runner
+[clone URL](https://docs.gitlab.com/runner/configuration/advanced-configuration.html#the-runners-section) is configured per GitLab deployment
+and cannot be configured per Geo site. Therefore, all runners clone from the primary site (or configured clone URL) irrespective of
+which Geo site they register on. For information about GitLab CI using a specific Geo secondary to clone from, see issue
+[3294](https://gitlab.com/gitlab-org/gitlab/-/issues/3294#note_1009488466).
+
+## Behavior of secondary sites when the primary Geo site is down
+
+Considering that web traffic is proxied to the primary, the behavior of the secondary sites differs when the primary
+site is inaccessible:
+
+- UI and API traffic return the same errors as the primary (or fail if the primary is not accessible at all), since they are proxied.
+- For repositories that already exist on the specific secondary site being accessed, Git read operations still work as expected,
+  including authentication through HTTP(s) or SSH.
+- Git operations for repositories that are not replicated to the secondary site return the same errors
+  as the primary site, since they are proxied.
+- All Git write operations return the same errors as the primary site, since they are proxied.
+
+## Features accelerated by secondary Geo sites
+
+Most HTTP traffic sent to a secondary Geo site can be proxied to the primary Geo site. With this architecture,
+secondary Geo sites are able to support write requests. Certain **read** requests are handled locally by secondary
+sites for improved latency and bandwidth nearby. All write requests are proxied to the primary site.
+
+The following table details the components currently tested through the Geo secondary site Workhorse proxy.
+It does not cover all data types.
+
+| Feature / component                                 | Accelerated reads?     |
+|:----------------------------------------------------|:-----------------------|
+| Project, wiki, design repository (using the web UI) | **{dotted-circle}** No |
+| Project, wiki repository (using Git)                | **{check-circle}** Yes <sup>1</sup> |
+| Project, Personal Snippet (using the web UI)        | **{dotted-circle}** No |
+| Project, Personal Snippet (using Git)               | **{check-circle}** Yes <sup>1</sup> |
+| Group wiki repository (using the web UI)            | **{dotted-circle}** No |
+| Group wiki repository (using Git)                   | **{check-circle}** Yes <sup>1</sup> |
+| User uploads                                        | **{dotted-circle}** No |
+| LFS objects (using the web UI)                      | **{dotted-circle}** No |
+| LFS objects (using Git)                             | **{check-circle}** Yes |
+| Pages                                               | **{dotted-circle}** No <sup>2</sup> |
+| Advanced search (using the web UI)                  | **{dotted-circle}** No |
+
+1. Git reads are served from the local secondary while pushes get proxied to the primary.
+   Selective sync or cases where repositories don't exist locally on the Geo secondary throw a "not found" error.
+1. Pages can use the same URL (without access control), but must be configured separately and are not proxied.
+
 ## Disable Geo proxying
+
+Secondary proxying is enabled by default on a secondary site when it uses a unified URL, meaning, the same `external_url` as the primary site. Disabling proxying in this case tends to not be helpful due to completely different behavior being served at the same URL, depending on routing.
+
+Secondary proxying is enabled by default in GitLab 15.1 on a secondary site even without a unified URL. If proxying needs to be disabled on a secondary site, it is much easier to disable the feature flag in [Geo proxying with Separate URLs](#geo-proxying-with-separate-urls). However, if there are multiple secondary sites, then the instructions in this section can be used to disable secondary proxying per site.
+
+Additionally, the `gitlab-workhorse` service polls `/api/v4/geo/proxy` every 10 seconds. In GitLab 15.2 and later, it is only polled once, if Geo is not enabled. Prior to GitLab 15.2, you can stop this polling by disabling secondary proxying.
 
 You can disable the secondary proxying on each Geo site, separately, by following these steps with Omnibus-based packages:
 
@@ -102,83 +208,3 @@ gitlab:
     extraEnv:
       GEO_SECONDARY_PROXY: "0"
 ```
-
-## Geo proxying with Separate URLs
-
-Since GitLab 15.1, Geo secondary proxying is enabled by default for separate URLs also.
-
-There are minor known issues linked in the
-["Geo secondary proxying with separate URLs" epic](https://gitlab.com/groups/gitlab-org/-/epics/6865).
-You can also add feedback in the epic about any use-cases that
-are not possible anymore with proxying enabled.
-
-If you run into issues, to disable this feature, disable the `geo_secondary_proxy_separate_urls` feature flag.
-SSH into one node running Rails on your primary Geo site and run:
-
-```shell
-sudo gitlab-rails runner "Feature.disable(:geo_secondary_proxy_separate_urls)"
-```
-
-In Kubernetes, you can run the same command in the toolbox pod. Refer to the
-[Kubernetes cheat sheet](https://docs.gitlab.com/charts/troubleshooting/kubernetes_cheat_sheet.html#gitlab-specific-kubernetes-information)
-for details.
-
-## Limitations
-
-- When secondary proxying is used, the asynchronous Geo replication can cause unexpected issues for accelerated
-  data types that may be replicated to the Geo secondaries with a delay.
-
-  For example, we found a potential issue where
-  [replication lag introduces read-after-write inconsistencies](https://gitlab.com/gitlab-org/gitlab/-/issues/345267).
-  If the replication lag is high enough, this can result in Git reads receiving stale data when hitting a secondary.
-
-- Non-Rails requests are not proxied, so other services may need to use a separate, non-unified URL to ensure requests
-  are always sent to the primary. These services include:
-
-  - GitLab Container Registry - [can be configured to use a separate domain](../../packages/container_registry.md#configure-container-registry-under-its-own-domain).
-  - GitLab Pages - should always use a separate domain, as part of [the prerequisites for running GitLab Pages](../../pages/index.md#prerequisites).
-
-- With a unified URL, Let's Encrypt can't generate certificates unless it can reach both IPs through the same domain.
-  To use TLS certificates with Let's Encrypt, you can manually point the domain to one of the Geo sites, generate
-  the certificate, then copy it to all other sites.
-
-- [Viewing projects and designs data from a primary site is not possible when using a unified URL](../index.md#view-replication-data-on-the-primary-site).
-
-## Behavior of secondary sites when the primary Geo site is down
-
-Considering that web traffic is proxied to the primary, the behavior of the secondary sites differs when the primary
-site is inaccessible:
-
-- UI and API traffic return the same errors as the primary (or fail if the primary is not accessible at all), since they are proxied.
-- For repositories that already exist on the specific secondary site being accessed, Git read operations still work as expected,
-  including authentication through HTTP(s) or SSH.
-- Git operations for repositories that are not replicated to the secondary site return the same errors
-  as the primary site, since they are proxied.
-- All Git write operations return the same errors as the primary site, since they are proxied.
-
-## Features accelerated by secondary Geo sites
-
-Most HTTP traffic sent to a secondary Geo site can be proxied to the primary Geo site. With this architecture,
-secondary Geo sites are able to support write requests. Certain **read** requests are handled locally by secondary
-sites for improved latency and bandwidth nearby. All write requests are proxied to the primary site.
-
-The following table details the components currently tested through the Geo secondary site Workhorse proxy.
-It does not cover all data types, more will be added in the future as they are tested.
-
-| Feature / component                                 | Accelerated reads?     |
-|:----------------------------------------------------|:-----------------------|
-| Project, wiki, design repository (using the web UI) | **{dotted-circle}** No |
-| Project, wiki repository (using Git)                | **{check-circle}** Yes <sup>1</sup> |
-| Project, Personal Snippet (using the web UI)        | **{dotted-circle}** No |
-| Project, Personal Snippet (using Git)               | **{check-circle}** Yes <sup>1</sup> |
-| Group wiki repository (using the web UI)            | **{dotted-circle}** No |
-| Group wiki repository (using Git)                   | **{check-circle}** Yes <sup>1</sup> |
-| User uploads                                        | **{dotted-circle}** No |
-| LFS objects (using the web UI)                      | **{dotted-circle}** No |
-| LFS objects (using Git)                             | **{check-circle}** Yes |
-| Pages                                               | **{dotted-circle}** No <sup>2</sup> |
-| Advanced search (using the web UI)                  | **{dotted-circle}** No |
-
-1. Git reads are served from the local secondary while pushes get proxied to the primary.
-   Selective sync or cases where repositories don't exist locally on the Geo secondary throw a "not found" error.
-1. Pages can use the same URL (without access control), but must be configured separately and are not proxied.

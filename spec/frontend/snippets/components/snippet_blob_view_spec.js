@@ -15,7 +15,7 @@ import {
   BLOB_RENDER_ERRORS,
 } from '~/blob/components/constants';
 import SnippetBlobView from '~/snippets/components/snippet_blob_view.vue';
-import { SNIPPET_VISIBILITY_PUBLIC } from '~/snippets/constants';
+import { VISIBILITY_LEVEL_PUBLIC_STRING } from '~/visibility_level/constants';
 import { RichViewer, SimpleViewer } from '~/vue_shared/components/blob_viewers';
 
 describe('Blob Embeddable', () => {
@@ -23,7 +23,7 @@ describe('Blob Embeddable', () => {
   const snippet = {
     id: 'gid://foo.bar/snippet',
     webUrl: 'https://foo.bar',
-    visibilityLevel: SNIPPET_VISIBILITY_PUBLIC,
+    visibilityLevel: VISIBILITY_LEVEL_PUBLIC_STRING,
   };
   const dataMock = {
     activeViewerType: SimpleViewerMock.type,
@@ -69,13 +69,13 @@ describe('Blob Embeddable', () => {
   describe('rendering', () => {
     it('renders correct components', () => {
       createComponent();
-      expect(wrapper.find(BlobHeader).exists()).toBe(true);
-      expect(wrapper.find(BlobContent).exists()).toBe(true);
+      expect(wrapper.findComponent(BlobHeader).exists()).toBe(true);
+      expect(wrapper.findComponent(BlobContent).exists()).toBe(true);
     });
 
     it('sets simple viewer correctly', () => {
       createComponent();
-      expect(wrapper.find(SimpleViewer).exists()).toBe(true);
+      expect(wrapper.findComponent(SimpleViewer).exists()).toBe(true);
     });
 
     it('sets rich viewer correctly', () => {
@@ -83,20 +83,20 @@ describe('Blob Embeddable', () => {
       createComponent({
         data,
       });
-      expect(wrapper.find(RichViewer).exists()).toBe(true);
+      expect(wrapper.findComponent(RichViewer).exists()).toBe(true);
     });
 
     it('correctly switches viewer type', async () => {
       createComponent();
-      expect(wrapper.find(SimpleViewer).exists()).toBe(true);
+      expect(wrapper.findComponent(SimpleViewer).exists()).toBe(true);
 
       wrapper.vm.switchViewer(RichViewerMock.type);
 
       await nextTick();
-      expect(wrapper.find(RichViewer).exists()).toBe(true);
+      expect(wrapper.findComponent(RichViewer).exists()).toBe(true);
       await wrapper.vm.switchViewer(SimpleViewerMock.type);
 
-      expect(wrapper.find(SimpleViewer).exists()).toBe(true);
+      expect(wrapper.findComponent(SimpleViewer).exists()).toBe(true);
     });
 
     it('passes information about render error down to blob header', () => {
@@ -110,7 +110,7 @@ describe('Blob Embeddable', () => {
         },
       });
 
-      expect(wrapper.find(BlobHeader).props('hasRenderError')).toBe(true);
+      expect(wrapper.findComponent(BlobHeader).props('hasRenderError')).toBe(true);
     });
 
     describe('bob content in multi-file scenario', () => {
@@ -161,7 +161,7 @@ describe('Blob Embeddable', () => {
 
           await nextTick();
 
-          const findContent = () => wrapper.find(BlobContent);
+          const findContent = () => wrapper.findComponent(BlobContent);
 
           expect(findContent().props('content')).toBe(expectedContent);
         },
@@ -169,36 +169,69 @@ describe('Blob Embeddable', () => {
     });
 
     describe('URLS with hash', () => {
-      beforeEach(() => {
-        window.location.hash = '#LC2';
-      });
-
       afterEach(() => {
         window.location.hash = '';
       });
 
-      it('renders simple viewer by default if URL contains hash', () => {
-        createComponent({
-          data: {},
+      describe('if hash starts with #LC', () => {
+        beforeEach(() => {
+          window.location.hash = '#LC2';
         });
 
-        expect(wrapper.vm.activeViewerType).toBe(SimpleViewerMock.type);
-        expect(wrapper.find(SimpleViewer).exists()).toBe(true);
+        it('renders simple viewer by default', () => {
+          createComponent({
+            data: {},
+          });
+
+          expect(wrapper.vm.activeViewerType).toBe(SimpleViewerMock.type);
+          expect(wrapper.findComponent(SimpleViewer).exists()).toBe(true);
+        });
+
+        describe('switchViewer()', () => {
+          it('switches to the passed viewer', async () => {
+            createComponent();
+
+            wrapper.vm.switchViewer(RichViewerMock.type);
+
+            await nextTick();
+            expect(wrapper.vm.activeViewerType).toBe(RichViewerMock.type);
+            expect(wrapper.findComponent(RichViewer).exists()).toBe(true);
+
+            await wrapper.vm.switchViewer(SimpleViewerMock.type);
+            expect(wrapper.vm.activeViewerType).toBe(SimpleViewerMock.type);
+            expect(wrapper.findComponent(SimpleViewer).exists()).toBe(true);
+          });
+        });
       });
 
-      describe('switchViewer()', () => {
-        it('switches to the passed viewer', async () => {
-          createComponent();
+      describe('if hash starts with anything else', () => {
+        beforeEach(() => {
+          window.location.hash = '#last-headline';
+        });
 
-          wrapper.vm.switchViewer(RichViewerMock.type);
+        it('renders rich viewer by default', () => {
+          createComponent({
+            data: {},
+          });
 
-          await nextTick();
           expect(wrapper.vm.activeViewerType).toBe(RichViewerMock.type);
-          expect(wrapper.find(RichViewer).exists()).toBe(true);
+          expect(wrapper.findComponent(RichViewer).exists()).toBe(true);
+        });
 
-          await wrapper.vm.switchViewer(SimpleViewerMock.type);
-          expect(wrapper.vm.activeViewerType).toBe(SimpleViewerMock.type);
-          expect(wrapper.find(SimpleViewer).exists()).toBe(true);
+        describe('switchViewer()', () => {
+          it('switches to the passed viewer', async () => {
+            createComponent();
+
+            wrapper.vm.switchViewer(SimpleViewerMock.type);
+
+            await nextTick();
+            expect(wrapper.vm.activeViewerType).toBe(SimpleViewerMock.type);
+            expect(wrapper.findComponent(SimpleViewer).exists()).toBe(true);
+
+            await wrapper.vm.switchViewer(RichViewerMock.type);
+            expect(wrapper.vm.activeViewerType).toBe(RichViewerMock.type);
+            expect(wrapper.findComponent(RichViewer).exists()).toBe(true);
+          });
         });
       });
     });
@@ -206,7 +239,7 @@ describe('Blob Embeddable', () => {
 
   describe('functionality', () => {
     describe('render error', () => {
-      const findContentEl = () => wrapper.find(BlobContent);
+      const findContentEl = () => wrapper.findComponent(BlobContent);
 
       it('correctly sets blob on the blob-content-error component', () => {
         createComponent();

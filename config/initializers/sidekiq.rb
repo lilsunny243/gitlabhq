@@ -5,6 +5,16 @@ module SidekiqLogArguments
   end
 end
 
+def load_cron_jobs!
+  Sidekiq::Cron::Job.load_from_hash! Gitlab::SidekiqConfig.cron_jobs
+
+  Gitlab.ee do
+    Gitlab::Mirror.configure_cron_job!
+
+    Gitlab::Geo.configure_cron_jobs!
+  end
+end
+
 def enable_reliable_fetch?
   return true unless Feature::FlipperFeature.table_exists?
 
@@ -22,31 +32,29 @@ queues_config_hash = Gitlab::Redis::Queues.params
 queues_config_hash[:namespace] = Gitlab::Redis::Queues::SIDEKIQ_NAMESPACE
 
 enable_json_logs = Gitlab.config.sidekiq.log_format == 'json'
-enable_sidekiq_memory_killer = ENV['SIDEKIQ_MEMORY_KILLER_MAX_RSS'].to_i.nonzero?
-use_sidekiq_daemon_memory_killer = ENV.fetch("SIDEKIQ_DAEMON_MEMORY_KILLER", 1).to_i.nonzero?
-use_sidekiq_legacy_memory_killer = !use_sidekiq_daemon_memory_killer
+enable_sidekiq_memory_killer = ENV['SIDEKIQ_MEMORY_KILLER_MAX_RSS'].to_i.nonzero? &&
+  !Gitlab::Utils.to_boolean(ENV['GITLAB_MEMORY_WATCHDOG_ENABLED'], default: true)
 
 Sidekiq.configure_server do |config|
-  config.options[:strict] = false
-  config.options[:queues] = Gitlab::SidekiqConfig.expand_queues(config.options[:queues])
+  config[:strict] = false
+  config[:queues] = Gitlab::SidekiqConfig.expand_queues(config[:queues])
 
   if enable_json_logs
     config.log_formatter = Gitlab::SidekiqLogging::JSONFormatter.new
-    config.options[:job_logger] = Gitlab::SidekiqLogging::StructuredLogger
+    config[:job_logger] = Gitlab::SidekiqLogging::StructuredLogger
 
     # Remove the default-provided handler. The exception is logged inside
     # Gitlab::SidekiqLogging::StructuredLogger
-    config.error_handlers.reject! { |handler| handler.is_a?(Sidekiq::ExceptionHandler::Logger) }
+    config.error_handlers.delete(Sidekiq::DEFAULT_ERROR_HANDLER)
   end
 
-  Sidekiq.logger.info "Listening on queues #{config.options[:queues].uniq.sort}"
+  Sidekiq.logger.info "Listening on queues #{config[:queues].uniq.sort}"
 
   config.redis = queues_config_hash
 
   config.server_middleware(&Gitlab::SidekiqMiddleware.server_configurator(
     metrics: Settings.monitoring.sidekiq_exporter,
-    arguments_logger: SidekiqLogArguments.enabled? && !enable_json_logs,
-    memory_killer: enable_sidekiq_memory_killer && use_sidekiq_legacy_memory_killer
+    arguments_logger: SidekiqLogArguments.enabled? && !enable_json_logs
   ))
 
   config.client_middleware(&Gitlab::SidekiqMiddleware.client_configurator)
@@ -62,7 +70,7 @@ Sidekiq.configure_server do |config|
     # To cancel job, it requires `SIDEKIQ_MONITOR_WORKER=1` to enable notification channel
     Gitlab::SidekiqDaemon::Monitor.instance.start
 
-    Gitlab::SidekiqDaemon::MemoryKiller.instance.start if enable_sidekiq_memory_killer && use_sidekiq_daemon_memory_killer
+    Gitlab::SidekiqDaemon::MemoryKiller.instance.start if enable_sidekiq_memory_killer
 
     first_sidekiq_worker = !ENV['SIDEKIQ_WORKER_ID'] || ENV['SIDEKIQ_WORKER_ID'] == '0'
     health_checks = Settings.monitoring.sidekiq_health_checks
@@ -76,35 +84,19 @@ Sidekiq.configure_server do |config|
     end
   end
 
+  config.on(:shutdown) do
+    Gitlab::Cluster::LifecycleEvents.do_worker_stop
+  end
+
   if enable_reliable_fetch?
-    config.options[:semi_reliable_fetch] = enable_semi_reliable_fetch_mode?
+    config[:semi_reliable_fetch] = enable_semi_reliable_fetch_mode?
     Sidekiq::ReliableFetch.setup_reliable_fetch!(config)
   end
 
-  Gitlab.config.load_dynamic_cron_schedules!
-
-  # Sidekiq-cron: load recurring jobs from gitlab.yml
-  # UGLY Hack to get nested hash from settingslogic
-  cron_jobs = Gitlab::Json.parse(Gitlab.config.cron_jobs.to_json)
-  # UGLY hack: Settingslogic doesn't allow 'class' key
-  cron_jobs_required_keys = %w(job_class cron)
-  cron_jobs.each do |k, v|
-    if cron_jobs[k] && cron_jobs_required_keys.all? { |s| cron_jobs[k].key?(s) }
-      cron_jobs[k]['class'] = cron_jobs[k].delete('job_class')
-    else
-      cron_jobs.delete(k)
-      Gitlab::AppLogger.error("Invalid cron_jobs config key: '#{k}'. Check your gitlab config file.")
-    end
-  end
-  Sidekiq::Cron::Job.load_from_hash! cron_jobs
-
   Gitlab::SidekiqVersioning.install!
 
-  Gitlab.ee do
-    Gitlab::Mirror.configure_cron_job!
-
-    Gitlab::Geo.configure_cron_jobs!
-  end
+  config[:cron_poll_interval] = Gitlab.config.cron_jobs.poll_interval
+  load_cron_jobs!
 
   # Avoid autoload issue such as 'Mail::Parsers::AddressStruct'
   # https://github.com/mikel/mail/issues/912#issuecomment-214850355
@@ -127,3 +119,4 @@ end
 
 Sidekiq::Scheduled::Poller.prepend Gitlab::Patch::SidekiqPoller
 Sidekiq::Cron::Poller.prepend Gitlab::Patch::SidekiqPoller
+Sidekiq::Cron::Poller.prepend Gitlab::Patch::SidekiqCronPoller

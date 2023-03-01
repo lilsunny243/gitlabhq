@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Issue Boards', :js do
+RSpec.describe 'Issue Boards', :js, feature_category: :team_planning do
   include DragTo
 
   let(:project) { create(:project, :public) }
@@ -15,6 +15,7 @@ RSpec.describe 'Issue Boards', :js do
   let!(:issue3) { create(:labeled_issue, project: project, title: 'testing 3', labels: [label], relative_position: 1) }
 
   before do
+    stub_feature_flags(apollo_boards: false)
     project.add_maintainer(user)
 
     sign_in(user)
@@ -126,6 +127,41 @@ RSpec.describe 'Issue Boards', :js do
       wait_for_requests
 
       expect(all('.board-card').last).to have_content(issue2.title)
+    end
+  end
+
+  context 'ordering in list using move to position' do
+    let(:move_to_position) { find('[data-testid="board-move-to-position"]') }
+
+    before do
+      visit project_board_path(project, board)
+      wait_for_requests
+    end
+
+    it 'moves to end of list' do
+      expect(all('.board-card').first).to have_content(issue3.title)
+
+      page.within(find('.board:nth-child(2)')) do
+        first('.board-card').hover
+        move_to_position.click
+
+        click_button 'Move to end of list'
+      end
+
+      expect(all('.board-card').last).to have_content(issue3.title)
+    end
+
+    it 'moves to start of list' do
+      expect(all('.board-card').last).to have_content(issue1.title)
+
+      page.within(find('.board:nth-child(2)')) do
+        all('.board-card').last.hover
+        move_to_position.click
+
+        click_button 'Move to start of list'
+      end
+
+      expect(all('.board-card').first).to have_content(issue1.title)
     end
   end
 

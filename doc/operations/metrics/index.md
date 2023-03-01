@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Monitor your environment's metrics **(FREE)**
@@ -25,7 +25,7 @@ critical. For GitLab to display your information in charts, you must:
    Use applications like Elasticsearch, Prometheus, and Jaeger to gather
    the data you've exposed.
 1. **GitLab collects metrics** - GitLab uses Prometheus to scrape the data you've
-   captured in your applications, and prepares the data for display. To learn more, read
+   captured in your applications, and prepares the data for display. For more information, see
    [Collect and process metrics](#collect-and-process-metrics).
 1. **Display charts in the GitLab user interface** - GitLab converts your metrics
    into easy-to-read charts on a default dashboard. You can create as many custom charts
@@ -43,7 +43,7 @@ your Prometheus integration depends on where your apps are running:
 - **For a cluster integrated Prometheus** - GitLab can query
   [an in-cluster Prometheus](../../user/clusters/integrations.md#prometheus-cluster-integration).
   You must also complete a code deployment to your cluster for the **Monitor > Metrics**
-  page to contain data. You can do this using [Auto DevOps](../../topics/autodevops/quick_start_guide.md).
+  page to contain data. You can do this using [Auto DevOps](../../topics/autodevops/cloud_deployments/auto_devops_with_gke.md).
 
 ![Monitoring Dashboard](img/prometheus_monitoring_dashboard_v13_3.png)
 
@@ -54,9 +54,9 @@ GitLab attempts to retrieve performance metrics for any [environment](../../ci/e
 a successful deployment.
 
 GitLab scans the Prometheus server for metrics from known servers like Kubernetes
-and NGINX, and attempts to identify individual environments. To learn more about
-the supported metrics and scan processes, see the
-[Prometheus Metrics Library documentation](../../user/project/integrations/prometheus_library/index.md).
+and NGINX, and attempts to identify individual environments. For more information about
+the supported metrics and scan processes, see
+[Prometheus Metrics library](../../user/project/integrations/prometheus_library/index.md).
 
 To view the [default metrics dashboard](dashboards/default.md) for an environment that is
 [configured to gather metrics](#configure-prometheus-to-gather-metrics):
@@ -123,8 +123,8 @@ Custom metrics can be monitored by adding them on the monitoring dashboard page.
 After saving them, they display on the environment metrics dashboard provided that either:
 
 - A [connected Kubernetes cluster](../../user/clusters/agent/index.md)
-  with the matching [environment scope](../../ci/environments/index.md#scope-environments-with-specs) is used and
-  [Prometheus installed on the cluster](../../user/project/integrations/prometheus.md#enabling-prometheus-integration).
+  with the matching [environment scope](../../ci/environments/index.md#limit-the-environment-scope-of-a-cicd-variable) is used and
+  [Prometheus installed on the cluster](../../user/project/integrations/prometheus.md#enabling-the-prometheus-integration).
 - Prometheus is [manually configured](../../user/project/integrations/prometheus.md#manual-configuration-of-prometheus).
 
 ![Add New Metric](img/prometheus_add_metric.png)
@@ -147,8 +147,8 @@ suggested if this feature is used.
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/208976) in GitLab 12.9.
 
-You can edit existing additional custom metrics for your dashboard by clicking the
-**{ellipsis_v}** **More actions** dropdown and selecting **Edit metric**.
+You can edit existing additional custom metrics for your dashboard by selecting the
+**{ellipsis_v}** **More actions** dropdown list and selecting **Edit metric**.
 
 ![Edit metric](img/prometheus_dashboard_edit_metric_link_v_12_9.png)
 
@@ -158,7 +158,7 @@ You can edit existing additional custom metrics for your dashboard by clicking t
 
 You can use keyboard shortcuts to interact more quickly with your currently-focused
 chart panel. To activate keyboard shortcuts, use keyboard tabs to highlight the
-**{ellipsis_v}** **More actions** dropdown menu, or hover over the dropdown menu
+**{ellipsis_v}** **More actions** dropdown list, or hover over the dropdown list
 with your mouse, then press the key corresponding to your desired action:
 
 - **Expand panel** - <kbd>e</kbd>

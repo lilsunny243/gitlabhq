@@ -4,7 +4,7 @@ module Gitlab
   module Database
     module LoadBalancing
       class SidekiqServerMiddleware
-        JobReplicaNotUpToDate = Class.new(StandardError)
+        JobReplicaNotUpToDate = Class.new(::Gitlab::SidekiqMiddleware::RetryError)
 
         MINIMUM_DELAY_INTERVAL_SECONDS = 0.8
 
@@ -98,7 +98,7 @@ module Gitlab
 
         def databases_in_sync?(wal_locations)
           ::Gitlab::Database::LoadBalancing.each_load_balancer.all? do |lb|
-            if (location = wal_locations[lb.name])
+            if (location = wal_locations.with_indifferent_access[lb.name])
               lb.select_up_to_date_host(location)
             else
               # If there's no entry for a load balancer it means the Sidekiq

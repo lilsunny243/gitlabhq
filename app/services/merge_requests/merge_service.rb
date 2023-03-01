@@ -26,6 +26,7 @@ module MergeRequests
 
       @merge_request = merge_request
       @options = options
+      jid = merge_jid
 
       validate!
 
@@ -37,7 +38,7 @@ module MergeRequests
         end
       end
 
-      log_info("Merge process finished on JID #{merge_jid} with state #{state}")
+      log_info("Merge process finished on JID #{jid} with state #{state}")
     rescue MergeError => e
       handle_merge_error(log_message: e.message, save_message_on_model: true)
     ensure
@@ -92,21 +93,37 @@ module MergeRequests
         raise_error(GENERIC_ERROR_MESSAGE)
       end
 
-      merge_request.update!(merge_commit_sha: commit_id)
+      update_merge_sha_metadata(commit_id)
+
+      commit_id
     ensure
       merge_request.update_and_mark_in_progress_merge_commit_sha(nil)
+      log_info("Merge request marked in progress")
+    end
+
+    def update_merge_sha_metadata(commit_id)
+      data_to_update = merge_success_data(commit_id)
+      data_to_update[:squash_commit_sha] = source if merge_request.squash_on_merge?
+
+      merge_request.update!(**data_to_update) if data_to_update.present?
+    end
+
+    def merge_success_data(commit_id)
+      { merge_commit_sha: commit_id }
     end
 
     def try_merge
-      repository.merge(current_user, source, merge_request, commit_message).tap do
-        merge_request.update_column(:squash_commit_sha, source) if merge_request.squash_on_merge?
-      end
+      execute_git_merge
     rescue Gitlab::Git::PreReceiveError => e
       raise MergeError,
             "Something went wrong during merge pre-receive hook. #{e.message}".strip
     rescue StandardError => e
       handle_merge_error(log_message: e.message)
       raise_error(GENERIC_ERROR_MESSAGE)
+    end
+
+    def execute_git_merge
+      repository.merge(current_user, source, merge_request, commit_message)
     end
 
     def after_merge
@@ -144,17 +161,32 @@ module MergeRequests
     end
 
     def handle_merge_error(log_message:, save_message_on_model: false)
-      Gitlab::AppLogger.error("MergeService ERROR: #{merge_request_info} - #{log_message}")
+      log_error("MergeService ERROR: #{merge_request_info} - #{log_message}")
       @merge_request.update(merge_error: log_message) if save_message_on_model
     end
 
     def log_info(message)
+      payload = log_payload("#{merge_request_info} - #{message}")
+      logger.info(**payload)
+    end
+
+    def log_error(message)
+      payload = log_payload(message)
+      logger.error(**payload)
+    end
+
+    def logger
       @logger ||= Gitlab::AppLogger
-      @logger.info("#{merge_request_info} - #{message}")
+    end
+
+    def log_payload(message)
+      Gitlab::ApplicationContext.current
+        .merge(merge_request_info: merge_request_info,
+               message: message)
     end
 
     def merge_request_info
-      merge_request.to_reference(full: true)
+      @merge_request_info ||= merge_request.to_reference(full: true)
     end
 
     def source_matches?

@@ -2,10 +2,7 @@ import $ from 'jquery';
 import Pikaday from 'pikaday';
 import GfmAutoComplete from 'ee_else_ce/gfm_auto_complete';
 import Autosave from '~/autosave';
-import AutoWidthDropdownSelect from '~/issuable/auto_width_dropdown_select';
-import { loadCSSFile } from '~/lib/utils/css_utils';
 import { parsePikadayDate, pikadayToString } from '~/lib/utils/datetime_utility';
-import { select2AxiosTransport } from '~/lib/utils/select2_utils';
 import { queryToObject, objectToQuery } from '~/lib/utils/url_utility';
 import UsersSelect from '~/users_select';
 import ZenMode from '~/zen_mode';
@@ -39,19 +36,30 @@ function format(searchTerm, isFallbackKey = false) {
   return formattedQuery;
 }
 
+function getSearchTerm(newIssuePath) {
+  const { search, pathname } = document.location;
+  return newIssuePath === pathname ? '' : format(search);
+}
+
 function getFallbackKey() {
   const searchTerm = format(document.location.search, true);
   return ['autosave', document.location.pathname, searchTerm].join('/');
 }
 
 export default class IssuableForm {
+  static addAutosave(map, id, element, searchTerm, fallbackKey) {
+    if (!element) return;
+    map.set(
+      id,
+      new Autosave(element, [document.location.pathname, searchTerm, id], `${fallbackKey}=${id}`),
+    );
+  }
+
   constructor(form) {
     if (form.length === 0) {
       return;
     }
     this.form = form;
-    this.toggleWip = this.toggleWip.bind(this);
-    this.renderWipExplanation = this.renderWipExplanation.bind(this);
     this.resetAutosave = this.resetAutosave.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
     // prettier-ignore
@@ -72,18 +80,19 @@ export default class IssuableForm {
     this.reviewersSelect = new UsersSelect(undefined, '.js-reviewer-search');
     this.zenMode = new ZenMode();
 
-    this.newIssuePath = form[0].getAttribute(DATA_ISSUES_NEW_PATH);
+    this.searchTerm = getSearchTerm(form[0].getAttribute(DATA_ISSUES_NEW_PATH));
+    this.fallbackKey = getFallbackKey();
     this.titleField = this.form.find('input[name*="[title]"]');
     this.descriptionField = this.form.find('textarea[name*="[description]"]');
+    this.draftCheck = document.querySelector('input.js-toggle-draft');
     if (!(this.titleField.length && this.descriptionField.length)) {
       return;
     }
 
-    this.initAutosave();
+    this.autosaves = this.initAutosave();
     this.form.on('submit', this.handleSubmit);
     this.form.on('click', '.btn-cancel, .js-reset-autosave', this.resetAutosave);
-    this.form.find('.js-unwrap-on-load').unwrap();
-    this.initWip();
+    this.initDraft();
 
     const $issuableDueDate = $('#issuable-due-date');
 
@@ -95,35 +104,48 @@ export default class IssuableForm {
         container: $issuableDueDate.parent().get(0),
         parse: (dateString) => parsePikadayDate(dateString),
         toString: (date) => pikadayToString(date),
-        onSelect: (dateText) => $issuableDueDate.val(calendar.toString(dateText)),
+        onSelect: (dateText) => {
+          $issuableDueDate.val(calendar.toString(dateText));
+          if (this.autosaves.has('due_date')) this.autosaves.get('due_date').save();
+        },
         firstDay: gon.first_day_of_week,
       });
       calendar.setDate(parsePikadayDate($issuableDueDate.val()));
     }
-
-    this.$targetBranchSelect = $('.js-target-branch-select', this.form);
-
-    if (this.$targetBranchSelect.length) {
-      this.initTargetBranchDropdown();
-    }
   }
 
   initAutosave() {
-    const { search, pathname } = document.location;
-    const searchTerm = this.newIssuePath === pathname ? '' : format(search);
-    const fallbackKey = getFallbackKey();
-
-    this.autosave = new Autosave(
-      this.titleField,
-      [document.location.pathname, searchTerm, 'title'],
-      `${fallbackKey}=title`,
+    const autosaveMap = new Map();
+    IssuableForm.addAutosave(
+      autosaveMap,
+      'title',
+      this.form.find('input[name*="[title]"]').get(0),
+      this.searchTerm,
+      this.fallbackKey,
+    );
+    IssuableForm.addAutosave(
+      autosaveMap,
+      'description',
+      this.form.find('textarea[name*="[description]"]').get(0),
+      this.searchTerm,
+      this.fallbackKey,
+    );
+    IssuableForm.addAutosave(
+      autosaveMap,
+      'confidential',
+      this.form.find('input:checkbox[name*="[confidential]"]').get(0),
+      this.searchTerm,
+      this.fallbackKey,
+    );
+    IssuableForm.addAutosave(
+      autosaveMap,
+      'due_date',
+      this.form.find('input[name*="[due_date]"]').get(0),
+      this.searchTerm,
+      this.fallbackKey,
     );
 
-    return new Autosave(
-      this.descriptionField,
-      [document.location.pathname, searchTerm, 'description'],
-      `${fallbackKey}=description`,
-    );
+    return autosaveMap;
   }
 
   handleSubmit() {
@@ -131,95 +153,39 @@ export default class IssuableForm {
   }
 
   resetAutosave() {
-    this.titleField.data('autosave').reset();
-    return this.descriptionField.data('autosave').reset();
+    this.autosaves.forEach((autosaveItem) => {
+      autosaveItem?.reset();
+    });
   }
 
-  initWip() {
-    this.$wipExplanation = this.form.find('.js-wip-explanation');
-    this.$noWipExplanation = this.form.find('.js-no-wip-explanation');
-    if (!(this.$wipExplanation.length && this.$noWipExplanation.length)) {
-      return undefined;
+  initDraft() {
+    if (this.draftCheck) {
+      this.draftCheck.addEventListener('click', () => this.writeDraftStatus());
+      this.titleField.on('keyup blur', () => this.readDraftStatus());
+
+      this.readDraftStatus();
     }
-    this.form.on('click', '.js-toggle-wip', this.toggleWip);
-    this.titleField.on('keyup blur', this.renderWipExplanation);
-    return this.renderWipExplanation();
   }
 
-  workInProgress() {
+  isMarkedDraft() {
     return this.draftRegex.test(this.titleField.val());
   }
-
-  renderWipExplanation() {
-    if (this.workInProgress()) {
-      // These strings are not "translatable" (the code is hard-coded to look for them)
-      this.$wipExplanation.find('code')[0].textContent =
-        'Draft'; /* eslint-disable-line @gitlab/require-i18n-strings */
-      this.$wipExplanation.show();
-      return this.$noWipExplanation.hide();
-    }
-    this.$wipExplanation.hide();
-    return this.$noWipExplanation.show();
+  readDraftStatus() {
+    this.draftCheck.checked = this.isMarkedDraft();
   }
-
-  toggleWip(event) {
-    event.preventDefault();
-    if (this.workInProgress()) {
-      this.removeWip();
+  writeDraftStatus() {
+    if (this.draftCheck.checked) {
+      this.addDraft();
     } else {
-      this.addWip();
+      this.removeDraft();
     }
-    return this.renderWipExplanation();
   }
 
-  removeWip() {
+  removeDraft() {
     return this.titleField.val(this.titleField.val().replace(this.draftRegex, ''));
   }
 
-  addWip() {
+  addDraft() {
     this.titleField.val(`Draft: ${this.titleField.val()}`);
-  }
-
-  initTargetBranchDropdown() {
-    import(/* webpackChunkName: 'select2' */ 'select2/select2')
-      .then(() => {
-        // eslint-disable-next-line promise/no-nesting
-        loadCSSFile(gon.select2_css_path)
-          .then(() => {
-            this.$targetBranchSelect.select2({
-              ...AutoWidthDropdownSelect.selectOptions('js-target-branch-select'),
-              ajax: {
-                url: this.$targetBranchSelect.data('endpoint'),
-                dataType: 'JSON',
-                quietMillis: 250,
-                data(search) {
-                  return {
-                    search,
-                  };
-                },
-                results({ results }) {
-                  return {
-                    // `data` keys are translated so we can't just access them with a string based key
-                    results: results[Object.keys(results)[0]].map((name) => ({
-                      id: name,
-                      text: name,
-                    })),
-                  };
-                },
-                transport: select2AxiosTransport,
-              },
-              initSelection(el, callback) {
-                const val = el.val();
-
-                callback({
-                  id: val,
-                  text: val,
-                });
-              },
-            });
-          })
-          .catch(() => {});
-      })
-      .catch(() => {});
   }
 }

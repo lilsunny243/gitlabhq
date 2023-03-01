@@ -66,6 +66,26 @@ RSpec.describe IncidentManagement::Incidents::CreateService do
           end
         end
       end
+
+      context 'with an alert' do
+        subject(:create_incident) { described_class.new(project, user, title: title, description: description, alert: alert).execute }
+
+        context 'when the alert is valid' do
+          let(:alert) { create(:alert_management_alert, project: project) }
+
+          it 'associates the alert with the incident' do
+            expect(create_incident[:issue].reload.alert_management_alerts).to match_array([alert])
+          end
+        end
+
+        context 'when the alert is not valid' do
+          let(:alert) { create(:alert_management_alert, :with_validation_errors, project: project) }
+
+          it 'does not associate the alert with the incident' do
+            expect(create_incident[:issue].reload.alert_management_alerts).to be_empty
+          end
+        end
+      end
     end
 
     context 'when incident has no title' do
@@ -77,7 +97,7 @@ RSpec.describe IncidentManagement::Incidents::CreateService do
 
       it 'responds with errors' do
         expect(create_incident).to be_error
-        expect(create_incident.message).to eq("Title can't be blank")
+        expect(create_incident.errors).to contain_exactly("Title can't be blank")
       end
 
       it 'result payload contains an Issue object' do
@@ -89,16 +109,12 @@ RSpec.describe IncidentManagement::Incidents::CreateService do
 
         subject(:create_incident) { described_class.new(project, user, title: title, description: description, alert: alert).execute }
 
-        it 'associates the alert with the incident' do
-          expect(create_incident[:issue].alert_management_alert).to eq(alert)
-        end
-
         context 'the alert prevents the issue from saving' do
           let(:alert) { create(:alert_management_alert, :with_validation_errors, project: project) }
 
           it 'responds with errors' do
             expect(create_incident).to be_error
-            expect(create_incident.message).to eq('Hosts hosts array is over 255 chars')
+            expect(create_incident.errors).to contain_exactly('Hosts hosts array is over 255 chars')
           end
         end
       end

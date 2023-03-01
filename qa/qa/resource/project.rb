@@ -7,27 +7,28 @@ module QA
       include Integrations::Project
       include Members
       include Visibility
+      include ApprovalConfiguration
 
       attr_accessor :initialize_with_readme,
-                    :auto_devops_enabled,
-                    :github_personal_access_token,
-                    :github_repository_path,
-                    :gitlab_repository_path,
-                    :personal_namespace
+        :auto_devops_enabled,
+        :github_personal_access_token,
+        :github_repository_path,
+        :gitlab_repository_path,
+        :personal_namespace
 
       attr_reader :repository_storage
 
       attributes :id,
-                 :name,
-                 :path,
-                 :add_name_uuid,
-                 :runners_token,
-                 :visibility,
-                 :template_name,
-                 :import,
-                 :import_status,
-                 :import_error,
-                 :description
+        :name,
+        :path,
+        :add_name_uuid,
+        :runners_token,
+        :visibility,
+        :template_name,
+        :import,
+        :import_status,
+        :import_error,
+        :description
 
       attribute :group do
         Group.fabricate! do |group|
@@ -42,7 +43,7 @@ module QA
       alias_method :full_path, :path_with_namespace
 
       def sandbox_path
-        return '' if personal_namespace || !group.respond_to?('sandbox')
+        return '' if personal_namespace || !group.respond_to?(:sandbox)
 
         "#{group.sandbox.path}/"
       end
@@ -197,6 +198,10 @@ module QA
         "#{api_get_path}/pipelines"
       end
 
+      def api_latest_pipeline_path
+        "#{api_pipelines_path}/latest"
+      end
+
       def api_pipeline_schedules_path
         "#{api_get_path}/pipeline_schedules"
       end
@@ -226,7 +231,11 @@ module QA
       end
 
       def api_housekeeping_path
-        "/projects/#{id}/housekeeping"
+        "#{api_get_path}/housekeeping"
+      end
+
+      def api_protected_branches_path
+        "#{api_get_path}/protected_branches"
       end
 
       def api_post_body
@@ -324,8 +333,11 @@ module QA
         result = parse_body(response)
 
         if result[:import_status] == "failed"
-          Runtime::Logger.error("Import failed: #{result[:import_error]}")
-          Runtime::Logger.error("Failed relations: #{result[:failed_relations]}")
+          Runtime::Logger.error(<<~ERR)
+            Import of project '#{full_path}' failed!
+              error: '#{result[:import_error]}'
+              failed relations: '#{result[:failed_relations]}'
+          ERR
         end
 
         result
@@ -392,6 +404,10 @@ module QA
         auto_paginated_response(request_url(api_pipelines_path, per_page: '100'), attempts: attempts)
       end
 
+      def latest_pipeline
+        parse_body(api_get_from(api_latest_pipeline_path))
+      end
+
       def jobs
         response = get(request_url(api_jobs_path))
         parse_body(response)
@@ -420,7 +436,7 @@ module QA
       end
 
       def wikis
-        response = get(request_url(api_wikis_path))
+        response = api_get_from(api_wikis_path)
         parse_body(response)
       end
 
@@ -435,6 +451,19 @@ module QA
 
       def create_release(tag, ref = default_branch, **params)
         api_post_to(api_releases_path, tag_name: tag, ref: ref, **params)
+      end
+
+      def protected_branches
+        response = api_get_from(api_protected_branches_path)
+        parse_body(response)
+      end
+
+      # Fetch project runners
+      #
+      # @param [Hash] **kwargs optional query arguments, see: https://docs.gitlab.com/ee/api/runners.html#list-projects-runners
+      # @return [Array]
+      def runners(**kwargs)
+        auto_paginated_response(request_url(api_runners_path, **kwargs))
       end
 
       # Uses the API to wait until a pull mirroring update is successful (pull mirroring is treated as an import)
@@ -464,6 +493,16 @@ module QA
           # Retry on transient errors that are likely to be due to race conditions between concurrent delete operations
           # when parts of a resource are stored in multiple tables
           false
+        end
+      end
+
+      def remove_via_browser_ui!
+        Page::Project::Menu.perform(&:go_to_general_settings)
+
+        Page::Project::Settings::Main.perform(&:expand_advanced_settings)
+
+        Page::Project::Settings::Advanced.perform do |advanced|
+          advanced.delete_project!(full_path)
         end
       end
 

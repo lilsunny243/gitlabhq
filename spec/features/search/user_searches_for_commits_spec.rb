@@ -2,12 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User searches for commits', :js do
-  include CycleAnalyticsHelpers
+RSpec.describe 'User searches for commits', :js, :clean_gitlab_redis_rate_limiting, feature_category: :global_search do
+  let_it_be(:user) { create(:user) }
+  let_it_be(:project) { create(:project, :repository) }
 
-  let(:project) { create(:project, :repository) }
   let(:sha) { '6d394385cf567f80a8fd85055db1ab4c5295806f' }
-  let(:user) { create(:user) }
 
   before do
     project.add_reporter(user)
@@ -16,7 +15,9 @@ RSpec.describe 'User searches for commits', :js do
     visit(search_path(project_id: project.id))
   end
 
-  include_examples 'search timeouts', 'commits'
+  include_examples 'search timeouts', 'commits' do
+    let(:additional_params) { { project_id: project.id } }
+  end
 
   context 'when searching by SHA' do
     it 'finds a commit and redirects to its page' do
@@ -34,7 +35,12 @@ RSpec.describe 'User searches for commits', :js do
 
   context 'when searching by message' do
     it 'finds a commit and holds on /search page' do
-      create_commit('Message referencing another sha: "deadbeef"', project, user, 'master')
+      project.repository.commit_files(
+        user,
+        message: 'Message referencing another sha: "deadbeef"',
+        branch_name: 'master',
+        actions: [{ action: :create, file_path: 'a/new.file', contents: 'new file' }]
+      )
 
       submit_search('deadbeef')
 

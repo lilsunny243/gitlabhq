@@ -1,7 +1,8 @@
-import { mount } from '@vue/test-utils';
+import { shallowMount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import mockData from 'test_fixtures/issues/related_merge_requests.json';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import RelatedMergeRequests from '~/issues/related_merge_requests/components/related_merge_requests.vue';
 import createStore from '~/issues/related_merge_requests/store/index';
 import RelatedIssuableItem from '~/issuable/components/related_issuable_item.vue';
@@ -18,9 +19,9 @@ describe('RelatedMergeRequests', () => {
     document.getElementById('js-issuable-app').dataset.initial = JSON.stringify(mockData);
 
     mock = new MockAdapter(axios);
-    mock.onGet(`${API_ENDPOINT}?per_page=100`).reply(200, mockData, { 'x-total': 2 });
+    mock.onGet(`${API_ENDPOINT}?per_page=100`).reply(HTTP_STATUS_OK, mockData, { 'x-total': 2 });
 
-    wrapper = mount(RelatedMergeRequests, {
+    wrapper = shallowMount(RelatedMergeRequests, {
       store: createStore(),
       propsData: {
         endpoint: API_ENDPOINT,
@@ -49,7 +50,7 @@ describe('RelatedMergeRequests', () => {
         });
       });
 
-      it('should return an array with single assingee', () => {
+      it('should return an array with single assignee', () => {
         const mr = { assignee: assignees[0] };
 
         expect(wrapper.vm.getAssignees(mr)).toEqual([assignees[0]]);
@@ -65,9 +66,9 @@ describe('RelatedMergeRequests', () => {
   describe('template', () => {
     it('should render related merge request items', () => {
       expect(wrapper.find('[data-testid="count"]').text()).toBe('2');
-      expect(wrapper.findAll(RelatedIssuableItem)).toHaveLength(2);
+      expect(wrapper.findAllComponents(RelatedIssuableItem)).toHaveLength(2);
 
-      const props = wrapper.findAll(RelatedIssuableItem).at(1).props();
+      const props = wrapper.findAllComponents(RelatedIssuableItem).at(1).props();
       const data = mockData[1];
 
       expect(props.idKey).toEqual(data.id);

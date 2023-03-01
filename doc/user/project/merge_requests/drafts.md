@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, concepts
 disqus_identifier: 'https://docs.gitlab.com/ee/user/project/merge_requests/work_in_progress_merge_requests.html'
 ---
@@ -20,17 +20,18 @@ the **Merge** button until you remove the **Draft** flag:
 > - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/32692) in GitLab 13.2, Work-In-Progress (WIP) merge requests were renamed to **Draft**.
 > - [Removed](https://gitlab.com/gitlab-org/gitlab/-/issues/228685) all support for using **WIP** in GitLab 14.8.
 > - **Mark as draft** and **Mark as ready** buttons [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/227421) in GitLab 13.5.
+> `/draft` quick action as a toggle [deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/92654) in GitLab 15.4.
+> - [Changed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/108073) the draft status to use a checkbox in GitLab 15.8.
 
 There are several ways to flag a merge request as a draft:
 
-- **Viewing a merge request**: In the top right corner of the merge request, select **Mark as draft**.
+- **Viewing a merge request**: In the upper-right corner of the merge request, select **Mark as draft**.
 - **Creating or editing a merge request**: Add `[Draft]`, `Draft:` or `(Draft)` to
-  the beginning of the merge request's title, or select **Start the title with Draft:**
+  the beginning of the merge request's title, or select **Mark as draft**
   below the **Title** field.
 - **Commenting in an existing merge request**: Add the `/draft`
   [quick action](../quick_actions.md#issues-merge-requests-and-epics)
-  in a comment. This quick action is a toggle, and can be repeated to change the status
-  back to Ready.
+  in a comment. GitLab 15.4 [deprecated](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/92654) the toggle behavior of `/draft`. To mark a merge request as ready, use `/ready`.
 - **Creating a commit**: Add `draft:`, `Draft:`, `fixup!`, or `Fixup!` to the
   beginning of a commit message targeting the merge request's source branch. This
   is not a toggle, and adding this text again in a later commit doesn't mark the
@@ -40,14 +41,14 @@ There are several ways to flag a merge request as a draft:
 
 When a merge request is ready to be merged, you can remove the `Draft` flag in several ways:
 
-- **Viewing a merge request**: In the top right corner of the merge request, select **Mark as ready**.
+- **Viewing a merge request**: In the upper-right corner of the merge request, select **Mark as ready**.
   Users with at least the Developer role
   can also scroll to the bottom of the merge request description and select **Mark as ready**:
 
   ![Mark as ready](img/draft_blocked_merge_button_v13_10.png)
 
 - **Editing an existing merge request**: Remove `[Draft]`, `Draft:` or `(Draft)`
-  from the beginning of the title, or select **Remove the Draft: prefix from the title**
+  from the beginning of the title, or clear **Mark as draft**
   below the **Title** field.
 - **Commenting in an existing merge request**: Add the `/ready`
   [quick action](../quick_actions.md#issues-merge-requests-and-epics)
@@ -88,6 +89,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

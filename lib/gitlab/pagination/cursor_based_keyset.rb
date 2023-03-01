@@ -5,7 +5,8 @@ module Gitlab
     module CursorBasedKeyset
       SUPPORTED_ORDERING = {
         Group => { name: :asc },
-        AuditEvent => { id: :desc }
+        AuditEvent => { id: :desc },
+        ::Ci::Build => { id: :desc }
       }.freeze
 
       # Relation types that are enforced in this list
@@ -22,7 +23,7 @@ module Gitlab
 
       def self.available?(cursor_based_request_context, relation)
         available_for_type?(relation) &&
-        order_satisfied?(relation, cursor_based_request_context)
+          order_satisfied?(relation, cursor_based_request_context)
       end
 
       def self.enforced_for_type?(relation)

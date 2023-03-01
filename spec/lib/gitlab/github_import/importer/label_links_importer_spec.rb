@@ -36,37 +36,40 @@ RSpec.describe Gitlab::GithubImport::Importer::LabelLinksImporter do
 
       expect(importer)
         .to receive(:find_target_id)
-        .and_return(1)
+        .and_return(4)
 
-      freeze_time do
-        expect(ApplicationRecord)
-          .to receive(:legacy_bulk_insert)
-          .with(
-            LabelLink.table_name,
-            [
-              {
-                label_id: 2,
-                target_id: 1,
-                target_type: Issue,
-                created_at: Time.zone.now,
-                updated_at: Time.zone.now
-              }
-            ]
-          )
+      expect(LabelLink).to receive(:bulk_insert!)
 
-        importer.create_labels
-      end
+      importer.create_labels
     end
 
     it 'does not insert label links for non-existing labels' do
+      expect(importer)
+        .to receive(:find_target_id)
+        .and_return(4)
+
       expect(importer.label_finder)
         .to receive(:id_for)
         .with('bug')
         .and_return(nil)
 
-      expect(ApplicationRecord)
-        .to receive(:legacy_bulk_insert)
-        .with(LabelLink.table_name, [])
+      expect(LabelLink)
+        .to receive(:bulk_insert!)
+        .with([])
+
+      importer.create_labels
+    end
+
+    it 'does not insert label links for non-existing targets' do
+      expect(importer)
+        .to receive(:find_target_id)
+        .and_return(nil)
+
+      expect(importer.label_finder)
+        .not_to receive(:id_for)
+
+      expect(LabelLink)
+        .not_to receive(:bulk_insert!)
 
       importer.create_labels
     end

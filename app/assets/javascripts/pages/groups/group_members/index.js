@@ -11,8 +11,7 @@ import { groupLinkRequestFormatter } from '~/members/utils';
 const SHARED_FIELDS = ['account', 'maxRole', 'expiration', 'actions'];
 const APP_OPTIONS = {
   [MEMBER_TYPES.user]: {
-    tableFields: SHARED_FIELDS.concat(['source', 'granted', 'userCreatedAt', 'lastActivityOn']),
-    tableAttrs: { tr: { 'data-qa-selector': 'member_row' } },
+    tableFields: SHARED_FIELDS.concat(['source', 'activity']),
     tableSortableFields: [
       'account',
       'granted',
@@ -32,10 +31,6 @@ const APP_OPTIONS = {
   },
   [MEMBER_TYPES.group]: {
     tableFields: SHARED_FIELDS.concat(['source', 'granted']),
-    tableAttrs: {
-      table: { 'data-qa-selector': 'groups_list' },
-      tr: { 'data-qa-selector': 'group_row' },
-    },
     requestFormatter: groupLinkRequestFormatter,
     filteredSearchBar: {
       show: true,

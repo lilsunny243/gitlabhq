@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Atlassian::JiraConnect::Jwt::Asymmetric do
+RSpec.describe Atlassian::JiraConnect::Jwt::Asymmetric, feature_category: :integrations do
   describe '#valid?' do
     let_it_be(:private_key) { OpenSSL::PKey::RSA.generate 3072 }
 
@@ -16,7 +16,9 @@ RSpec.describe Atlassian::JiraConnect::Jwt::Asymmetric do
     let(:jwt_headers) { { kid: public_key_id } }
     let(:jwt) { JWT.encode(jwt_claims, private_key, 'RS256', jwt_headers) }
     let(:public_key) { private_key.public_key }
-    let(:install_keys_url) { "https://connect-install-keys.atlassian.com/#{public_key_id}" }
+    let(:stub_asymmetric_jwt_cdn) { 'https://connect-install-keys.atlassian.com' }
+    let(:jira_connect_proxy_url_setting) { nil }
+    let(:install_keys_url) { "#{stub_asymmetric_jwt_cdn}/#{public_key_id}" }
     let(:qsh) do
       Atlassian::Jwt.create_query_string_hash('https://gitlab.test/events/installed', 'POST', 'https://gitlab.test')
     end
@@ -24,6 +26,8 @@ RSpec.describe Atlassian::JiraConnect::Jwt::Asymmetric do
     before do
       stub_request(:get, install_keys_url)
         .to_return(body: public_key.to_s, status: 200)
+
+      stub_application_setting(jira_connect_proxy_url: jira_connect_proxy_url_setting)
     end
 
     it 'returns true when verified with public key from CDN' do
@@ -84,6 +88,32 @@ RSpec.describe Atlassian::JiraConnect::Jwt::Asymmetric do
       let(:verification_claims) { { aud: jwt_claims[:aud], iss: client_key, qsh: 'some other qsh' } }
 
       it { is_expected.not_to be_valid }
+    end
+
+    context 'with jira_connect_proxy_url setting', :aggregate_failures do
+      let(:stub_asymmetric_jwt_cdn) { 'https://example.com/-/jira_connect/public_keys' }
+      let(:jira_connect_proxy_url_setting) { 'https://example.com' }
+
+      it 'requests the settings CDN' do
+        expect(JWT).to receive(:decode).twice.and_call_original
+
+        expect(asymmetric_jwt).to be_valid
+
+        expect(WebMock).to have_requested(:get, "https://example.com/-/jira_connect/public_keys/#{public_key_id}")
+      end
+
+      context 'when the setting is an empty string', :aggregate_failures do
+        let(:jira_connect_proxy_url_setting) { '' }
+        let(:stub_asymmetric_jwt_cdn) { 'https://connect-install-keys.atlassian.com' }
+
+        it 'requests the default CDN' do
+          expect(JWT).to receive(:decode).twice.and_call_original
+
+          expect(asymmetric_jwt).to be_valid
+
+          expect(WebMock).to have_requested(:get, install_keys_url)
+        end
+      end
     end
   end
 

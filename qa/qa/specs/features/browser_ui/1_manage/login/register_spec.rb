@@ -5,7 +5,9 @@ module QA
     it 'allows the user to register and login' do
       Runtime::Browser.visit(:gitlab, Page::Main::Login)
 
-      Resource::User.fabricate_via_browser_ui!
+      Resource::User.fabricate_via_browser_ui! do |user_resource|
+        user_resource.email_domain = 'gitlab.com'
+      end
 
       Page::Main::Menu.perform do |menu|
         expect(menu).to have_personal_area
@@ -13,7 +15,7 @@ module QA
     end
   end
 
-  RSpec.describe 'Manage', :skip_signup_disabled, :requires_admin do
+  RSpec.describe 'Manage', :skip_signup_disabled, :requires_admin, product_group: :authentication_and_authorization do
     describe 'while LDAP is enabled', :orchestrated, :ldap_no_tls, testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347934' do
       before do
         # When LDAP is enabled, a previous test might have created a token for the LDAP 'tanuki' user who is not an admin
@@ -65,8 +67,7 @@ module QA
               show.delete_account(user.password)
             end
 
-            # TODO: Remove retry_on_exception once https://gitlab.com/gitlab-org/gitlab/-/issues/24294 is resolved
-            Support::Waiter.wait_until(retry_on_exception: true, sleep_interval: 3) { !user.exists? }
+            Support::Waiter.wait_until(max_duration: 120, sleep_interval: 3) { !user.exists? }
           end
 
           it 'allows recreating with same credentials', :reliable, testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347868' do

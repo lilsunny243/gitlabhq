@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Uploads migrate Rake tasks **(FREE SELF)**
@@ -42,10 +42,11 @@ gitlab-rake "gitlab:uploads:migrate:all"
 sudo RAILS_ENV=production -u git -H bundle exec rake gitlab:uploads:migrate:all
 ```
 
-You can optionally track progress and verify that all packages migrated successfully using the
+You can optionally track progress and verify that all uploads migrated successfully using the
 [PostgreSQL console](https://docs.gitlab.com/omnibus/settings/database.html#connecting-to-the-bundled-postgresql-database):
 
-- `sudo gitlab-rails dbconsole` for Omnibus GitLab instances.
+- `sudo gitlab-rails dbconsole` for Omnibus GitLab 14.1 and earlier.
+- `sudo gitlab-rails dbconsole --database main` for Omnibus GitLab 14.2 and later.
 - `sudo -u git -H psql -d gitlabhq_production` for source-installed instances.
 
 Verify `objectstg` below (where `store=2`) has count of all artifacts:
@@ -166,33 +167,22 @@ GitLab provides a wrapper Rake task that migrates all uploaded files (for exampl
 attachments, and favicon) to local storage in one step. The wrapper task invokes individual Rake
 tasks to migrate files falling under each of these categories one by one.
 
-For details on these Rake tasks, refer to [Individual Rake tasks](#individual-rake-tasks),
-keeping in mind the task name in this case is `gitlab:uploads:migrate_to_local`.
+For details on these Rake tasks, refer to [Individual Rake tasks](#individual-rake-tasks).
+Keep in mind the task name in this case is `gitlab:uploads:migrate_to_local`.
 
-To migrate uploads from object storage to local storage:
+To migrate uploads from object storage to local storage, run the following Rake task:
 
-1. Disable both `direct_upload` and `background_upload` under `uploads` settings in `gitlab.rb`:
+**Omnibus GitLab installation**
 
-   ```ruby
-   gitlab_rails['uploads_object_store_direct_upload'] = false
-   gitlab_rails['uploads_object_store_background_upload'] = false
-   ```
+```shell
+gitlab-rake "gitlab:uploads:migrate_to_local:all"
+```
 
-   Save the file and [reconfigure GitLab](../../restart_gitlab.md#omnibus-gitlab-reconfigure).
+**Source installation**
 
-1. Run the Rake task:
-
-   **Omnibus Installation**
-
-   ```shell
-   gitlab-rake "gitlab:uploads:migrate_to_local:all"
-   ```
-
-   **Source Installation**
-
-   ```shell
-   sudo RAILS_ENV=production -u git -H bundle exec rake gitlab:uploads:migrate_to_local:all
-   ```
+```shell
+sudo RAILS_ENV=production -u git -H bundle exec rake gitlab:uploads:migrate_to_local:all
+```
 
 After running the Rake task, you can disable object storage by undoing the changes described
 in the instructions to [configure object storage](../../uploads.md#using-object-storage).

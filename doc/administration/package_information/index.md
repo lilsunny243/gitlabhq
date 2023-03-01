@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Package information **(FREE SELF)**
@@ -16,9 +16,9 @@ The released package versions are in the format `MAJOR.MINOR.PATCH-EDITION.OMNIB
 
 | Component           | Meaning | Example |
 |---------------------|---------|---------|
-| `MAJOR.MINOR.PATCH` | The GitLab version this corresponds to. | 13.3.0 |
-| `EDITION`           | The edition of GitLab this corresponds to. | ee |
-| `OMNIBUS_RELEASE`   | The Omnibus GitLab release. Usually, this is 0. This is incremented if we need to build a new package without changing the GitLab version. | 0 |
+| `MAJOR.MINOR.PATCH` | The GitLab version this corresponds to. | `13.3.0` |
+| `EDITION`           | The edition of GitLab this corresponds to. | `ee` |
+| `OMNIBUS_RELEASE`   | The Omnibus GitLab release. Usually, this is 0. This is incremented if we need to build a new package without changing the GitLab version. | `0` |
 
 ## Licenses
 
@@ -53,7 +53,7 @@ Documentation on package signatures can be found at [Signed Packages](signed_pac
 
 Configuration file in `/etc/gitlab/gitlab.rb` is created on initial installation
 of the Omnibus GitLab package. On subsequent package upgrades, the configuration
-file is not updated with new configuration. This is done in order to avoid
+file is not updated with new configuration. This is done to avoid
 accidental overwrite of user configuration provided in `/etc/gitlab/gitlab.rb`.
 
 New configuration options are noted in the
@@ -76,7 +76,7 @@ characters on each line.
 
 ## Init system detection
 
-Omnibus GitLab attempts to query the underlying system in order to
+Omnibus GitLab attempts to query the underlying system to
 check which init system it uses.
 This manifests itself as a `WARNING` during the `sudo gitlab-ctl reconfigure`
 run.

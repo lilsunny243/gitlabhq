@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Geo **(PREMIUM SELF)**
@@ -12,8 +12,9 @@ miss a step.
 Here is a list of steps you should take to attempt to fix problem:
 
 1. Perform [basic troubleshooting](#basic-troubleshooting).
-1. Fix any [replication errors](#fixing-replication-errors).
+1. Fix any [PostgreSQL database replication errors](#fixing-postgresql-database-replication-errors).
 1. Fix any [common](#fixing-common-errors) errors.
+1. Fix any [non-PostgreSQL replication failures](#fixing-non-postgresql-replication-failures).
 
 ## Basic troubleshooting
 
@@ -26,7 +27,7 @@ Before attempting more advanced troubleshooting:
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 
 We perform the following health checks on each **secondary** site
@@ -37,8 +38,27 @@ to help identify if something is wrong:
 - Is the secondary site's tracking database configured?
 - Is the secondary site's tracking database connected?
 - Is the secondary site's tracking database up-to-date?
+- Is the secondary site's status less than 10 minutes old?
 
 ![Geo health check](img/geo_site_health_v14_0.png)
+
+A site shows as "Unhealthy" if the site's status is more than 10 minutes old. In that case, try running the following in the [Rails console](../../operations/rails_console.md) on the affected site:
+
+```ruby
+Geo::MetricsUpdateWorker.new.perform
+```
+
+If it raises an error, then the error is probably also preventing the jobs from completing. If it takes longer than 10 minutes, then there may be a performance issue, and the UI may always show "Unhealthy" even if the status eventually does get updated.
+
+If it successfully updates the status, then something may be wrong with Sidekiq. Is it running? Do the logs show errors? This job is supposed to be enqueued every minute. It takes an exclusive lease in Redis to ensure that only one of these jobs can run at a time. The primary site updates its status directly in the PostgreSQL database. Secondary sites send an HTTP Post request to the primary site with their status data.
+
+A site also shows as "Unhealthy" if certain health checks fail. You can reveal the failure by running the following in the [Rails console](../../operations/rails_console.md) on the affected site:
+
+```ruby
+Gitlab::Geo::HealthCheck.new.perform_checks
+```
+
+If it returns `""` (an empty string) or `"Healthy"`, then the checks succeeded. If it returns anything else, then the message should explain what failed, or show the exception message.
 
 For information about how to resolve common error messages reported from the user interface,
 see [Fixing Common Errors](#fixing-common-errors).
@@ -47,6 +67,8 @@ If the user interface is not working, or you are unable to sign in, you can run 
 health check manually to get this information and a few more details.
 
 #### Health check Rake task
+
+> The use of a custom NTP server was [introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/105514) in GitLab 15.7.
 
 This Rake task can be run on a **Rails** node in the **primary** or **secondary**
 Geo sites:
@@ -63,7 +85,7 @@ Checking Geo ...
 GitLab Geo is available ... yes
 GitLab Geo is enabled ... yes
 This machine's Geo node name matches a database record ... yes, found a secondary node named "Shanghai"
-GitLab Geo secondary database is correctly configured ... yes
+GitLab Geo tracking database is correctly configured ... yes
 Database replication enabled? ... yes
 Database replication working? ... yes
 GitLab Geo HTTP(S) connectivity ...
@@ -78,6 +100,22 @@ All projects are in hashed storage? ... yes
 
 Checking Geo ... Finished
 ```
+
+You can also specify a custom NTP server using environment variables. For example:
+
+```shell
+export NTP_HOST="ntp.ubuntu.com"
+export NTP_TIMEOUT="30"
+sudo gitlab-rake gitlab:geo:check
+```
+
+The following environment variables are supported.
+
+| Variable    | Description | Default value |
+| ----------- | ----------- | ------------- |
+|`NTP_HOST`   | The NTP host. | `pool.ntp.org` |
+|`NTP_PORT`   | The NTP port the host listens on. |`ntp`|
+|`NTP_TIMEOUT`| The NTP timeout in seconds. | The value defined in the `net-ntp` Ruby library ([60 seconds](https://github.com/zencoder/net-ntp/blob/3d0990214f439a5127782e0f50faeaf2c8ca7023/lib/net/ntp/ntp.rb#L6)). |
 
 #### Sync status Rake task
 
@@ -128,8 +166,26 @@ http://secondary.example.com/
                 Last status report was: 1 minute ago
 ```
 
+There are up to three statuses for each item. For example, for `Repositories`, you see the following lines:
+
+```plaintext
+  Repositories: succeeded 12345 / total 12345 (100%)
+  Verified Repositories: succeeded 12345 / total 12345 (100%)
+  Repositories Checked: failed 5 / succeeded 0 / total 5 (0%)
+```
+
+The 3 status items are defined as follows:
+
+- The `Repositories` output shows how many repositories are synced from the primary to the secondary.
+- The `Verified Repositories` output shows how many repositories on this secondary have a matching repository checksum with the Primary.
+- The `Repositories Checked` output shows how many repositories have passed a local Git repository check (`git fsck`) on the secondary.
+
 To find more details about failed items, check
 [the `gitlab-rails/geo.log` file](../../logs/log_parsing.md#find-most-common-geo-sync-errors)
+
+If you notice replication or verification failures, you can try to [resolve them](#fixing-non-postgresql-replication-failures).
+
+If there are Repository check failures, you can try to [resolve them](#find-repository-check-failures-in-a-geo-secondary-site).
 
 ### Check if PostgreSQL replication is working
 
@@ -182,8 +238,43 @@ This machine's Geo node name matches a database record ... no
   doc/administration/geo/replication/troubleshooting.md#can-geo-detect-the-current-node-correctly
 ```
 
-Learn more about recommended site names in the description of the Name field in
+For more information about recommended site names in the description of the Name field, see
 [Geo Admin Area Common Settings](../../../user/admin_area/geo_sites.md#common-settings).
+
+### Reverify all uploads (or any SSF data type which is verified)
+
+1. SSH into a GitLab Rails node in the primary Geo site.
+1. Open [Rails console](../../operations/rails_console.md).
+1. Mark all uploads as "pending verification":
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+   ```ruby
+   Upload.verification_state_table_class.each_batch do |relation|
+     relation.update_all(verification_state: 0)
+   end
+   ```
+
+1. This causes the primary to start checksumming all Uploads.
+1. When a primary successfully checksums a record, then all secondaries recalculate the checksum as well, and they compare the values.
+
+A similar thing can be done for all Models handled by the [Geo Self-Service Framework](../../../development/geo/framework.md) which have implemented verification:
+
+- `LfsObject`
+- `MergeRequestDiff`
+- `Packages::PackageFile`
+- `Terraform::StateVersion`
+- `SnippetRepository`
+- `Ci::PipelineArtifact`
+- `PagesDeployment`
+- `Upload`
+- `Ci::JobArtifact`
+- `Ci::SecureFile`
+
+NOTE:
+`GroupWikiRepository` is not in the previous list since verification is not implemented.
+There is an [issue to implement this functionality in the Admin Area UI](https://gitlab.com/gitlab-org/gitlab/-/issues/364729).
 
 ### Message: `WARNING: oldest xmin is far in the past` and `pg_wal` size growing
 
@@ -269,13 +360,13 @@ sudo gitlab-rake gitlab:geo:check
 
   GitLab Geo is available ... yes
   GitLab Geo is enabled ... yes
-  GitLab Geo secondary database is correctly configured ... not a secondary node
+  GitLab Geo tracking database is correctly configured ... not a secondary node
   Database replication enabled? ... not a secondary node
   ...
   Checking Geo ... Finished
   ```
 
-  Ensure you have added the secondary site in the **Menu > Admin > Geo > Sites** on the web interface for the **primary** site.
+  Ensure you have added the secondary site in the **Main menu > Admin > Geo > Sites** on the web interface for the **primary** site.
   Also ensure you entered the `gitlab_rails['geo_node_name']`
   when adding the secondary site in the Admin Area of the **primary** site.
   In GitLab 12.3 and earlier, edit the secondary site in the Admin Area of the **primary**
@@ -308,10 +399,97 @@ sudo gitlab-rake gitlab:geo:check
   Checking Geo ... Finished
   ```
 
-  When performing a PostgreSQL major version (9 > 10) update this is expected. Follow
+  When performing a PostgreSQL major version (9 > 10), update this is expected. Follow
   the [initiate-the-replication-process](../setup/database.md#step-3-initiate-the-replication-process).
 
-## Fixing replication errors
+- Rails does not appear to have the configuration necessary to connect to the Geo tracking database.
+
+  ```plaintext
+  Checking Geo ...
+
+  GitLab Geo is available ... yes
+  GitLab Geo is enabled ... yes
+  GitLab Geo tracking database is correctly configured ... no
+  Try fixing it:
+  Rails does not appear to have the configuration necessary to connect to the Geo tracking database. If the tracking database is running on a node other than this one, then you may need to add configuration.
+  ...
+  Checking Geo ... Finished
+  ```
+
+  - If you are running the secondary site on a single node for all services, then follow [Geo database replication - Configure the secondary server](../setup/database.md#step-2-configure-the-secondary-server).
+  - If you are running the secondary site's tracking database on its own node, then follow [Geo for multiple servers - Configure the Geo tracking database on the Geo secondary site](multiple_servers.md#step-3-configure-the-geo-tracking-database-on-the-geo-secondary-site)
+  - If you are running the secondary site's tracking database in a Patroni cluster, then follow [Geo database replication - Configure the tracking database on the secondary sites](../setup/database.md#step-3-configure-the-tracking-database-on-the-secondary-sites)
+  - If you are running the secondary site's tracking database in an external database, then follow [Geo with external PostgreSQL instances](../setup/external_database.md#configure-the-tracking-database)
+  - If the Geo check task was run on a node which is not running a service which runs the GitLab Rails app (Puma, Sidekiq, or Geo Log Cursor), then this error can be ignored. The node does not need Rails to be configured.
+
+### Message: Machine clock is synchronized ... Exception
+
+The Rake task attempts to verify that the server clock is synchronized with NTP. Synchronized clocks
+are required for Geo to function correctly. As an example, for security, when the server time on the
+primary site and secondary site differ by about a minute or more, requests between Geo sites
+fail. If this check task fails to complete due to a reason other than mismatching times, it
+does not necessarily mean that Geo will not work.
+
+The Ruby gem which performs the check is hard coded with `pool.ntp.org` as its reference time source.
+
+- Exception message `Machine clock is synchronized ... Exception: Timeout::Error`
+
+  This issue occurs when your server cannot access the host `pool.ntp.org`.
+
+- Exception message `Machine clock is synchronized ... Exception: No route to host - recvfrom(2)`
+
+  This issue occurs when the hostname `pool.ntp.org` resolves to a server which does not provide a time service.
+
+In this case, in GitLab 15.7 and newer, [specify a custom NTP server using environment variables](#health-check-rake-task).
+
+In GitLab 15.6 and older, use one of the following workarounds:
+
+- Add entries in `/etc/hosts` for `pool.ntp.org` to direct the request to valid local time servers.
+  This fixes the long timeout and the timeout error.
+- Direct the check to any valid IP address. This resolves the timeout issue, but the check fails
+  with the `No route to host` error, as noted above.
+
+[Cloud native GitLab deployments](https://docs.gitlab.com/charts/advanced/geo/#set-the-geo-primary-site)
+generate an error because containers in Kubernetes do not have access to the host clock:
+
+```plaintext
+Machine clock is synchronized ... Exception: getaddrinfo: Servname not supported for ai_socktype
+```
+
+### Message: `ActiveRecord::StatementInvalid: PG::ReadOnlySqlTransaction: ERROR:  cannot execute INSERT in a read-only transaction`
+
+When this error is encountered on a secondary site, it likely affects all usages of GitLab Rails such as `gitlab-rails` or `gitlab-rake` commands, as well the Puma, Sidekiq, and Geo Log Cursor services.
+
+```plaintext
+ActiveRecord::StatementInvalid: PG::ReadOnlySqlTransaction: ERROR:  cannot execute INSERT in a read-only transaction
+/opt/gitlab/embedded/service/gitlab-rails/app/models/application_record.rb:86:in `block in safe_find_or_create_by'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/concerns/cross_database_modification.rb:92:in `block in transaction'
+/opt/gitlab/embedded/service/gitlab-rails/lib/gitlab/database.rb:332:in `block in transaction'
+/opt/gitlab/embedded/service/gitlab-rails/lib/gitlab/database.rb:331:in `transaction'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/concerns/cross_database_modification.rb:83:in `transaction'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/application_record.rb:86:in `safe_find_or_create_by'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/shard.rb:21:in `by_name'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/shard.rb:17:in `block in populate!'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/shard.rb:17:in `map'
+/opt/gitlab/embedded/service/gitlab-rails/app/models/shard.rb:17:in `populate!'
+/opt/gitlab/embedded/service/gitlab-rails/config/initializers/fill_shards.rb:9:in `<top (required)>'
+/opt/gitlab/embedded/service/gitlab-rails/config/environment.rb:7:in `<top (required)>'
+/opt/gitlab/embedded/bin/bundle:23:in `load'
+/opt/gitlab/embedded/bin/bundle:23:in `<main>'
+```
+
+The PostgreSQL read-replica database would be producing these errors:
+
+```plaintext
+2023-01-17_17:44:54.64268 ERROR:  cannot execute INSERT in a read-only transaction
+2023-01-17_17:44:54.64271 STATEMENT:  /*application:web,db_config_name:main*/ INSERT INTO "shards" ("name") VALUES ('storage1') RETURNING "id"
+```
+
+This situation can occur during initial configuration when a secondary site is not yet aware that it is a secondary site.
+
+To resolve the error, follow [Step 3. Add the secondary site](configuration.md#step-3-add-the-secondary-site).
+
+## Fixing PostgreSQL database replication errors
 
 The following sections outline troubleshooting steps for fixing replication
 error messages (indicated by `Database replication working? ... no` in the
@@ -387,7 +565,7 @@ Slots where `active` is `f` are not active.
 
 ### Message: "ERROR: canceling statement due to conflict with recovery"
 
-This error message occurs infrequently under normal usage, and the system is resilient
+This error message occurs infrequently under typical usage, and the system is resilient
 enough to recover.
 
 However, under certain conditions, some database queries on secondaries may run
@@ -424,7 +602,7 @@ This happens because the PostgreSQL certificate that the Omnibus GitLab package 
 the Common Name `PostgreSQL`, but the replication is connecting to a different host and GitLab attempts to use
 the `verify-full` SSL mode by default.
 
-In order to fix this, you can either:
+To fix this issue, you can either:
 
 - Use the `--sslmode=verify-ca` argument with the `replicate-geo-database` command.
 - For an already replicated database, change `sslmode=verify-full` to `sslmode=verify-ca`
@@ -668,7 +846,7 @@ to start again from scratch, there are a few steps that can help you:
 
 ### Design repository failures on mirrored projects and project imports
 
-On the top bar, under **Menu > Admin > Geo > Sites**,
+On the top bar, under **Main menu > Admin > Geo > Sites**,
 if the Design repositories progress bar shows
 `Synced` and `Failed` greater than 100%, and negative `Queued`, the instance
 is likely affected by
@@ -779,7 +957,7 @@ This behavior affects only the following data types through GitLab 14.6:
 | Data type                | From version |
 | ------------------------ | ------------ |
 | Package Registry         | 13.10        |
-| Pipeline Artifacts       | 13.11        |
+| CI Pipeline Artifacts    | 13.11        |
 | Terraform State Versions | 13.12        |
 | Infrastructure Registry  | 14.0         |
 | External MR diffs        | 14.6         |
@@ -1004,11 +1182,15 @@ site's URL matches its external URL.
 
 On the **primary** site:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Geo > Sites**.
 1. Find the affected **secondary** site and select **Edit**.
 1. Ensure the **URL** field matches the value found in `/etc/gitlab/gitlab.rb`
    in `external_url "https://gitlab.example.com"` on the **Rails nodes of the secondary** site.
+
+### Authenticating with SAML on the secondary site always lands on the primary site
+
+This [problem is usually encountered when upgrading to GitLab 15.1](version_specific_upgrades.md#upgrading-to-151). To fix this problem, see [configuring instance-wide SAML in Geo with Single Sign-On](single_sign_on.md#configuring-instance-wide-saml).
 
 ## Fixing common errors
 
@@ -1059,7 +1241,8 @@ If you set up a new secondary from scratch, you must also [remove the old site f
 
 The most common problems that prevent the database from replicating correctly are:
 
-- **Secondary** sites cannot reach the **primary** site. Check credentials, [firewall rules](../index.md#firewall-rules), and so on.
+- **Secondary** sites cannot reach the **primary** site. Check credentials and
+  [firewall rules](../index.md#firewall-rules).
 - SSL certificate problems. Make sure you copied `/etc/gitlab/gitlab-secrets.json` from the **primary** site.
 - Database storage disk is full.
 - Database replication slot is misconfigured.
@@ -1161,11 +1344,290 @@ To fix this issue, set the primary site's internal URL to a URL that is:
    GeoNode.where(primary: true).first.update!(internal_url: "https://unique.url.for.primary.site")
    ```
 
+### Secondary site returns `Received HTTP code 403 from proxy after CONNECT`
+
+If you have installed GitLab using the Linux package (Omnibus) and have configured the `no_proxy` [custom environment variable](https://docs.gitlab.com/omnibus/settings/environment-variables.html) for Gitaly, you may experience this issue. Affected versions:
+
+- `15.4.6`
+- `15.5.0`-`15.5.6`
+- `15.6.0`-`15.6.3`
+- `15.7.0`-`15.7.1`
+
+This is due to [a bug introduced in the included version of cURL](https://github.com/curl/curl/issues/10122) shipped with Omnibus GitLab 15.4.6 and later. You are encouraged to upgrade to a later version where this has been [fixed](https://about.gitlab.com/releases/2023/01/09/security-release-gitlab-15-7-2-released/).
+
+The bug causes all wildcard domains (`.example.com`) to be ignored except for the last on in the `no_proxy` environment variable list. Therefore, if for any reason you cannot upgrade to a newer version, you can work around the issue by moving your wildcard domain to the end of the list:
+
+1. Edit `/etc/gitlab/gitlab.rb`:
+
+   ```ruby
+   gitaly['env'] = {
+     "no_proxy" => "sever.yourdomain.org, .yourdomain.com",
+   }
+
+1. Reconfigure GitLab:
+
+   ```shell
+   sudo gitlab-ctl reconfigure
+   ```
+
+You can have only one wildcard domain in the `no_proxy` list.
+
+## Fixing non-PostgreSQL replication failures
+
+If you notice replication failures in `Admin > Geo > Sites` or the [Sync status Rake task](#sync-status-rake-task), you can try to resolve the failures with the following general steps:
+
+1. Geo automatically retries failures. If the failures are new and few in number, or if you suspect the root cause is already resolved, then you can wait to see if the failures go away.
+1. If failures were present for a long time, then many retries have already occurred, and the interval between automatic retries has increased to up to 4 hours depending on the type of failure. If you suspect the root cause is already resolved, you can [manually retry replication or verification](#manually-retry-replication-or-verification).
+1. If the failures persist, use the following sections to try to resolve them.
+
+### Manually retry replication or verification
+
+Project Git repositories and Project Wiki Git repositories have the ability in `Admin > Geo > Replication` to `Resync all`, `Reverify all`, or for a single resource, `Resync`  or `Reverify`.
+
+Adding this ability to other data types is proposed in issue [364725](https://gitlab.com/gitlab-org/gitlab/-/issues/364725).
+
+The following sections describe how to use internal application commands in the [Rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session) to cause replication or verification immediately.
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+### Blob types
+
+- `Ci::JobArtifact`
+- `Ci::PipelineArtifact`
+- `Ci::SecureFile`
+- `LfsObject`
+- `MergeRequestDiff`
+- `Packages::PackageFile`
+- `PagesDeployment`
+- `Terraform::StateVersion`
+- `Upload`
+
+`Packages::PackageFile` is used in the following
+[Rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session)
+examples, but things generally work the same for the other types.
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+#### The Replicator
+
+The main kinds of classes are Registry, Model, and Replicator. If you have an instance of one of these classes, you can get the others. The Registry and Model mostly manage PostgreSQL DB state. The Replicator knows how to replicate/verify (or it can call a service to do it):
+
+```ruby
+model_record = Packages::PackageFile.last
+model_record.replicator.registry.replicator.model_record # just showing that these methods exist
+```
+
+#### Replicate a package file, synchronously, given an ID
+
+```ruby
+model_record = Packages::PackageFile.find(id)
+model_record.replicator.send(:download)
+```
+
+#### Replicate a package file, synchronously, given a registry ID
+
+```ruby
+registry = Geo::PackageFileRegistry.find(registry_id)
+registry.replicator.send(:download)
+```
+
+#### Find registry records of blobs that failed to sync
+
+```ruby
+Geo::PackageFileRegistry.failed
+```
+
+#### Find registry records of blobs that are missing on the primary site
+
+```ruby
+Geo::PackageFileRegistry.where(last_sync_failure: 'The file is missing on the Geo primary site')
+```
+
+#### Verify package files on the secondary manually
+
+This iterates over all package files on the secondary, looking at the
+`verification_checksum` stored in the database (which came from the primary)
+and then calculate this value on the secondary to check if they match. This
+does not change anything in the UI:
+
+```ruby
+# Run on secondary
+status = {}
+
+Packages::PackageFile.find_each do |package_file|
+  primary_checksum = package_file.verification_checksum
+  secondary_checksum = Packages::PackageFile.hexdigest(package_file.file.path)
+  verification_status = (primary_checksum == secondary_checksum)
+
+  status[verification_status.to_s] ||= []
+  status[verification_status.to_s] << package_file.id
+end
+
+# Count how many of each value we get
+status.keys.each {|key| puts "#{key} count: #{status[key].count}"}
+
+# See the output in its entirety
+status
+```
+
+#### Reverify all uploads (or any SSF data type which is verified)
+
+1. SSH into a GitLab Rails node in the primary Geo site.
+1. Open [Rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session).
+1. Mark all uploads as "pending verification":
+
+   ```ruby
+   Upload.verification_state_table_class.each_batch do |relation|
+     relation.update_all(verification_state: 0)
+   end
+   ```
+
+1. This causes the primary to start checksumming all Uploads.
+1. When a primary successfully checksums a record, then all secondaries recalculate the checksum as well, and they compare the values.
+
+For other SSF data types replace `Upload` in the command above with the desired model class.
+
+NOTE:
+There is an [issue to implement this functionality in the Admin Area UI](https://gitlab.com/gitlab-org/gitlab/-/issues/364729).
+
+### Repository types, except for project or project wiki repositories
+
+- `SnippetRepository`
+- `GroupWikiRepository`
+
+`SnippetRepository` is used in the examples below, but things generally work the same for the other Repository types.
+
+[Start a Rails console session](../../../administration/operations/rails_console.md#starting-a-rails-console-session)
+to enact the following, basic troubleshooting steps.
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+#### The Replicator
+
+The main kinds of classes are Registry, Model, and Replicator. If you have an instance of one of these classes, you can get the others. The Registry and Model mostly manage PostgreSQL DB state. The Replicator knows how to replicate/verify (or it can call a service to do it).
+
+```ruby
+model_record = SnippetRepository.last
+model_record.replicator.registry.replicator.model_record # just showing that these methods exist
+```
+
+#### Replicate a snippet repository, synchronously, given an ID
+
+```ruby
+model_record = SnippetRepository.find(id)
+model_record.replicator.send(:sync_repository)
+```
+
+#### Replicate a snippet repository, synchronously, given a registry ID
+
+```ruby
+registry = Geo::SnippetRepositoryRegistry.find(registry_id)
+registry.replicator.send(:sync_repository)
+```
+
+### Project or project wiki repositories
+
+#### Find repository verification failures
+
+[Start a Rails console session](../../../administration/operations/rails_console.md#starting-a-rails-console-session)
+to gather the following, basic troubleshooting information.
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+##### Get the number of verification failed repositories
+
+```ruby
+Geo::ProjectRegistry.verification_failed('repository').count
+```
+
+##### Find the verification failed repositories
+
+```ruby
+Geo::ProjectRegistry.verification_failed('repository')
+```
+
+##### Find repositories that failed to sync
+
+```ruby
+Geo::ProjectRegistry.sync_failed('repository')
+```
+
+#### Resync project and project wiki repositories
+
+[Start a Rails console session](../../../administration/operations/rails_console.md#starting-a-rails-console-session)
+to enact the following, basic troubleshooting steps.
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+##### Queue up all repositories for resync
+
+When you run this, Sidekiq handles each sync.
+
+```ruby
+Geo::ProjectRegistry.update_all(resync_repository: true, resync_wiki: true)
+```
+
+##### Sync individual repository now
+
+```ruby
+project = Project.find_by_full_path('<group/project>')
+
+Geo::RepositorySyncService.new(project).execute
+```
+
+#### Find repository check failures in a Geo secondary site
+
+When [enabled for all projects](../../repository_checks.md#enable-repository-checks-for-all-projects), [Repository checks](../../repository_checks.md) are also performed on Geo secondary sites. The metadata is stored in the Geo tracking database.
+
+Repository check failures on a Geo secondary site do not necessarily imply a replication problem. Here is a general approach to resolve these failures.
+
+1. Find affected repositories as mentioned below, as well as their [logged errors](../../repository_checks.md#what-to-do-if-a-check-failed).
+1. Try to diagnose specific `git fsck` errors. The range of possible errors is wide, try putting them into search engines.
+1. Test normal functions of the affected repositories. Pull from the secondary, view the files.
+1. Check if the primary site's copy of the repository has an identical `git fsck` error. If you are planning a failover, then consider prioritizing that the secondary site has the same information that the primary site has. Ensure you have a backup of the primary, and follow [planned failover guidelines](../disaster_recovery/planned_failover.md).
+1. Push to the primary and check if the change gets replicated to the secondary site.
+1. If replication is not automatically working, try to manually sync the repository.
+
+[Start a Rails console session](../../operations/rails_console.md#starting-a-rails-console-session)
+to enact the following, basic troubleshooting steps.
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+##### Get the number of repositories that failed the repository check
+
+```ruby
+Geo::ProjectRegistry.where(last_repository_check_failed: true).count
+```
+
+##### Find the repositories that failed the repository check
+
+```ruby
+Geo::ProjectRegistry.where(last_repository_check_failed: true)
+```
+
+##### Recheck repositories that failed the repository check
+
+When you run this, `fsck` is executed against each failed repository.
+
+The [`fsck` Rake command](../../raketasks/check.md#check-project-code-repositories) can be used on the secondary site to understand why the repository check might be failing.
+
+```ruby
+Geo::ProjectRegistry.where(last_repository_check_failed: true).each do |pr|
+    RepositoryCheck::SingleRepositoryWorker.new.perform(pr.project_id)
+end
+```
+
 ## Fixing client errors
 
 ### Authorization errors from LFS HTTP(S) client requests
 
-You may have problems if you're running a version of [Git LFS](https://git-lfs.github.com/) before 2.4.2.
+You may have problems if you're running a version of [Git LFS](https://git-lfs.com/) before 2.4.2.
 As noted in [this authentication issue](https://github.com/git-lfs/git-lfs/issues/3025),
 requests redirected from the secondary to the primary site do not properly send the
 Authorization header. This may result in either an infinite `Authorization <-> Redirect`
@@ -1192,7 +1654,7 @@ Failed to contact primary https://primary.domain.com/namespace/push_test.git\\nE
 
 The partial failover to a secondary Geo *site* may be the result of a temporary/transient issue. Therefore, first attempt to run the promote command again.
 
-1. SSH into every Sidekiq, PostgresSQL, Gitaly, and Rails node in the **secondary** site and run one of the following commands:
+1. SSH into every Sidekiq, PostgreSQL, Gitaly, and Rails node in the **secondary** site and run one of the following commands:
 
    - To promote the secondary site to primary:
 
@@ -1211,7 +1673,7 @@ The partial failover to a secondary Geo *site* may be the result of a temporary/
 
 If the above steps are **not successful**, proceed through the next steps:
 
-1. SSH to every Sidekiq, PostgresSQL, Gitaly and Rails node in the **secondary** site and perform the following operations:
+1. SSH to every Sidekiq, PostgreSQL, Gitaly and Rails node in the **secondary** site and perform the following operations:
 
    - Create a `/etc/gitlab/gitlab-cluster.json` file with the following content:
 
@@ -1231,6 +1693,39 @@ If the above steps are **not successful**, proceed through the next steps:
 1. Verify you can connect to the newly-promoted **primary** site using the URL used previously for the **secondary** site.
 1. If successful, the **secondary** site is now promoted to the **primary** site.
 
-## Additional tools
+## Check OS locale data compatibility
 
-There are useful snippets for manipulating Geo internals in the [GitLab Rails Cheat Sheet](../../troubleshooting/gitlab_rails_cheat_sheet.md#geo). For example, you can find how to manually sync or verify a replicable in Rails console.
+If different operating systems or different operating system versions are deployed across Geo sites, you should perform a locale data compatibility check before setting up Geo.
+
+Geo uses PostgreSQL and Streaming Replication to replicate data across Geo sites. PostgreSQL uses locale data provided by the operating system's C library for sorting text. If the locale data in the C library is incompatible across Geo sites, erroneous query results that lead to [incorrect behavior on secondary sites](https://gitlab.com/gitlab-org/gitlab/-/issues/360723).
+
+For example, Ubuntu 18.04 (and earlier) and RHEL/Centos7 (and earlier) are incompatible with their later releases.
+See the [PostgreSQL wiki for more details](https://wiki.postgresql.org/wiki/Locale_data_changes).
+
+On all hosts running PostgreSQL, across all Geo sites, run the following shell command:
+
+```shell
+( echo "1-1"; echo "11" ) | LC_COLLATE=en_US.UTF-8 sort
+```
+
+The output looks like either:
+
+```plaintext
+1-1
+11
+```
+
+or the reverse order:
+
+```plaintext
+11
+1-1
+```
+
+If the output is identical on all hosts, then they running compatible versions of locale data.
+
+If the output differs on some hosts, PostgreSQL replication does not work properly: indexes are corrupted on the database replicas. You should select operating system versions that are compatible.
+
+A full index rebuild is required if the on-disk data is transferred 'at rest' to an operating system with an incompatible locale, or through replication.
+
+This check is also required when using a mixture of GitLab deployments. The locale might be different between an Linux package install, a GitLab Docker container, a Helm chart deployment, or external database services.

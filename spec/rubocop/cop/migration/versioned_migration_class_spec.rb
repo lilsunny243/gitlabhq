@@ -3,12 +3,10 @@
 require 'rubocop_spec_helper'
 require_relative '../../../../rubocop/cop/migration/versioned_migration_class'
 
-RSpec.describe RuboCop::Cop::Migration::VersionedMigrationClass do
-  subject(:cop) { described_class.new }
-
+RSpec.describe RuboCop::Cop::Migration::VersionedMigrationClass, feature_category: :database do
   let(:migration) do
     <<~SOURCE
-      class TestMigration < Gitlab::Database::Migration[1.0]
+      class TestMigration < Gitlab::Database::Migration[2.1]
         def up
           execute 'select 1'
         end
@@ -51,23 +49,31 @@ RSpec.describe RuboCop::Cop::Migration::VersionedMigrationClass do
       it 'adds an offence if inheriting from ActiveRecord::Migration' do
         expect_offense(<<~RUBY)
           class MyMigration < ActiveRecord::Migration[6.1]
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Don't inherit from ActiveRecord::Migration but use Gitlab::Database::Migration[1.0] instead. See https://docs.gitlab.com/ee/development/migration_style_guide.html#migration-helpers-and-versioning.
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Don't inherit from ActiveRecord::Migration or old versions of Gitlab::Database::Migration. Use Gitlab::Database::Migration[2.1] instead. See https://docs.gitlab.com/ee/development/migration_style_guide.html#migration-helpers-and-versioning.
+          end
+        RUBY
+      end
+
+      it 'adds an offence if inheriting from old version of Gitlab::Database::Migration' do
+        expect_offense(<<~RUBY)
+          class MyMigration < Gitlab::Database::Migration[2.0]
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Don't inherit from ActiveRecord::Migration or old versions of Gitlab::Database::Migration. Use Gitlab::Database::Migration[2.1] instead. See https://docs.gitlab.com/ee/development/migration_style_guide.html#migration-helpers-and-versioning.
           end
         RUBY
       end
 
       it 'adds an offence if including Gitlab::Database::MigrationHelpers directly' do
         expect_offense(<<~RUBY)
-          class MyMigration < Gitlab::Database::Migration[1.0]
+          class MyMigration < Gitlab::Database::Migration[2.1]
             include Gitlab::Database::MigrationHelpers
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Don't include migration helper modules directly. Inherit from Gitlab::Database::Migration[1.0] instead. See https://docs.gitlab.com/ee/development/migration_style_guide.html#migration-helpers-and-versioning.
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Don't include migration helper modules directly. Inherit from Gitlab::Database::Migration[2.1] instead. See https://docs.gitlab.com/ee/development/migration_style_guide.html#migration-helpers-and-versioning.
           end
         RUBY
       end
 
       it 'excludes ActiveRecord classes defined inside the migration' do
         expect_no_offenses(<<~RUBY)
-          class TestMigration < Gitlab::Database::Migration[1.0]
+          class TestMigration < Gitlab::Database::Migration[2.1]
             class TestModel < ApplicationRecord
             end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Sidebars::Groups::Menus::SettingsMenu do
+RSpec.describe Sidebars::Groups::Menus::SettingsMenu, :with_license do
   let_it_be(:owner) { create(:user) }
 
   let_it_be_with_refind(:group) do
@@ -80,7 +80,7 @@ RSpec.describe Sidebars::Groups::Menus::SettingsMenu do
       it_behaves_like 'access rights checks'
     end
 
-    describe 'Packages & Registries' do
+    describe 'Packages and registries' do
       let(:item_id) { :packages_and_registries }
 
       before do

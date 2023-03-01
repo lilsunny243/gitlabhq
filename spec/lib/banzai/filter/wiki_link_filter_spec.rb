@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Filter::WikiLinkFilter do
+RSpec.describe Banzai::Filter::WikiLinkFilter, feature_category: :wiki do
   include FilterSpecHelper
 
   let(:namespace) { build_stubbed(:namespace, name: "wiki_link_ns") }
@@ -43,6 +43,14 @@ RSpec.describe Banzai::Filter::WikiLinkFilter do
   describe 'when links point to the relative wiki path' do
     it 'does not rewrite links' do
       path = "#{wiki.wiki_base_path}/#{repository_upload_folder}/a.jpg"
+      filtered_link = filter("<a href='#{path}'>Link</a>", wiki: wiki, page_slug: 'home').children[0]
+
+      expect(filtered_link.attribute('href').value).to eq(path)
+    end
+
+    it 'does not rewrite links to old relative wiki path' do
+      old_wiki_base_path = wiki.wiki_base_path.sub('/-/', '/')
+      path = "#{old_wiki_base_path}/#{repository_upload_folder}/a.jpg"
       filtered_link = filter("<a href='#{path}'>Link</a>", wiki: wiki, page_slug: 'home').children[0]
 
       expect(filtered_link.attribute('href').value).to eq(path)

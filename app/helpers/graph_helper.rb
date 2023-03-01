@@ -5,14 +5,16 @@ module GraphHelper
     refs = [commit.ref_names(repo).join(' ')]
 
     # append note count
-    notes_count = @graph.notes[commit.id]
-    refs << "[#{pluralize(notes_count, 'note')}]" if notes_count > 0
+    unless Feature.enabled?(:disable_network_graph_notes_count, @project, type: :experiment)
+      notes_count = @graph.notes[commit.id]
+      refs << "[#{pluralize(notes_count, 'note')}]" if notes_count > 0
+    end
 
     refs.join
   end
 
   def parents_zip_spaces(parents, parent_spaces)
-    ids = parents.map { |p| p.id }
+    ids = parents.map(&:id)
     ids.zip(parent_spaces)
   end
 

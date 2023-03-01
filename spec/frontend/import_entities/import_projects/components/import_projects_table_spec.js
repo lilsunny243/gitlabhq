@@ -5,6 +5,7 @@ import Vuex from 'vuex';
 import { STATUSES } from '~/import_entities/constants';
 import ImportProjectsTable from '~/import_entities/import_projects/components/import_projects_table.vue';
 import ProviderRepoTableRow from '~/import_entities/import_projects/components/provider_repo_table_row.vue';
+import AdvancedSettingsPanel from '~/import_entities/import_projects/components/advanced_settings.vue';
 import * as getters from '~/import_entities/import_projects/store/getters';
 import state from '~/import_entities/import_projects/store/state';
 
@@ -30,10 +31,10 @@ describe('ImportProjectsTable', () => {
 
   const findImportAllButton = () =>
     wrapper
-      .findAll(GlButton)
+      .findAllComponents(GlButton)
       .filter((w) => w.props().variant === 'confirm')
       .at(0);
-  const findImportAllModal = () => wrapper.find({ ref: 'importAllModal' });
+  const findImportAllModal = () => wrapper.findComponent({ ref: 'importAllModal' });
 
   const importAllFn = jest.fn();
   const importAllModalShowFn = jest.fn();
@@ -45,6 +46,7 @@ describe('ImportProjectsTable', () => {
     slots,
     filterable,
     paginatable,
+    optionalStages,
   } = {}) {
     Vue.use(Vuex);
 
@@ -57,7 +59,6 @@ describe('ImportProjectsTable', () => {
       actions: {
         fetchRepos: fetchReposFn,
         fetchJobs: jest.fn(),
-        fetchNamespaces: jest.fn(),
         importAll: importAllFn,
         stopJobsPolling: jest.fn(),
         clearJobsEtagPoll: jest.fn(),
@@ -71,6 +72,7 @@ describe('ImportProjectsTable', () => {
         providerTitle,
         filterable,
         paginatable,
+        optionalStages,
       },
       slots,
       stubs: {
@@ -89,13 +91,7 @@ describe('ImportProjectsTable', () => {
   it('renders a loading icon while repos are loading', () => {
     createComponent({ state: { isLoadingRepos: true } });
 
-    expect(wrapper.find(GlLoadingIcon).exists()).toBe(true);
-  });
-
-  it('renders a loading icon while namespaces are loading', () => {
-    createComponent({ state: { isLoadingNamespaces: true } });
-
-    expect(wrapper.find(GlLoadingIcon).exists()).toBe(true);
+    expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(true);
   });
 
   it('renders a table with provider repos', () => {
@@ -109,7 +105,7 @@ describe('ImportProjectsTable', () => {
       state: { namespaces: [{ fullPath: 'path' }], repositories },
     });
 
-    expect(wrapper.find(GlLoadingIcon).exists()).toBe(false);
+    expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(false);
     expect(wrapper.find('table').exists()).toBe(true);
     expect(
       wrapper
@@ -118,7 +114,7 @@ describe('ImportProjectsTable', () => {
         .exists(),
     ).toBe(true);
 
-    expect(wrapper.findAll(ProviderRepoTableRow)).toHaveLength(repositories.length);
+    expect(wrapper.findAllComponents(ProviderRepoTableRow)).toHaveLength(repositories.length);
   });
 
   it.each`
@@ -170,7 +166,7 @@ describe('ImportProjectsTable', () => {
   it('renders an empty state if there are no repositories available', () => {
     createComponent({ state: { repositories: [] } });
 
-    expect(wrapper.find(ProviderRepoTableRow).exists()).toBe(false);
+    expect(wrapper.findComponent(ProviderRepoTableRow).exists()).toBe(false);
     expect(wrapper.text()).toContain(`No ${providerTitle} repositories found`);
   });
 
@@ -211,35 +207,52 @@ describe('ImportProjectsTable', () => {
   });
 
   describe('when paginatable is set to true', () => {
-    const pageInfo = { page: 1 };
+    const initState = {
+      namespaces: [{ fullPath: 'path' }],
+      pageInfo: { page: 1, hasNextPage: true },
+      repositories: [
+        { importSource: { id: 1 }, importedProject: null, importStatus: STATUSES.NONE },
+      ],
+    };
 
-    beforeEach(() => {
-      createComponent({
-        state: {
-          namespaces: [{ fullPath: 'path' }],
-          pageInfo,
-          repositories: [
-            { importSource: { id: 1 }, importedProject: null, importStatus: STATUSES.NONE },
-          ],
-        },
-        paginatable: true,
+    describe('with hasNextPage true', () => {
+      beforeEach(() => {
+        createComponent({
+          state: initState,
+          paginatable: true,
+        });
+      });
+
+      it('does not call fetchRepos on mount', () => {
+        expect(fetchReposFn).not.toHaveBeenCalled();
+      });
+
+      it('renders intersection observer component', () => {
+        expect(wrapper.findComponent(GlIntersectionObserver).exists()).toBe(true);
+      });
+
+      it('calls fetchRepos when intersection observer appears', async () => {
+        wrapper.findComponent(GlIntersectionObserver).vm.$emit('appear');
+
+        await nextTick();
+
+        expect(fetchReposFn).toHaveBeenCalled();
       });
     });
 
-    it('does not call fetchRepos on mount', () => {
-      expect(fetchReposFn).not.toHaveBeenCalled();
-    });
+    describe('with hasNextPage false', () => {
+      beforeEach(() => {
+        initState.pageInfo.hasNextPage = false;
 
-    it('renders intersection observer component', () => {
-      expect(wrapper.find(GlIntersectionObserver).exists()).toBe(true);
-    });
+        createComponent({
+          state: initState,
+          paginatable: true,
+        });
+      });
 
-    it('calls fetchRepos when intersection observer appears', async () => {
-      wrapper.find(GlIntersectionObserver).vm.$emit('appear');
-
-      await nextTick();
-
-      expect(fetchReposFn).toHaveBeenCalled();
+      it('does not render intersection observer component', () => {
+        expect(wrapper.findComponent(GlIntersectionObserver).exists()).toBe(false);
+      });
     });
   });
 
@@ -271,4 +284,23 @@ describe('ImportProjectsTable', () => {
       expect(wrapper.text().includes(INCOMPATIBLE_TEXT)).toBe(shouldRenderSlot);
     },
   );
+
+  it('should not render advanced settings panel when no optional steps are passed', () => {
+    createComponent({ state: { providerRepos: [providerRepo] } });
+
+    expect(wrapper.findComponent(AdvancedSettingsPanel).exists()).toBe(false);
+  });
+
+  it('should render advanced settings panel when no optional steps are passed', () => {
+    const OPTIONAL_STAGES = [{ name: 'step1', label: 'Step 1' }];
+    createComponent({ state: { providerRepos: [providerRepo] }, optionalStages: OPTIONAL_STAGES });
+
+    expect(wrapper.findComponent(AdvancedSettingsPanel).exists()).toBe(true);
+    expect(wrapper.findComponent(AdvancedSettingsPanel).props('stages')).toStrictEqual(
+      OPTIONAL_STAGES,
+    );
+    expect(wrapper.findComponent(AdvancedSettingsPanel).props('value')).toStrictEqual({
+      step1: false,
+    });
+  });
 });

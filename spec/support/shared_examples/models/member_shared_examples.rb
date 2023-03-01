@@ -207,16 +207,14 @@ RSpec.shared_examples_for "member creation" do
         source.request_access(user)
       end
 
-      it 'does not add the requester as a regular member', :aggregate_failures do
+      it 'adds the requester as a member', :aggregate_failures do
         expect(source.users).not_to include(user)
-        expect(source.requesters.exists?(user_id: user)).to be_truthy
+        expect(source.requesters.exists?(user_id: user)).to eq(true)
 
-        expect do
-          described_class.add_member(source, user, :maintainer)
-        end.to raise_error(Gitlab::Access::AccessDeniedError)
+        described_class.add_member(source, user, :maintainer)
 
-        expect(source.users.reload).not_to include(user)
-        expect(source.requesters.reload.exists?(user_id: user)).to be_truthy
+        expect(source.users.reload).to include(user)
+        expect(source.requesters.reload.exists?(user_id: user)).to eq(false)
       end
     end
 
@@ -491,7 +489,7 @@ RSpec.shared_examples_for "bulk member creation" do
                                     :developer,
                                     tasks_to_be_done: %w(issues),
                                     tasks_project_id: task_project.id)
-        end.not_to change(MemberTask, :count)
+        end.not_to change { MemberTask.count }
 
         member.reset
         expect(member.tasks_to_be_done).to match_array([:code, :ci])
@@ -505,7 +503,7 @@ RSpec.shared_examples_for "bulk member creation" do
                                     :developer,
                                     tasks_to_be_done: %w(issues),
                                     tasks_project_id: task_project.id)
-        end.to change(MemberTask, :count).by(1)
+        end.to change { MemberTask.count }.by(1)
 
         member = source.members.find_by(user_id: user1.id)
         expect(member.tasks_to_be_done).to match_array([:issues])

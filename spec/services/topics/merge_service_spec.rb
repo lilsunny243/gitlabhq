@@ -5,10 +5,10 @@ require 'spec_helper'
 RSpec.describe Topics::MergeService do
   let_it_be(:source_topic) { create(:topic, name: 'source_topic') }
   let_it_be(:target_topic) { create(:topic, name: 'target_topic') }
-  let_it_be(:project_1) { create(:project, :public, topic_list: source_topic.name ) }
-  let_it_be(:project_2) { create(:project, :private, topic_list: source_topic.name ) }
-  let_it_be(:project_3) { create(:project, :public, topic_list: target_topic.name ) }
-  let_it_be(:project_4) { create(:project, :public, topic_list: [source_topic.name, target_topic.name] ) }
+  let_it_be(:project_1) { create(:project, :public, topic_list: source_topic.name) }
+  let_it_be(:project_2) { create(:project, :private, topic_list: source_topic.name) }
+  let_it_be(:project_3) { create(:project, :public, topic_list: target_topic.name) }
+  let_it_be(:project_4) { create(:project, :public, topic_list: [source_topic.name, target_topic.name]) }
 
   subject { described_class.new(source_topic, target_topic).execute }
 
@@ -30,7 +30,9 @@ RSpec.describe Topics::MergeService do
       it 'reverts previous changes' do
         allow(source_topic.reload).to receive(:destroy!).and_raise(ActiveRecord::RecordNotDestroyed)
 
-        expect { subject }.to raise_error(ActiveRecord::RecordNotDestroyed)
+        response = subject
+        expect(response).to be_error
+        expect(response.message).to eq('Topics could not be merged!')
 
         expect(source_topic.projects).to contain_exactly(project_1, project_2, project_4)
         expect(target_topic.projects).to contain_exactly(project_3, project_4)
@@ -50,9 +52,9 @@ RSpec.describe Topics::MergeService do
 
       with_them do
         it 'raises correct error' do
-          expect { subject }.to raise_error(ArgumentError) do |error|
-            expect(error.message).to eq(expected_message)
-          end
+          response = subject
+          expect(response).to be_error
+          expect(response.message).to eq(expected_message)
         end
       end
     end

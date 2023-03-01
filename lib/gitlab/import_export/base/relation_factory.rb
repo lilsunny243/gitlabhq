@@ -15,21 +15,23 @@ module Gitlab
         UNIQUE_RELATIONS = %i[].freeze
 
         USER_REFERENCES = %w[
-           author_id
-           assignee_id
-           updated_by_id
-           merged_by_id
-           latest_closed_by_id
-           user_id
-           created_by_id
-           last_edited_by_id
-           merge_user_id
-           resolved_by_id
-           closed_by_id
-           owner_id
-         ].freeze
+          author_id
+          assignee_id
+          updated_by_id
+          merged_by_id
+          latest_closed_by_id
+          user_id
+          created_by_id
+          last_edited_by_id
+          merge_user_id
+          resolved_by_id
+          closed_by_id
+          owner_id
+        ].freeze
 
         TOKEN_RESET_MODELS = %i[Project Namespace Group Ci::Trigger Ci::Build Ci::Runner ProjectHook ErrorTracking::ProjectErrorTrackingSetting].freeze
+
+        attr_reader :relation_name, :importable
 
         def self.create(*args, **kwargs)
           new(*args, **kwargs).create
@@ -156,9 +158,9 @@ module Gitlab
         end
 
         def remove_encrypted_attributes!
-          return unless relation_class.respond_to?(:encrypted_attributes) && relation_class.encrypted_attributes.any?
+          return unless relation_class.respond_to?(:attr_encrypted_attributes) && relation_class.attr_encrypted_attributes.any?
 
-          relation_class.encrypted_attributes.each_key do |key|
+          relation_class.attr_encrypted_attributes.each_key do |key|
             @relation_hash[key.to_s] = nil
           end
         end
@@ -209,23 +211,21 @@ module Gitlab
         def existing_or_new_object
           # Only find existing records to avoid mapping tables such as milestones
           # Otherwise always create the record, skipping the extra SELECT clause.
-          @existing_or_new_object ||= begin
-            if existing_object?
-              attribute_hash = attribute_hash_for(['events'])
+          @existing_or_new_object ||= if existing_object?
+                                        attribute_hash = attribute_hash_for(['events'])
 
-              existing_object.assign_attributes(attribute_hash) if attribute_hash.any?
+                                        existing_object.assign_attributes(attribute_hash) if attribute_hash.any?
 
-              existing_object
-            else
-              # Because of single-type inheritance, we need to be careful to use the `type` field
-              # See https://gitlab.com/gitlab-org/gitlab/issues/34860#note_235321497
-              inheritance_column = relation_class.try(:inheritance_column)
-              inheritance_attributes = parsed_relation_hash.slice(inheritance_column)
-              object = relation_class.new(inheritance_attributes)
-              object.assign_attributes(parsed_relation_hash)
-              object
-            end
-          end
+                                        existing_object
+                                      else
+                                        # Because of single-type inheritance, we need to be careful to use the `type` field
+                                        # See https://gitlab.com/gitlab-org/gitlab/issues/34860#note_235321497
+                                        inheritance_column = relation_class.try(:inheritance_column)
+                                        inheritance_attributes = parsed_relation_hash.slice(inheritance_column)
+                                        object = relation_class.new(inheritance_attributes)
+                                        object.assign_attributes(parsed_relation_hash)
+                                        object
+                                      end
         end
 
         def attribute_hash_for(attributes)

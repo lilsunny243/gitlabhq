@@ -6,6 +6,7 @@ require 'yaml'
 
 require_relative '../todo_dir'
 require_relative '../cop_todo'
+require_relative '../formatter/graceful_formatter'
 
 module RuboCop
   module Formatter
@@ -30,6 +31,7 @@ module RuboCop
         @config_inspect_todo_dir = load_config_inspect_todo_dir
         @config_old_todo_yml = load_config_old_todo_yml
         check_multiple_configurations!
+        create_empty_todos(@config_inspect_todo_dir)
 
         super
       end
@@ -46,9 +48,9 @@ module RuboCop
 
       def finished(_inspected_files)
         @todos.values.sort_by(&:cop_name).each do |todo|
-          todo.previously_disabled = previously_disabled?(todo)
-          path = @todo_dir.write(todo.cop_name, todo.to_yaml)
+          next unless configure_and_validate_todo(todo)
 
+          path = @todo_dir.write(todo.cop_name, todo.to_yaml)
           output.puts "Written to #{relative_path(path)}\n"
         end
       end
@@ -79,14 +81,42 @@ module RuboCop
         raise "Multiple configurations found for cops:\n#{list}\n"
       end
 
-      def previously_disabled?(todo)
+      # For each inspected cop TODO config create a TODO object to make sure
+      # the cop TODO config will be written even without any offenses.
+      def create_empty_todos(inspected_cop_config)
+        inspected_cop_config.each_key do |cop_name|
+          @todos[cop_name]
+        end
+      end
+
+      def config_for(todo)
         cop_name = todo.cop_name
 
-        config = @config_old_todo_yml[cop_name] ||
-          @config_inspect_todo_dir[cop_name] || {}
+        @config_old_todo_yml[cop_name] || @config_inspect_todo_dir[cop_name] || {}
+      end
+
+      def previously_disabled?(todo)
+        config = config_for(todo)
         return false if config.empty?
 
         config['Enabled'] == false
+      end
+
+      def grace_period?(todo)
+        config = config_for(todo)
+
+        GracefulFormatter.grace_period?(todo.cop_name, config)
+      end
+
+      def configure_and_validate_todo(todo)
+        todo.previously_disabled = previously_disabled?(todo)
+        todo.grace_period = grace_period?(todo)
+
+        if todo.previously_disabled && todo.grace_period
+          raise "#{todo.cop_name}: Cop must be enabled to use `#{GracefulFormatter.grace_period_key_value}`."
+        end
+
+        todo.generate?
       end
 
       def load_config_inspect_todo_dir

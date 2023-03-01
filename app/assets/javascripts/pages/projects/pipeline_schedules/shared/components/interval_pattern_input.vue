@@ -39,6 +39,11 @@ export default {
       required: false,
       default: '',
     },
+    sendNativeErrors: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
   },
   data() {
     return {
@@ -49,7 +54,7 @@ export default {
       inputNameAttribute: 'schedule[cron]',
       radioValue: this.initialCronInterval ? KEY_CUSTOM : KEY_EVERY_DAY,
       cronInterval: this.initialCronInterval,
-      cronSyntaxUrl: 'https://en.wikipedia.org/wiki/Cron',
+      cronSyntaxUrl: 'https://docs.gitlab.com/ee/topics/cron/',
     };
   },
   computed: {
@@ -90,7 +95,7 @@ export default {
         },
         {
           value: KEY_CUSTOM,
-          text: s__('PipelineScheduleIntervalPattern|Custom (%{linkStart}Cron syntax%{linkEnd})'),
+          text: s__('PipelineScheduleIntervalPattern|Custom (%{linkStart}Learn more.%{linkEnd})'),
           link: this.cronSyntaxUrl,
         },
       ];
@@ -114,9 +119,11 @@ export default {
     cronInterval() {
       // updates field validation state when model changes, as
       // glFieldError only updates on input.
-      this.$nextTick(() => {
-        gl.pipelineScheduleFieldErrors.updateFormValidityState();
-      });
+      if (this.sendNativeErrors) {
+        this.$nextTick(() => {
+          gl.pipelineScheduleFieldErrors.updateFormValidityState();
+        });
+      }
     },
     radioValue: {
       immediate: true,

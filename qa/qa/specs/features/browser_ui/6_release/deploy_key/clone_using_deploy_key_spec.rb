@@ -3,7 +3,7 @@
 require 'digest/sha1'
 
 module QA
-  RSpec.describe 'Release', :runner do
+  RSpec.describe 'Release', :runner, product_group: :release do
     describe 'Git clone using a deploy key' do
       let(:runner_name) { "qa-runner-#{SecureRandom.hex(4)}" }
       let(:repository_location) { project.repository_ssh_location }
@@ -15,11 +15,10 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate_via_api! do |resource|
+        Resource::ProjectRunner.fabricate_via_api! do |resource|
           resource.project = project
           resource.name = runner_name
           resource.tags = [runner_name]
-          resource.image = 'gitlab/gitlab-runner:alpine'
         end
       end
 
@@ -35,7 +34,7 @@ module QA
       keys = [
         ['https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348022', Runtime::Key::RSA, 8192, true],
         ['https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348021', Runtime::Key::ECDSA, 521, true],
-        ['https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348020', Runtime::Key::ED25519, false]
+        ['https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/348020', Runtime::Key::ED25519, 256, false]
       ]
 
       supported_keys =

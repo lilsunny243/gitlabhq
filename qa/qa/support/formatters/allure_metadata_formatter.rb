@@ -3,6 +3,14 @@
 module QA
   module Support
     module Formatters
+      # RSpec formatter to enhance metadata present in allure report
+      # Following additional data is added:
+      #   * quarantine issue links
+      #   * failure issues search link
+      #   * ci job link
+      #   * flaky status and test pass rate
+      #   * devops stage and group as epic and feature behaviour tags
+      #
       class AllureMetadataFormatter < ::RSpec::Core::Formatters::BaseFormatter
         include Support::InfluxdbTools
 
@@ -18,8 +26,6 @@ module QA
         # @param [RSpec::Core::Notifications::StartNotification] _start_notification
         # @return [void]
         def start(_start_notification)
-          return unless merge_request_iid # on main runs allure native history has pass rate already
-
           save_flaky_specs
           log(:debug, "Fetched #{flaky_specs.length} flaky testcases!")
         rescue StandardError => e
@@ -39,6 +45,7 @@ module QA
           add_failure_issues_link(example)
           add_ci_job_link(example)
           set_flaky_status(example)
+          set_behaviour_categories(example)
         end
 
         private
@@ -62,11 +69,11 @@ module QA
         # @param [RSpec::Core::Example] example
         # @return [void]
         def add_failure_issues_link(example)
-          spec_file = example.file_path.split('/').last
-          example.issue(
-            'Failure issues',
-            "https://gitlab.com/gitlab-org/gitlab/-/issues?scope=all&state=opened&search=#{spec_file}"
-          )
+          return unless example.execution_result.status == :failed
+
+          search_query = ERB::Util.url_encode("Failure in #{example.file_path.gsub('./qa/specs/features/', '')}")
+          search_url = "https://gitlab.com/gitlab-org/gitlab/-/issues?scope=all&state=opened&search=#{search_query}"
+          example.issue('Failure issues', search_url)
         rescue StandardError => e
           log(:error, "Failed to add failure issue link for example '#{example.description}', error: #{e}")
         end
@@ -88,13 +95,26 @@ module QA
         # @param [RSpec::Core::Example] example
         # @return [void]
         def set_flaky_status(example)
-          return unless merge_request_iid && flaky_specs.key?(example.metadata[:testcase])
+          return unless flaky_specs.key?(example.metadata[:testcase]) && example.execution_result.status != :pending
 
           example.set_flaky
-          example.parameter("pass_rate", "#{flaky_specs[example.metadata[:testcase]].round(1)}%")
+          example.parameter("pass_rate", "#{flaky_specs[example.metadata[:testcase]].round(0)}%")
           log(:debug, "Setting spec as flaky because it's pass rate is below 98%")
         rescue StandardError => e
           log(:error, "Failed to add spec pass rate data for example '#{example.description}', error: #{e}")
+        end
+
+        # Add behaviour categories to report
+        #
+        # @param [RSpec::Core::Example] example
+        # @return [void]
+        def set_behaviour_categories(example)
+          file_path = example.file_path.gsub('./qa/specs/features', '')
+          devops_stage = file_path.match(%r{\d{1,2}_(\w+)/})&.captures&.first
+          product_group = example.metadata[:product_group]
+
+          example.epic(devops_stage) if devops_stage
+          example.feature(product_group) if product_group
         end
 
         # Flaky specs with pass rate below 98%
@@ -102,12 +122,11 @@ module QA
         # @return [Array]
         def flaky_specs
           @flaky_specs ||= influx_data.lazy.each_with_object({}) do |data, result|
-            # Do not consider failures in same merge request
-            records = data.records.reject { |r| r.values["_value"] == merge_request_iid }
+            records = data.records
 
             runs = records.count
             failed = records.count { |r| r.values["status"] == "failed" }
-            pass_rate = 100 - ((failed.to_f / runs.to_f) * 100)
+            pass_rate = 100 - ((failed.to_f / runs) * 100)
 
             # Consider spec with a pass rate less than 98% as flaky
             result[records.last.values["testcase"]] = pass_rate if pass_rate < 98
@@ -122,14 +141,14 @@ module QA
         def influx_data
           return [] unless run_type
 
-          query_api.query(query: <<~QUERY).values
-            from(bucket: "#{Support::InfluxdbTools::INFLUX_TEST_METRICS_BUCKET}")
-              |> range(start: -14d)
+          query_api.query(query: <<~QUERY)
+            from(bucket: "#{Support::InfluxdbTools::INFLUX_MAIN_TEST_METRICS_BUCKET}")
+              |> range(start: -30d)
               |> filter(fn: (r) => r._measurement == "test-stats")
               |> filter(fn: (r) => r.run_type == "#{run_type}" and
                 r.status != "pending" and
                 r.quarantined == "false" and
-                r._field == "merge_request_iid"
+                r._field == "id"
               )
               |> group(columns: ["testcase"])
           QUERY

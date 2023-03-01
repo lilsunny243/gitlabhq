@@ -1,15 +1,15 @@
 <script>
 import { GlDropdownItem } from '@gitlab/ui';
 import Vue from 'vue';
-import createFlash from '~/flash';
-import { IssuableType } from '~/issues/constants';
+import { createAlert } from '~/flash';
+import { IssuableType, TYPE_ISSUE } from '~/issues/constants';
 import { __, n__ } from '~/locale';
-import SidebarAssigneesRealtime from '~/sidebar/components/assignees/assignees_realtime.vue';
-import IssuableAssignees from '~/sidebar/components/assignees/issuable_assignees.vue';
-import SidebarEditableItem from '~/sidebar/components/sidebar_editable_item.vue';
-import { assigneesQueries } from '~/sidebar/constants';
 import UserSelect from '~/vue_shared/components/user_select/user_select.vue';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { assigneesQueries } from '../../constants';
+import SidebarEditableItem from '../sidebar_editable_item.vue';
+import SidebarAssigneesRealtime from './assignees_realtime.vue';
+import IssuableAssignees from './issuable_assignees.vue';
 import SidebarInviteMembers from './sidebar_invite_members.vue';
 
 export const assigneesWidget = Vue.observable({
@@ -58,9 +58,9 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: IssuableType.Issue,
+      default: TYPE_ISSUE,
       validator(value) {
-        return [IssuableType.Issue, IssuableType.MergeRequest, IssuableType.Alert].includes(value);
+        return [TYPE_ISSUE, IssuableType.MergeRequest, IssuableType.Alert].includes(value);
       },
     },
     issuableId: {
@@ -111,14 +111,14 @@ export default {
         }
       },
       error() {
-        createFlash({ message: __('An error occurred while fetching participants.') });
+        createAlert({ message: __('An error occurred while fetching participants.') });
       },
     },
   },
   computed: {
     shouldEnableRealtime() {
       // Note: Realtime is only available on issues right now, future support for MR wil be built later.
-      return this.issuableType === IssuableType.Issue;
+      return this.issuableType === TYPE_ISSUE;
     },
     queryVariables() {
       return {
@@ -191,7 +191,7 @@ export default {
           return data;
         })
         .catch(() => {
-          createFlash({ message: __('An error occurred while updating assignees.') });
+          createAlert({ message: __('An error occurred while updating assignees.') });
         })
         .finally(() => {
           this.isSettingAssignees = false;
@@ -220,7 +220,7 @@ export default {
       this.$refs.userSelect.showDropdown();
     },
     showError() {
-      createFlash({ message: __('An error occurred while fetching participants.') });
+      createAlert({ message: __('An error occurred while fetching participants.') });
     },
     setDirtyState() {
       this.isDirty = true;

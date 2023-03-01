@@ -2,7 +2,7 @@
 type: reference
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Rate limits on issue creation **(FREE SELF)**
@@ -12,7 +12,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 This setting allows you to rate limit the requests to the issue and epic creation endpoints.
 To can change its value:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Network**.
 1. Expand **Issues Rate Limits**.
 1. Under **Max requests per minute**, enter the new value.
@@ -22,7 +22,7 @@ For example, if you set a limit of 300, requests using the
 [Projects::IssuesController#create](https://gitlab.com/gitlab-org/gitlab/blob/master/app/controllers/projects/issues_controller.rb)
 action exceeding a rate of 300 per minute are blocked. Access to the endpoint is allowed after one minute.
 
-When using [epics](../../group/epics/index.md), epic creation will share this rate limit with issues.
+When using [epics](../../group/epics/index.md), epic creation shares this rate limit with issues.
 
 ![Rate limits on issues creation](img/rate_limit_on_issues_creation_v14_2.png)
 

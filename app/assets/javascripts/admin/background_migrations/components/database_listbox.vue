@@ -1,5 +1,5 @@
 <script>
-import { GlListbox } from '@gitlab/ui';
+import { GlCollapsibleListbox } from '@gitlab/ui';
 import { s__ } from '~/locale';
 import { setUrlParams, visitUrl } from '~/lib/utils/url_utility';
 
@@ -9,7 +9,7 @@ export default {
     database: s__('BackgroundMigrations|Database'),
   },
   components: {
-    GlListbox,
+    GlCollapsibleListbox,
   },
   props: {
     databases: {
@@ -35,16 +35,16 @@ export default {
 </script>
 
 <template>
-  <div class="gl-display-flex gl-align-items-center" data-testid="database-listbox">
+  <div class="gl-display-flex gl-align-items-center">
     <label id="label" class="gl-font-weight-bold gl-mr-4 gl-mb-0">{{
       $options.i18n.database
     }}</label>
-    <gl-listbox
+    <gl-collapsible-listbox
       v-model="selected"
       :items="databases"
-      right
+      placement="right"
       :toggle-text="selectedDatabase"
-      aria-labelledby="label"
+      toggle-aria-labelled-by="label"
       @select="selectDatabase"
     />
   </div>

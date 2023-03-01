@@ -1,7 +1,7 @@
 ---
 stage: Create
-group: Editor
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+group: Source Code
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference
 ---
 
@@ -23,9 +23,15 @@ GitLab provides two types of snippets:
 
 - **Personal snippets**: Created independent of any project.
   You can set a [visibility level](public_access.md)
-  for your snippet: public, internal, or private.
+  for your snippet: public or private.
 - **Project snippets**: Always related to a specific project.
   Project snippets can be visible publicly, or to only project members.
+
+NOTE:
+From July 2019, the `Internal` visibility setting is disabled for new projects, groups,
+and snippets on GitLab.com. Existing snippets using the `Internal`
+visibility setting keep this setting. You can read more about the change in the
+[relevant issue](https://gitlab.com/gitlab-org/gitlab/-/issues/12388).
 
 ## Create snippets
 
@@ -61,10 +67,10 @@ In GitLab versions 13.0 and later, snippets are [versioned by default](#versione
 To discover all snippets visible to you in GitLab, you can:
 
 - **View all snippets visible to you**: On the top bar of your GitLab
-  instance, select **Menu > Snippets** to view your snippets dashboard.
+  instance, select **Main menu > Snippets** to view your snippets dashboard.
 - **Visit [GitLab snippets](https://gitlab.com/dashboard/snippets)** for your snippets on GitLab.com.
 - **Explore all public snippets**: On the top bar of your GitLab
-  instance, select **Menu > Snippets** and select **Explore snippets** to view
+  instance, select **Main menu > Snippets** and select **Explore snippets** to view
   [all public snippets](https://gitlab.com/explore/snippets).
 - **View a project's snippets**: In your project,
   go to **Snippets**.
@@ -143,7 +149,7 @@ by a Git repository), through the [Snippets API](../api/snippets.md), and in the
 To add a new file to your snippet through the GitLab UI:
 
 1. Go to your snippet in the GitLab UI.
-1. Select **Edit** in the top right corner.
+1. Select **Edit** in the upper-right corner.
 1. Select **Add another file**.
 1. Add your content to the file in the form fields provided.
 1. Select **Save changes**.
@@ -151,7 +157,7 @@ To add a new file to your snippet through the GitLab UI:
 To delete a file from your snippet through the GitLab UI:
 
 1. Go to your snippet in the GitLab UI.
-1. Select **Edit** in the top right corner.
+1. Select **Edit** in the upper-right corner.
 1. Select **Delete file** alongside the filename of each file you wish to delete.
 1. Select **Save changes**.
 
@@ -219,7 +225,7 @@ Prerequisites:
 
 To do this task:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Snippets**.
 1. Select the snippet you want to report as spam.
 1. Select **Submit as spam**.
@@ -261,3 +267,7 @@ creating a new snippet, use this workaround:
 1. Enter any string into the text area for the second file.
 1. Scroll back to the first filename, and select **Delete file**.
 1. Create the rest of your file, and select **Create snippet** when done.
+
+## Related topics
+
+- [Configure snippet settings](../administration/snippets/index.md) on a self-managed GitLab instance

@@ -1,19 +1,20 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Using Helm charts to update a Kubernetes cluster (Alpha) **(FREE)**
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/371019) in GitLab 15.4.
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/371019) in GitLab 15.4.
+> - Specifying a branch, tag, or commit reference to fetch the Kubernetes manifest files [introduced](https://gitlab.com/groups/gitlab-org/-/epics/4516) in GitLab 15.7.
 
 You can deploy Helm charts to your Kubernetes cluster and keep the resources in your cluster in sync
 with your charts and values. To do this, you use the pull-based GitOps features of the agent for
 Kubernetes.
 
 This feature is in Alpha and [an epic exists](https://gitlab.com/groups/gitlab-org/-/epics/7938)
-to track future work. Please tell us about your use cases by leaving comments in the epic.
+to track future work. Tell us about your use cases by leaving comments in the epic.
 
 NOTE:
 This feature is Alpha. In future releases, to accommodate new features, the configuration format might change without notice.
@@ -51,25 +52,64 @@ gitops:
     source:
       project:
         id: my-group/my-project-with-chart
+        ref:
+          branch: production
         path: dir-in-project/with/charts
     namespace: my-ns
     max_history: 1
+    values:
+      - inline:
+          someKey: example value
 ```
 
 | Keyword | Description |
 |--|--|
-| `charts` | List of charts you want to be applied in your cluster. Charts are applied concurrently. All charts must be in the same directory. |
+| `charts` | List of charts you want to be applied in your cluster. Charts are applied concurrently. |
 | `release_name` | Required. Name of the release to use when applying the chart. |
-| `id` | Required. ID of the project where Helm chart is committed. No authentication mechanisms are currently supported. |
-| `path` | Optional. Path of the chart in the project repository. Root of the repository is used by default. This is the directory with the `Chart.yaml` file. |
+| `values` | Optional. [Custom values](#custom-values) for the release. An array of objects. Only supports `inline` values. |
 | `namespace` | Optional. Namespace to use when applying the chart. Defaults to `default`. |
 | `max_history` | Optional. Maximum number of release [revisions to store in the cluster](https://helm.sh/docs/helm/helm_history/). |
+| `source` | Required. From where the chart should get installed. Only supports project sources. |
+| `source.project.id` | Required. ID of the project where Helm chart is committed. Authentication is not supported. |
+| `source.project.ref` | Optional. Git reference in the configured Git repository to fetch the Chart from. If not specified or empty, the default branch is used. If specified, it must contain either `branch`, `tag`, or `commit`. |
+| `source.project.ref.branch` | Branch name in the configured Git repository to fetch the Chart from. |
+| `source.project.ref.tag` | Tag name in the configured Git repository to fetch the Chart from. |
+| `source.project.ref.commit` | Commit SHA in the configured Git repository to fetch the Chart from. |
+| `source.project.path` | Optional. Path of the chart in the project repository. Root of the repository is used by default. Should be the directory with the `Chart.yaml` file. |
+
+## Custom values
+
+> [Introduced](https://gitlab.com/gitlab-org/cluster-integration/gitlab-agent/-/merge_requests/766) in GitLab 15.6. Requires both GitLab and the installed agent to be version 15.6 or later.
+
+To customize the values for a release, set the `values` key. It must be
+an array of objects. Each object must have exactly one top-level key that describes
+where the values come from. The supported top-level keys are:
+
+- `inline`: Specify the values inline in YAML format, similar to a Helm values
+  file.
+
+When installing a chart with custom values:
+
+- Custom values get merged on top of the chart's default `values.yaml` file.
+- Values from subsequent entries in the `values` array overwrite values from
+  previous entries.
+
+Example:
+
+```yaml
+gitops:
+  charts:
+  - release_name: some-release
+    values:
+      - inline:
+          someKey: example value
+    # ...
+```
 
 ## Automatic drift remediation
 
 Drift happens when the current configuration of an infrastructure resource differs from its desired configuration.
 Typically, drift is caused by manually editing resources directly, rather than by editing the code that describes the desired state. Minimizing the risk of drift helps to ensure configuration consistency and successful operations.
-mechanism. Minimizing the risk of drift helps to ensure configuration consistency and successful operations.
 
 In GitLab, the agent for Kubernetes regularly compares the desired state from the chart source with
 the actual state from the Kubernetes cluster. Deviations from the desired state are fixed at every check. These checks
@@ -99,7 +139,7 @@ The following are known issues:
   [this epic](https://gitlab.com/groups/gitlab-org/-/epics/7704).
 - Values for the chart must be in a `values.yaml` file. This file must be with the chart,
   in the same project and path.
-- Because of drift detection and remediation, release history, stored in the cluster, is not useful.
+- Because of drift detection and remediation, the release history stored in the cluster is not useful.
   A new release is created every five minutes and the oldest release is discarded.
   Eventually history consists only of the same information.
   View [this issue](https://gitlab.com/gitlab-org/gitlab/-/issues/372023) for details.

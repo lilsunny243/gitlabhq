@@ -2,11 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe 'search/_results' do
-  let(:user) { create(:user) }
+RSpec.describe 'search/_results', feature_category: :global_search do
+  let_it_be(:user) { create(:user) }
+
   let(:search_objects) { Issue.page(1).per(2) }
   let(:scope) { 'issues' }
   let(:term) { 'foo' }
+  let(:search_results) { instance_double('Gitlab::SearchResults', { formatted_count: 10, current_user: user } ) }
 
   before do
     controller.params[:action] = 'show'
@@ -14,18 +16,38 @@ RSpec.describe 'search/_results' do
 
     create_list(:issue, 3)
 
-    @search_objects = search_objects
-    @scope = scope
-    @search_term = term
-    @search_service = SearchServicePresenter.new(SearchService.new(user, search: term, scope: scope))
+    allow(view).to receive(:current_user) { user }
 
-    allow(@search_service).to receive(:search_objects).and_return(search_objects)
+    assign(:search_count_path, 'test count link')
+    assign(:search_path, 'link test')
+    assign(:search_results, search_results)
+    assign(:search_objects, search_objects)
+    assign(:search_term, term)
+    assign(:scope, scope)
+
+    search_service_presenter = SearchServicePresenter.new(SearchService.new(user, search: term, scope: scope))
+    allow(search_service_presenter).to receive(:search_objects).and_return(search_objects)
+    assign(:search_service_presenter, search_service_presenter)
   end
 
-  it 'displays the page size' do
-    render
+  describe 'page size' do
+    context 'when search results have a count' do
+      it 'displays the page size' do
+        render
 
-    expect(rendered).to have_content('Showing 1 - 2 of 3 issues for foo')
+        expect(rendered).to have_content('Showing 1 - 2 of 3 issues for foo')
+      end
+    end
+
+    context 'when search results do not have a count' do
+      let(:search_objects) { Issue.page(1).per(2).without_count }
+
+      it 'does not display the page size' do
+        render
+
+        expect(rendered).not_to have_content(/Showing .* of .*/)
+      end
+    end
   end
 
   context 'when searching notes which contain quotes in markdown' do
@@ -41,18 +63,6 @@ RSpec.describe 'search/_results' do
       render
 
       expect(rendered).to include('"<mark>helloworld</mark>"')
-    end
-  end
-
-  context 'when search results do not have a count' do
-    before do
-      @search_objects = @search_objects.without_count
-    end
-
-    it 'does not display the page size' do
-      render
-
-      expect(rendered).not_to have_content(/Showing .* of .*/)
     end
   end
 
@@ -147,7 +157,7 @@ RSpec.describe 'search/_results' do
         it 'does not render the sidebar' do
           render
 
-          expect(rendered).not_to have_selector('#js-search-sidebar')
+          expect(rendered).not_to have_selector('form.search-sidebar')
         end
       end
     end

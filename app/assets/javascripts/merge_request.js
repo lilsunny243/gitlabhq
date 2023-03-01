@@ -1,7 +1,7 @@
 /* eslint-disable func-names, no-underscore-dangle, consistent-return */
 
 import $ from 'jquery';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import toast from '~/vue_shared/plugins/global_toast';
 import { __ } from '~/locale';
 import eventHub from '~/vue_merge_request_widget/event_hub';
@@ -44,7 +44,7 @@ function MergeRequest(opts) {
         }
       },
       onError: () => {
-        createFlash({
+        createAlert({
           message: __(
             'Someone edited this merge request at the same time you did. Please refresh the page to see changes.',
           ),
@@ -94,11 +94,11 @@ MergeRequest.prototype.initMRBtnListeners = function () {
           .put(draftToggle.href, null, { params: { format: 'json' } })
           .then(({ data }) => {
             draftToggle.removeAttribute('disabled');
-            eventHub.$emit('MRWidgetUpdateRequested');
+
             MergeRequest.toggleDraftStatus(data.title, wipEvent === 'ready');
           })
           .catch(() => {
-            createFlash({
+            createAlert({
               message: __('Something went wrong. Please try again.'),
             });
           })
@@ -151,6 +151,10 @@ MergeRequest.hideCloseButton = function () {
 };
 
 MergeRequest.toggleDraftStatus = function (title, isReady) {
+  if (!window.gon?.features?.realtimeMrStatusChange) {
+    eventHub.$emit('MRWidgetUpdateRequested');
+  }
+
   if (isReady) {
     toast(__('Marked as ready. Merging is now allowed.'));
   } else {
@@ -173,7 +177,7 @@ MergeRequest.toggleDraftStatus = function (title, isReady) {
       );
 
       draftToggle.setAttribute('href', url);
-      draftToggle.querySelector('.gl-new-dropdown-item-text-wrapper').textContent = isReady
+      draftToggle.querySelector('.gl-dropdown-item-text-wrapper').textContent = isReady
         ? __('Mark as draft')
         : __('Mark as ready');
     });

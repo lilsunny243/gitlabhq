@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Managing Go versions
@@ -158,6 +158,8 @@ if you need help finding the correct person or labels:
 | GitLab Quality Images         | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab-build-images/-/issues) |
 | GitLab Shell                  | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab-shell/-/issues) |
 | GitLab Workhorse              | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) |
+| GitLab Browser-based DAST     | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) |
+| GitLab Coverage Fuzzer        | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) |
 | LabKit                        | [Issue Tracker](https://gitlab.com/gitlab-org/labkit/-/issues) |
 | [Node Exporter](https://github.com/prometheus/node_exporter) | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) |
 | [PgBouncer Exporter](https://github.com/prometheus-community/pgbouncer_exporter) | [Issue Tracker](https://gitlab.com/gitlab-org/gitlab/-/issues) |
@@ -191,7 +193,7 @@ be included in the relevant issues as part of the definition of done:
 Upstream component maintainers must validate their Go-based projects using:
 
 - Established unit tests in the codebase.
-- Procedures established in [Merge Request Performance Guidelines](../merge_request_performance_guidelines.md).
+- Procedures established in [Merge Request Performance Guidelines](../merge_request_concepts/performance.md).
 - Procedures established in [Performance, Reliability, and Availability guidelines](../code_review.md#performance-reliability-and-availability).
 
 Upstream component maintainers should consider validating their Go-based

@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Authoring
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Security
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
@@ -20,13 +20,19 @@ required by a job. Read [GitLab CI/CD pipeline configuration reference](../yaml/
 for more information about the syntax.
 
 GitLab has selected [Vault by HashiCorp](https://www.vaultproject.io) as the
-first supported provider, and [KV-V2](https://www.vaultproject.io/docs/secrets/kv/kv-v2)
+first supported provider, and [KV-V2](https://developer.hashicorp.com/vault/docs/secrets/kv/kv-v2)
 as the first supported secrets engine.
 
-GitLab authenticates using Vault's
-[JSON Web Token (JWT) authentication method](https://www.vaultproject.io/docs/auth/jwt#jwt-authentication), using
-the [JSON Web Token](https://gitlab.com/gitlab-org/gitlab/-/issues/207125) (`CI_JOB_JWT`)
-introduced in GitLab 12.10.
+By default, GitLab authenticates using Vault's
+[JSON Web Token (JWT) authentication method](https://developer.hashicorp.com/vault/docs/auth/jwt#jwt-authentication), using
+the [JSON Web Token](https://gitlab.com/gitlab-org/gitlab/-/issues/207125) (`CI_JOB_JWT`).
+
+[ID tokens](../yaml/index.md#id_tokens) is the preferred secure way to authenticate with Vault,
+because ID tokens are defined per-job. GitLab can also authenticate with Vault by using the `CI_JOB_JWT`,
+but that token is provided to every job, which can be a security risk.
+
+The [Authenticating and Reading Secrets With HashiCorp Vault](../examples/authenticating-with-hashicorp-vault/index.md)
+tutorial has more details about authenticating with ID tokens.
 
 You must [configure your Vault server](#configure-your-vault-server) before you
 can use [use Vault secrets in a CI job](#use-vault-secrets-in-a-ci-job).
@@ -56,7 +62,7 @@ To configure your Vault server:
 
 1. Ensure your Vault server is running on version 1.2.0 or higher.
 1. Enable the authentication method by running these commands. They provide your Vault
-   server the [JSON Web Key Set](https://tools.ietf.org/html/rfc7517) (JWKS) endpoint for your GitLab instance, so Vault
+   server the [JSON Web Key Set](https://www.rfc-editor.org/rfc/rfc7517) (JWKS) endpoint for your GitLab instance, so Vault
    can fetch the public signing key and verify the JSON Web Token (JWT) when authenticating:
 
    ```shell
@@ -83,15 +89,15 @@ To configure your Vault server:
 
 1. Configure roles on your Vault server, restricting roles to a project or namespace,
    as described in [Configure Vault server roles](#configure-vault-server-roles) on this page.
-1. [Create the following CI/CD variables](../variables/index.md#custom-cicd-variables)
+1. [Create the following CI/CD variables](../variables/index.md#for-a-project)
    to provide details about your Vault server:
    - `VAULT_SERVER_URL` - The URL of your Vault server, such as `https://vault.example.com:8200`.
      Required.
    - `VAULT_AUTH_ROLE` - Optional. The role to use when attempting to authenticate.
-     If no role is specified, Vault uses the [default role](https://www.vaultproject.io/api-docs/auth/jwt#default_role)
+     If no role is specified, Vault uses the [default role](https://developer.hashicorp.com/vault/api-docs/auth/jwt#default_role)
      specified when the authentication method was configured.
    - `VAULT_AUTH_PATH` - Optional. The path where the authentication method is mounted, default is `jwt`.
-   - `VAULT_NAMESPACE` - Optional. The [Vault Enterprise namespace](https://www.vaultproject.io/docs/enterprise/namespaces) to use for reading secrets and authentication.
+   - `VAULT_NAMESPACE` - Optional. The [Vault Enterprise namespace](https://developer.hashicorp.com/vault/docs/enterprise/namespaces) to use for reading secrets and authentication.
      If no namespace is specified, Vault uses the `root` ("`/`") namespace.
      The setting is ignored by Vault Open Source.
 
@@ -106,9 +112,14 @@ After [configuring your Vault server](#configure-your-vault-server), you can use
 the secrets stored in Vault by defining them with the `vault` keyword:
 
 ```yaml
-secrets:
-  DATABASE_PASSWORD:
-    vault: production/db/password@ops  # translates to secret `ops/data/production/db`, field `password`
+job_using_vault:
+  id_tokens:
+    VAULT_ID_TOKEN:
+      aud: https://gitlab.com
+  secrets:
+    DATABASE_PASSWORD:
+      vault: production/db/password@ops  # translates to secret `ops/data/production/db`, field `password`
+      token: $VAULT_ID_TOKEN
 ```
 
 In this example:
@@ -119,15 +130,19 @@ In this example:
 
 After GitLab fetches the secret from Vault, the value is saved in a temporary file.
 The path to this file is stored in a CI/CD variable named `DATABASE_PASSWORD`,
-similar to [variables of type `file`](../variables/index.md#cicd-variable-types).
+similar to [variables of type `file`](../variables/index.md#use-file-type-cicd-variables).
 
 To overwrite the default behavior, set the `file` option explicitly:
 
 ```yaml
 secrets:
+  id_tokens:
+    VAULT_ID_TOKEN:
+      aud: https://gitlab.com
   DATABASE_PASSWORD:
     vault: production/db/password@ops
     file: false
+    token: $VAULT_ID_TOKEN
 ```
 
 In this example, the secret value is put directly in the `DATABASE_PASSWORD` variable
@@ -142,8 +157,8 @@ When a CI job attempts to authenticate, it specifies a role. You can use roles t
 different policies together. If authentication is successful, these policies are
 attached to the resulting Vault token.
 
-[Bound claims](https://www.vaultproject.io/docs/auth/jwt#bound-claims) are predefined
-values that are matched to the JWT's claims. With bounded claims, you can restrict access
+[Bound claims](https://developer.hashicorp.com/vault/docs/auth/jwt#bound-claims) are predefined
+values that are matched to the JWT claims. With bounded claims, you can restrict access
 to specific GitLab users, specific projects, or even jobs running for specific Git
 references. You can have as many bounded claims you need, but they must *all* match
 for authentication to be successful.
@@ -177,18 +192,18 @@ Always restrict your roles to a project or namespace by using one of the provide
 claims like `project_id` or `namespace_id`. Without these restrictions, any JWT
 generated by this GitLab instance may be allowed to authenticate using this role.
 
-For a full list of `CI_JOB_JWT` claims, read the
-[How it works](../examples/authenticating-with-hashicorp-vault/index.md#how-it-works) section of the
+For a full list of ID token JWT claims, read the
+[How It Works](../examples/authenticating-with-hashicorp-vault/index.md#how-it-works) section of the
 [Authenticating and Reading Secrets With HashiCorp Vault](../examples/authenticating-with-hashicorp-vault/index.md) tutorial.
 
 You can also specify some attributes for the resulting Vault tokens, such as time-to-live,
 IP address range, and number of uses. The full list of options is available in
-[Vault's documentation on creating roles](https://www.vaultproject.io/api-docs/auth/jwt#create-role)
+[Vault's documentation on creating roles](https://developer.hashicorp.com/vault/api-docs/auth/jwt#create-role)
 for the JSON web token method.
 
 ## Using a self-signed Vault server
 
-When the Vault server is using a self-signed certificate, you will see the following error in the job logs:
+When the Vault server is using a self-signed certificate, you see the following error in the job logs:
 
 ```plaintext
 ERROR: Job failed (system failure): resolving secrets: initializing Vault service: preparing authenticated client: checking Vault server health: Get https://vault.example.com:8000/v1/sys/health?drsecondarycode=299&performancestandbycode=299&sealedcode=299&standbycode=299&uninitcode=299: x509: certificate signed by unknown authority
@@ -197,7 +212,7 @@ ERROR: Job failed (system failure): resolving secrets: initializing Vault servic
 You have two options to solve this error:
 
 - Add the self-signed certificate to the GitLab Runner server's CA store.
-  If you deployed GitLab Runner using the [Helm chart](https://docs.gitlab.com/runner/install/kubernetes.html), you will have to create your own GitLab Runner image.
+  If you deployed GitLab Runner using the [Helm chart](https://docs.gitlab.com/runner/install/kubernetes.html), you have to create your own GitLab Runner image.
 - Use the `VAULT_CACERT` environment variable to configure GitLab Runner to trust the certificate:
   - If you are using systemd to manage GitLab Runner, see [how to add an environment variable for GitLab Runner](https://docs.gitlab.com/runner/configuration/init.html#setting-custom-environment-variables).
   - If you deployed GitLab Runner using the [Helm chart](https://docs.gitlab.com/runner/install/kubernetes.html):

@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GraphQL BatchLoader
@@ -134,7 +134,7 @@ z.sync
 ```
 
 NOTE:
-There is no dependency analysis in the use of batch-loading. There is simply
+There is no dependency analysis in the use of batch-loading. There is
 a pending queue of requests, and as soon as any one result is needed, all pending
 requests are evaluated.
 
@@ -146,7 +146,7 @@ def publisher
   ::Gitlab::Graphql::Loaders::BatchModelLoader.new(::Publisher, object.publisher_id).find
 end
 
-# Here we need the publisher in order to generate the catalog URL
+# Here we need the publisher to generate the catalog URL
 def catalog_url
   ::Gitlab::Graphql::Lazy.with_value(publisher) do |p|
     UrlHelpers.book_catalog_url(publisher, object.isbn)
@@ -180,7 +180,7 @@ def resolve(args = {}, context = { current_user: current_user })
 end
 ```
 
-We can also use [QueryRecorder](../query_recorder.md) to make sure we are performing only **one SQL query** per call.
+We can also use [QueryRecorder](../database/query_recorder.md) to make sure we are performing only **one SQL query** per call.
 
 ```ruby
 it 'executes only 1 SQL query' do

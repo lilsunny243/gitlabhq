@@ -5,7 +5,6 @@ class Projects::PipelinesController < Projects::ApplicationController
   include RedisTracking
   include ProductAnalyticsTracking
   include ProjectStatsRefreshConflictsGuard
-  include ZuoraCSP
 
   urgency :low, [
     :index, :new, :builds, :show, :failures, :create,
@@ -23,10 +22,6 @@ class Projects::PipelinesController < Projects::ApplicationController
   before_action :authorize_update_pipeline!, only: [:retry, :cancel]
   before_action :ensure_pipeline, only: [:show, :downloadable_artifacts]
   before_action :reject_if_build_artifacts_size_refreshing!, only: [:destroy]
-
-  before_action do
-    push_frontend_feature_flag(:pipeline_tabs_vue, @project)
-  end
 
   # Will be removed with https://gitlab.com/gitlab-org/gitlab/-/issues/225596
   before_action :redirect_for_legacy_scope_filter, only: [:index], if: -> { request.format.html? }
@@ -50,10 +45,10 @@ class Projects::PipelinesController < Projects::ApplicationController
   POLLING_INTERVAL = 10_000
 
   feature_category :continuous_integration, [
-                     :charts, :show, :config_variables, :stage, :cancel, :retry,
-                     :builds, :dag, :failures, :status,
-                     :index, :create, :new, :destroy
-                   ]
+    :charts, :show, :config_variables, :stage, :cancel, :retry,
+    :builds, :dag, :failures, :status,
+    :index, :create, :new, :destroy
+  ]
   feature_category :code_testing, [:test_report]
   feature_category :build_artifacts, [:downloadable_artifacts]
 
@@ -103,15 +98,15 @@ class Projects::PipelinesController < Projects::ApplicationController
       end
       format.json do
         if service_response.success?
-          render json: PipelineSerializer
-                         .new(project: project, current_user: current_user)
-                         .represent(@pipeline),
-                 status: :created
+          render json: PipelineSerializer.new(project: project, current_user: current_user).represent(@pipeline),
+            status: :created
         else
-          render json: { errors: @pipeline.error_messages.map(&:content),
-                         warnings: @pipeline.warning_messages(limit: ::Gitlab::Ci::Warnings::MAX_LIMIT).map(&:content),
-                         total_warnings: @pipeline.warning_messages.length },
-                 status: :bad_request
+          bad_request_json = {
+            errors: @pipeline.error_messages.map(&:content),
+            warnings: @pipeline.warning_messages(limit: ::Gitlab::Ci::Warnings::MAX_LIMIT).map(&:content),
+            total_warnings: @pipeline.warning_messages.length
+          }
+          render json: bad_request_json, status: :bad_request
         end
       end
     end
@@ -139,21 +134,13 @@ class Projects::PipelinesController < Projects::ApplicationController
   end
 
   def builds
-    if Feature.enabled?(:pipeline_tabs_vue, project)
-      redirect_to pipeline_path(@pipeline, tab: 'builds')
-    else
-      render_show
-    end
+    render_show
   end
 
   def dag
     respond_to do |format|
       format.html do
-        if Feature.enabled?(:pipeline_tabs_vue, project)
-          redirect_to pipeline_path(@pipeline, tab: 'dag')
-        else
-          render_show
-        end
+        render_show
       end
       format.json do
         render json: Ci::DagPipelineSerializer
@@ -164,9 +151,7 @@ class Projects::PipelinesController < Projects::ApplicationController
   end
 
   def failures
-    if Feature.enabled?(:pipeline_tabs_vue, project)
-      redirect_to pipeline_path(@pipeline, tab: 'failures')
-    elsif @pipeline.failed_builds.present?
+    if @pipeline.failed_builds.present?
       render_show
     else
       redirect_to pipeline_path(@pipeline)
@@ -221,11 +206,7 @@ class Projects::PipelinesController < Projects::ApplicationController
   def test_report
     respond_to do |format|
       format.html do
-        if Feature.enabled?(:pipeline_tabs_vue, project)
-          redirect_to pipeline_path(@pipeline, tab: 'test_report')
-        else
-          render_show
-        end
+        render_show
       end
       format.json do
         render json: TestReportSerializer
@@ -238,8 +219,9 @@ class Projects::PipelinesController < Projects::ApplicationController
   def config_variables
     respond_to do |format|
       format.json do
-        project = @project.uses_external_project_ci_config? ? @project.ci_config_external_project : @project
-        result = Ci::ListConfigVariablesService.new(project, current_user).execute(params[:sha])
+        # Even if the parameter name is `sha`, it is actually a ref name. We always send `ref` to the endpoint.
+        # See: https://gitlab.com/gitlab-org/gitlab/-/issues/389065
+        result = Ci::ListConfigVariablesService.new(@project, current_user).execute(params[:sha])
 
         result.nil? ? head(:no_content) : render(json: result)
       end
@@ -352,7 +334,6 @@ class Projects::PipelinesController < Projects::ApplicationController
 
     experiment(:runners_availability_section, namespace: project.root_ancestor) do |e|
       e.candidate {}
-      e.publish_to_database
     end
   end
 

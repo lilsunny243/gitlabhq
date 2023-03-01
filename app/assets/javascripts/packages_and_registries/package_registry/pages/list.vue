@@ -1,6 +1,6 @@
 <script>
 import { GlEmptyState, GlLink, GlSprintf } from '@gitlab/ui';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_INFO } from '~/flash';
 import { historyReplaceState } from '~/lib/utils/common_utils';
 import { s__ } from '~/locale';
 import { SHOW_DELETE_SUCCESS_ALERT } from '~/packages_and_registries/shared/constants';
@@ -13,8 +13,7 @@ import {
   PACKAGE_HELP_URL,
 } from '~/packages_and_registries/package_registry/constants';
 import getPackagesQuery from '~/packages_and_registries/package_registry/graphql/queries/get_packages.query.graphql';
-
-import DeletePackage from '~/packages_and_registries/package_registry/components/functional/delete_package.vue';
+import DeletePackages from '~/packages_and_registries/package_registry/components/functional/delete_packages.vue';
 import PackageTitle from '~/packages_and_registries/package_registry/components/list/package_title.vue';
 import PackageSearch from '~/packages_and_registries/package_registry/components/list/package_search.vue';
 import PackageList from '~/packages_and_registries/package_registry/components/list/packages_list.vue';
@@ -27,7 +26,7 @@ export default {
     PackageList,
     PackageTitle,
     PackageSearch,
-    DeletePackage,
+    DeletePackages,
   },
   inject: ['emptyListIllustration', 'isGroupPage', 'fullPath'],
   data() {
@@ -45,7 +44,7 @@ export default {
         return this.queryVariables;
       },
       update(data) {
-        return data[this.graphqlResource].packages;
+        return data[this.graphqlResource]?.packages ?? {};
       },
       skip() {
         return !this.sort;
@@ -105,7 +104,7 @@ export default {
       const showAlert = urlParams.get(SHOW_DELETE_SUCCESS_ALERT);
       if (showAlert) {
         // to be refactored to use gl-alert
-        createFlash({ message: DELETE_PACKAGE_SUCCESS_MESSAGE, type: 'notice' });
+        createAlert({ message: DELETE_PACKAGE_SUCCESS_MESSAGE, variant: VARIANT_INFO });
         const cleanUrl = window.location.href.split('?')[0];
         historyReplaceState(cleanUrl);
       }
@@ -162,22 +161,22 @@ export default {
 <template>
   <div>
     <package-title :help-url="$options.links.PACKAGE_HELP_URL" :count="packagesCount" />
-    <package-search @update="handleSearchUpdate" />
+    <package-search class="gl-mb-5" @update="handleSearchUpdate" />
 
-    <delete-package
+    <delete-packages
       :refetch-queries="refetchQueriesData"
       show-success-alert
       @start="mutationLoading = true"
       @end="mutationLoading = false"
     >
-      <template #default="{ deletePackage }">
+      <template #default="{ deletePackages }">
         <package-list
           :list="packages.nodes"
           :is-loading="isLoading"
           :page-info="pageInfo"
           @prev-page="fetchPreviousPage"
           @next-page="fetchNextPage"
-          @package:delete="deletePackage"
+          @delete="deletePackages"
         >
           <template #empty-state>
             <gl-empty-state :title="emptyStateTitle" :svg-path="emptyListIllustration">
@@ -195,6 +194,6 @@ export default {
           </template>
         </package-list>
       </template>
-    </delete-package>
+    </delete-packages>
   </div>
 </template>

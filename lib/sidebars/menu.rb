@@ -43,7 +43,7 @@ module Sidebars
     # Value from menus is something like: [{ path: 'foo', path: 'bar', controller: :foo }]
     # This method filters the information and returns: { path: ['foo', 'bar'], controller: :foo }
     def all_active_routes
-      @all_active_routes ||= begin
+      @all_active_routes ||=
         ([active_routes] + renderable_items.map(&:active_routes)).flatten.each_with_object({}) do |pairs, hash|
           pairs.each do |k, v|
             hash[k] ||= []
@@ -53,7 +53,6 @@ module Sidebars
 
           hash
         end
-      end
     end
 
     # Returns whether the menu has any menu item, no
@@ -65,6 +64,36 @@ module Sidebars
     # Returns all renderable menu items
     def renderable_items
       @renderable_items ||= @items.select(&:render?)
+    end
+
+    # Returns a tree-like representation of itself and all
+    # renderable menu entries, with additional information
+    # on whether the item(s) have an active route
+    def serialize_for_super_sidebar
+      items = serialize_items_for_super_sidebar
+      is_active = @context.route_is_active.call(active_routes) || items.any? { |item| item[:is_active] }
+
+      {
+        title: title,
+        icon: sprite_icon,
+        link: link,
+        is_active: is_active,
+        pill_count: has_pill? ? pill_count : nil,
+        items: items
+      }
+    end
+
+    # Returns an array of renderable menu entries,
+    # with additional information on whether the item
+    # has an active route
+    def serialize_items_for_super_sidebar
+      # All renderable menu entries
+      renderable_items.map do |entry|
+        entry.serialize_for_super_sidebar.tap do |item|
+          active_routes = item.delete(:active_routes)
+          item[:is_active] = active_routes ? @context.route_is_active.call(active_routes) : false
+        end
+      end
     end
 
     # Returns whether the menu has any renderable menu item
@@ -92,6 +121,17 @@ module Sidebars
           html_options[:class] = [*html_options[:class], 'has-sub-items'].join(' ')
         end
       end
+    end
+
+    # Sometimes we want to convert a top-level Menu (e.g. Wiki/Snippets)
+    # to a MenuItem. This serializer is used in order to enable that conversion
+    def serialize_as_menu_item_args
+      {
+        title: title,
+        link: link,
+        active_routes: active_routes,
+        container_html_options: container_html_options
+      }
     end
 
     private

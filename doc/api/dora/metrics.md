@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Plan
 group: Optimize
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, api
 ---
 
@@ -23,10 +23,10 @@ GET /projects/:id/dora/metrics
 
 | Attribute            | Type             | Required | Description |
 |:---------------------|:-----------------|:---------|:------------|
-| `id`                 | integer/string   | yes      | The ID or [URL-encoded path of the project](../index.md#namespaced-path-encoding) can be accessed by the authenticated user. |
+| `id`                 | integer/string   | yes      | The ID or [URL-encoded path of the project](../rest/index.md#namespaced-path-encoding) can be accessed by the authenticated user. |
 | `metric`             | string           | yes      | One of `deployment_frequency`, `lead_time_for_changes`, `time_to_restore_service` or `change_failure_rate`. |
 | `end_date`           | string           | no       | Date range to end at. ISO 8601 Date format, for example `2021-03-01`. Default is the current date. |
-| `environment_tier`   | string           | no       | The [tier of the environment](../../ci/environments/index.md#deployment-tier-of-environments). Default is `production`. Deprecated, please use `environment_tiers`. |
+| `environment_tier`   | string           | no       | The [tier of the environment](../../ci/environments/index.md#deployment-tier-of-environments). Default is `production`. Deprecated, use `environment_tiers`. |
 | `environment_tiers`  | array of strings | no       | The [tiers of the environments](../../ci/environments/index.md#deployment-tier-of-environments). Default is `production`. |
 | `interval`           | string           | no       | The bucketing interval. One of `all`, `monthly` or `daily`. Default is `daily`. |
 | `start_date`         | string           | no       | Date range to start from. ISO 8601 Date format, for example `2021-03-01`. Default is 3 months ago. |
@@ -64,10 +64,10 @@ GET /groups/:id/dora/metrics
 
 | Attribute           | Type             | Required | Description |
 |:--------------------|:-----------------|:---------|:------------|
-| `id`                | integer/string   | yes      | The ID or [URL-encoded path of the project](../index.md#namespaced-path-encoding) can be accessed by the authenticated user. |
+| `id`                | integer/string   | yes      | The ID or [URL-encoded path of the project](../rest/index.md#namespaced-path-encoding) can be accessed by the authenticated user. |
 | `metric`            | string           | yes      | One of `deployment_frequency`, `lead_time_for_changes`, `time_to_restore_service` or `change_failure_rate`. |
 | `end_date`          | string           | no       | Date range to end at. ISO 8601 Date format, for example `2021-03-01`. Default is the current date. |
-| `environment_tier`  | string           | no       | The [tier of the environment](../../ci/environments/index.md#deployment-tier-of-environments). Default is `production`. Deprecated, please use `environment_tiers`. |
+| `environment_tier`  | string           | no       | The [tier of the environment](../../ci/environments/index.md#deployment-tier-of-environments). Default is `production`. Deprecated, use `environment_tiers`. |
 | `environment_tiers` | array of strings | no       | The [tiers of the environments](../../ci/environments/index.md#deployment-tier-of-environments). Default is `production`. |
 | `interval`          | string           | no       | The bucketing interval. One of `all`, `monthly` or `daily`. Default is `daily`. |
 | `start_date`        | string           | no       | Date range to start from. ISO 8601 Date format, for example `2021-03-01`. Default is 3 months ago. |
@@ -103,5 +103,8 @@ parameter:
 |:---------------------------|:-----------------------------------|
 | `change_failure_rate`      | The number of incidents divided by the number of deployments during the time period. Available only for production environment. |
 | `deployment_frequency`     | The number of successful deployments during the time period. |
-| `lead_time_for_changes`    | The median number of seconds between the merge of the merge request (MR) and the deployment of the MR's commits for all MRs deployed during the time period. |
+| `lead_time_for_changes`    | The median number of seconds between the merge of the merge request (MR) and the deployment of the MR commits for all MRs deployed during the time period. |
 | `time_to_restore_service`  | The median number of seconds an incident was open during the time period. Available only for production environment. |
+
+NOTE:
+The API returns the `monthly` and `all` intervals by calculating the median of the daily median values. This can introduce a slight inaccuracy in the returned data.

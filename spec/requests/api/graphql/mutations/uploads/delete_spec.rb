@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Delete an upload' do
+RSpec.describe 'Delete an upload', feature_category: :navigation do
   include GraphqlHelpers
 
   let_it_be(:group) { create(:group) }
@@ -47,10 +47,11 @@ RSpec.describe 'Delete an upload' do
 
           expect(response).to have_gitlab_http_status(:success)
           expect(mutation_response['upload']).to be_nil
-          expect(mutation_response['errors']).to match_array([
-            "The resource that you are attempting to access does not "\
-            "exist or you don't have permission to perform this action."
-          ])
+          expect(mutation_response['errors']).to match_array(
+            [
+              "The resource that you are attempting to access does not "\
+              "exist or you don't have permission to perform this action."
+            ])
         end
       end
     end

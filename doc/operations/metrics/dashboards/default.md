@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab-defined metrics dashboards (DEPRECATED) **(FREE)**
@@ -40,4 +40,4 @@ This dashboard displays CPU, memory, network and disk metrics for the pods in yo
 [variable selector](templating_variables.md#metric_label_values-variable-type)
 at the top of the dashboard to select which pod's metrics to display.
 
-![K8s pod health dashboard](img/k8s_pod_health_dashboard_v13_3.png)
+![Kubernetes pod health dashboard](img/k8s_pod_health_dashboard_v13_3.png)

@@ -1,7 +1,7 @@
 ---
 stage: Verify
-group: Pipeline Insights
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Pipeline Execution
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Unit test report examples **(FREE)**
@@ -18,7 +18,10 @@ Use the following job in `.gitlab-ci.yml`. This includes the `artifacts:paths` k
 ```yaml
 ## Use https://github.com/sj26/rspec_junit_formatter to generate a JUnit report format XML file with rspec
 ruby:
+  image: ruby:3.0.4
   stage: test
+  before_script:
+    - apt-get update -y && apt-get install -y bundler
   script:
     - bundle install
     - bundle exec rspec --format progress --format RspecJunitFormatter --out rspec.xml
@@ -39,7 +42,7 @@ Use the following job in `.gitlab-ci.yml`:
 golang:
   stage: test
   script:
-    - go get gotest.tools/gotestsum
+    - go install gotest.tools/gotestsum@latest
     - gotestsum --junitfile report.xml --format testname
   artifacts:
     when: always
@@ -183,7 +186,11 @@ the `javascript` job uses Jest to generate the test reports:
 
 ```yaml
 javascript:
+  image: node:latest
   stage: test
+  before_script:
+    - 'yarn global add jest'
+    - 'yarn add --dev jest-junit'
   script:
     - 'jest --ci --reporters=default --reporters=jest-junit'
   artifacts:
@@ -192,6 +199,9 @@ javascript:
       junit:
         - junit.xml
 ```
+
+To make the job pass when there are no `.test.js` files with unit tests, add the
+`--passWithNoTests` flag to the end of the `jest` command in the `script:` section.
 
 ### Karma
 

@@ -1,17 +1,17 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Content Editor development guidelines **(FREE)**
+# Content Editor development guidelines
 
 The Content Editor is a UI component that provides a WYSIWYG editing
 experience for [GitLab Flavored Markdown](../../user/markdown.md) in the GitLab application.
 It also serves as the foundation for implementing Markdown-focused editors
 that target other engines, like static site generators.
 
-We use [tiptap 2.0](https://tiptap.dev/) and [ProseMirror](https://prosemirror.net/)
+We use [Tiptap 2.0](https://tiptap.dev/) and [ProseMirror](https://prosemirror.net/)
 to build the Content Editor. These frameworks provide a level of abstraction on top of
 the native
 [`contenteditable`](https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Editable_content) web technology.
@@ -64,7 +64,7 @@ Instead, you should obtain an instance of the `ContentEditor` class by listening
 
 ```html
 <script>
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { __ } from '~/locale';
 
 export default {
@@ -75,7 +75,7 @@ export default {
       try {
         await this.contentEditor.setSerializedContent(this.content);
       } catch (e) {
-        createFlash(__('Could not load initial document'));
+        createAlert({ message: __('Could not load initial document') });
       }
     },
     submitChanges() {
@@ -209,7 +209,7 @@ the following events:
 - `blur`
 - `error`.
 
-Learn more about these events in [Tiptap's event guide](https://tiptap.dev/api/events/).
+Learn more about these events in [the Tiptap event guide](https://tiptap.dev/api/events/).
 
 ```html
 <script>
@@ -255,13 +255,13 @@ provides all the necessary extensions to support
 #### Implement new extensions
 
 Extensions are the building blocks of the Content Editor. You can learn how to implement
-new ones by reading [Tiptap's guide](https://tiptap.dev/guide/custom-extensions).
+new ones by reading [the Tiptap guide](https://tiptap.dev/guide/custom-extensions).
 We recommend checking the list of built-in [nodes](https://tiptap.dev/api/nodes) and
 [marks](https://tiptap.dev/api/marks) before implementing a new extension
 from scratch.
 
 Store the Content Editor extensions in the `~/content_editor/extensions` directory.
-When using a Tiptap's built-in extension, wrap it in a ES6 module inside this directory:
+When using a Tiptap built-in extension, wrap it in a ES6 module inside this directory:
 
 ```javascript
 export { Bold as default } from '@tiptap/extension-bold';
@@ -326,10 +326,10 @@ sequenceDiagram
     A->>E: setContent(document)
 ```
 
-Deserializers live in the extension modules. Read Tiptap's
-[parseHTML](https://tiptap.dev/guide/custom-extensions#parse-html) and
-[addAttributes](https://tiptap.dev/guide/custom-extensions#attributes) documentation to
-learn how to implement them. Titap's API is a wrapper around ProseMirror's
+Deserializers live in the extension modules. Read Tiptap documentation about
+[`parseHTML`](https://tiptap.dev/guide/custom-extensions#parse-html) and
+[`addAttributes`](https://tiptap.dev/guide/custom-extensions#attributes) to
+learn how to implement them. The Tiptap API is a wrapper around ProseMirror's
 [schema spec API](https://prosemirror.net/docs/ref/#model.SchemaSpec).
 
 #### Serialization

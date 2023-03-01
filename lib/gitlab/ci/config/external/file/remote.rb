@@ -28,7 +28,9 @@ module Gitlab
               )
             end
 
-            private
+            def validate_context!
+              # no-op
+            end
 
             def validate_location!
               super
@@ -37,6 +39,8 @@ module Gitlab
                 errors.push("Remote file `#{masked_location}` does not have a valid address!")
               end
             end
+
+            private
 
             def fetch_remote_content
               begin
@@ -49,7 +53,7 @@ module Gitlab
                 errors.push("Remote file `#{masked_location}` could not be fetched because of a timeout error!")
               rescue Gitlab::HTTP::Error
                 errors.push("Remote file `#{masked_location}` could not be fetched because of HTTP error!")
-              rescue Gitlab::HTTP::BlockedUrlError => e
+              rescue Errno::ECONNREFUSED, Gitlab::HTTP::BlockedUrlError => e
                 errors.push("Remote file could not be fetched because #{e}!")
               end
 

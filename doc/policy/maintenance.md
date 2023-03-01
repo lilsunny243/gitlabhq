@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts
 ---
 
@@ -12,8 +12,8 @@ patch, and security releases. New releases are announced on the [GitLab blog](ht
 
 Our current policy is:
 
-- Backporting bug fixes for **only the current stable release** at any given time. (See [patch releases](#patch-releases).)
-- Backporting security fixes **to the previous two monthly releases in addition to the current stable release**. (See [security releases](#security-releases).)
+- Backporting bug fixes for **only the current stable release** at any given time - see [patch releases](#patch-releases) below.
+- Backporting security fixes **to the previous two monthly releases in addition to the current stable release**. In some circumstances (outlined in [security releases](#security-releases) below) we may address a security vulnerability using the [patch release](#patch-releases) process or regular monthly release process, that is, providing an update to the current stable release only, with no backports.
 
 In rare cases, release managers may make an exception and backport to more than
 the last two monthly releases. See
@@ -36,7 +36,7 @@ The following table describes the version types and their release cadence:
 
 | Version type | Description | Cadence |
 |:-------------|:------------|:--------|
-| Major        | For significant changes, or when any backward-incompatible changes are introduced to the public API. | Yearly. The next major release is GitLab 15.0 on May 22, 2022. GitLab schedules major releases on May 22 each year, by default. |
+| Major        | For significant changes, or when any backward-incompatible changes are introduced to the public API. | Yearly. The next major release is GitLab 16.0 on May 22, 2023. GitLab schedules major releases on May 22 each year, by default. |
 | Minor        | For when new backward-compatible functionality is introduced to the public API, a minor feature is introduced, or when a set of smaller features is rolled out. | Monthly on the 22nd. |
 | Patch        | For backward-compatible bug fixes that fix incorrect behavior. See [Patch releases](#patch-releases). | As needed. |
 
@@ -107,8 +107,7 @@ In some cases, however, we may need to backport *a bug fix* to more than one sta
 release, depending on the severity of the bug.
 
 The decision on whether backporting a change is performed is done at the discretion of the
-[current release managers](https://about.gitlab.com/community/release-managers/), similar to what is
-described in the [managing bugs](https://gitlab.com/gitlab-org/gitlab/-/blob/master/PROCESS.md#managing-bugs) process,
+[current release managers](https://about.gitlab.com/community/release-managers/),
 based on *all* of the following:
 
 1. Estimated [severity](../development/contributing/issue_workflow.md#severity-labels) of the bug:
@@ -132,12 +131,15 @@ To request backporting to more than one stable release for consideration, raise 
 ### Security releases
 
 Security releases are a special kind of patch release that only include security
-fixes and patches (see below) for the previous two monthly releases in addition to the current stable release.
+fixes and patches for the previous two monthly releases in addition to the current stable release.
 
 For very serious security issues, there is
 [precedent](https://about.gitlab.com/releases/2016/05/02/cve-2016-4340-patches/)
 to backport security fixes to even more monthly releases of GitLab.
 This decision is made on a case-by-case basis.
+
+In some circumstances we may choose to address a vulnerability using the [patch release](#patch-releases) process or the regular monthly release process, that is, updating the current stable release only, with no backports. Factors influencing this decision include very low likelihood of exploitation, low impact, fix complexity and risk to stability. We will **always address
+high and critical** security issues with a security release.
 
 ## More information
 

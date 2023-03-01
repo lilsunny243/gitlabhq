@@ -8,12 +8,8 @@ module QA
         include Shared::CommitButton
         include Shared::Editor
 
-        view 'app/assets/javascripts/editor/components/source_editor_toolbar_button.vue' do
-          element :editor_toolbar_button
-        end
-
-        view 'app/views/projects/blob/_editor.html.haml' do
-          element :source_editor_preview_container
+        view 'app/assets/javascripts/editor/extensions/source_editor_markdown_livepreview_ext.js' do
+          element :editor_toolbar_button, "qaSelector: 'editor_toolbar_button'" # rubocop:disable QA/ElementWithPattern
         end
 
         def has_markdown_preview?(component, content)

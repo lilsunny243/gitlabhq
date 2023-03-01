@@ -5,7 +5,10 @@ import {
   setFrequentItemToLS,
   mergeById,
   isSidebarDirty,
+  formatSearchResultCount,
+  getAggregationsUrl,
 } from '~/search/store/utils';
+import { useMockLocationHelper } from 'helpers/mock_window_location_helper';
 import {
   MOCK_LS_KEY,
   MOCK_GROUPS,
@@ -223,11 +226,14 @@ describe('Global Search Store Utils', () => {
   });
 
   describe.each`
-    description            | currentQuery                                                          | urlQuery                                                              | isDirty
-    ${'identical'}         | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'default' }} | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'default' }} | ${false}
-    ${'different'}         | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'new' }}     | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'default' }} | ${true}
-    ${'null/undefined'}    | ${{ [SIDEBAR_PARAMS[0]]: null, [SIDEBAR_PARAMS[1]]: null }}           | ${{ [SIDEBAR_PARAMS[0]]: undefined, [SIDEBAR_PARAMS[1]]: undefined }} | ${false}
-    ${'updated/undefined'} | ${{ [SIDEBAR_PARAMS[0]]: 'new', [SIDEBAR_PARAMS[1]]: 'new' }}         | ${{ [SIDEBAR_PARAMS[0]]: undefined, [SIDEBAR_PARAMS[1]]: undefined }} | ${true}
+    description                             | currentQuery                                                                                           | urlQuery                                                                                               | isDirty
+    ${'identical'}                          | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'default', [SIDEBAR_PARAMS[2]]: ['a', 'b'] }} | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'default', [SIDEBAR_PARAMS[2]]: ['a', 'b'] }} | ${false}
+    ${'different'}                          | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'new', [SIDEBAR_PARAMS[2]]: ['a', 'b'] }}     | ${{ [SIDEBAR_PARAMS[0]]: 'default', [SIDEBAR_PARAMS[1]]: 'default', [SIDEBAR_PARAMS[2]]: ['a', 'c'] }} | ${true}
+    ${'null/undefined'}                     | ${{ [SIDEBAR_PARAMS[0]]: null, [SIDEBAR_PARAMS[1]]: null, [SIDEBAR_PARAMS[2]]: null }}                 | ${{ [SIDEBAR_PARAMS[0]]: undefined, [SIDEBAR_PARAMS[1]]: undefined, [SIDEBAR_PARAMS[2]]: undefined }}  | ${false}
+    ${'updated/undefined'}                  | ${{ [SIDEBAR_PARAMS[0]]: 'new', [SIDEBAR_PARAMS[1]]: 'new', [SIDEBAR_PARAMS[2]]: ['a', 'b'] }}         | ${{ [SIDEBAR_PARAMS[0]]: undefined, [SIDEBAR_PARAMS[1]]: undefined, [SIDEBAR_PARAMS[2]]: [] }}         | ${true}
+    ${'language only no url params'}        | ${{ [SIDEBAR_PARAMS[2]]: ['a', 'b'] }}                                                                 | ${{ [SIDEBAR_PARAMS[2]]: undefined }}                                                                  | ${true}
+    ${'language only url params symetric'}  | ${{ [SIDEBAR_PARAMS[2]]: ['a', 'b'] }}                                                                 | ${{ [SIDEBAR_PARAMS[2]]: ['a', 'b'] }}                                                                 | ${false}
+    ${'language only url params asymetric'} | ${{ [SIDEBAR_PARAMS[2]]: ['a'] }}                                                                      | ${{ [SIDEBAR_PARAMS[2]]: ['a', 'b'] }}                                                                 | ${true}
   `('isSidebarDirty', ({ description, currentQuery, urlQuery, isDirty }) => {
     describe(`with ${description} sidebar query data`, () => {
       let res;
@@ -239,6 +245,25 @@ describe('Global Search Store Utils', () => {
       it(`returns ${isDirty}`, () => {
         expect(res).toStrictEqual(isDirty);
       });
+    });
+  });
+  describe('formatSearchResultCount', () => {
+    it('returns zero as string if no count is provided', () => {
+      expect(formatSearchResultCount()).toStrictEqual('0');
+    });
+    it('returns 10K string for 10000 integer', () => {
+      expect(formatSearchResultCount(10000)).toStrictEqual('10K');
+    });
+    it('returns 23K string for "23,000+" string', () => {
+      expect(formatSearchResultCount('23,000+')).toStrictEqual('23K');
+    });
+  });
+
+  describe('getAggregationsUrl', () => {
+    useMockLocationHelper();
+    it('returns zero as string if no count is provided', () => {
+      const testURL = window.location.href;
+      expect(getAggregationsUrl()).toStrictEqual(`${testURL}search/aggregations`);
     });
   });
 });

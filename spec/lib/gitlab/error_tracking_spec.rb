@@ -154,6 +154,32 @@ RSpec.describe Gitlab::ErrorTracking do
     end
   end
 
+  describe '.log_and_raise_exception' do
+    subject(:log_and_raise_exception) do
+      described_class.log_and_raise_exception(exception, extra)
+    end
+
+    it 'only logs and raises the exception' do
+      expect(Raven).not_to receive(:capture_exception)
+      expect(Sentry).not_to receive(:capture_exception)
+      expect(Gitlab::ErrorTracking::Logger).to receive(:error).with(logger_payload)
+
+      expect { log_and_raise_exception }.to raise_error(RuntimeError)
+    end
+
+    context 'when extra details are provided' do
+      let(:extra) { { test: 1, my_token: 'test' } }
+
+      it 'filters parameters' do
+        expect(Gitlab::ErrorTracking::Logger).to receive(:error).with(
+          hash_including({ 'extra.test' => 1, 'extra.my_token' => '[FILTERED]' })
+        )
+
+        expect { log_and_raise_exception }.to raise_error(RuntimeError)
+      end
+    end
+  end
+
   describe '.track_exception' do
     subject(:track_exception) do
       described_class.track_exception(exception, extra)
@@ -369,6 +395,25 @@ RSpec.describe Gitlab::ErrorTracking do
       end
     end
 
+    context 'when exception is excluded' do
+      before do
+        stub_const('SubclassRetryError', Class.new(Gitlab::SidekiqMiddleware::RetryError))
+      end
+
+      ['Gitlab::SidekiqMiddleware::RetryError', 'SubclassRetryError'].each do |ex|
+        let(:exception) { ex.constantize.new }
+
+        it "does not report #{ex} exception to Sentry" do
+          expect(Gitlab::ErrorTracking::Logger).to receive(:error)
+
+          track_exception
+
+          expect(Raven.client.transport.events).to eq([])
+          expect(Sentry.get_current_client.transport.events).to eq([])
+        end
+      end
+    end
+
     context 'when processing invalid URI exceptions' do
       let(:invalid_uri) { 'http://foo:bar' }
       let(:raven_exception_values) { raven_event['exception']['values'] }
@@ -442,6 +487,30 @@ RSpec.describe Gitlab::ErrorTracking do
           'Private-Token' => '[FILTERED]',
           'Job-Token' => '[FILTERED]'
         )
+      end
+    end
+  end
+
+  context 'Sentry performance monitoring' do
+    context 'when ENABLE_SENTRY_PERFORMANCE_MONITORING env is disabled' do
+      before do
+        stub_env('ENABLE_SENTRY_PERFORMANCE_MONITORING', false)
+        described_class.configure_sentry # Force re-initialization to reset traces_sample_rate setting
+      end
+
+      it 'does not set traces_sample_rate' do
+        expect(Sentry.get_current_client.configuration.traces_sample_rate.present?).to eq false
+      end
+    end
+
+    context 'when ENABLE_SENTRY_PERFORMANCE_MONITORING env is enabled' do
+      before do
+        stub_env('ENABLE_SENTRY_PERFORMANCE_MONITORING', true)
+        described_class.configure_sentry # Force re-initialization to reset traces_sample_rate setting
+      end
+
+      it 'sets traces_sample_rate' do
+        expect(Sentry.get_current_client.configuration.traces_sample_rate.present?).to eq true
       end
     end
   end

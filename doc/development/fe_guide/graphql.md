@@ -2,7 +2,7 @@
 type: reference, dev
 stage: none
 group: Development
-info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments-to-development-guidelines"
+info: "See the Technical Writers assigned to Development Guidelines: https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments-to-development-guidelines"
 ---
 
 # GraphQL
@@ -14,7 +14,7 @@ info: "See the Technical Writers assigned to Development Guidelines: https://abo
 **General resources**:
 
 - [📚 Official Introduction to GraphQL](https://graphql.org/learn/)
-- [📚 Official Introduction to Apollo](https://www.apollographql.com/tutorials/fullstack-quickstart/introduction)
+- [📚 Official Introduction to Apollo](https://www.apollographql.com/tutorials/fullstack-quickstart/01-introduction)
 
 **GraphQL at GitLab**:
 
@@ -84,10 +84,8 @@ Our GraphQL API can be explored via GraphiQL at your instance's
 [GitLab GraphQL API Reference documentation](../../api/graphql/reference)
 where needed.
 
-You can check all existing queries and mutations on the right side
-of GraphiQL in its **Documentation explorer**. You can also
-write queries and mutations directly on the left tab and check
-their execution by clicking **Execute query** button on the top left:
+To check all existing queries and mutations, on the right side of GraphiQL, select **Documentation explorer**.
+To check the execution of the queries and mutations you've written, in the upper-left corner, select **Execute query**.
 
 ![GraphiQL interface](img/graphiql_explorer_v12_4.png)
 
@@ -109,7 +107,7 @@ Default client accepts two parameters: `resolvers` and `config`.
 
 If you are making multiple queries to the same Apollo client object you might encounter the following error: `Cache data may be lost when replacing the someProperty field of a Query object. To address this problem, either ensure all objects of SomeEntityhave an id or a custom merge function`. We are already checking `ID` presence for every GraphQL type that has an `ID`, so this shouldn't be the case. Most likely, the `SomeEntity` type doesn't have an `ID` property, and to fix this warning we need to define a custom merge function.
 
-We have some client-wide types with `merge: true` defined in the default client as [typePolicies](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/lib/graphql.js) (this means that Apollo will merge existing and incoming responses in the case of subsequent queries). Consider adding `SomeEntity` there or defining a custom merge function for it.
+We have some client-wide types with `merge: true` defined in the default client as [`typePolicies`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/assets/javascripts/lib/graphql.js) (this means that Apollo will merge existing and incoming responses in the case of subsequent queries). Consider adding `SomeEntity` there or defining a custom merge function for it.
 
 ## GraphQL Queries
 
@@ -330,7 +328,7 @@ Along with creating local data, we can also extend existing GraphQL types with `
 
 ##### Mocking API response with local Apollo cache
 
-Using local Apollo Cache is helpful when we have a need to mock some GraphQL API responses, queries, or mutations locally (such as when they're still not added to our actual API).
+Using local Apollo Cache is helpful when we have a reason to mock some GraphQL API responses, queries, or mutations locally (such as when they're still not added to our actual API).
 
 For example, we have a [fragment](#fragments) on `DesignVersion` used in our queries:
 
@@ -341,7 +339,7 @@ fragment VersionListItem on DesignVersion {
 }
 ```
 
-We also need to fetch the version author and the `created at` property to display in the versions dropdown. But, these changes are still not implemented in our API. We can change the existing fragment to get a mocked response for these new fields:
+We also must fetch the version author and the `created at` property to display in the versions dropdown list. But, these changes are still not implemented in our API. We can change the existing fragment to get a mocked response for these new fields:
 
 ```javascript
 fragment VersionListItem on DesignVersion {
@@ -627,7 +625,7 @@ GraphQL entities are not yet part of the schema, or if they are feature-flagged 
 ### Manually triggering queries
 
 Queries on a component's `apollo` property are made automatically when the component is created.
-Some components instead want the network request made on-demand, for example a dropdown with lazy-loaded items.
+Some components instead want the network request made on-demand, for example a dropdown list with lazy-loaded items.
 
 There are two ways to do this:
 
@@ -907,7 +905,7 @@ For example, we have a query like this:
 query searchGroupsWhereUserCanTransfer {
   currentUser {
     id
-    groups {
+    groups(after: 'somecursor') {
       nodes {
         id
         fullName
@@ -920,9 +918,7 @@ query searchGroupsWhereUserCanTransfer {
 }
 ```
 
-Here, the `groups` field doesn't have a good candidate for `keyArgs`: both
-`nodes` and `pageInfo` will be updated when we're fetching a second page.
-Setting `keyArgs` to `false` makes the update work as intended:
+Here, the `groups` field doesn't have a good candidate for `keyArgs`: we don't want to account for `after` argument because it will change on requesting subsequent pages. Setting `keyArgs` to `false` makes the update work as intended:
 
 ```javascript
 typePolicies: {
@@ -1140,7 +1136,7 @@ query getPipelineEtag {
 ```javascript
 /* pipeline_editor/components/header/pipeline_status.vue */
 
-import getPipelineEtag from '~/pipeline_editor/graphql/queries/client/pipeline_etag.query.graphql';
+import getPipelineEtag from '~/ci/pipeline_editor/graphql/queries/client/pipeline_etag.query.graphql';
 
 apollo: {
   pipelineEtag: {
@@ -1318,7 +1314,7 @@ automatically find and index the schema.
 
 #### Testing Apollo components
 
-If we use `ApolloQuery` or `ApolloMutation` in our components, in order to test their functionality we need to add a stub first:
+If we use `ApolloQuery` or `ApolloMutation` in our components, to test their functionality we need to add a stub first:
 
 ```javascript
 import { ApolloMutation } from 'vue-apollo';

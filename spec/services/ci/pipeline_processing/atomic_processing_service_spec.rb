@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::PipelineProcessing::AtomicProcessingService do
+RSpec.describe Ci::PipelineProcessing::AtomicProcessingService, feature_category: :continuous_integration do
+  include RepoHelpers
+
   describe 'Pipeline Processing Service Tests With Yaml' do
     let_it_be(:project) { create(:project, :repository) }
     let_it_be(:user)    { project.first_owner }
@@ -25,7 +27,7 @@ RSpec.describe Ci::PipelineProcessing::AtomicProcessingService do
         check_expectation(test_file.dig('init', 'expect'), "init")
 
         test_file['transitions'].each_with_index do |transition, idx|
-          event_on_jobs(transition['event'], transition['jobs'])
+          process_events(transition)
           Sidekiq::Worker.drain_all # ensure that all async jobs are executed
           check_expectation(transition['expect'], "transition:#{idx}")
         end
@@ -48,16 +50,35 @@ RSpec.describe Ci::PipelineProcessing::AtomicProcessingService do
         }
       end
 
+      def process_events(transition)
+        if transition['jobs']
+          event_on_jobs(transition['event'], transition['jobs'])
+        else
+          event_on_pipeline(transition['event'])
+        end
+      end
+
       def event_on_jobs(event, job_names)
         statuses = pipeline.latest_statuses.by_name(job_names).to_a
         expect(statuses.count).to eq(job_names.count) # ensure that we have the same counts
 
         statuses.each do |status|
-          if event == 'play'
+          case event
+          when 'play'
             status.play(user)
+          when 'retry'
+            ::Ci::RetryJobService.new(project, user).execute(status)
           else
             status.public_send("#{event}!")
           end
+        end
+      end
+
+      def event_on_pipeline(event)
+        if event == 'retry'
+          pipeline.retry_failed(user)
+        else
+          pipeline.public_send("#{event}!")
         end
       end
     end
@@ -937,17 +958,16 @@ RSpec.describe Ci::PipelineProcessing::AtomicProcessingService do
         Ci::CreatePipelineService.new(project, user, { ref: 'master' }).execute(:push).payload
       end
 
-      before do
-        allow_next_instance_of(Repository) do |repository|
-          allow(repository)
-            .to receive(:blob_data_at)
-            .with(an_instance_of(String), '.gitlab-ci.yml')
-            .and_return(parent_config)
+      let(:project_files) do
+        {
+          '.gitlab-ci.yml' => parent_config,
+          '.child.yml' => child_config
+        }
+      end
 
-          allow(repository)
-            .to receive(:blob_data_at)
-            .with(an_instance_of(String), '.child.yml')
-            .and_return(child_config)
+      around do |example|
+        create_and_delete_files(project, project_files) do
+          example.run
         end
       end
 

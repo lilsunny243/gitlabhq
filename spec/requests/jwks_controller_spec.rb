@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe JwksController do
+RSpec.describe JwksController, feature_category: :system_access do
   describe 'Endpoints from the parent Doorkeeper::OpenidConnect::DiscoveryController' do
     it 'respond successfully' do
       [

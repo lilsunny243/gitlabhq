@@ -8,18 +8,17 @@ import {
   GlSprintf,
 } from '@gitlab/ui';
 import { sortBy } from 'lodash';
-import { mapActions, mapGetters, mapState } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 import boardCardInner from 'ee_else_ce/boards/mixins/board_card_inner';
 import { isScopedLabel } from '~/lib/utils/common_utils';
 import { updateHistory } from '~/lib/utils/url_utility';
 import { sprintf, __, n__ } from '~/locale';
 import TooltipOnTruncate from '~/vue_shared/components/tooltip_on_truncate/tooltip_on_truncate.vue';
 import UserAvatarLink from '~/vue_shared/components/user_avatar/user_avatar_link.vue';
-import BoardCardMoveToPosition from '~/boards/components/board_card_move_to_position.vue';
 import WorkItemTypeIcon from '~/work_items/components/work_item_type_icon.vue';
+import IssuableBlockedIcon from '~/vue_shared/components/issuable_blocked_icon/issuable_blocked_icon.vue';
 import { ListType } from '../constants';
 import eventHub from '../eventhub';
-import BoardBlockedIcon from './board_blocked_icon.vue';
 import IssueDueDate from './issue_due_date.vue';
 import IssueTimeEstimate from './issue_time_estimate.vue';
 
@@ -34,9 +33,8 @@ export default {
     IssueDueDate,
     IssueTimeEstimate,
     IssueCardWeight: () => import('ee_component/boards/components/issue_card_weight.vue'),
-    BoardBlockedIcon,
+    IssuableBlockedIcon,
     GlSprintf,
-    BoardCardMoveToPosition,
     WorkItemTypeIcon,
     IssueHealthStatus: () =>
       import('ee_component/related_items_tree/components/issue_health_status.vue'),
@@ -45,7 +43,7 @@ export default {
     GlTooltip: GlTooltipDirective,
   },
   mixins: [boardCardInner],
-  inject: ['rootPath', 'scopedLabelsAvailable'],
+  inject: ['rootPath', 'scopedLabelsAvailable', 'isEpicBoard', 'issuableType', 'isGroupBoard'],
   props: {
     item: {
       type: Object,
@@ -79,8 +77,7 @@ export default {
     };
   },
   computed: {
-    ...mapState(['isShowingLabels', 'issuableType', 'allowSubEpics']),
-    ...mapGetters(['isEpicBoard', 'isProjectBoard']),
+    ...mapState(['isShowingLabels', 'allowSubEpics']),
     cappedAssignees() {
       // e.g. maxRender is 4,
       // Render up to all 4 assignees if there are only 4 assigness
@@ -160,7 +157,7 @@ export default {
       return Math.round((this.item.descendantWeightSum.closedIssues / this.totalWeight) * 100);
     },
     showReferencePath() {
-      return !this.isProjectBoard && this.itemReferencePath;
+      return this.isGroupBoard && this.itemReferencePath;
     },
     avatarSize() {
       return { default: 16, lg: 24 };
@@ -217,8 +214,10 @@ export default {
 <template>
   <div>
     <div class="gl-display-flex" dir="auto">
-      <h4 class="board-card-title gl-mb-0 gl-mt-0 gl-mr-3 gl-font-base gl-overflow-break-word">
-        <board-blocked-icon
+      <h4
+        class="board-card-title gl-min-w-0 gl-mb-0 gl-mt-0 gl-mr-3 gl-font-base gl-overflow-break-word"
+      >
+        <issuable-blocked-icon
           v-if="item.blocked"
           :item="item"
           :unique-id="`${item.id}${list.id}`"
@@ -250,7 +249,7 @@ export default {
           >{{ item.title }}</a
         >
       </h4>
-      <board-card-move-to-position :item="item" :list="list" :index="index" />
+      <slot></slot>
     </div>
     <div v-if="showLabelFooter" class="board-card-labels gl-mt-2 gl-display-flex gl-flex-wrap">
       <template v-for="label in orderedLabels">
@@ -397,7 +396,6 @@ export default {
           :img-size="avatarSize"
           class="js-no-trigger user-avatar-link"
           tooltip-placement="bottom"
-          :enforce-gl-avatar="true"
         >
           <span class="js-assignee-tooltip">
             <span class="gl-font-weight-bold gl-display-block">{{ __('Assignee') }}</span>

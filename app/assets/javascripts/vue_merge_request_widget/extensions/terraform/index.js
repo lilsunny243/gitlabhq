@@ -63,13 +63,16 @@ export default {
       if (valid.length) {
         title = validText;
         if (invalid.length) {
-          subtitle = sprintf(`<br>%{small_start}${invalidText}%{small_end}`);
+          subtitle = invalidText;
         }
       } else {
         title = invalidText;
       }
 
-      return `${title}${subtitle}`;
+      return {
+        subject: title,
+        meta: subtitle,
+      };
     },
     fetchCollapsedData() {
       return axios
@@ -112,7 +115,7 @@ export default {
           href: report.job_path,
           text: this.$options.i18n.fullLog,
           target: '_blank',
-          fullReport: true,
+          trackFullReportClicked: true,
         };
         actions.push(action);
       }
@@ -152,9 +155,8 @@ export default {
       }
 
       return {
-        text: `${title}
-        <br>
-        ${subtitle}`,
+        text: title,
+        supportingText: subtitle,
         icon: { name: iconName },
         actions,
       };

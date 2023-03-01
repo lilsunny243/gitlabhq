@@ -22,13 +22,17 @@ describe('~/access_tokens/components/new_access_token_app', () => {
     });
   };
 
+  const findButtonEl = () => document.querySelector('[type=submit]');
+
   const triggerSuccess = async (newToken = 'new token') => {
-    wrapper.find(DomElementListener).vm.$emit(EVENT_SUCCESS, { detail: [{ new_token: newToken }] });
+    wrapper
+      .findComponent(DomElementListener)
+      .vm.$emit(EVENT_SUCCESS, { detail: [{ new_token: newToken }] });
     await nextTick();
   };
 
   const triggerError = async (errors = ['1', '2']) => {
-    wrapper.find(DomElementListener).vm.$emit(EVENT_ERROR, { detail: [{ errors }] });
+    wrapper.findComponent(DomElementListener).vm.$emit(EVENT_ERROR, { detail: [{ errors }] });
     await nextTick();
   };
 
@@ -39,7 +43,7 @@ describe('~/access_tokens/components/new_access_token_app', () => {
         <input type="text" id="expires_at" value="2022-01-01"/>
         <input type="text" value='1'/>
         <input type="checkbox" checked/>
-        <input type="submit"/>
+        <button type="submit" value="Create" class="disabled" disabled="disabled"/>
       </form>`,
     );
 
@@ -69,7 +73,6 @@ describe('~/access_tokens/components/new_access_token_app', () => {
       expect(InputCopyToggleVisibilityComponent.props('copyButtonTitle')).toBe(
         sprintf(__('Copy %{accessTokenType}'), { accessTokenType }),
       );
-      expect(InputCopyToggleVisibilityComponent.props('initialVisibility')).toBe(true);
       expect(InputCopyToggleVisibilityComponent.attributes('label')).toBe(
         sprintf(__('Your new %{accessTokenType}'), { accessTokenType }),
       );
@@ -100,15 +103,29 @@ describe('~/access_tokens/components/new_access_token_app', () => {
       });
     });
 
-    it('should reset all input fields except the date', async () => {
-      expect(document.querySelector('input[type=text][id$=expires_at]').value).toBe('2022-01-01');
-      expect(document.querySelector('input[type=text]:not([id$=expires_at])').value).toBe('1');
-      expect(document.querySelector('input[type=checkbox]').checked).toBe(true);
-      await triggerSuccess();
+    describe('when resetting the form', () => {
+      it('should reset selectively some input fields', async () => {
+        expect(document.querySelector('input[type=text]:not([id$=expires_at])').value).toBe('1');
+        expect(document.querySelector('input[type=checkbox]').checked).toBe(true);
+        await triggerSuccess();
 
-      expect(document.querySelector('input[type=text][id$=expires_at]').value).toBe('2022-01-01');
-      expect(document.querySelector('input[type=text]:not([id$=expires_at])').value).toBe('');
-      expect(document.querySelector('input[type=checkbox]').checked).toBe(false);
+        expect(document.querySelector('input[type=text]:not([id$=expires_at])').value).toBe('');
+        expect(document.querySelector('input[type=checkbox]').checked).toBe(false);
+      });
+
+      it('should not reset the date field', async () => {
+        expect(document.querySelector('input[type=text][id$=expires_at]').value).toBe('2022-01-01');
+        await triggerSuccess();
+
+        expect(document.querySelector('input[type=text][id$=expires_at]').value).toBe('2022-01-01');
+      });
+
+      it('should not reset the submit button value', async () => {
+        expect(findButtonEl().value).toBe('Create');
+        await triggerSuccess();
+
+        expect(findButtonEl().value).toBe('Create');
+      });
     });
   });
 
@@ -145,6 +162,17 @@ describe('~/access_tokens/components/new_access_token_app', () => {
       await nextTick();
 
       expect(wrapper.findComponent(GlAlert).exists()).toBe(false);
+    });
+
+    it('should enable the submit button', async () => {
+      const button = findButtonEl();
+      expect(button).toBeDisabled();
+      expect(button.className).toBe('disabled');
+
+      await triggerError();
+
+      expect(button).not.toBeDisabled();
+      expect(button.className).toBe('');
     });
   });
 

@@ -2,7 +2,7 @@
 description: 'Learn how to use GitLab Pages to deploy a static website at no additional cost.'
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Pages **(FREE)**
@@ -31,19 +31,27 @@ like Gatsby, Jekyll, Hugo, Middleman, Harp, Hexo, or Brunch. You can also
 publish any website written directly in plain HTML, CSS, and JavaScript.
 
 Pages does not support dynamic server-side processing, for instance, as `.php` and `.asp` requires.
-Learn more about
-[static websites compared to dynamic websites](https://about.gitlab.com/blog/2016/06/03/ssg-overview-gitlab-pages-part-1-dynamic-x-static/).
+For more information, see
+[Static vs dynamic websites](https://about.gitlab.com/blog/2016/06/03/ssg-overview-gitlab-pages-part-1-dynamic-x-static/).
+
+## Menu Position Test
+
+NOTE:
+We are currently conducting an A/B test where some users may see the Pages
+Menu entry under "Deployments" instead of "Settings". We think that this may
+be a more accurate position. Feel free to add any feedback to [the experiment issue](https://gitlab.com/gitlab-org/gitlab/-/issues/373547).
 
 ## Getting started
 
 To create a GitLab Pages website:
 
-| Document | Description |
-|----------|-------------|
+| Document                                                                             | Description                                                                                  |
+|--------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
+| [Use the GitLab UI to create a simple `.gitlab-ci.yml`](getting_started/pages_ui.md) | Add a Pages site to an existing project. Use the UI to set up a simple `.gitlab-ci.yml`.     |
 | [Create a `.gitlab-ci.yml` file from scratch](getting_started/pages_from_scratch.md) | Add a Pages site to an existing project. Learn how to create and configure your own CI file. |
-| [Use a `.gitlab-ci.yml` template](getting_started/pages_ci_cd_template.md) | Add a Pages site to an existing project. Use a pre-populated CI template file. |
-| [Fork a sample project](getting_started/pages_forked_sample_project.md) | Create a new project with Pages already configured by forking a sample project. |
-| [Use a project template](getting_started/pages_new_project_template.md) | Create a new project with Pages already configured by using a template. |
+| [Use a `.gitlab-ci.yml` template](getting_started/pages_ci_cd_template.md)           | Add a Pages site to an existing project. Use a pre-populated CI template file.               |
+| [Fork a sample project](getting_started/pages_forked_sample_project.md)              | Create a new project with Pages already configured by forking a sample project.              |
+| [Use a project template](getting_started/pages_new_project_template.md)              | Create a new project with Pages already configured by using a template.                      |
 
 To update a GitLab Pages website:
 
@@ -55,7 +63,7 @@ To update a GitLab Pages website:
 | [Let's Encrypt integration](custom_domains_ssl_tls_certification/lets_encrypt_integration.md) | Secure your Pages sites with Let's Encrypt certificates, which are automatically obtained and renewed by GitLab. |
 | [Redirects](redirects.md) | Set up HTTP redirects to forward one page to another. |
 
-Learn more and see examples:
+For more information, see:
 
 | Document | Description |
 |----------|-------------|
@@ -106,7 +114,7 @@ These GitLab Pages website examples can teach you advanced techniques to use
 and adapt for your own needs:
 
 - [Posting to your GitLab Pages blog from iOS](https://about.gitlab.com/blog/2016/08/19/posting-to-your-gitlab-pages-blog-from-ios/).
-- [GitLab CI: Run jobs sequentially, in parallel, or build a custom pipeline](https://about.gitlab.com/blog/2016/07/29/the-basics-of-gitlab-ci/).
+- [GitLab CI: Run jobs sequentially, in parallel, or build a custom pipeline](https://about.gitlab.com/blog/2020/12/10/basics-of-gitlab-ci-updated/).
 - [GitLab CI: Deployment & environments](https://about.gitlab.com/blog/2021/02/05/ci-deployment-and-environments/).
 - [Building a new GitLab docs site with Nanoc, GitLab CI, and GitLab Pages](https://about.gitlab.com/blog/2016/12/07/building-a-new-gitlab-docs-site-with-nanoc-gitlab-ci-and-gitlab-pages/).
 - [Publish code coverage reports with GitLab Pages](https://about.gitlab.com/blog/2016/11/03/publish-code-coverage-report-with-gitlab-pages/).

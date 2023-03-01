@@ -1,7 +1,7 @@
 ---
-stage: Secure
+stage: Govern
 group: Threat Insights
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Vulnerabilities API **(ULTIMATE)**
@@ -21,11 +21,11 @@ across GitLab releases. Please use the
 [GraphQL API](graphql/reference/index.md#queryvulnerabilities)
 instead. See the [GraphQL examples](#replace-vulnerability-rest-api-with-graphql) to get started.
 
-Every API call to vulnerabilities must be [authenticated](index.md#authentication).
+Every API call to vulnerabilities must be [authenticated](rest/index.md#authentication).
 
-Vulnerability permissions inherit permissions from their project. If a project is
-private, and a user isn't a member of the project to which the vulnerability
-belongs, requests to that project returns a `404 Not Found` status code.
+If an authenticated user does not have permission to
+[view vulnerabilities](../user/permissions.md#project-members-permissions),
+this request returns a `403 Forbidden` status code.
 
 ## Single vulnerability
 

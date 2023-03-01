@@ -17,9 +17,19 @@ RSpec.describe IssueEntity do
     context 'when issue is of type task' do
       let(:resource) { create(:issue, :task, project: project) }
 
-      # This was already a path and not a url when the work items change was introduced
-      it 'has a work item path' do
-        expect(subject[:web_url]).to eq(project_work_items_path(project, resource.id))
+      context 'when use_iid_in_work_items_path feature flag is disabled' do
+        before do
+          stub_feature_flags(use_iid_in_work_items_path: false)
+        end
+
+        # This was already a path and not a url when the work items change was introduced
+        it 'has a work item path' do
+          expect(subject[:web_url]).to eq(project_work_items_path(project, resource.id))
+        end
+      end
+
+      it 'has a work item path with iid' do
+        expect(subject[:web_url]).to eq(project_work_items_path(project, resource.iid, iid_path: true))
       end
     end
   end
@@ -55,7 +65,7 @@ RSpec.describe IssueEntity do
     before do
       project.add_developer(member)
       public_project.add_developer(member)
-      Issues::MoveService.new(project: public_project, current_user: member).execute(issue, project)
+      Issues::MoveService.new(container: public_project, current_user: member).execute(issue, project)
     end
 
     context 'when user cannot read target project' do
@@ -87,7 +97,7 @@ RSpec.describe IssueEntity do
 
     before do
       Issues::DuplicateService
-        .new(project: project, current_user: member)
+        .new(container: project, current_user: member)
         .execute(issue, new_issue)
     end
 
@@ -147,6 +157,64 @@ RSpec.describe IssueEntity do
 
       it 'returns archived project doc' do
         expect(subject[:archived_project_docs_path]).to eq('/help/user/project/settings/index.md#archive-a-project')
+      end
+    end
+  end
+
+  it_behaves_like 'issuable entity current_user properties'
+
+  context 'when issue has email participants' do
+    let(:obfuscated_email) { 'an*****@e*****.c**' }
+    let(:email) { 'any@email.com' }
+
+    before do
+      resource.issue_email_participants.create!(email: email)
+    end
+
+    context 'with anonymous user' do
+      it 'returns obfuscated email participants email' do
+        request = double('request', current_user: nil)
+
+        response = described_class.new(resource, request: request).as_json
+        expect(response[:issue_email_participants]).to eq([{ email: obfuscated_email }])
+      end
+    end
+
+    context 'with signed in user' do
+      context 'when user has no role in project' do
+        it 'returns obfuscated email participants email' do
+          expect(subject[:issue_email_participants]).to eq([{ email: obfuscated_email }])
+        end
+      end
+
+      context 'when user has guest role in project' do
+        let(:member) { create(:user) }
+
+        before do
+          project.add_guest(member)
+        end
+
+        it 'returns obfuscated email participants email' do
+          request = double('request', current_user: member)
+
+          response = described_class.new(resource, request: request).as_json
+          expect(response[:issue_email_participants]).to eq([{ email: obfuscated_email }])
+        end
+      end
+
+      context 'when user has (at least) reporter role in project' do
+        let(:member) { create(:user) }
+
+        before do
+          project.add_reporter(member)
+        end
+
+        it 'returns full email participants email' do
+          request = double('request', current_user: member)
+
+          response = described_class.new(resource, request: request).as_json
+          expect(response[:issue_email_participants]).to eq([{ email: email }])
+        end
       end
     end
   end

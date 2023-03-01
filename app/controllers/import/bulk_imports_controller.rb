@@ -3,8 +3,11 @@
 class Import::BulkImportsController < ApplicationController
   include ActionView::Helpers::SanitizeHelper
 
-  before_action :ensure_group_import_enabled
+  before_action :ensure_bulk_import_enabled
   before_action :verify_blocked_uri, only: :status
+  before_action only: :status do
+    push_frontend_feature_flag(:bulk_import_projects)
+  end
 
   feature_category :importers
   urgency :low
@@ -16,6 +19,9 @@ class Import::BulkImportsController < ApplicationController
   def configure
     session[access_token_key] = configure_params[access_token_key]&.strip
     session[url_key] = configure_params[url_key]
+
+    verify_blocked_uri && performed? && return
+    validate_configure_params!
 
     redirect_to status_import_bulk_imports_url(namespace_id: params[:namespace_id])
   end
@@ -47,6 +53,9 @@ class Import::BulkImportsController < ApplicationController
   end
 
   def create
+    return render json: { success: false }, status: :too_many_requests if throttled_request?
+    return render json: { success: false }, status: :unprocessable_entity unless valid_create_params?
+
     responses = create_params.map do |entry|
       if entry[:destination_name]
         entry[:destination_slug] ||= entry[:destination_name]
@@ -98,8 +107,22 @@ class Import::BulkImportsController < ApplicationController
     params.permit(access_token_key, url_key)
   end
 
+  def validate_configure_params!
+    client = BulkImports::Clients::HTTP.new(
+      url: credentials[:url],
+      token: credentials[:access_token]
+    )
+
+    client.validate_instance_version!
+    client.validate_import_scopes!
+  end
+
   def create_params
     params.permit(bulk_import: bulk_import_params)[:bulk_import]
+  end
+
+  def valid_create_params?
+    create_params.all? { _1[:source_type] == 'group_entity' }
   end
 
   def bulk_import_params
@@ -109,11 +132,12 @@ class Import::BulkImportsController < ApplicationController
       destination_name
       destination_slug
       destination_namespace
+      migrate_projects
     ]
   end
 
-  def ensure_group_import_enabled
-    render_404 unless Feature.enabled?(:bulk_import)
+  def ensure_bulk_import_enabled
+    render_404 unless Gitlab::CurrentSettings.bulk_import_enabled?
   end
 
   def access_token_key
@@ -129,7 +153,7 @@ class Import::BulkImportsController < ApplicationController
       session[url_key],
       allow_localhost: allow_local_requests?,
       allow_local_network: allow_local_requests?,
-      schemes: %w(http https)
+      schemes: %w[http https]
     )
   rescue Gitlab::UrlBlocker::BlockedUrlError => e
     clear_session_data
@@ -180,5 +204,9 @@ class Import::BulkImportsController < ApplicationController
 
   def current_user_bulk_imports
     current_user.bulk_imports.gitlab
+  end
+
+  def throttled_request?
+    ::Gitlab::ApplicationRateLimiter.throttled_request?(request, current_user, :bulk_import, scope: current_user)
   end
 end

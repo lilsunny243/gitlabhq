@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Container Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Dependency Proxy **(FREE)**
@@ -37,8 +37,8 @@ For a list of planned additions, view the
 
 To enable or turn off the Dependency Proxy for a group:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Settings > Packages & Registries**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Settings > Packages and registries**.
 1. Expand the **Dependency Proxy** section.
 1. To enable the proxy, turn on **Enable Proxy**. To turn it off, turn the toggle off.
 
@@ -50,8 +50,8 @@ for the entire GitLab instance.
 
 To view the Dependency Proxy:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Packages & Registries > Dependency Proxy**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Packages and registries > Dependency Proxy**.
 
 The Dependency Proxy is not available for projects.
 
@@ -74,7 +74,7 @@ you must authenticate against the Dependency Proxy.
 Follow the [instructions for using images from a private registry](../../../ci/docker/using_docker_images.md#access-an-image-from-a-private-container-registry),
 but instead of using `registry.example.com:5000`, use your GitLab domain with no port `gitlab.example.com`.
 
-For example, to manually log in:
+For example, to manually sign in:
 
 ```shell
 docker login gitlab.example.com --username my_username --password my_password
@@ -84,7 +84,7 @@ You can authenticate using:
 
 - Your GitLab username and password.
 - A [personal access token](../../../user/profile/personal_access_tokens.md) with the scope set to `read_registry` and `write_registry`.
-- A [group deploy token](../../../user/project/deploy_tokens/index.md#group-deploy-token) with the scope set to `read_registry` and `write_registry`.
+- A [group deploy token](../../../user/project/deploy_tokens/index.md) with the scope set to `read_registry` and `write_registry`.
 
 Users accessing the Dependency Proxy with a personal access token or username and password must
 have at least the Guest role for the group they pull images from.
@@ -109,7 +109,7 @@ Proxy.
 > - Automatic runner authentication, when using the Dependency Proxy to pull the image for the job, was [added](https://gitlab.com/gitlab-org/gitlab-runner/-/issues/27302) in GitLab 13.9.
 > - The prefix for group names containing uppercase letters was [fixed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/54559) in GitLab 13.10.
 
-Runners log in to the Dependency Proxy automatically. To pull through
+Runners sign in to the Dependency Proxy automatically. To pull through
 the Dependency Proxy, use one of the [predefined variables](../../../ci/variables/predefined_variables.md):
 
 - `CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX` pulls through the top-level group.
@@ -169,14 +169,14 @@ build:
     -  docker build -t test .
 ```
 
-You can also use [custom CI/CD variables](../../../ci/variables/index.md#custom-cicd-variables) to store and access your personal access token or deploy token.
+You can also use [custom CI/CD variables](../../../ci/variables/index.md#for-a-project) to store and access your personal access token or deploy token.
 
 ### Store a Docker image in Dependency Proxy cache
 
 To store a Docker image in Dependency Proxy storage:
 
-1. On the top bar, select **Menu > Groups** and find your group.
-1. On the left sidebar, select **Packages & Registries > Dependency Proxy**.
+1. On the top bar, select **Main menu > Groups** and find your group.
+1. On the left sidebar, select **Packages and registries > Dependency Proxy**.
 1. Copy the **Dependency Proxy image prefix**.
 1. Use one of these commands. In these examples, the image is `alpine:latest`.
 1. You can also pull images by digest to specify exactly which version of an image to pull.
@@ -299,7 +299,7 @@ hub_docker_quota_check:
 
 ## Troubleshooting
 
-## Authentication error: "HTTP Basic: Access Denied"
+### Authentication error: "HTTP Basic: Access Denied"
 
 If you receive an `HTTP Basic: Access denied` error when authenticating against the Dependency Proxy, refer to the [two-factor authentication troubleshooting guide](../../profile/account/two_factor_authentication.md#troubleshooting).
 
@@ -322,7 +322,7 @@ services:
 
 ### Issues when authenticating to the Dependency Proxy from CI/CD jobs
 
-GitLab Runner will automatically authenticate to the Dependency Proxy. However, the underlying Docker engine is still subject to its [authorization resolving process](https://gitlab.com/gitlab-org/gitlab-runner/-/blob/main/docs/configuration/advanced-configuration.md#precedence-of-docker-authorization-resolving).
+GitLab Runner authenticates automatically to the Dependency Proxy. However, the underlying Docker engine is still subject to its [authorization resolving process](https://gitlab.com/gitlab-org/gitlab-runner/-/blob/main/docs/configuration/advanced-configuration.md#precedence-of-docker-authorization-resolving).
 
 Misconfigurations in the authentication mechanism may cause `HTTP Basic: Access denied` and `403: Access forbidden` errors.
 

@@ -1,13 +1,22 @@
 import setWindowLocation from 'helpers/set_window_location_helper';
-import { DEFAULT_SORT, MEMBER_TYPES } from '~/members/constants';
+import {
+  DEFAULT_SORT,
+  MEMBER_TYPES,
+  I18N_USER_YOU,
+  I18N_USER_BLOCKED,
+  I18N_USER_BOT,
+  I188N_USER_2FA,
+} from '~/members/constants';
 import {
   generateBadges,
   isGroup,
   isDirectMember,
   isCurrentUser,
   canRemove,
+  canRemoveBlockedByLastOwner,
   canResend,
   canUpdate,
+  canDisableTwoFactor,
   canOverride,
   parseSortParam,
   buildSortHref,
@@ -52,9 +61,10 @@ describe('Members Utils', () => {
 
     it.each`
       member                                                            | expected
-      ${memberMock}                                                     | ${{ show: true, text: "It's you", variant: 'success' }}
-      ${{ ...memberMock, user: { ...memberMock.user, blocked: true } }} | ${{ show: true, text: 'Blocked', variant: 'danger' }}
-      ${member2faEnabled}                                               | ${{ show: true, text: '2FA', variant: 'info' }}
+      ${memberMock}                                                     | ${{ show: true, text: I18N_USER_YOU, variant: 'success' }}
+      ${{ ...memberMock, user: { ...memberMock.user, blocked: true } }} | ${{ show: true, text: I18N_USER_BLOCKED, variant: 'danger' }}
+      ${{ ...memberMock, user: { ...memberMock.user, isBot: true } }}   | ${{ show: true, text: I18N_USER_BOT, variant: 'muted' }}
+      ${member2faEnabled}                                               | ${{ show: true, text: I188N_USER_2FA, variant: 'info' }}
     `('returns expected output for "$expected.text" badge', ({ member, expected }) => {
       expect(
         generateBadges({ member, isCurrentUser: true, canManageMembers: true }),
@@ -81,7 +91,7 @@ describe('Members Utils', () => {
   });
 
   describe('isGroup', () => {
-    test.each`
+    it.each`
       member        | expected
       ${group}      | ${true}
       ${memberMock} | ${false}
@@ -91,7 +101,7 @@ describe('Members Utils', () => {
   });
 
   describe('isDirectMember', () => {
-    test.each`
+    it.each`
       member             | expected
       ${directMember}    | ${true}
       ${inheritedMember} | ${false}
@@ -101,7 +111,7 @@ describe('Members Utils', () => {
   });
 
   describe('isCurrentUser', () => {
-    test.each`
+    it.each`
       currentUserId             | expected
       ${IS_CURRENT_USER_ID}     | ${true}
       ${IS_NOT_CURRENT_USER_ID} | ${false}
@@ -111,7 +121,7 @@ describe('Members Utils', () => {
   });
 
   describe('canRemove', () => {
-    test.each`
+    it.each`
       member                                     | expected
       ${{ ...directMember, canRemove: true }}    | ${true}
       ${{ ...inheritedMember, canRemove: true }} | ${false}
@@ -121,8 +131,19 @@ describe('Members Utils', () => {
     });
   });
 
+  describe('canRemoveBlockedByLastOwner', () => {
+    it.each`
+      member                                        | canManageMembers | expected
+      ${{ ...directMember, isLastOwner: true }}     | ${true}          | ${true}
+      ${{ ...inheritedMember, isLastOwner: false }} | ${true}          | ${false}
+      ${{ ...directMember, isLastOwner: true }}     | ${false}         | ${false}
+    `('returns $expected', ({ member, canManageMembers, expected }) => {
+      expect(canRemoveBlockedByLastOwner(member, canManageMembers)).toBe(expected);
+    });
+  });
+
   describe('canResend', () => {
-    test.each`
+    it.each`
       member                                                           | expected
       ${invite}                                                        | ${true}
       ${{ ...invite, invite: { ...invite.invite, canResend: false } }} | ${false}
@@ -132,7 +153,7 @@ describe('Members Utils', () => {
   });
 
   describe('canUpdate', () => {
-    test.each`
+    it.each`
       member                                     | currentUserId             | expected
       ${{ ...directMember, canUpdate: true }}    | ${IS_NOT_CURRENT_USER_ID} | ${true}
       ${{ ...directMember, canUpdate: true }}    | ${IS_CURRENT_USER_ID}     | ${false}
@@ -141,6 +162,19 @@ describe('Members Utils', () => {
     `('returns $expected', ({ member, currentUserId, expected }) => {
       expect(canUpdate(member, currentUserId)).toBe(expected);
     });
+  });
+
+  describe('canDisableTwoFactor', () => {
+    it.each`
+      member                                           | expected
+      ${{ ...memberMock, canDisableTwoFactor: true }}  | ${false}
+      ${{ ...memberMock, canDisableTwoFactor: false }} | ${false}
+    `(
+      'returns $expected for members whose two factor authentication can be disabled',
+      ({ member, expected }) => {
+        expect(canDisableTwoFactor(member)).toBe(expected);
+      },
+    );
   });
 
   describe('canOverride', () => {

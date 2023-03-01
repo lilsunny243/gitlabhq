@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > User merges when pipeline succeeds', :js do
+RSpec.describe 'Merge request > User merges when pipeline succeeds', :js, feature_category: :code_review_workflow do
   let(:project) { create(:project, :public, :repository) }
   let(:user) { project.creator }
   let(:merge_request) do
@@ -151,7 +151,7 @@ RSpec.describe 'Merge request > User merges when pipeline succeeds', :js do
         # Wait for the `ci_status` and `merge_check` requests
         wait_for_requests
 
-        page.within('.mr-section-container') do
+        page.within('.mr-state-widget') do
           expect(page).to have_content('Something went wrong. Try again.')
         end
       end
@@ -170,7 +170,7 @@ RSpec.describe 'Merge request > User merges when pipeline succeeds', :js do
         # Wait for the `ci_status` and `merge_check` requests
         wait_for_requests
 
-        page.within('.mr-section-container') do
+        page.within('.mr-state-widget') do
           expect(page).to have_content('Something went wrong. Try again.')
         end
       end

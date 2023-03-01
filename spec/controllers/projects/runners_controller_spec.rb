@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::RunnersController do
+RSpec.describe Projects::RunnersController, feature_category: :runner_fleet do
   let(:user) { create(:user) }
   let(:project) { create(:project) }
   let(:runner) { create(:ci_runner, :project, projects: [project]) }
@@ -25,7 +25,7 @@ RSpec.describe Projects::RunnersController do
       new_desc = runner.description.swapcase
 
       expect do
-        post :update, params: params.merge(runner: { description: new_desc } )
+        post :update, params: params.merge(runner: { description: new_desc })
       end.to change { runner.ensure_runner_queue_value }
 
       runner.reload

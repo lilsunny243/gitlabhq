@@ -26,11 +26,11 @@ export default () => ({
     path: '',
     entry: {},
   },
-  clientsidePreviewEnabled: false,
   renderWhitespaceInCode: false,
   editorTheme: DEFAULT_THEME,
-  codesandboxBundlerUrl: null,
   environmentsGuidanceAlertDismissed: false,
   environmentsGuidanceAlertDetected: false,
   previewMarkdownPath: '',
+  userPreferencesPath: '',
+  learnGitlabSource: false,
 });

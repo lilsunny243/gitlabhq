@@ -1,10 +1,10 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Signing commits with GPG **(FREE)**
+# Sign commits with GPG **(FREE)**
 
 You can sign the commits you make in a GitLab repository with a
 GPG ([GNU Privacy Guard](https://gnupg.org/)) key. When you add a cryptographic
@@ -43,7 +43,7 @@ To view a user's public GPG key, you can either:
 
 - Go to `https://gitlab.example.com/<USERNAME>.gpg`. GitLab displays the GPG key,
   if the user has configured one, or a blank page for users without a configured GPG key.
-- Go to the user's profile (such as `https://gitlab.example.com/<USERNAME>`). In the top right
+- Go to the user's profile (such as `https://gitlab.example.com/<USERNAME>`). In the upper-right corner
   of the user's profile, select **View public GPG keys** (**{key}**).
 
 ## Configure commit signing
@@ -119,7 +119,7 @@ If you don't already have a GPG key, create one:
 To add a GPG key to your user settings:
 
 1. Sign in to GitLab.
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **GPG Keys** (**{key}**).
 1. In **Key**, paste your _public_ key.
@@ -160,14 +160,6 @@ to use this key:
    git config --global user.signingkey <KEY ID>
    ```
 
-1. Optional. If Git uses `gpg` and you get errors like `secret key not available`
-   or `gpg: signing failed: secret key not available`, run this command to
-   use `gpg2` instead:
-
-   ```shell
-   git config --global gpg.program gpg2
-   ```
-
 ### Sign your Git commits
 
 After you [add your public key to your account](#add-a-gpg-key-to-your-account),
@@ -188,15 +180,56 @@ you can sign individual commits manually, or configure Git to default to signed 
   git config --global commit.gpgsign true
   ```
 
+#### Set signing key conditionally
+
+If you maintain signing keys for separate purposes, such as work and personal
+use, use an `IncludeIf` statement in your `.gitconfig` file to set which key
+you sign commits with.
+
+Prerequisites:
+
+- Requires Git version 2.13 or later.
+
+1. In the same directory as your main `~/.gitconfig` file, create a second file,
+   such as `.gitconfig-gitlab`.
+1. In your main `~/.gitconfig` file, add your Git settings for work in non-GitLab projects.
+1. Append this information to the end of your main `~/.gitconfig` file:
+
+   ```ini
+   # The contents of this file are included only for GitLab.com URLs
+   [includeIf "hasconfig:remote.*.url:https://gitlab.com/**"]
+
+   # Edit this line to point to your alternate configuration file
+   path = ~/.gitconfig-gitlab
+   ```
+
+1. In your alternate `.gitconfig-gitlab` file, add the configuration overrides to
+   use when you're committing to a GitLab repository. All settings from your
+   main `~/.gitconfig` file are retained unless you explicitly override them.
+   In this example,
+
+   ```ini
+   # Alternate ~/.gitconfig-gitlab file
+   # These values are used for repositories matching the string 'gitlab.com',
+   # and override their corresponding values in ~/.gitconfig
+
+   [user]
+   email = you@example.com
+   signingkey = <KEY ID>
+
+   [commit]
+   gpgsign = true
+   ```
+
 ## Verify commits
 
 You can review commits for a merge request, or for an entire project:
 
 1. To review commits for a project:
-   1. On the top bar, select **Menu > Projects** and find your project.
+   1. On the top bar, select **Main menu > Projects** and find your project.
    1. On the left sidebar, select **Repository > Commits**.
 1. To review commits for a merge request:
-   1. On the top bar, select **Menu > Projects** and find your project.
+   1. On the top bar, select **Main menu > Projects** and find your project.
    1. On the left sidebar, select **Merge requests**, then select your merge request.
    1. Select **Commits**.
 1. Identify the commit you want to review. Signed commits show either a **Verified**
@@ -220,7 +253,7 @@ If a GPG key becomes compromised, revoke it. Revoking a key changes both future 
 
 To revoke a GPG key:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **GPG Keys** (**{key}**).
 1. Select **Revoke** next to the GPG key you want to delete.
@@ -235,7 +268,7 @@ When you remove a GPG key from your GitLab account:
 
 To remove a GPG key from your account:
 
-1. In the top-right corner, select your avatar.
+1. In the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **GPG Keys** (**{key}**).
 1. Select **Remove** (**{remove}**) next to the GPG key you want to delete.
@@ -246,6 +279,7 @@ If you must unverify both future and past commits,
 ## Related topics
 
 - [Sign commits and tags with X.509 certificates](../x509_signed_commits/index.md)
+- [Sign commits with SSH keys](../ssh_signed_commits/index.md)
 - [Commits API](../../../../api/commits.md)
 - GPG resources:
   - [Git Tools - Signing Your Work](https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work)
@@ -253,3 +287,43 @@ If you must unverify both future and past commits,
   - [OpenPGP Best Practices](https://riseup.net/en/security/message-security/openpgp/best-practices)
   - [Creating a new GPG key with subkeys](https://www.void.gr/kargig/blog/2013/12/02/creating-a-new-gpg-key-with-subkeys/) (advanced)
   - [Review existing GPG keys in your instance](../../../admin_area/credentials_inventory.md#review-existing-gpg-keys)
+
+## Troubleshooting
+
+### Fix verification problems with signed commits
+
+Commits can be signed with [X.509 certificates](../x509_signed_commits/index.md)
+or a GPG key. The verification process for both methods can fail for multiple reasons:
+
+| Value                       | Description | Possible Fixes |
+|-----------------------------|-------------|----------------|
+| `UNVERIFIED`                | The commit signature is not valid. | Sign the commit with a valid signature. |
+| `SAME_USER_DIFFERENT_EMAIL` | The GPG key used to sign the commit does not contain the committer email, but does contain a different valid email for the committer. | Amend the commit to use an email address that matches the GPG key, or update the GPG key [to include the email address](https://security.stackexchange.com/a/261468). |
+| `OTHER_USER`                | The signature and GPG key are valid, but the key belongs to a different user than the committer. | Amend the commit to use the correct email address, or amend the commit to use a GPG key associated with your user. |
+| `UNVERIFIED_KEY`            | The key associated with the GPG signature has no verified email address associated with the committer. | Add and verify the email to your GitLab profile, [update the GPG key to include the email address](https://security.stackexchange.com/a/261468), or amend the commit to use a different committer email address. |
+| `UNKNOWN_KEY`               | The GPG key associated with the GPG signature for this commit is unknown to GitLab. | [Add the GPG key](#add-a-gpg-key-to-your-account) to your GitLab profile. |
+| `MULTIPLE_SIGNATURES`       | Multiple GPG or X.509 signatures have been found for the commit. | Amend the commit to use only one GPG or X.509 signature. |
+
+### Secret key not available
+
+If you receive the errors `secret key not available`
+or `gpg: signing failed: secret key not available`, try using `gpg2` instead of `gpg`:
+
+```shell
+git config --global gpg.program gpg2
+```
+
+If your GPG key is password protected and the password entry prompt does not appear,
+add `export GPG_TTY=$(tty)` to your shell's `rc` file (commonly `~/.bashrc` or `~/.zshrc`)
+
+### GPG failed to sign the data
+
+If your GPG key is password protected and you receive the error:
+
+```shell
+error: gpg failed to sign the data
+fatal: failed to write commit object
+```
+
+If the password entry prompt does not appear, add `export GPG_TTY=$(tty)` to your shell's `rc` file
+(commonly `~/.bashrc` or `~/.zshrc`) and restart your terminal.

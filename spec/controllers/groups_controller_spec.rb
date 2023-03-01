@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe GroupsController, factory_default: :keep do
+RSpec.describe GroupsController, factory_default: :keep, feature_category: :code_review_workflow do
   include ExternalAuthorizationServiceHelpers
   include AdminModeHelper
 
@@ -42,21 +42,15 @@ RSpec.describe GroupsController, factory_default: :keep do
     end
   end
 
-  shared_examples 'details view' do
-    let(:namespace) { group }
+  shared_examples 'details view as atom' do
+    let!(:event) { create(:event, project: project) }
+    let(:format) { :atom }
 
     it { is_expected.to render_template('groups/show') }
 
-    context 'as atom' do
-      let!(:event) { create(:event, project: project) }
-      let(:format) { :atom }
-
-      it { is_expected.to render_template('groups/show') }
-
-      it 'assigns events for all the projects in the group', :sidekiq_might_not_need_inline do
-        subject
-        expect(assigns(:events).map(&:id)).to contain_exactly(event.id)
-      end
+    it 'assigns events for all the projects in the group' do
+      subject
+      expect(assigns(:events).map(&:id)).to contain_exactly(event.id)
     end
   end
 
@@ -70,7 +64,9 @@ RSpec.describe GroupsController, factory_default: :keep do
     subject { get :show, params: { id: group.to_param }, format: format }
 
     context 'when the group is not importing' do
-      it_behaves_like 'details view'
+      it { is_expected.to render_template('groups/show') }
+
+      it_behaves_like 'details view as atom'
 
       it 'tracks page views', :snowplow do
         subject
@@ -115,7 +111,9 @@ RSpec.describe GroupsController, factory_default: :keep do
 
     subject { get :details, params: { id: group.to_param }, format: format }
 
-    it_behaves_like 'details view'
+    it { is_expected.to redirect_to(group_path(group)) }
+
+    it_behaves_like 'details view as atom'
   end
 
   describe 'GET edit' do
@@ -229,7 +227,7 @@ RSpec.describe GroupsController, factory_default: :keep do
       sign_in(user)
 
       expect do
-        post :create, params: { group: { name: 'new_group', path: "new_group" } }
+        post :create, params: { group: { name: 'new_group', path: 'new_group' } }
       end.to change { Group.count }.by(1)
 
       expect(response).to have_gitlab_http_status(:found)
@@ -240,8 +238,26 @@ RSpec.describe GroupsController, factory_default: :keep do
         sign_in(create(:admin))
 
         expect do
-          post :create, params: { group: { name: 'new_group', path: "new_group" } }
+          post :create, params: { group: { name: 'new_group', path: 'new_group' } }
         end.to change { Group.count }.by(1)
+
+        expect(response).to have_gitlab_http_status(:found)
+      end
+    end
+
+    context 'when creating chat team' do
+      before do
+        stub_mattermost_setting(enabled: true)
+      end
+
+      it 'triggers Mattermost::CreateTeamService' do
+        sign_in(user)
+
+        expect_next_instance_of(::Mattermost::CreateTeamService) do |service|
+          expect(service).to receive(:execute).and_return({ name: 'test-chat-team', id: 1 })
+        end
+
+        post :create, params: { group: { name: 'new_group', path: 'new_group', create_chat_team: 1 } }
 
         expect(response).to have_gitlab_http_status(:found)
       end
@@ -536,6 +552,68 @@ RSpec.describe GroupsController, factory_default: :keep do
         expect(assigns(:merge_requests)).to eq [merge_request_2, merge_request_1]
       end
     end
+
+    context 'rendering views' do
+      render_views
+
+      it 'displays MR counts in nav' do
+        get :merge_requests, params: { id: group.to_param }
+
+        expect(response.body).to have_content('Open 2 Merged 0 Closed 0 All 2')
+        expect(response.body).not_to have_content('Open Merged Closed All')
+      end
+
+      context 'when MergeRequestsFinder raises an exception' do
+        before do
+          allow_next_instance_of(MergeRequestsFinder) do |instance|
+            allow(instance).to receive(:count_by_state).and_raise(ActiveRecord::QueryCanceled)
+          end
+        end
+
+        it 'does not display MR counts in nav' do
+          get :merge_requests, params: { id: group.to_param }
+
+          expect(response.body).to have_content('Open Merged Closed All')
+          expect(response.body).not_to have_content('Open 0 Merged 0 Closed 0 All 0')
+        end
+      end
+    end
+
+    context 'when an ActiveRecord::QueryCanceled is raised' do
+      before do
+        allow_next_instance_of(Gitlab::IssuableMetadata) do |instance|
+          allow(instance).to receive(:data).and_raise(ActiveRecord::QueryCanceled)
+        end
+      end
+
+      it 'sets :search_timeout_occurred' do
+        get :merge_requests, params: { id: group.to_param }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(assigns(:search_timeout_occurred)).to eq(true)
+      end
+
+      it 'logs the exception' do
+        get :merge_requests, params: { id: group.to_param }
+      end
+
+      context 'rendering views' do
+        render_views
+
+        it 'shows error message' do
+          get :merge_requests, params: { id: group.to_param }
+
+          expect(response.body).to have_content('Too many results to display. Edit your search or add a filter.')
+        end
+
+        it 'does not display MR counts in nav' do
+          get :merge_requests, params: { id: group.to_param }
+
+          expect(response.body).to have_content('Open Merged Closed All')
+          expect(response.body).not_to have_content('Open 0 Merged 0 Closed 0 All 0')
+        end
+      end
+    end
   end
 
   describe 'DELETE #destroy' do
@@ -654,7 +732,7 @@ RSpec.describe GroupsController, factory_default: :keep do
     end
 
     context 'when there is a conflicting group path' do
-      let!(:conflict_group) { create(:group, path: SecureRandom.hex(12) ) }
+      let!(:conflict_group) { create(:group, path: SecureRandom.hex(12)) }
       let!(:old_name) { group.name }
 
       it 'does not render references to the conflicting group' do

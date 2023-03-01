@@ -3,7 +3,6 @@ import { GlAlert, GlModal } from '@gitlab/ui';
 import { s__ } from '~/locale';
 import deleteWorkItemFromTaskMutation from '../graphql/delete_task_from_work_item.mutation.graphql';
 import deleteWorkItemMutation from '../graphql/delete_work_item.mutation.graphql';
-import WorkItemDetail from './work_item_detail.vue';
 
 export default {
   i18n: {
@@ -12,10 +11,15 @@ export default {
   components: {
     GlAlert,
     GlModal,
-    WorkItemDetail,
+    WorkItemDetail: () => import('./work_item_detail.vue'),
   },
   props: {
     workItemId: {
+      type: String,
+      required: false,
+      default: null,
+    },
+    workItemIid: {
       type: String,
       required: false,
       default: null,
@@ -41,11 +45,21 @@ export default {
       default: null,
     },
   },
-  emits: ['workItemDeleted', 'close'],
+  emits: ['workItemDeleted', 'close', 'update-modal'],
   data() {
     return {
       error: undefined,
+      updatedWorkItemId: null,
+      updatedWorkItemIid: null,
     };
+  },
+  computed: {
+    displayedWorkItemId() {
+      return this.updatedWorkItemId || this.workItemId;
+    },
+    displayedWorkItemIid() {
+      return this.updatedWorkItemIid || this.workItemIid;
+    },
   },
   methods: {
     deleteWorkItem() {
@@ -111,6 +125,8 @@ export default {
         });
     },
     closeModal() {
+      this.updatedWorkItemId = null;
+      this.updatedWorkItemIid = null;
       this.error = '';
       this.$emit('close');
     },
@@ -123,6 +139,11 @@ export default {
     show() {
       this.$refs.modal.show();
     },
+    updateModal($event, workItem) {
+      this.updatedWorkItemId = workItem.id;
+      this.updatedWorkItemIid = workItem.iid;
+      this.$emit('update-modal', $event, workItem);
+    },
   },
 };
 </script>
@@ -134,6 +155,8 @@ export default {
     size="lg"
     modal-id="work-item-detail-modal"
     header-class="gl-p-0 gl-pb-2!"
+    scrollable
+    data-testid="work-item-detail-modal"
     @hide="closeModal"
   >
     <gl-alert v-if="error" variant="danger" @dismiss="error = false">
@@ -143,10 +166,12 @@ export default {
     <work-item-detail
       is-modal
       :work-item-parent-id="issueGid"
-      :work-item-id="workItemId"
-      class="gl-p-5 gl-mt-n3"
+      :work-item-id="displayedWorkItemId"
+      :work-item-iid="displayedWorkItemIid"
+      class="gl-p-5 gl-mt-n3 gl-reset-bg gl-isolate"
       @close="hide"
       @deleteWorkItem="deleteWorkItem"
+      @update-modal="updateModal"
     />
   </gl-modal>
 </template>

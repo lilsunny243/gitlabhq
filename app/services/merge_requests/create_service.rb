@@ -14,11 +14,15 @@ module MergeRequests
     end
 
     def after_create(issuable)
-      issuable.mark_as_preparing
+      current_user_id = current_user.id
 
-      # Add new items to MergeRequests::AfterCreateService if they can
-      # be performed in Sidekiq
-      NewMergeRequestWorker.perform_async(issuable.id, current_user.id)
+      issuable.run_after_commit do
+        # Add new items to MergeRequests::AfterCreateService if they can
+        # be performed in Sidekiq
+        NewMergeRequestWorker.perform_async(issuable.id, current_user_id)
+      end
+
+      issuable.mark_as_preparing
 
       super
     end
@@ -34,7 +38,8 @@ module MergeRequests
       # callback (e.g. after_create), a database transaction will be
       # open while the Gitaly RPC waits. To avoid an idle in transaction
       # timeout, we do this before we attempt to save the merge request.
-      merge_request.eager_fetch_ref!
+
+      merge_request.skip_ensure_merge_request_diff = true
     end
 
     def set_projects!
@@ -59,4 +64,4 @@ module MergeRequests
   end
 end
 
-MergeRequests::CreateService.include_mod_with('MergeRequests::CreateService')
+MergeRequests::CreateService.prepend_mod_with('MergeRequests::CreateService')

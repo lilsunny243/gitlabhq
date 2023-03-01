@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Connect GKE clusters through cluster certificates (DEPRECATED) **(FREE)**
@@ -63,17 +63,17 @@ cluster certificates:
    - Project's **{cloud-gear}** **Infrastructure > Kubernetes clusters** page, for a project-level
      cluster.
    - Group's **{cloud-gear}** **Kubernetes** page, for a group-level cluster.
-   - **Menu > Admin > Kubernetes** page, for an instance-level cluster.
+   - **Main menu > Admin > Kubernetes** page, for an instance-level cluster.
 1. Select **Integrate with a cluster certificate**.
 1. Under the **Create new cluster** tab, select **Google GKE**.
-1. Connect your Google account if you haven't done already by clicking the
+1. Connect your Google account if you haven't done already by selecting the
    **Sign in with Google** button.
 1. Choose your cluster's settings:
    - **Kubernetes cluster name** - The name you wish to give the cluster.
    - **Environment scope** - The [associated environment](multiple_kubernetes_clusters.md#setting-the-environment-scope) to this cluster.
    - **Google Cloud Platform project** - Choose the project you created in your GCP
-     console to host the Kubernetes cluster. Learn more about
-     [Google Cloud Platform projects](https://cloud.google.com/resource-manager/docs/creating-managing-projects).
+     console to host the Kubernetes cluster. For more information, see
+     [Creating and managing projects](https://cloud.google.com/resource-manager/docs/creating-managing-projects).
    - **Zone** - Choose the [region zone](https://cloud.google.com/compute/docs/regions-zones/)
      under which to create the cluster.
    - **Number of nodes** - Enter the number of nodes you wish the cluster to have.

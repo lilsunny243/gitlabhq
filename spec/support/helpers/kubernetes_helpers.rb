@@ -142,6 +142,29 @@ module KubernetesHelpers
     WebMock.stub_request(method, ingresses_url).to_return(response)
   end
 
+  def stub_server_min_version_failed_request
+    WebMock.stub_request(:get, service.api_url + '/version').to_return(
+      status: [500, "Internal Server Error"],
+      body: {}.to_json)
+  end
+
+  def stub_server_min_version(min_version)
+    response = kube_response({
+                               "major": "1", # not used, just added here to be a bit more realistic purposes
+                               "minor": min_version.to_s
+                             })
+
+    WebMock.stub_request( :get, service.api_url + '/version')
+      .with(
+        headers: {
+          'Accept' => '*/*',
+          'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
+          'Authorization' => 'Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          'User-Agent' => 'Ruby'
+        })
+      .to_return(response)
+  end
+
   def stub_kubeclient_knative_services(options = {})
     namespace_path = options[:namespace].present? ? "namespaces/#{options[:namespace]}/" : ""
 
@@ -511,10 +534,10 @@ module KubernetesHelpers
     }
   end
 
-  def kube_knative_services_body(**options)
+  def kube_knative_services_body(...)
     {
       "kind" => "List",
-      "items" => [knative_09_service(**options)]
+      "items" => [knative_09_service(...)]
     }
   end
 
@@ -537,7 +560,7 @@ module KubernetesHelpers
       },
       "spec" => {
         "containers" => [
-          { "name" => "#{container_name}" },
+          { "name" => container_name.to_s },
           { "name" => "#{container_name}-1" }
         ]
       },

@@ -2,8 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Issue Sidebar' do
+RSpec.describe 'Issue Sidebar', feature_category: :team_planning do
   include MobileHelpers
+  include Spec::Support::Helpers::Features::InviteMembersModalHelper
 
   let_it_be(:group) { create(:group, :nested) }
   let_it_be(:project) { create(:project, :public, namespace: group) }
@@ -118,13 +119,13 @@ RSpec.describe 'Issue Sidebar' do
 
             page.within '.dropdown-menu-user' do
               expect(page).to have_link('Invite members')
-              expect(page).to have_selector('[data-track-action="click_invite_members"]')
-              expect(page).to have_selector('[data-track-label="edit_assignee"]')
+
+              click_link 'Invite members'
             end
 
-            click_link 'Invite members'
-
-            expect(page).to have_content("You're inviting members to the")
+            page.within invite_modal_selector do
+              expect(page).to have_content("You're inviting members to the #{project.name} project")
+            end
           end
         end
 
@@ -208,7 +209,7 @@ RSpec.describe 'Issue Sidebar' do
         visit_issue(project, issue)
       end
 
-      context 'sidebar', :js do
+      context 'for sidebar', :js do
         it 'changes size when the screen size is smaller' do
           sidebar_selector = 'aside.right-sidebar.right-sidebar-collapsed'
           # Resize the window
@@ -227,25 +228,25 @@ RSpec.describe 'Issue Sidebar' do
         end
       end
 
-      context 'editing issue milestone', :js do
+      context 'for editing issue milestone', :js do
         it_behaves_like 'milestone sidebar widget'
       end
 
-      context 'editing issue due date', :js do
+      context 'for editing issue due date', :js do
         it_behaves_like 'date sidebar widget'
       end
 
-      context 'editing issue labels', :js do
+      context 'for editing issue labels', :js do
         it_behaves_like 'labels sidebar widget'
       end
 
-      context 'escalation status', :js do
+      context 'for escalation status', :js do
         it 'is not available for default issue type' do
           expect(page).not_to have_selector('.block.escalation-status')
         end
       end
 
-      context 'interacting with collapsed sidebar', :js do
+      context 'when interacting with collapsed sidebar', :js do
         collapsed_sidebar_selector = 'aside.right-sidebar.right-sidebar-collapsed'
         expanded_sidebar_selector = 'aside.right-sidebar.right-sidebar-expanded'
         confidentiality_sidebar_block = '.block.confidentiality'
@@ -300,13 +301,15 @@ RSpec.describe 'Issue Sidebar' do
         expect(page).not_to have_selector('.block.labels .js-sidebar-dropdown-toggle')
       end
 
-      context 'sidebar', :js do
+      context 'for sidebar', :js do
         it 'finds issue copy forwarding email' do
-          expect(find('[data-qa-selector="copy-forward-email"]').text).to eq "Issue email: #{issue.creatable_note_email_address(user)}" # rubocop:disable QA/SelectorUsage
+          expect(
+            find('[data-testid="copy-forward-email"]').text
+          ).to eq "Issue email: #{issue.creatable_note_email_address(user)}"
         end
       end
 
-      context 'interacting with collapsed sidebar', :js do
+      context 'when interacting with collapsed sidebar', :js do
         collapsed_sidebar_selector = 'aside.right-sidebar.right-sidebar-collapsed'
         expanded_sidebar_selector = 'aside.right-sidebar.right-sidebar-expanded'
         lock_sidebar_block = '.block.lock'
@@ -332,13 +335,13 @@ RSpec.describe 'Issue Sidebar' do
   end
 
   context 'when not signed in' do
-    context 'sidebar', :js do
+    context 'for sidebar', :js do
       before do
         visit_issue(project, issue)
       end
 
       it 'does not find issue email' do
-        expect(page).not_to have_selector('[data-qa-selector="copy-forward-email"]') # rubocop:disable QA/SelectorUsage
+        expect(page).not_to have_selector('[data-testid="copy-forward-email"]')
       end
     end
   end

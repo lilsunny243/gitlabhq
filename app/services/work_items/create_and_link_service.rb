@@ -6,7 +6,7 @@ module WorkItems
   # This class should always be run inside a transaction as we could end up with
   # new work items that were never associated with other work items as expected.
   class CreateAndLinkService
-    def initialize(project:, current_user: nil, params: {}, spam_params:, link_params: {})
+    def initialize(project:, spam_params:, current_user: nil, params: {}, link_params: {})
       @project = project
       @current_user = current_user
       @params = params
@@ -16,7 +16,7 @@ module WorkItems
 
     def execute
       create_result = CreateService.new(
-        project: @project,
+        container: @project,
         current_user: @current_user,
         params: @params.merge(title: @params[:title].strip).reverse_merge(confidential: confidential_parent),
         spam_params: @spam_params

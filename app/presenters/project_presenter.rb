@@ -5,6 +5,7 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
   include GitlabRoutingHelper
   include StorageHelper
   include TreeHelper
+  include Ci::PipelineEditorHelper
   include IconsHelper
   include BlobHelper
   include ChecksCollaboration
@@ -29,7 +30,8 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
       branches_anchor_data,
       tags_anchor_data,
       storage_anchor_data,
-      releases_anchor_data
+      releases_anchor_data,
+      environments_anchor_data
     ].compact.select(&:is_link)
   end
 
@@ -42,6 +44,7 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
       autodevops_anchor_data(show_auto_devops_callout: show_auto_devops_callout),
       kubernetes_cluster_anchor_data,
       gitlab_ci_anchor_data,
+      wiki_anchor_data,
       integrations_anchor_data
     ].compact.reject(&:is_link).sort_by.with_index { |item, idx| [item.class_modifier ? 0 : 1, idx] }
   end
@@ -59,6 +62,7 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
       changelog_anchor_data,
       contribution_guide_anchor_data,
       gitlab_ci_anchor_data,
+      wiki_anchor_data,
       integrations_anchor_data
     ].compact.reject { |item| item.is_link }
   end
@@ -68,7 +72,7 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
 
     user_view = current_user.project_view
 
-    if can?(current_user, :download_code, project)
+    if can?(current_user, :read_code, project)
       user_view
     elsif user_view == 'activity'
       'activity'
@@ -179,13 +183,29 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
     return if releases_count < 1
 
     AnchorData.new(true,
-                   statistic_icon('rocket') +
+                   statistic_icon('deployments') +
                    n_('%{strong_start}%{release_count}%{strong_end} Release', '%{strong_start}%{release_count}%{strong_end} Releases', releases_count).html_safe % {
                      release_count: number_with_delimiter(releases_count),
                      strong_start: '<strong class="project-stat-value">'.html_safe,
                      strong_end: '</strong>'.html_safe
                    },
                   project_releases_path(project))
+  end
+
+  def environments_anchor_data
+    return unless can?(current_user, :read_environment, project)
+
+    environments_count = project.environments.available.count
+    return if environments_count == 0
+
+    AnchorData.new(true,
+    statistic_icon('environment') +
+                   n_('%{strong_start}%{count}%{strong_end} Environment', '%{strong_start}%{count}%{strong_end} Environments', environments_count).html_safe % {
+                     count: number_with_delimiter(environments_count),
+                     strong_start: '<strong class="project-stat-value">'.html_safe,
+                     strong_end: '</strong>'.html_safe
+                   },
+                   project_environments_path(project))
   end
 
   def commits_anchor_data
@@ -290,16 +310,10 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
                      'btn-default',
                      nil,
                      'license')
-    else
-      if can_current_user_push_to_default_branch?
-        AnchorData.new(false,
+    elsif can_current_user_push_to_default_branch?
+      AnchorData.new(false,
                        content_tag(:span, statistic_icon + _('Add LICENSE'), class: 'add-license-link d-flex'),
                        empty_repo? ? add_license_ide_path : add_license_path)
-      else
-        AnchorData.new(false,
-                       icon + content_tag(:span, _('No license. All rights reserved'), class: 'project-stat-value'),
-                       nil)
-      end
     end
   end
 
@@ -317,6 +331,8 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def autodevops_anchor_data(show_auto_devops_callout: false)
+    return unless project.feature_available?(:builds, current_user)
+
     if current_user && can?(current_user, :admin_pipeline, project) && repository.gitlab_ci_yml.blank? && !show_auto_devops_callout
       if auto_devops_enabled?
         AnchorData.new(false,
@@ -353,6 +369,8 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def gitlab_ci_anchor_data
+    return unless can_view_pipeline_editor?(project)
+
     if cicd_missing?
       AnchorData.new(false,
                      statistic_icon + _('Set up CI/CD'),
@@ -362,6 +380,16 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
                      statistic_icon('doc-text') + _('CI/CD configuration'),
                      project_ci_pipeline_editor_path(project),
                     'btn-default')
+    end
+  end
+
+  def wiki_anchor_data
+    return unless project.wiki_enabled? && can_read_wiki?
+
+    if project.wiki.has_home_page?
+      AnchorData.new(false, statistic_icon('book') + _('Wiki'), project_wiki_path, 'btn-default', nil, nil)
+    elsif can_create_wiki?
+      AnchorData.new(false, statistic_icon + _('Add Wiki'), project_create_wiki_path, nil, nil, nil)
     end
   end
 
@@ -421,7 +449,7 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
   end
 
   def anonymous_project_view
-    if !project.empty_repo? && can?(current_user, :download_code, project)
+    if !project.empty_repo? && can?(current_user, :read_code, project)
       'files'
     elsif project.wiki_repository_exists? && can?(current_user, :read_wiki, project)
       'wiki'
@@ -451,8 +479,24 @@ class ProjectPresenter < Gitlab::View::Presenter::Delegated
   end
 
   # Avoid including ActionView::Helpers::UrlHelper
-  def content_tag(*args)
-    ActionController::Base.helpers.content_tag(*args)
+  def content_tag(...)
+    ActionController::Base.helpers.content_tag(...)
+  end
+
+  def can_create_wiki?
+    current_user && can?(current_user, :create_wiki, project)
+  end
+
+  def can_read_wiki?
+    current_user && can?(current_user, :read_wiki, project)
+  end
+
+  def project_wiki_path
+    wiki_path(project.wiki)
+  end
+
+  def project_create_wiki_path
+    "#{wiki_path(project.wiki)}?view=create"
   end
 end
 

@@ -1,100 +1,100 @@
 ---
 stage: Data Stores
 group: Global Search
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference
 ---
 
-# GitLab Advanced Search **(PREMIUM)**
+# Advanced Search **(PREMIUM)**
 
 > Moved to GitLab Premium in 13.9.
 
-Advanced Search uses Elasticsearch for faster, more advanced search across the entire
-GitLab instance.
+You can use Advanced Search for faster, more efficient search across the entire GitLab
+instance. Advanced Search is based on Elasticsearch, a purpose-built full-text search
+engine you can horizontally scale to get results in up to a second in most cases.
 
-Use Advanced Search when searching in:
+You can find code you want to update in all projects at once to save
+maintenance time and promote innersourcing.
+
+You can use Advanced Search in:
 
 - Projects
 - Issues
 - Merge requests
 - Milestones
 - Users
-- Epics (when searching in a group only)
+- Epics (in groups only)
 - Code
 - Comments
 - Commits
-- Wiki (except [group wikis](../project/wiki/group.md))
+- Project wikis (not [group wikis](../project/wiki/group.md))
 
-Advanced Search can be useful in various scenarios:
+## Enable Advanced Search
 
-- **Faster searches:**
-  Advanced Search is based on Elasticsearch, which is a purpose-built full
-  text search engine that can be horizontally scaled so that it can provide
-  search results in 1-2 seconds in most cases.
-- **Code Maintenance:**
-  Finding all the code that needs to be updated at once across an entire
-  instance can save time spent maintaining code.
-  This is especially helpful for organizations with more than 10 active projects.
-  This can also help build confidence is code refactoring to identify unknown impacts.
-- **Promote innersourcing:**
-  Your company may consist of many different developer teams each of which has
-  their own group where the various projects are hosted. Some of your applications
-  may be connected to each other, so your developers need to instantly search
-  throughout the GitLab instance and find the code they search for.
+- On GitLab.com, Advanced Search is enabled for groups with paid subscriptions.
+- For self-managed GitLab instances, an administrator must
+  [enable Advanced Search](../../integration/advanced_search/elasticsearch.md#enable-advanced-search).
 
-## Configuring Advanced Search
+## Syntax
 
-For self-managed GitLab instances, an administrator must
-[configure Advanced Search](../../integration/advanced_search/elasticsearch.md).
+Advanced Search uses [Elasticsearch syntax](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html#simple-query-string-syntax). The syntax supports both exact and fuzzy search queries.
 
-On GitLab.com, Advanced Search is enabled.
+<!-- markdownlint-disable -->
 
-## Advanced Search syntax
+| Syntax        | Description                     | Example                                                                                                                                              |
+|--------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `"`          | Exact search                    | [`"gem sidekiq"`](https://gitlab.com/search?group_id=9970&project_id=278964&scope=blobs&search=%22gem+sidekiq%22)                                 |
+| `~`          | Fuzzy search                    | [`J~ Doe`](https://gitlab.com/search?scope=users&search=j%7E+doe)                                 |
+| <code>&#124;</code> | Or                       | [<code>display &#124; banner</code>](https://gitlab.com/search?group_id=9970&project_id=278964&scope=blobs&search=display+%7C+banner)                                |
+| `+`          | And                             | [`display +banner`](https://gitlab.com/search?group_id=9970&project_id=278964&repository_ref=&scope=blobs&search=display+%2Bbanner&snippets=)       |
+| `-`          | Exclude                         | [`display -banner`](https://gitlab.com/search?group_id=9970&project_id=278964&scope=blobs&search=display+-banner)                                   |
+| `*`          | Partial                         | [`bug error 50*`](https://gitlab.com/search?group_id=9970&project_id=278964&repository_ref=&scope=blobs&search=bug+error+50%2A&snippets=)         |
+| `\`          | Escape                          | [`\*md`](https://gitlab.com/search?snippets=&scope=blobs&repository_ref=&search=%5C*md&group_id=9970&project_id=278964)                  |
+| `#`          | Issue ID                        | [`#23456`](https://gitlab.com/search?snippets=&scope=issues&repository_ref=&search=%2323456&group_id=9970&project_id=278964)               |
+| `!`          | Merge request ID                | [`!23456`](https://gitlab.com/search?snippets=&scope=merge_requests&repository_ref=&search=%2123456&group_id=9970&project_id=278964)       |
 
-See the documentation on [Advanced Search syntax](global_search/advanced_search_syntax.md).
+### Refining user search
 
-## Search by issue or merge request ID
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/388409) in GitLab 15.10 [with a flag](../../administration/feature_flags.md) named `user_search_simple_query_string`. Disabled by default.
 
-You can search a specific issue or merge request by its ID with a special prefix.
+FLAG:
+On self-managed GitLab, by default this feature is not available. To make it available, ask an administrator to [enable the feature flag](../../administration/feature_flags.md) named `user_search_simple_query_string`.
+On GitLab.com, this feature is not available.
 
-- To search by issue ID, use prefix `#` followed by issue ID. For example, [#23456](https://gitlab.com/search?snippets=&scope=issues&repository_ref=&search=%2323456&group_id=9970&project_id=278964)
-- To search by merge request ID, use prefix `!` followed by merge request ID. For example [!23456](https://gitlab.com/search?snippets=&scope=merge_requests&repository_ref=&search=%2123456&group_id=9970&project_id=278964)
+In user search, a [fuzzy query](https://www.elastic.co/guide/en/elasticsearch/reference/7.2/query-dsl-fuzzy-query.html) is used by default. You can refine your search with [Elasticsearch syntax](#syntax).
 
-## Global search scopes **(FREE SELF)**
+### Code search
 
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/68640) in GitLab 14.3.
+| Syntax        | Description                     | Example                                                                                                                                              |
+|--------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `filename:`  | Filename                        | [`filename:*spec.rb`](https://gitlab.com/search?snippets=&scope=blobs&repository_ref=&search=filename%3A*spec.rb&group_id=9970&project_id=278964)     |
+| `path:`      | Repository location             | [`path:spec/workers/`](https://gitlab.com/search?group_id=9970&project_id=278964&repository_ref=&scope=blobs&search=path%3Aspec%2Fworkers&snippets=)   |
+| `extension:` | File extension without `.`      | [`extension:js`](https://gitlab.com/search?group_id=9970&project_id=278964&repository_ref=&scope=blobs&search=extension%3Ajs&snippets=)          |
+| `blob:`      | Git object ID                   | [`blob:998707*`](https://gitlab.com/search?snippets=false&scope=blobs&repository_ref=&search=blob%3A998707*&group_id=9970)                       |
 
-To improve the performance of your instance's global search, you can limit
-the scope of the search. To do so, you can exclude global search scopes by disabling
-[`ops` feature flags](../../development/feature_flags/index.md#ops-type).
+`extension:` and `blob:` return exact matches only.
 
-Global search has all its scopes **enabled** by default in GitLab SaaS and
-self-managed instances. A GitLab administrator can disable the following `ops`
-feature flags to limit the scope of your instance's global search and optimize
-its performance:
+### Examples
 
-| Scope | Feature flag | Description |
-|--|--|--|
-| Code | `global_search_code_tab` | When enabled, the global search includes code as part of the search. |
-| Commits | `global_search_commits_tab` | When enabled, the global search includes commits as part of the search. |
-| Issues | `global_search_issues_tab` | When enabled, the global search includes issues as part of the search. |
-| Merge Requests | `global_search_merge_requests_tab` | When enabled, the global search includes merge requests as part of the search. |
-| Users | `global_search_users_tab` | When enabled, the global search includes users as part of the search. |
-| Wiki | `global_search_wiki_tab` | When enabled, the global search includes wiki as part of the search. [Group wikis](../project/wiki/group.md) are not included. |
+| Query                                                                                                                                                                              | Description                                                          |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| [`rails -filename:gemfile.lock`](https://gitlab.com/search?group_id=9970&project_id=278964&repository_ref=&scope=blobs&search=rails+-filename%3Agemfile.lock&snippets=)              | Returns `rails` in all files except the `gemfile.lock` file.          |
+| [`RSpec.describe Resolvers -*builder`](https://gitlab.com/search?group_id=9970&project_id=278964&scope=blobs&search=RSpec.describe+Resolvers+-*builder)                              | Returns `RSpec.describe Resolvers` that does not start with `builder`. |
+| [<code>bug &#124; (display +banner)</code>](https://gitlab.com/search?snippets=&scope=issues&repository_ref=&search=bug+%7C+%28display+%2Bbanner%29&group_id=9970&project_id=278964)  | Returns `bug` or both `display` and `banner`.                        |
+| [<code>helper -extension:yml -extension:js</code>](https://gitlab.com/search?group_id=9970&project_id=278964&repository_ref=&scope=blobs&search=helper+-extension%3Ayml+-extension%3Ajs&snippets=)  | Returns `helper` in all files except files with a `.yml` or `.js` extension.                        |
 
-## Global Search validation
+<!-- markdownlint-enable -->
 
-To prevent abusive searches, such as searches that may result in a Distributed Denial of Service (DDoS), Global Search ignores, logs, and
-doesn't return any results for searches considered abusive according to the following criteria:
+## Known issues
 
-- Searches with less than 2 characters.
-- Searches with any term greater than 100 characters. URL search terms have a maximum of 200 characters.
-- Searches with a stop word as the only term (for example, "the", "and", "if", etc.).
-- Searches with a `group_id` or `project_id` parameter that is not completely numeric.
-- Searches with a `repository_ref` or `project_ref` parameter that has special characters not allowed by [Git refname](https://git-scm.com/docs/git-check-ref-format).
-- Searches with a `scope` that is unknown.
+- You can only search files smaller than 1 MB.
+  For self-managed GitLab instances, an administrator can
+  [change this limit](../../integration/advanced_search/elasticsearch.md#advanced-search-configuration).
+- You can only use Advanced Search on the default branch of a project.
+- The search query must not contain any of the following characters:
 
-Searches that don't comply with the criteria described below aren't logged as abusive but are flagged with an error:
+  ```plaintext
+  . , : ; / ` ' = ? $ & ^ | < > ( ) { } [ ] @
+  ```
 
-- Searches with more than 4096 characters.
-- Searches with more than 64 terms.
+- Search results show only the first match in a file.

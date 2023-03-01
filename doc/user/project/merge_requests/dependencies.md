@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, concepts
 ---
 
@@ -57,7 +57,7 @@ information about the dependency:
 
 To view dependency information on a merge request:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests** and identify your merge request.
 1. Scroll to the merge request reports area. Dependent merge requests display information
    about the total number of dependencies set, such as
@@ -105,7 +105,7 @@ Prerequisite:
 
 To do this:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests** and identify your merge request.
 1. Select **Edit**.
 1. In **Merge request dependencies**, paste either the reference or the full URL
@@ -120,7 +120,7 @@ Prerequisite:
 
 - You must have a role in the project that allows you to edit merge requests.
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Merge requests** and identify your merge request.
 1. Select **Edit**.
 1. Scroll to **Merge request dependencies** and select **Remove** next to the reference
@@ -144,6 +144,11 @@ Dependencies are not preserved when projects are imported or exported. For more
 information, read [issue #12549](https://gitlab.com/gitlab-org/gitlab/-/issues/12549).
 
 ### Complex merge order dependencies are unsupported
+
+If you attempt to create an indirect, nested dependency, GitLab shows one of these error messages:
+
+- Dependencies failed to save: Blocked merge request cannot block others
+- Dependencies failed to save: Blocking merge request cannot itself be blocked
 
 GitLab supports direct dependencies between merge requests, but does not support
 [indirect (nested) dependencies](https://gitlab.com/gitlab-org/gitlab/-/issues/11393).

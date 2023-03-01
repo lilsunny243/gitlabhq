@@ -2,27 +2,31 @@
 
 module QA
   module Resource
-    class MergeRequest < Base
+    class MergeRequest < Issuable
+      include ApprovalConfiguration
+
       attr_accessor :approval_rules,
-                    :source_branch,
-                    :target_new_branch,
-                    :update_existing_file,
-                    :assignee,
-                    :milestone,
-                    :labels,
-                    :file_name,
-                    :file_content
+        :source_branch,
+        :target_new_branch,
+        :update_existing_file,
+        :assignee,
+        :milestone,
+        :labels,
+        :file_name,
+        :file_content,
+        :reviewer_ids
 
       attr_writer :no_preparation,
-                  :wait_for_merge,
-                  :template
+        :wait_for_merge,
+        :template
 
       attributes :iid,
-                 :title,
-                 :description,
-                 :merge_when_pipeline_succeeds,
-                 :merge_status,
-                 :state
+        :title,
+        :description,
+        :merge_when_pipeline_succeeds,
+        :merge_status,
+        :state,
+        :reviewers
 
       attribute :project do
         Project.fabricate_via_api! do |resource|
@@ -121,17 +125,29 @@ module QA
         "/projects/#{project.id}/merge_requests"
       end
 
+      def api_reviewers_path
+        "#{api_get_path}/reviewers"
+      end
+
+      def api_approve_path
+        "#{api_get_path}/approve"
+      end
+
       def api_post_body
         {
           description: description,
           source_branch: source_branch,
           target_branch: target_branch,
-          title: title
+          title: title,
+          reviewer_ids: reviewer_ids
         }
       end
 
-      def api_comments_path
-        "#{api_get_path}/notes"
+      # Get merge request reviews
+      #
+      # @return [Array<Hash>]
+      def reviews
+        parse_body(api_get_from(api_reviewers_path))
       end
 
       def merge_via_api!
@@ -156,34 +172,25 @@ module QA
         end
       end
 
+      # Approve merge request
+      #
+      # Due to internal implementation of api client, project needs to have
+      # setting 'Prevent approval by author' set to false since we use same user that created merge request which
+      # is set through approval configuration
+      #
+      # @return [void]
+      def approve
+        api_post_to(api_approve_path, {})
+      end
+
       def fabricate_large_merge_request
         @project = Resource::ImportProject.fabricate_via_browser_ui!
         # Setting the name here, since otherwise some tests will look for an existing file in
-        # the proejct without ever knowing what is in it.
+        # the project without ever knowing what is in it.
         @file_name = "added_file-00000000.txt"
         @source_branch = "large_merge_request"
         visit("#{project.web_url}/-/merge_requests/1")
         current_url
-      end
-
-      # Get MR comments
-      #
-      # @return [Array]
-      def comments(auto_paginate: false, attempts: 0)
-        return parse_body(api_get_from(api_comments_path)) unless auto_paginate
-
-        auto_paginated_response(
-          Runtime::API::Request.new(api_client, api_comments_path, per_page: '100').url,
-          attempts: attempts
-        )
-      end
-
-      # Add mr comment
-      #
-      # @param [String] body
-      # @return [Hash]
-      def add_comment(body)
-        api_post_to(api_comments_path, body: body)
       end
 
       # Return subset of fields for comparing merge requests
@@ -199,6 +206,10 @@ module QA
           :source_project_id,
           :target_project_id,
           :merge_status,
+          # we consider mr to still be the same even if users changed
+          :author,
+          :reviewers,
+          :assignees,
           # these can differ depending on user fetching mr
           :user,
           :subscribed,

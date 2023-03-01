@@ -80,7 +80,6 @@ export default {
     ]),
   },
   mounted() {
-    this.setSelectedProject(this.targetProjectId);
     eventHub.$on(this.openModal, this.show);
   },
   methods: {
@@ -136,11 +135,7 @@ export default {
           :value="targetProjectId"
         />
 
-        <projects-dropdown
-          class="gl-w-half"
-          :value="targetProjectName"
-          @selectProject="setSelectedProject"
-        />
+        <projects-dropdown :value="targetProjectName" @input="setSelectedProject" />
       </gl-form-group>
 
       <gl-form-group
@@ -150,7 +145,7 @@ export default {
       >
         <input id="start_branch" type="hidden" name="start_branch" :value="branch" />
 
-        <branches-dropdown class="gl-w-half" :value="branch" @selectBranch="setBranch" />
+        <branches-dropdown :value="branch" @input="setBranch" />
       </gl-form-group>
 
       <gl-form-checkbox

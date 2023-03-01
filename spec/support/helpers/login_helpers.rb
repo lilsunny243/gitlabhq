@@ -101,6 +101,8 @@ module LoginHelpers
     fill_in "user_password", with: (password || user.password)
     check 'user_remember_me' if remember
 
+    wait_for_all_requests
+
     find('[data-testid="sign-in-button"]:enabled').click
 
     if two_factor_auth
@@ -117,6 +119,16 @@ module LoginHelpers
     check 'remember_me' if remember_me
 
     click_button "oauth-login-#{provider}"
+  end
+
+  def sign_in_using_ldap!(user, ldap_tab, ldap_name)
+    visit new_user_session_path
+    click_link ldap_tab
+    fill_in 'username', with: user.username
+    fill_in 'password', with: user.password
+    within("##{ldap_name}") do
+      click_button 'Sign in'
+    end
   end
 
   def register_via(provider, uid, email, additional_info: {})

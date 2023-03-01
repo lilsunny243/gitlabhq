@@ -11,14 +11,15 @@ RSpec.describe WebHooks::LogExecutionService do
       travel_to(Time.current) { example.run }
     end
 
-    let_it_be_with_reload(:project_hook) { create(:project_hook) }
+    let_it_be_with_reload(:project_hook) { create(:project_hook, :token) }
 
     let(:response_category) { :ok }
+    let(:request_headers) { { 'Header' => 'header value' } }
     let(:data) do
       {
         trigger: 'trigger_name',
         url: 'https://example.com',
-        request_headers: { 'Header' => 'header value' },
+        request_headers: request_headers,
         request_data: { 'Request Data' => 'request data value' },
         response_body: 'Response body',
         response_status: '200',
@@ -46,7 +47,8 @@ RSpec.describe WebHooks::LogExecutionService do
 
       it 'updates failure state using a lease that ensures fresh state is written' do
         service = described_class.new(hook: project_hook, log_data: data, response_category: :error)
-        WebHook.find(project_hook.id).update!(backoff_count: 1)
+        # Write state somewhere else, so that the hook is out-of-date
+        WebHook.find(project_hook.id).update!(recent_failures: 5, disabled_until: 10.minutes.from_now, backoff_count: 1)
 
         lease = stub_exclusive_lease(lease_key, timeout: described_class::LOCK_TTL)
 
@@ -69,6 +71,8 @@ RSpec.describe WebHooks::LogExecutionService do
           subject(:service) { described_class.new(hook: project_hook, log_data: data, response_category: response_category) }
 
           before do
+            # stub LOCK_RETRY to be 0 in order for tests to run quicker
+            stub_const("#{described_class.name}::LOCK_RETRY", 0)
             stub_exclusive_lease_taken(lease_key, timeout: described_class::LOCK_TTL)
             allow(project_hook).to receive(:executable?).and_return(executable)
           end
@@ -124,19 +128,6 @@ RSpec.describe WebHooks::LogExecutionService do
 
         expect { service.execute }.not_to change(project_hook, :recent_failures)
       end
-
-      context 'when the web_hooks_disable_failed FF is disabled' do
-        before do
-          # Hook will only be executed if the flag is disabled.
-          stub_feature_flags(web_hooks_disable_failed: false)
-        end
-
-        it 'does not allow the failure count to overflow' do
-          project_hook.update!(recent_failures: 32767)
-
-          expect { service.execute }.not_to change(project_hook, :recent_failures)
-        end
-      end
     end
 
     context 'when response_category is :error' do
@@ -146,36 +137,38 @@ RSpec.describe WebHooks::LogExecutionService do
         data[:response_status] = '500'
       end
 
-      it 'does not increment the failure count' do
-        expect { service.execute }.not_to change(project_hook, :recent_failures)
-      end
-
       it 'backs off' do
-        expect { service.execute }.to change(project_hook, :disabled_until)
+        expect(project_hook).to receive(:backoff!)
+
+        service.execute
+      end
+    end
+
+    context 'with url_variables' do
+      before do
+        project_hook.update!(
+          url: 'http://example1.test/{foo}-{bar}',
+          url_variables: { 'foo' => 'supers3cret', 'bar' => 'token' }
+        )
       end
 
-      it 'increases the backoff count' do
-        expect { service.execute }.to change(project_hook, :backoff_count).by(1)
+      let(:data) { super().merge(response_headers: { 'X-Token-Id' => 'supers3cret-token', 'X-Request' => 'PUBLIC-token' }) }
+      let(:expected_headers) { { 'X-Token-Id' => '{foo}-{bar}', 'X-Request' => 'PUBLIC-{bar}' } }
+
+      it 'logs the data and masks response headers' do
+        expect { service.execute }.to change(::WebHookLog, :count).by(1)
+
+        expect(WebHookLog.recent.first.response_headers).to eq(expected_headers)
       end
+    end
 
-      context 'when the previous cool-off was near the maximum' do
-        before do
-          project_hook.update!(disabled_until: 5.minutes.ago, backoff_count: 8)
-        end
+    context 'with X-Gitlab-Token' do
+      let(:request_headers) { { 'X-Gitlab-Token' => project_hook.token } }
 
-        it 'sets the disabled_until attribute' do
-          expect { service.execute }.to change(project_hook, :disabled_until).to(1.day.from_now)
-        end
-      end
+      it 'redacts the token' do
+        service.execute
 
-      context 'when we have backed-off many many times' do
-        before do
-          project_hook.update!(disabled_until: 5.minutes.ago, backoff_count: 365)
-        end
-
-        it 'sets the disabled_until attribute' do
-          expect { service.execute }.to change(project_hook, :disabled_until).to(1.day.from_now)
-        end
+        expect(WebHookLog.recent.first.request_headers).to include('X-Gitlab-Token' => '[REDACTED]')
       end
     end
   end

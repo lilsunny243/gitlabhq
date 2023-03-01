@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 class ProjectSetting < ApplicationRecord
+  include ::Gitlab::Utils::StrongMemoize
+  include EachBatch
+
   ALLOWED_TARGET_PLATFORMS = %w(ios osx tvos watchos android).freeze
 
   belongs_to :project, inverse_of: :project_setting
@@ -18,11 +21,17 @@ class ProjectSetting < ApplicationRecord
 
   validates :merge_commit_template, length: { maximum: Project::MAX_COMMIT_TEMPLATE_LENGTH }
   validates :squash_commit_template, length: { maximum: Project::MAX_COMMIT_TEMPLATE_LENGTH }
+  validates :issue_branch_template, length: { maximum: Issue::MAX_BRANCH_TEMPLATE }
   validates :target_platforms, inclusion: { in: ALLOWED_TARGET_PLATFORMS }
+  validates :suggested_reviewers_enabled, inclusion: { in: [true, false] }
+
+  validates :pages_unique_domain,
+    uniqueness: { if: -> { pages_unique_domain.present? } },
+    presence: { if: :require_unique_domain? }
 
   validate :validates_mr_default_target_self
 
-  default_value_for(:legacy_open_source_license_available) do
+  attribute :legacy_open_source_license_available, default: -> do
     Feature.enabled?(:legacy_open_source_license_available, type: :ops)
   end
 
@@ -47,12 +56,26 @@ class ProjectSetting < ApplicationRecord
     end
   end
 
+  def show_diff_preview_in_email?
+    if project.group
+      super && project.group&.show_diff_preview_in_email?
+    else
+      !!super
+    end
+  end
+  strong_memoize_attr :show_diff_preview_in_email?
+
   private
 
   def validates_mr_default_target_self
     if mr_default_target_self_changed? && !project.forked?
       errors.add :mr_default_target_self, _('This setting is allowed for forked projects only')
     end
+  end
+
+  def require_unique_domain?
+    pages_unique_domain_enabled ||
+      pages_unique_domain_in_database.present?
   end
 end
 

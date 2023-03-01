@@ -27,7 +27,7 @@ RSpec.describe Nav::TopNavHelper do
 
     let(:subject) { helper.top_nav_view_model(project: current_project, group: current_group) }
 
-    let(:active_title) { 'Menu' }
+    let(:menu_tooltip) { 'Main menu' }
 
     before do
       allow(Gitlab::CurrentSettings).to receive(:admin_mode) { with_current_settings_admin_mode }
@@ -44,12 +44,15 @@ RSpec.describe Nav::TopNavHelper do
       allow(helper).to receive(:dashboard_nav_link?).with(:activity) { with_activity }
     end
 
-    it 'has :activeTitle' do
-      expect(subject[:activeTitle]).to eq(active_title)
+    it 'has :menuTooltip' do
+      expect(subject[:menuTooltip]).to eq(menu_tooltip)
     end
 
     context 'when current_user is nil (anonymous)' do
       it 'has expected :primary' do
+        expected_header = ::Gitlab::Nav::TopNavMenuHeader.build(
+          title: 'Explore'
+        )
         expected_primary = [
           { href: '/explore', icon: 'project', id: 'project', title: 'Projects' },
           { href: '/explore/groups', icon: 'group', id: 'groups', title: 'Groups' },
@@ -58,7 +61,7 @@ RSpec.describe Nav::TopNavHelper do
           ::Gitlab::Nav::TopNavMenuItem.build(**item)
         end
 
-        expect(subject[:primary]).to eq(expected_primary)
+        expect(subject[:primary]).to eq([expected_header, *expected_primary])
       end
 
       it 'has expected :shortcuts' do
@@ -103,7 +106,7 @@ RSpec.describe Nav::TopNavHelper do
       let(:current_user) { user }
 
       it 'has no menu items or views by default' do
-        expect(subject).to eq({ activeTitle: active_title,
+        expect(subject).to eq({ menuTooltip: menu_tooltip,
                                 primary: [],
                                 secondary: [],
                                 shortcuts: [],
@@ -115,18 +118,22 @@ RSpec.describe Nav::TopNavHelper do
         let(:projects_view) { subject[:views][:projects] }
 
         it 'has expected :primary' do
+          expected_header = ::Gitlab::Nav::TopNavMenuHeader.build(
+            title: 'Switch to'
+          )
           expected_primary = ::Gitlab::Nav::TopNavMenuItem.build(
-            css_class: 'qa-projects-dropdown',
             data: {
               track_action: 'click_dropdown',
-              track_label: 'projects_dropdown'
+              track_label: 'projects_dropdown',
+              track_property: 'navigation_top',
+              qa_selector: 'projects_dropdown'
             },
             icon: 'project',
             id: 'project',
             title: 'Projects',
             view: 'projects'
           )
-          expect(subject[:primary]).to eq([expected_primary])
+          expect(subject[:primary]).to eq([expected_header, expected_primary])
         end
 
         it 'has expected :shortcuts' do
@@ -153,61 +160,19 @@ RSpec.describe Nav::TopNavHelper do
               ::Gitlab::Nav::TopNavMenuItem.build(
                 data: {
                   qa_selector: 'menu_item_link',
-                  qa_title: 'Your projects',
-                  **menu_data_tracking_attrs('your_projects')
+                  qa_title: 'View all projects',
+                  **menu_data_tracking_attrs('view_all_projects')
                 },
                 href: '/dashboard/projects',
                 id: 'your',
-                title: 'Your projects'
-              ),
-              ::Gitlab::Nav::TopNavMenuItem.build(
-                data: {
-                  qa_selector: 'menu_item_link',
-                  qa_title: 'Starred projects',
-                  **menu_data_tracking_attrs('starred_projects')
-                },
-                href: '/dashboard/projects/starred',
-                id: 'starred',
-                title: 'Starred projects'
-              ),
-              ::Gitlab::Nav::TopNavMenuItem.build(
-                data: {
-                  qa_selector: 'menu_item_link',
-                  qa_title: 'Explore projects',
-                  **menu_data_tracking_attrs('explore_projects')
-                },
-                href: '/explore',
-                id: 'explore',
-                title: 'Explore projects'
-              ),
-              ::Gitlab::Nav::TopNavMenuItem.build(
-                data: {
-                  qa_selector: 'menu_item_link',
-                  qa_title: 'Explore topics',
-                  **menu_data_tracking_attrs('explore_topics')
-                },
-                href: '/explore/projects/topics',
-                id: 'topics',
-                title: 'Explore topics'
+                title: 'View all projects'
               )
             ]
             expect(projects_view[:linksPrimary]).to eq(expected_links_primary)
           end
 
-          it 'has expected :linksSecondary' do
-            expected_links_secondary = [
-              ::Gitlab::Nav::TopNavMenuItem.build(
-                data: {
-                  qa_selector: 'menu_item_link',
-                  qa_title: 'Create new project',
-                  **menu_data_tracking_attrs('create_new_project')
-                },
-                href: '/projects/new',
-                id: 'create',
-                title: 'Create new project'
-              )
-            ]
-            expect(projects_view[:linksSecondary]).to eq(expected_links_secondary)
+          it 'does not have any :linksSecondary' do
+            expect(projects_view[:linksSecondary]).to eq([])
           end
 
           context 'with current nav as project' do
@@ -251,18 +216,22 @@ RSpec.describe Nav::TopNavHelper do
         let(:groups_view) { subject[:views][:groups] }
 
         it 'has expected :primary' do
+          expected_header = ::Gitlab::Nav::TopNavMenuHeader.build(
+            title: 'Switch to'
+          )
           expected_primary = ::Gitlab::Nav::TopNavMenuItem.build(
-            css_class: 'qa-groups-dropdown',
             data: {
               track_action: 'click_dropdown',
-              track_label: 'groups_dropdown'
+              track_label: 'groups_dropdown',
+              track_property: 'navigation_top',
+              qa_selector: 'groups_dropdown'
             },
             icon: 'group',
             id: 'groups',
             title: 'Groups',
             view: 'groups'
           )
-          expect(subject[:primary]).to eq([expected_primary])
+          expect(subject[:primary]).to eq([expected_header, expected_primary])
         end
 
         it 'has expected :shortcuts' do
@@ -289,41 +258,19 @@ RSpec.describe Nav::TopNavHelper do
               ::Gitlab::Nav::TopNavMenuItem.build(
                 data: {
                   qa_selector: 'menu_item_link',
-                  qa_title: 'Your groups',
-                  **menu_data_tracking_attrs('your_groups')
+                  qa_title: 'View all groups',
+                  **menu_data_tracking_attrs('view_all_groups')
                 },
                 href: '/dashboard/groups',
                 id: 'your',
-                title: 'Your groups'
-              ),
-              ::Gitlab::Nav::TopNavMenuItem.build(
-                data: {
-                  qa_selector: 'menu_item_link',
-                  qa_title: 'Explore groups',
-                  **menu_data_tracking_attrs('explore_groups')
-                },
-                href: '/explore/groups',
-                id: 'explore',
-                title: 'Explore groups'
+                title: 'View all groups'
               )
             ]
             expect(groups_view[:linksPrimary]).to eq(expected_links_primary)
           end
 
-          it 'has expected :linksSecondary' do
-            expected_links_secondary = [
-              ::Gitlab::Nav::TopNavMenuItem.build(
-                data: {
-                  qa_selector: 'menu_item_link',
-                  qa_title: 'Create group',
-                  **menu_data_tracking_attrs('create_group')
-                },
-                href: '/groups/new',
-                id: 'create',
-                title: 'Create group'
-              )
-            ]
-            expect(groups_view[:linksSecondary]).to eq(expected_links_secondary)
+          it 'does not have any :linksSecondary' do
+            expect(groups_view[:linksSecondary]).to eq([])
           end
 
           context 'with external user' do
@@ -374,17 +321,17 @@ RSpec.describe Nav::TopNavHelper do
         let(:with_milestones) { true }
 
         it 'has expected :primary' do
+          expected_header = ::Gitlab::Nav::TopNavMenuHeader.build(
+            title: 'Explore'
+          )
           expected_primary = ::Gitlab::Nav::TopNavMenuItem.build(
-            data: {
-              qa_selector: 'milestones_link',
-              **menu_data_tracking_attrs('milestones')
-            },
+            data: { **menu_data_tracking_attrs('milestones') },
             href: '/dashboard/milestones',
             icon: 'clock',
             id: 'milestones',
             title: 'Milestones'
           )
-          expect(subject[:primary]).to eq([expected_primary])
+          expect(subject[:primary]).to eq([expected_header, expected_primary])
         end
 
         it 'has expected :shortcuts' do
@@ -402,6 +349,9 @@ RSpec.describe Nav::TopNavHelper do
         let(:with_snippets) { true }
 
         it 'has expected :primary' do
+          expected_header = ::Gitlab::Nav::TopNavMenuHeader.build(
+            title: 'Explore'
+          )
           expected_primary = ::Gitlab::Nav::TopNavMenuItem.build(
             data: {
               qa_selector: 'snippets_link',
@@ -412,7 +362,7 @@ RSpec.describe Nav::TopNavHelper do
             id: 'snippets',
             title: 'Snippets'
           )
-          expect(subject[:primary]).to eq([expected_primary])
+          expect(subject[:primary]).to eq([expected_header, expected_primary])
         end
 
         it 'has expected :shortcuts' do
@@ -430,17 +380,17 @@ RSpec.describe Nav::TopNavHelper do
         let(:with_activity) { true }
 
         it 'has expected :primary' do
+          expected_header = ::Gitlab::Nav::TopNavMenuHeader.build(
+            title: 'Explore'
+          )
           expected_primary = ::Gitlab::Nav::TopNavMenuItem.build(
-            data: {
-              qa_selector: 'activity_link',
-              **menu_data_tracking_attrs('activity')
-            },
+            data: { **menu_data_tracking_attrs('activity') },
             href: '/dashboard/activity',
             icon: 'history',
             id: 'activity',
             title: 'Activity'
           )
-          expect(subject[:primary]).to eq([expected_primary])
+          expect(subject[:primary]).to eq([expected_header, expected_primary])
         end
 
         it 'has expected :shortcuts' do
@@ -463,15 +413,13 @@ RSpec.describe Nav::TopNavHelper do
       it 'has admin as first :secondary item' do
         expected_admin_item = ::Gitlab::Nav::TopNavMenuItem.build(
           data: {
-            qa_selector: 'menu_item_link',
-            qa_title: 'Admin',
+            qa_selector: 'admin_area_link',
             **menu_data_tracking_attrs('admin')
           },
           id: 'admin',
           title: 'Admin',
           icon: 'admin',
-          href: '/admin',
-          css_class: 'qa-admin-area-link'
+          href: '/admin'
         )
 
         expect(subject[:secondary].first).to eq(expected_admin_item)
@@ -571,7 +519,7 @@ RSpec.describe Nav::TopNavHelper do
     {
       track_label: "menu_#{label}",
       track_action: 'click_dropdown',
-      track_property: 'navigation'
+      track_property: 'navigation_top'
     }
   end
 end

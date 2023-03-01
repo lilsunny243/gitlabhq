@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -10,7 +10,7 @@ type: reference
 NFS can be used as an alternative for object storage but this isn't typically
 recommended for performance reasons.
 
-For data objects such as LFS, Uploads, Artifacts, and so on, an [Object Storage service](object_storage.md)
+For data objects such as LFS, Uploads, and Artifacts, an [Object Storage service](object_storage.md)
 is recommended over NFS where possible, due to better performance.
 When eliminating the usage of NFS, there are [additional steps you need to take](object_storage.md#other-alternatives-to-file-system-storage)
 in addition to moving to Object Storage.
@@ -20,47 +20,14 @@ actions that read or write to Git repositories. For steps you can use to test
 file system performance, see
 [File System Performance Benchmarking](operations/filesystem_benchmarking.md).
 
-## Gitaly and NFS deprecation
+## Gitaly with NFS not supported
 
-Starting with GitLab version 14.0, support for NFS to store Git repository data is deprecated. Technical customer support and engineering support is available for the 14.x releases. Engineering is fixing bugs and security vulnerabilities consistent with our [release and maintenance policy](../policy/maintenance.md#security-releases).
+Technical and engineering support for using NFS to store Git repository data is officially at end-of-life. No product
+changes or troubleshooting is provided through engineering, security or paid support channels.
 
-Upon the release of GitLab 15.6 technical and engineering support for using NFS to store Git repository data is officially at end-of-life. There are no product changes or troubleshooting provided via Engineering, Security or Paid Support channels after the release date of 15.6, regardless of your GitLab version.
-
-Until the release of 15.6, for customers running 14.x releases, we continue to help with Git related tickets from customers running one or more Gitaly servers with its data stored on NFS. Examples may include:
-
-- Performance issues or timeouts accessing Git data
-- Commits or branches vanish
-- GitLab intermittently returns the wrong Git data (such as reporting that a repository has no branches)
-
-Assistance is limited to activities like:
-
-- Verifying developers' workflow uses features like protected branches
-- Reviewing GitLab event data from the database to advise if it looks like a force push over-wrote branches
-- Verifying that NFS client mount options match our [documented recommendations](#mount-options)
-- Analyzing the GitLab Workhorse and Rails logs, and determining that `500` errors being seen in the environment are caused by slow responses from Gitaly
-
-GitLab support is unable to continue with the investigation if both:
-
-- The date of the request is on or after the release of GitLab version 15.6.
-- Support Engineers and Management determine that all reasonable non-NFS root causes have been exhausted.
-
-If the issue is reproducible, or if it happens intermittently but regularly, GitLab Support can investigate providing the issue reproduces without the use of NFS. In order to reproduce without NFS, the affected repositories should be migrated to a different Gitaly shard, such as Gitaly cluster or a standalone Gitaly VM, backed with block storage.
-
-### Why remove NFS for Git repository data
-
-{:.no-toc}
-
-NFS is not well-suited to a workload consisting of many small files, like Git repositories. NFS does provide a number of configuration options designed to improve performance. However, over time, a number of these mount options have proven to result in inconsistencies across multiple nodes mounting the NFS volume, up to and including data loss. Addressing these inconsistencies consume extraordinary development and support engineer time that hamper our ability to develop [Gitaly Cluster](gitaly/praefect.md), our purpose-built solution to addressing the deficiencies of NFS in this environment.
-
-Please note that Gitaly Cluster provides highly-available Git repository storage. If this is not a requirement, single-node Gitaly backed by block storage is a suitable substitute.
-
-Engineering support for NFS for Git repositories is deprecated. Technical support is planned to be
-unavailable from GitLab 15.0. No further enhancements are planned for this feature.
-
-Read:
-
-- [Moving beyond NFS](gitaly/index.md#moving-beyond-nfs).
-- About the [correct mount options to use](#upgrade-to-gitaly-cluster-or-disable-caching-if-experiencing-data-loss).
+If an issue is reproducible, or if it happens intermittently but regularly, GitLab Support can investigate providing the
+issue can be reproduced without NFS. To reproduce without NFS, migrate the affected repositories to a different Gitaly
+shard. For example, a Gitaly Cluster or a standalone Gitaly VM, backed with block storage.
 
 ## Known kernel version incompatibilities
 
@@ -134,7 +101,7 @@ specifically test NFSv3.
 When you define your NFS exports, we recommend you also add the following
 options:
 
-- `no_root_squash` - NFS normally changes the `root` user to `nobody`. This is
+- `no_root_squash` - NFS usually changes the `root` user to `nobody`. This is
   a good security measure when NFS shares are accessed by many different
   users. However, in this case only GitLab uses the NFS share so it
   is safe. GitLab recommends the `no_root_squash` setting because we need to
@@ -312,7 +279,7 @@ to store the data on an NFS mount.
 
 Bind mounts provide a way to specify just one NFS mount and then
 bind the default GitLab data locations to the NFS mount. Start by defining your
-single NFS mount point as you normally would in `/etc/fstab`. Let's assume your
+single NFS mount point as you typically would in `/etc/fstab`. Let's assume your
 NFS mount point is `/gitlab-nfs`. Then, add the following bind mounts in
 `/etc/fstab`:
 
@@ -338,7 +305,7 @@ following are the 4 locations need to be shared:
 | -------- | ----------- | --------------------- |
 | `/var/opt/gitlab/git-data` | Git repository data. This accounts for a large portion of your data | `git_data_dirs({"default" => { "path" => "/var/opt/gitlab/git-data"} })`
 | `/var/opt/gitlab/gitlab-rails/uploads` | User uploaded attachments | `gitlab_rails['uploads_directory'] = '/var/opt/gitlab/gitlab-rails/uploads'`
-| `/var/opt/gitlab/gitlab-rails/shared` | Build artifacts, GitLab Pages, LFS objects, temp files, and so on. If you're using LFS this may also account for a large portion of your data | `gitlab_rails['shared_path'] = '/var/opt/gitlab/gitlab-rails/shared'`
+| `/var/opt/gitlab/gitlab-rails/shared` | Objects such as build artifacts, GitLab Pages, LFS objects, and temp files. If you're using LFS this may also account for a large portion of your data | `gitlab_rails['shared_path'] = '/var/opt/gitlab/gitlab-rails/shared'`
 | `/var/opt/gitlab/gitlab-ci/builds` | GitLab CI/CD build traces | `gitlab_ci['builds_directory'] = '/var/opt/gitlab/gitlab-ci/builds'`
 
 Other GitLab directories should not be shared between nodes. They contain
@@ -352,7 +319,7 @@ are empty before attempting a restore. Read more about the
 
 ## Testing NFS
 
-Once you've set up the NFS server and client, you can verify NFS is configured correctly
+When you've set up the NFS server and client, you can verify NFS is configured correctly
 by testing the following commands:
 
 ```shell
@@ -397,8 +364,8 @@ sudo ufw allow from <client_ip_address> to any port nfs
 ### Upgrade to Gitaly Cluster or disable caching if experiencing data loss
 
 WARNING:
-Engineering support for NFS for Git repositories is deprecated. Read about
-[moving beyond NFS](gitaly/index.md#moving-beyond-nfs).
+Engineering support for NFS for Git repositories
+[is unavailable](../update/removals.md#nfs-as-git-repository-storage-is-no-longer-supported).
 
 Customers and users have reported data loss on high-traffic repositories when using NFS for Git repositories.
 For example, we have seen:

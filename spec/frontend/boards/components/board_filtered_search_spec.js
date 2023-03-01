@@ -3,9 +3,21 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import BoardFilteredSearch from '~/boards/components/board_filtered_search.vue';
 import * as urlUtility from '~/lib/utils/url_utility';
-import { __ } from '~/locale';
+import {
+  TOKEN_TITLE_AUTHOR,
+  TOKEN_TITLE_LABEL,
+  TOKEN_TYPE_ASSIGNEE,
+  TOKEN_TYPE_AUTHOR,
+  TOKEN_TYPE_HEALTH,
+  TOKEN_TYPE_ITERATION,
+  TOKEN_TYPE_LABEL,
+  TOKEN_TYPE_MILESTONE,
+  TOKEN_TYPE_RELEASE,
+  TOKEN_TYPE_TYPE,
+  TOKEN_TYPE_WEIGHT,
+} from '~/vue_shared/components/filtered_search_bar/constants';
 import FilteredSearchBarRoot from '~/vue_shared/components/filtered_search_bar/filtered_search_bar_root.vue';
-import AuthorToken from '~/vue_shared/components/filtered_search_bar/tokens/author_token.vue';
+import UserToken from '~/vue_shared/components/filtered_search_bar/tokens/user_token.vue';
 import LabelToken from '~/vue_shared/components/filtered_search_bar/tokens/label_token.vue';
 import { createStore } from '~/boards/stores';
 
@@ -17,8 +29,8 @@ describe('BoardFilteredSearch', () => {
   const tokens = [
     {
       icon: 'labels',
-      title: __('Label'),
-      type: 'label',
+      title: TOKEN_TITLE_LABEL,
+      type: TOKEN_TYPE_LABEL,
       operators: [
         { value: '=', description: 'is' },
         { value: '!=', description: 'is not' },
@@ -30,23 +42,23 @@ describe('BoardFilteredSearch', () => {
     },
     {
       icon: 'pencil',
-      title: __('Author'),
-      type: 'author',
+      title: TOKEN_TITLE_AUTHOR,
+      type: TOKEN_TYPE_AUTHOR,
       operators: [
         { value: '=', description: 'is' },
         { value: '!=', description: 'is not' },
       ],
       symbol: '@',
-      token: AuthorToken,
+      token: UserToken,
       unique: true,
-      fetchAuthors: () => new Promise(() => {}),
+      fetchUsers: () => new Promise(() => {}),
     },
   ];
 
-  const createComponent = ({ initialFilterParams = {}, props = {} } = {}) => {
+  const createComponent = ({ initialFilterParams = {}, props = {}, provide = {} } = {}) => {
     store = createStore();
     wrapper = shallowMount(BoardFilteredSearch, {
-      provide: { initialFilterParams, fullPath: '' },
+      provide: { initialFilterParams, fullPath: '', isApolloBoard: false, ...provide },
       store,
       propsData: {
         ...props,
@@ -97,7 +109,7 @@ describe('BoardFilteredSearch', () => {
       createComponent({ props: { eeFilters: { labelName: ['label'] } } });
 
       expect(findFilteredSearch().props('initialFilterValue')).toEqual([
-        { type: 'label', value: { data: 'label', operator: '=' } },
+        { type: TOKEN_TYPE_LABEL, value: { data: 'label', operator: '=' } },
       ]);
     });
   });
@@ -117,15 +129,17 @@ describe('BoardFilteredSearch', () => {
 
     it('sets the url params to the correct results', async () => {
       const mockFilters = [
-        { type: 'author', value: { data: 'root', operator: '=' } },
-        { type: 'assignee', value: { data: 'root', operator: '=' } },
-        { type: 'label', value: { data: 'label', operator: '=' } },
-        { type: 'label', value: { data: 'label&2', operator: '=' } },
-        { type: 'milestone', value: { data: 'New Milestone', operator: '=' } },
-        { type: 'type', value: { data: 'INCIDENT', operator: '=' } },
-        { type: 'weight', value: { data: '2', operator: '=' } },
-        { type: 'iteration', value: { data: 'Any&3', operator: '=' } },
-        { type: 'release', value: { data: 'v1.0.0', operator: '=' } },
+        { type: TOKEN_TYPE_AUTHOR, value: { data: 'root', operator: '=' } },
+        { type: TOKEN_TYPE_ASSIGNEE, value: { data: 'root', operator: '=' } },
+        { type: TOKEN_TYPE_LABEL, value: { data: 'label', operator: '=' } },
+        { type: TOKEN_TYPE_LABEL, value: { data: 'label&2', operator: '=' } },
+        { type: TOKEN_TYPE_MILESTONE, value: { data: 'New Milestone', operator: '=' } },
+        { type: TOKEN_TYPE_TYPE, value: { data: 'INCIDENT', operator: '=' } },
+        { type: TOKEN_TYPE_WEIGHT, value: { data: '2', operator: '=' } },
+        { type: TOKEN_TYPE_ITERATION, value: { data: 'Any&3', operator: '=' } },
+        { type: TOKEN_TYPE_RELEASE, value: { data: 'v1.0.0', operator: '=' } },
+        { type: TOKEN_TYPE_HEALTH, value: { data: 'onTrack', operator: '=' } },
+        { type: TOKEN_TYPE_HEALTH, value: { data: 'atRisk', operator: '!=' } },
       ];
       jest.spyOn(urlUtility, 'updateHistory');
       findFilteredSearch().vm.$emit('onFilter', mockFilters);
@@ -134,7 +148,7 @@ describe('BoardFilteredSearch', () => {
         title: '',
         replace: true,
         url:
-          'http://test.host/?author_username=root&label_name[]=label&label_name[]=label%262&assignee_username=root&milestone_title=New%20Milestone&iteration_id=Any&iteration_cadence_id=3&types=INCIDENT&weight=2&release_tag=v1.0.0',
+          'http://test.host/?not[health_status]=atRisk&author_username=root&label_name[]=label&label_name[]=label%262&assignee_username=root&milestone_title=New%20Milestone&iteration_id=Any&iteration_cadence_id=3&types=INCIDENT&weight=2&release_tag=v1.0.0&health_status=onTrack',
       });
     });
 
@@ -145,7 +159,9 @@ describe('BoardFilteredSearch', () => {
         ['None', url('None')],
         ['Any', url('Any')],
       ])('sets the url param %s', (assigneeParam, expected) => {
-        const mockFilters = [{ type: 'assignee', value: { data: assigneeParam, operator: '=' } }];
+        const mockFilters = [
+          { type: TOKEN_TYPE_ASSIGNEE, value: { data: assigneeParam, operator: '=' } },
+        ];
         jest.spyOn(urlUtility, 'updateHistory');
         findFilteredSearch().vm.$emit('onFilter', mockFilters);
 
@@ -160,16 +176,39 @@ describe('BoardFilteredSearch', () => {
 
   describe('when url params are already set', () => {
     beforeEach(() => {
-      createComponent({ initialFilterParams: { authorUsername: 'root', labelName: ['label'] } });
+      createComponent({
+        initialFilterParams: { authorUsername: 'root', labelName: ['label'], healthStatus: 'Any' },
+      });
 
       jest.spyOn(store, 'dispatch');
     });
 
     it('passes the correct props to FilterSearchBar', () => {
       expect(findFilteredSearch().props('initialFilterValue')).toEqual([
-        { type: 'author', value: { data: 'root', operator: '=' } },
-        { type: 'label', value: { data: 'label', operator: '=' } },
+        { type: TOKEN_TYPE_AUTHOR, value: { data: 'root', operator: '=' } },
+        { type: TOKEN_TYPE_LABEL, value: { data: 'label', operator: '=' } },
+        { type: TOKEN_TYPE_HEALTH, value: { data: 'Any', operator: '=' } },
       ]);
+    });
+  });
+
+  describe('when Apollo boards FF is on', () => {
+    beforeEach(() => {
+      createComponent({ provide: { isApolloBoard: true } });
+    });
+
+    it('emits setFilters and updates URL when onFilter is emitted', () => {
+      jest.spyOn(urlUtility, 'updateHistory');
+
+      findFilteredSearch().vm.$emit('onFilter', [{ value: { data: '' } }]);
+
+      expect(urlUtility.updateHistory).toHaveBeenCalledWith({
+        title: '',
+        replace: true,
+        url: 'http://test.host/',
+      });
+
+      expect(wrapper.emitted('setFilters')).toHaveLength(1);
     });
   });
 });

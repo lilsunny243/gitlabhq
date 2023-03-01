@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -19,7 +19,7 @@ end-to-end duration of a pipeline.
 
 On GitLab.com:
 
-- CI/CD minutes quotas are enabled for both public and private projects, but public
+- CI/CD minutes quotas are enabled for all projects, but certain
   projects [consume CI/CD minutes at a slower rate](#cost-factor).
 - The base monthly CI/CD minutes quota for a GitLab.com [namespace](../../user/namespace/index.md)
   is determined by its [license tier](https://about.gitlab.com/pricing/).
@@ -33,7 +33,7 @@ On self-managed GitLab instances:
 - Administrators can [assign more CI/CD minutes](#set-the-quota-of-cicd-minutes-for-a-specific-namespace)
   if a namespace uses all the CI/CD minutes in its monthly quota.
 
-[Specific runners](../runners/runners_scope.md#specific-runners) are not subject to a quota of CI/CD minutes.
+[Project runners](../runners/runners_scope.md#project-runners) are not subject to a quota of CI/CD minutes.
 
 ## Set the quota of CI/CD minutes for all namespaces
 
@@ -49,7 +49,7 @@ Prerequisite:
 
 To change the default quota that applies to all namespaces:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Continuous Integration and Deployment**.
 1. In the **Quota of CI/CD minutes** box, enter the maximum number of CI/CD minutes.
@@ -70,7 +70,7 @@ Prerequisite:
 
 To set a quota of CI/CD minutes for a namespace:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Overview > Groups**.
 1. For the group you want to update, select **Edit**.
 1. In the **Quota of CI/CD minutes** box, enter the maximum number of CI/CD minutes.
@@ -95,7 +95,7 @@ Prerequisite:
 
 To view CI/CD minutes being used for your group:
 
-1. On the top bar, select **Menu > Groups** and find your group. The group must not be a subgroup.
+1. On the top bar, select **Main menu > Groups** and find your group. The group must not be a subgroup.
 1. On the left sidebar, select **Settings > Usage Quotas**.
 1. Select the **Pipelines** tab.
 
@@ -111,7 +111,7 @@ subgroups, sorted in descending order of CI/CD minute usage.
 
 You can view the number of CI/CD minutes being used by a personal namespace:
 
-1. On the top bar, in the top right corner, select your avatar.
+1. On the top bar, in the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Usage Quotas**.
 
@@ -126,11 +126,9 @@ These additional CI/CD minutes:
 
 - Are used only after the monthly quota included in your subscription runs out.
 - Are carried over to the next month, if any remain at the end of the month.
-- Are valid for 12 months from date of purchase or until all minutes are consumed, whichever comes first. Expiry of minutes is not currently enforced.
+- Are valid for 12 months from date of purchase or until all minutes are consumed, whichever comes first. Expiry of minutes is not enforced.
 
-If you use more CI/CD minutes than your monthly quota, when you purchase more,
-those CI/CD minutes are deducted from your quota. For example, with a GitLab SaaS
-Premium license:
+For example, with a GitLab SaaS Premium license:
 
 - You have `10,000` monthly minutes.
 - You purchase an additional `5,000` minutes.
@@ -138,6 +136,8 @@ Premium license:
 
 If you use `13,000` minutes during the month, the next month your additional minutes become
 `2,000`. If you use `9,000` minutes during the month, your additional minutes remain the same.
+
+If you bought additional CI/CD minutes while on a trial subscription, those minutes are available after the trial ends or you upgrade to a paid plan.
 
 You can find pricing for additional CI/CD minutes on the
 [GitLab Pricing page](https://about.gitlab.com/pricing/).
@@ -148,7 +148,7 @@ You can purchase additional CI/CD minutes for your group.
 You cannot transfer purchased CI/CD minutes from one group to another,
 so be sure to select the correct group.
 
-1. On the top bar, select **Menu > Groups** and find your group.
+1. On the top bar, select **Main menu > Groups** and find your group.
 1. On the left sidebar, select **Settings > Usage Quotas**.
 1. Select **Pipelines**.
 1. Select **Buy additional minutes**.
@@ -161,7 +161,7 @@ namespace.
 
 To purchase additional minutes for your personal namespace:
 
-1. On the top bar, in the top right corner, select your avatar.
+1. On the top bar, in the upper-right corner, select your avatar.
 1. Select **Edit profile**.
 1. On the left sidebar, select **Usage Quotas**.
 1. Select **Buy additional minutes**. GitLab redirects you to the Customers Portal.
@@ -201,13 +201,12 @@ can be higher than the end-to-end duration of a pipeline.
 
 The cost factors for jobs running on shared runners on GitLab.com are:
 
-- `1` for internal and private projects.
-- `0.5` for public projects in the [GitLab for Open Source program](../../subscriptions/index.md#gitlab-for-open-source).
-- `0.008` for public forks of public projects. For every 125 minutes of job execution time,
+- `1` for internal, public, and private projects.
+- Exceptions for public projects:
+  - `0.5` for projects in the [GitLab for Open Source program](../../subscriptions/index.md#gitlab-for-open-source).
+  - `0.008` for forks of projects in the [GitLab for Open Source program](../../subscriptions/index.md#gitlab-for-open-source). For every 125 minutes of job execution time,
   you use 1 CI/CD minute.
-- `0.04` for other public projects, after September 1, 2022 (previously `0.008`).
-  For every 25 minutes of job execution time, you use 1 CI/CD minute.
-- Calculated differently for [community contributions to GitLab projects](#cost-factor-for-community-contributions-to-gitlab-projects).
+- Discounted dynamically for [community contributions to GitLab projects](#cost-factor-for-community-contributions-to-gitlab-projects).
 
 The cost factors on self-managed instances are:
 
@@ -216,9 +215,10 @@ The cost factors on self-managed instances are:
 
 #### Cost factor for community contributions to GitLab projects
 
-Community contributors can use up to 300,000 minutes on shared runners when
-contributing to open source projects maintained by GitLab. The 300,000
-minutes applies to all SaaS tiers, and the cost factor calculation is:
+Community contributors can use up to 300,000 minutes on shared runners when contributing to open source projects
+maintained by GitLab. The maximum of 300,000 minutes would only be possible if contributing exclusively to projects [part of the GitLab product](https://about.gitlab.com/handbook/engineering/metrics/#projects-that-are-part-of-the-product). The total number of minutes available on shared runners
+is reduced by the CI/CD minutes used by pipelines from other projects.
+The 300,000 minutes applies to all SaaS tiers, and the cost factor calculation is:
 
 - `Monthly minute quota / 300,000 job duration minutes = Cost factor`
 
@@ -230,7 +230,7 @@ For this reduced cost factor:
 
 - The merge request source project must be a fork of a GitLab-maintained project,
   such as [`gitlab-com/www-gitlab-com`](https://gitlab.com/gitlab-com/www-gitlab-com),
-  [`gitlab-org/gitlab`](https://gitlab.com/gitlab-org/gitlab), and so on.
+  or [`gitlab-org/gitlab`](https://gitlab.com/gitlab-org/gitlab).
 - The merge request target project must be the fork's parent project.
 - The pipeline must be a merge request, merged results, or merge train pipeline.
 
@@ -239,12 +239,13 @@ GitLab administrators can add a namespace to the reduced cost factor
 
 ### Additional costs on GitLab SaaS
 
-GitLab SaaS shared runners have different cost factors, depending on the runner type (Linux, Windows, macOS) and the virtual machine configuration.
+GitLab SaaS runners have different cost factors, depending on the runner type (Linux, Windows, macOS) and the virtual machine configuration.
 
-| GitLab SaaS runner type  | Virtual machine configuration   | CI/CD minutes cost factor  |
+| GitLab SaaS runner type  | Machine Type   | CI/CD minutes cost factor  |
 | :--------- | :------------------- | :--------- |
-| Linux OS + Docker executor| 1 vCPU, 3.75 GB RAM   |1|
-| macOS + shell executor   | 4 vCPU, 10 GB RAM| 6 |
+| Linux OS + Docker executor| Small  |1|
+| Linux OS + Docker executor| Medium  |2|
+| Linux OS + Docker executor| Large |3|
 
 ### Monthly reset of CI/CD minutes
 
@@ -254,9 +255,9 @@ calculations start again from `0`.
 
 For example, if you have a monthly quota of `10,000` CI/CD minutes:
 
-- On **1st April**, you have `10,000` minutes.
+- On **April 1**, you have `10,000` minutes.
 - During April, you use only `6,000` of the `10,000` minutes.
-- On **1st May**, the accumulated usage of minutes resets to `0`, and you have `10,000` minutes to use again
+- On **May 1**, the accumulated usage of minutes resets to `0`, and you have `10,000` minutes to use again
   during May.
 
 Usage data for the previous month is kept to show historical view of the consumption over time.
@@ -268,9 +269,9 @@ the next month.
 
 For example:
 
-- On **1st April**, you purchase `5,000` CI/CD minutes.
-- During April, you use only `3,000` of the `5,000` minutes.
-- On **1st May**, the remaining `2,000` minutes roll over and are added to your monthly quota.
+- On **April 1**, you purchase `5,000` additional CI/CD minutes.
+- During April, you use only `3,000` of the `5,000` additional minutes.
+- On **May 1**, the unused minute roll over, so you have `2,000` additional minutes available for May.
 
 Additional CI/CD minutes are a one-time purchase and do not renew or refresh each month.
 
@@ -286,7 +287,7 @@ processing new jobs.
 
 The grace period for running jobs is `1,000` CI/CD minutes.
 
-Jobs on specific runners are not affected by the quota of CI/CD minutes.
+Jobs on project runners are not affected by the quota of CI/CD minutes.
 
 ### GitLab SaaS usage notifications
 

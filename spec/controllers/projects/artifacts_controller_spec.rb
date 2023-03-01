@@ -2,18 +2,20 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::ArtifactsController do
+RSpec.describe Projects::ArtifactsController, feature_category: :build_artifacts do
   include RepoHelpers
 
   let(:user) { project.first_owner }
   let_it_be(:project) { create(:project, :repository, :public) }
 
   let_it_be(:pipeline, reload: true) do
-    create(:ci_pipeline,
-            project: project,
-            sha: project.commit.sha,
-            ref: project.default_branch,
-            status: 'success')
+    create(
+      :ci_pipeline,
+      project: project,
+      sha: project.commit.sha,
+      ref: project.default_branch,
+      status: 'success'
+    )
   end
 
   let!(:job) { create(:ci_build, :success, :artifacts, pipeline: pipeline) }
@@ -26,32 +28,17 @@ RSpec.describe Projects::ArtifactsController do
     subject { get :index, params: { namespace_id: project.namespace, project_id: project } }
 
     context 'when feature flag is on' do
+      render_views
+
       before do
         stub_feature_flags(artifacts_management_page: true)
       end
 
-      it 'sets the artifacts variable' do
+      it 'renders the page with data for the artifacts app' do
         subject
 
-        expect(assigns(:artifacts)).to contain_exactly(*project.job_artifacts)
-      end
-
-      it 'sets the total size variable' do
-        subject
-
-        expect(assigns(:total_size)).to eq(project.job_artifacts.total_size)
-      end
-
-      describe 'pagination' do
-        before do
-          stub_const("#{described_class}::MAX_PER_PAGE", 1)
-        end
-
-        it 'paginates artifacts' do
-          subject
-
-          expect(assigns(:artifacts)).to contain_exactly(project.reload.job_artifacts.last)
-        end
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(response).to render_template('projects/artifacts/index')
       end
     end
 
@@ -64,18 +51,6 @@ RSpec.describe Projects::ArtifactsController do
         subject
 
         expect(response).to have_gitlab_http_status(:no_content)
-      end
-
-      it 'does not set the artifacts variable' do
-        subject
-
-        expect(assigns(:artifacts)).to eq(nil)
-      end
-
-      it 'does not set the total size variable' do
-        subject
-
-        expect(assigns(:total_size)).to eq(nil)
       end
     end
   end
@@ -137,7 +112,7 @@ RSpec.describe Projects::ArtifactsController do
     end
 
     context 'when no file type is supplied' do
-      let(:filename) { job.artifacts_file.filename }
+      let(:filename) { job.job_artifacts_archive.filename }
 
       it 'sends the artifacts file' do
         expect(controller).to receive(:send_file)
@@ -148,6 +123,38 @@ RSpec.describe Projects::ArtifactsController do
         download_artifact
 
         expect(response.headers['Content-Disposition']).to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
+      end
+    end
+
+    context 'when artifact is set as private' do
+      let(:filename) { job.artifacts_file.filename }
+
+      before do
+        job.job_artifacts.update_all(accessibility: 'private')
+      end
+
+      context 'and user is not authoirized' do
+        let(:user) { create(:user) }
+
+        it 'returns forbidden' do
+          download_artifact(file_type: 'archive')
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+
+      context 'and user has access to project' do
+        it 'downloads' do
+          expect(controller).to receive(:send_file)
+                          .with(
+                            job.artifacts_file.file.path,
+                            hash_including(disposition: 'attachment', filename: filename)).and_call_original
+
+          download_artifact(file_type: 'archive')
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response.headers['Content-Disposition']).to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
+        end
       end
     end
 
@@ -172,9 +179,10 @@ RSpec.describe Projects::ArtifactsController do
           end
 
           it 'sends the codequality report' do
-            expect(controller).to receive(:send_file)
-                              .with(job.job_artifacts_codequality.file.path,
-                                    hash_including(disposition: 'attachment', filename: filename)).and_call_original
+            expect(controller).to receive(:send_file).with(
+              job.job_artifacts_codequality.file.path,
+              hash_including(disposition: 'attachment', filename: filename)
+            ).and_call_original
 
             download_artifact(file_type: file_type)
 
@@ -183,12 +191,17 @@ RSpec.describe Projects::ArtifactsController do
         end
 
         context 'when file is stored remotely' do
+          let(:cdn_config) {}
+
           before do
-            stub_artifacts_object_storage
+            stub_artifacts_object_storage(cdn: cdn_config)
             create(:ci_job_artifact, :remote_store, :codequality, job: job)
+            allow(Gitlab::ApplicationContext).to receive(:push).and_call_original
           end
 
           it 'sends the codequality report' do
+            expect(Gitlab::ApplicationContext).to receive(:push).with(artifact: an_instance_of(Ci::JobArtifact)).and_call_original
+
             expect(controller).to receive(:redirect_to).and_call_original
 
             download_artifact(file_type: file_type)
@@ -199,6 +212,30 @@ RSpec.describe Projects::ArtifactsController do
               expect(Gitlab::Workhorse).to receive(:send_url).and_call_original
 
               download_artifact(file_type: file_type, proxy: true)
+            end
+          end
+
+          context 'when Google CDN is configured' do
+            let(:cdn_config) do
+              {
+                'provider' => 'Google',
+                'url' => 'https://cdn.example.org',
+                'key_name' => 'some-key',
+                'key' => Base64.urlsafe_encode64(SecureRandom.hex)
+              }
+            end
+
+            before do
+              request.env['action_dispatch.remote_ip'] = '18.245.0.42'
+            end
+
+            it 'redirects to a Google CDN request' do
+              expect(Gitlab::ApplicationContext).to receive(:push).with(artifact: an_instance_of(Ci::JobArtifact)).and_call_original
+              expect(Gitlab::ApplicationContext).to receive(:push).with(artifact_used_cdn: true).and_call_original
+
+              download_artifact(file_type: file_type)
+
+              expect(response.redirect_url).to start_with("https://cdn.example.org/")
             end
           end
         end
@@ -228,17 +265,22 @@ RSpec.describe Projects::ArtifactsController do
           expect(response).to have_gitlab_http_status(:forbidden)
           expect(response.body).to include(
             'You must have developer or higher permissions in the associated project to view job logs when debug trace is enabled. ' \
-            'To disable debug trace, set the &#39;CI_DEBUG_TRACE&#39; variable to &#39;false&#39; in your pipeline configuration or CI/CD settings. ' \
-            'If you need to view this job log, a project maintainer must add you to the project with developer permissions or higher.'
+            'To disable debug trace, set the &#39;CI_DEBUG_TRACE&#39; and &#39;CI_DEBUG_SERVICES&#39; variables to &#39;false&#39; ' \
+            'in your pipeline configuration or CI/CD settings. If you must view this job log, a project maintainer or owner must ' \
+            'add you to the project with developer permissions or higher.'
           )
         end
       end
 
       context 'when the user has update_build permissions' do
+        let(:filename) { job.job_artifacts_trace.file.filename }
+
         it 'sends the trace' do
           download_artifact(file_type: file_type)
 
           expect(response).to have_gitlab_http_status(:ok)
+          expect(response.headers['Content-Disposition'])
+            .to eq(%Q(attachment; filename="#{filename}"; filename*=UTF-8''#{filename}))
         end
       end
     end
@@ -262,6 +304,31 @@ RSpec.describe Projects::ArtifactsController do
     end
   end
 
+  describe 'GET external_file' do
+    before do
+      allow(Gitlab.config.pages).to receive(:enabled).and_return(true)
+      allow(Gitlab.config.pages).to receive(:artifacts_server).and_return(true)
+    end
+
+    context 'when the file exists' do
+      it 'renders the file view' do
+        path = 'ci_artifacts.txt'
+
+        get :external_file, params: { namespace_id: project.namespace, project_id: project, job_id: job, path: path }
+
+        expect(response).to have_gitlab_http_status(:ok)
+      end
+    end
+
+    context 'when the file does not exist' do
+      it 'responds Not Found' do
+        get :external_file, params: { namespace_id: project.namespace, project_id: project, job_id: job, path: 'unknown' }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
+  end
+
   describe 'GET file' do
     before do
       allow(Gitlab.config.pages).to receive(:enabled).and_return(true)
@@ -274,17 +341,11 @@ RSpec.describe Projects::ArtifactsController do
 
       context 'when the file exists' do
         it 'renders the file view' do
-          get :file, params: { namespace_id: project.namespace, project_id: project, job_id: job, path: 'ci_artifacts.txt' }
+          path = 'ci_artifacts.txt'
 
-          expect(response).to have_gitlab_http_status(:found)
-        end
-      end
+          get :file, params: { namespace_id: project.namespace, project_id: project, job_id: job, path: path }
 
-      context 'when the file does not exist' do
-        it 'responds Not Found' do
-          get :file, params: { namespace_id: project.namespace, project_id: project, job_id: job, path: 'unknown' }
-
-          expect(response).to be_not_found
+          expect(response).to redirect_to(external_file_project_job_artifacts_path(project, job, path: path))
         end
       end
     end
@@ -404,6 +465,16 @@ RSpec.describe Projects::ArtifactsController do
         end
       end
 
+      context 'when artifacts archive is missing' do
+        let!(:job) { create(:ci_build, :success, pipeline: pipeline) }
+
+        it 'returns 404' do
+          subject
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+
       context 'fetching an artifact of different type' do
         before do
           job.job_artifacts.each(&:destroy)
@@ -487,8 +558,7 @@ RSpec.describe Projects::ArtifactsController do
 
       context 'with regular branch' do
         before do
-          pipeline.update!(ref: 'master',
-                           sha: project.commit('master').sha)
+          pipeline.update!(ref: 'master', sha: project.commit('master').sha)
 
           get :latest_succeeded, params: params_from_ref('master')
         end
@@ -498,8 +568,7 @@ RSpec.describe Projects::ArtifactsController do
 
       context 'with branch name containing slash' do
         before do
-          pipeline.update!(ref: 'improve/awesome',
-                           sha: project.commit('improve/awesome').sha)
+          pipeline.update!(ref: 'improve/awesome', sha: project.commit('improve/awesome').sha)
 
           get :latest_succeeded, params: params_from_ref('improve/awesome')
         end
@@ -509,8 +578,7 @@ RSpec.describe Projects::ArtifactsController do
 
       context 'with branch name and path containing slashes' do
         before do
-          pipeline.update!(ref: 'improve/awesome',
-                           sha: project.commit('improve/awesome').sha)
+          pipeline.update!(ref: 'improve/awesome', sha: project.commit('improve/awesome').sha)
 
           get :latest_succeeded, params: params_from_ref('improve/awesome', job.name, 'file/README.md')
         end
@@ -526,11 +594,13 @@ RSpec.describe Projects::ArtifactsController do
         before do
           create_file_in_repo(project, 'master', 'master', 'test.txt', 'This is test')
 
-          create(:ci_pipeline,
+          create(
+            :ci_pipeline,
             project: project,
             sha: project.commit.sha,
             ref: project.default_branch,
-            status: 'failed')
+            status: 'failed'
+          )
 
           get :latest_succeeded, params: params_from_ref(project.default_branch)
         end

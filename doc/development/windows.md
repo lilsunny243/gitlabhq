@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
 ---
 
@@ -13,7 +13,7 @@ This is a guide for how to get a Windows development virtual machine on Google C
 
 ## Why Windows in Google Cloud?
 
-Use of Microsoft Windows operating systems on company laptops is banned under the GitLab [Approved Operating Systems policy](https://about.gitlab.com/handbook/security/approved_os.html#windows).
+Use of Microsoft Windows operating systems on company laptops is banned under the GitLab [Approved Operating Systems policy](https://about.gitlab.com/handbook/it/operating-systems/#windows).
 
 This can make it difficult to develop features for the Windows platforms. Using GCP allows us to have a temporary Windows machine that can be removed once we're done with it.
 
@@ -76,7 +76,7 @@ Build a Google Cloud image with the above shared runners repository by doing the
 1. Copy and save the password as it is not shown again.
 1. Select **RDP** down arrow.
 1. Select **Download the RDP file**.
-1. Open the downloaded RDP file with the Windows remote desktop app (<https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients>).
+1. Open the downloaded RDP file with the Windows remote desktop app (<https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients>).
 1. Select **Continue** to accept the certificate.
 1. Enter the password and select **Next**.
 
@@ -132,7 +132,7 @@ PowerShell has aliases for all of the following commands so you don't have to le
 - `ls` ---> `dir`
 - `rm` ---> `del`
 - `rm -rf nonemptydir` ---> `rmdir /S nonemptydir`
-- `/` ---> `\` (path separator)
+- `/` ---> <code>&#92;</code> (path separator)
 - `cat` ---> `type`
 - `mv` ---> `move`
 - Redirection works the same (for example, `>` and `2>&1`)

@@ -14,7 +14,7 @@ import {
 import { isValidSlaDueAt } from 'ee_else_ce/vue_shared/components/incidents/utils';
 import { visitUrl, mergeUrlParams, joinPaths } from '~/lib/utils/url_utility';
 import { s__, n__ } from '~/locale';
-import { INCIDENT_SEVERITY } from '~/sidebar/components/severity/constants';
+import { INCIDENT_SEVERITY } from '~/sidebar/constants';
 import SeverityToken from '~/sidebar/components/severity/severity.vue';
 import Tracking from '~/tracking';
 import {
@@ -402,6 +402,7 @@ export default {
             >
               <gl-link
                 data-testid="incident-link"
+                data-qa-selector="incident_link"
                 :href="showIncidentLink(item)"
                 class="gl-min-w-0"
               >

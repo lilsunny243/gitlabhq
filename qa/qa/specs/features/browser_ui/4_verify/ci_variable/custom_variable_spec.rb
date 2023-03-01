@@ -14,7 +14,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.project = project
           runner.name = executor
           runner.tags = [executor]
@@ -47,21 +47,18 @@ module QA
 
       before do
         Flow::Login.sign_in
+
         project.visit!
         Page::Project::Menu.perform(&:click_ci_cd_pipelines)
-        Page::Project::Pipeline::Index.perform do |index|
-          index.click_run_pipeline_button
-        end
+        Page::Project::Pipeline::Index.perform(&:click_run_pipeline_button)
       end
 
       after do
-        [runner, project].each(&:remove_via_api!)
+        runner&.remove_via_api!
       end
 
-      it(
-        'manually creates a pipeline and uses the defined custom variable value',
-        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/361814'
-      ) do
+      it 'manually creates a pipeline and uses the defined custom variable value',
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/378975' do
         Page::Project::Pipeline::New.perform do |new|
           new.configure_variable(value: variable_custom_value)
           new.click_run_pipeline_button

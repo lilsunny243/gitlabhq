@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 type: reference, api
 ---
 
@@ -25,7 +25,7 @@ GET /groups/:id/wikis
 
 | Attribute      | Type           | Required | Description                                                                   |
 | ---------      | -------        | -------- | ---------------------                                                         |
-| `id`           | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`           | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `with_content` | boolean        | no       | Include pages' content                                                        |
 
 ```shell
@@ -69,7 +69,7 @@ GET /groups/:id/wikis/:slug
 
 | Attribute | Type           | Required | Description                                                                   |
 | --------- | -------        | -------- | ---------------------                                                         |
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`      | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `slug`    | string         | yes      | URL-encoded slug (a unique string) of the wiki page, such as `dir%2Fpage_name`      |
 | `render_html`      | boolean    | no      | Return the rendered HTML of the wiki page  |
 | `version`      | string    | no      | Wiki page version SHA  |
@@ -100,7 +100,7 @@ POST /projects/:id/wikis
 
 | Attribute     | Type           | Required | Description                                                                                            |
 | ------------- | -------        | -------- | ----------------------------                                                                           |
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding)                          |
+| `id`          | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding)                          |
 | `content`     | string         | yes      | The content of the wiki page                                                                           |
 | `title`       | string         | yes      | The title of the wiki page                                                                             |
 | `format`      | string         | no       | The format of the wiki page. Available formats are: `markdown` (default), `rdoc`, `asciidoc` and `org` |
@@ -131,13 +131,13 @@ Update an existing wiki page. At least one parameter is required to update the w
 PUT /groups/:id/wikis/:slug
 ```
 
-| Attribute       | Type           | Required                          | Description                                                                                            |
-| --------------- | -------        | --------------------------------- | -------------------------------                                                                        |
-| `id`            | integer/string | yes                               | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding)                          |
-| `content`       | string         | yes if `title` is not provided    | The content of the wiki page                                                                           |
-| `title`         | string         | yes if `content` is not provided  | The title of the wiki page                                                                             |
-| `format`        | string         | no                                | The format of the wiki page. Available formats are: `markdown` (default), `rdoc`, `asciidoc` and `org` |
-| `slug`          | string         | yes                               | URL encoded slug (a unique string) of the wiki page. Ex. dir%2Fpage_name                                                        |
+| Attribute | Type           | Required                         | Description |
+|-----------|----------------|----------------------------------|-------------|
+| `id`      | integer/string | yes                              | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding). |
+| `content` | string         | yes if `title` is not provided   | The content of the wiki page. |
+| `title`   | string         | yes if `content` is not provided | The title of the wiki page. |
+| `format`  | string         | no                               | The format of the wiki page. Available formats are `markdown` (default), `rdoc`, `asciidoc`, and `org`. |
+| `slug`    | string         | yes                              | URL encoded slug (a unique string) of the wiki page. For example: `dir%2Fpage_name`. |
 
 ```shell
 curl --request PUT --data "format=rdoc&content=documentation&title=Docs" \
@@ -167,7 +167,7 @@ DELETE /groups/:id/wikis/:slug
 
 | Attribute | Type           | Required | Description                                                                   |
 | --------- | -------        | -------- | ---------------------                                                         |
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`      | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `slug`    | string         | yes      | URL-encoded slug (a unique string) of the wiki page, such as `dir%2Fpage_name`      |
 
 ```shell
@@ -187,7 +187,7 @@ POST /groups/:id/wikis/attachments
 
 | Attribute     | Type           | Required | Description                                                                   |
 | ------------- | -------        | -------- | ----------------------------                                                  |
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`          | integer/string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `file`        | string         | yes      | The attachment to be uploaded                                                 |
 | `branch`      | string         | no       | The name of the branch. Defaults to the wiki repository default branch        |
 

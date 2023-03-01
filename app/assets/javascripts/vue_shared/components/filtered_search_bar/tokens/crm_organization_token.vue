@@ -2,13 +2,14 @@
 import { GlFilteredSearchSuggestion } from '@gitlab/ui';
 
 import { ITEM_TYPE } from '~/groups/constants';
+import { TYPENAME_CRM_ORGANIZATION } from '~/graphql_shared/constants';
 import { getIdFromGraphQLId, convertToGraphQLId } from '~/graphql_shared/utils';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { isPositiveInteger } from '~/lib/utils/number_utils';
 import { __ } from '~/locale';
 import searchCrmOrganizationsQuery from '../queries/search_crm_organizations.query.graphql';
 
-import { DEFAULT_NONE_ANY } from '../constants';
+import { OPTIONS_NONE_ANY } from '../constants';
 
 import BaseToken from './base_token.vue';
 
@@ -39,7 +40,7 @@ export default {
   },
   computed: {
     defaultOrganizations() {
-      return this.config.defaultOrganizations || DEFAULT_NONE_ANY;
+      return this.config.defaultOrganizations || OPTIONS_NONE_ANY;
     },
     namespace() {
       return this.config.isProject ? ITEM_TYPE.PROJECT : ITEM_TYPE.GROUP;
@@ -78,7 +79,7 @@ export default {
             : data[this.namespace]?.organizations.nodes;
         })
         .catch(() =>
-          createFlash({
+          createAlert({
             message: __('There was a problem fetching CRM organizations.'),
           }),
         )
@@ -90,7 +91,7 @@ export default {
       return `${getIdFromGraphQLId(organization.id)}`;
     },
     formatOrganizationGraphQLId(id) {
-      return convertToGraphQLId('CustomerRelations::Organization', id);
+      return convertToGraphQLId(TYPENAME_CRM_ORGANIZATION, id);
     },
   },
 };

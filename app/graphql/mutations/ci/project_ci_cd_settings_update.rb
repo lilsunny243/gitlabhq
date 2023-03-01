@@ -15,11 +15,21 @@ module Mutations
 
       argument :keep_latest_artifact, GraphQL::Types::Boolean,
         required: false,
-        description: 'Indicates if the latest artifact should be kept for this project.'
+        description: 'Indicates if the latest artifact should be kept for the project.'
 
       argument :job_token_scope_enabled, GraphQL::Types::Boolean,
         required: false,
-        description: 'Indicates CI job tokens generated in this project have restricted access to resources.'
+        description: 'Indicates CI/CD job tokens generated in this project ' \
+          'have restricted access to other projects.'
+
+      argument :inbound_job_token_scope_enabled, GraphQL::Types::Boolean,
+        required: false,
+        description: 'Indicates CI/CD job tokens generated in other projects ' \
+          'have restricted access to this project.'
+
+      argument :opt_in_jwt, GraphQL::Types::Boolean,
+        required: false,
+        description: 'When disabled, the JSON Web Token is always available in all jobs in the pipeline.'
 
       field :ci_cd_settings,
         Types::Ci::CiCdSettingType,
@@ -28,6 +38,7 @@ module Mutations
 
       def resolve(full_path:, **args)
         project = authorized_find!(full_path)
+
         settings = project.ci_cd_settings
         settings.update(args)
 

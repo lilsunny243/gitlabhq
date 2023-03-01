@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::GroupExport do
+RSpec.describe API::GroupExport, feature_category: :importers do
   let_it_be(:group) { create(:group) }
   let_it_be(:user) { create(:user) }
 
@@ -34,6 +34,7 @@ RSpec.describe API::GroupExport do
       before do
         allow_next_instance_of(Gitlab::ApplicationRateLimiter::BaseStrategy) do |strategy|
           allow(strategy).to receive(:increment).and_return(0)
+          allow(strategy).to receive(:read).and_return(0)
         end
 
         upload.export_file = fixture_file_upload('spec/fixtures/group_export.tar.gz', "`/tar.gz")
@@ -172,6 +173,8 @@ RSpec.describe API::GroupExport do
     let(:status_path) { "/groups/#{group.id}/export_relations/status" }
 
     before do
+      stub_application_setting(bulk_import_enabled: true)
+
       group.add_owner(user)
     end
 
@@ -211,11 +214,12 @@ RSpec.describe API::GroupExport do
 
       context 'when export_file.file does not exist' do
         it 'returns 404' do
-          allow(upload).to receive(:export_file).and_return(nil)
+          allow(export).to receive(:upload).and_return(nil)
 
           get api(download_path, user)
 
           expect(response).to have_gitlab_http_status(:not_found)
+          expect(json_response['message']).to eq('404 Not found')
         end
       end
     end
@@ -231,6 +235,12 @@ RSpec.describe API::GroupExport do
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response.pluck('relation')).to contain_exactly('labels', 'milestones', 'badges')
         expect(json_response.pluck('status')).to contain_exactly(-1, 0, 1)
+      end
+    end
+
+    context 'when bulk import is disabled' do
+      it_behaves_like '404 response' do
+        let(:request) { get api(path, user) }
       end
     end
   end

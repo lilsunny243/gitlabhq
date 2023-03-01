@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::ProjectExport, :clean_gitlab_redis_cache do
+RSpec.describe API::ProjectExport, :clean_gitlab_redis_cache, feature_category: :importers do
   let_it_be(:project) { create(:project) }
   let_it_be(:project_none) { create(:project) }
   let_it_be(:project_started) { create(:project) }
@@ -511,6 +511,10 @@ RSpec.describe API::ProjectExport, :clean_gitlab_redis_cache do
 
     let_it_be(:status_path) { "/projects/#{project.id}/export_relations/status" }
 
+    before do
+      stub_application_setting(bulk_import_enabled: true)
+    end
+
     context 'when user is a maintainer' do
       before do
         project.add_maintainer(user)
@@ -584,9 +588,9 @@ RSpec.describe API::ProjectExport, :clean_gitlab_redis_cache do
         end
       end
 
-      context 'with bulk_import FF disabled' do
+      context 'with bulk_import is disabled' do
         before do
-          stub_feature_flags(bulk_import: false)
+          stub_application_setting(bulk_import_enabled: false)
         end
 
         describe 'POST /projects/:id/export_relations' do
@@ -639,6 +643,12 @@ RSpec.describe API::ProjectExport, :clean_gitlab_redis_cache do
         it_behaves_like '403 response' do
           let(:request) { get api(status_path, developer) }
         end
+      end
+    end
+
+    context 'when bulk import is disabled' do
+      it_behaves_like '404 response' do
+        let(:request) { get api(path, user) }
       end
     end
   end

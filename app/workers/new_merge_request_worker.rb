@@ -8,13 +8,17 @@ class NewMergeRequestWorker # rubocop:disable Scalability/IdempotentWorker
   sidekiq_options retry: 3
   include NewIssuable
 
-  feature_category :code_review
+  idempotent!
+  deduplicate :until_executed
+
+  feature_category :code_review_workflow
   urgency :high
   worker_resource_boundary :cpu
   weight 2
 
   def perform(merge_request_id, user_id)
     return unless objects_found?(merge_request_id, user_id)
+    return if issuable.prepared?
 
     MergeRequests::AfterCreateService
       .new(project: issuable.target_project, current_user: user)

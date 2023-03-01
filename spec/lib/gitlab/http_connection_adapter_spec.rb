@@ -111,17 +111,14 @@ RSpec.describe Gitlab::HTTPConnectionAdapter do
       end
     end
 
-    context 'when http(s) environment variable is set' do
-      before do
-        stub_env('https_proxy' => 'https://my.proxy')
-      end
+    context 'when URL scheme is not HTTP/HTTPS' do
+      let(:uri) { URI('ssh://example.org') }
 
-      it 'sets up the connection' do
-        expect(connection).to be_a(Gitlab::NetHttpAdapter)
-        expect(connection.address).to eq('example.org')
-        expect(connection.hostname_override).to eq(nil)
-        expect(connection.addr_port).to eq('example.org')
-        expect(connection.port).to eq(443)
+      it 'raises error' do
+        expect { subject }.to raise_error(
+          Gitlab::HTTP::BlockedUrlError,
+          "URL 'ssh://example.org' is blocked: Only allowed schemes are http, https"
+        )
       end
     end
   end

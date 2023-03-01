@@ -1,10 +1,5 @@
 %li{ id: dom_id(issue), class: issue_css_classes(issue), url: issue_path(issue), data: { labels: issue.label_ids, id: issue.id, qa_selector: 'issue_container', qa_issue_title: issue.title } }
   .issuable-info-container
-    - if @can_bulk_update
-      .issue-check.hidden
-        - checkbox_id = dom_id(issue, "selected")
-        %label.gl-sr-only{ for: checkbox_id }= issue.title
-        = check_box_tag checkbox_id, nil, false, 'data-id' => issue.id, class: "selected-issuable"
     .issuable-main-info
       .issue-title.title
         %span.issue-title-text.js-onboarding-issue-item{ dir: "auto" }
@@ -25,7 +20,7 @@
         %span.issuable-authored.d-none.d-sm-inline-block
           &middot;
           - if issue.service_desk_reply_to
-            #{_('created %{timeAgoString} by %{email} via %{user}').html_safe % { timeAgoString: time_ago_with_tooltip(issue.created_at, placement: 'bottom'), email: issue.service_desk_reply_to, user: link_to_member(@project, issue.author, avatar: false) }}
+            #{_('created %{timeAgoString} by %{email} via %{user}').html_safe % { timeAgoString: time_ago_with_tooltip(issue.created_at, placement: 'bottom'), email: issue.present(current_user: current_user).service_desk_reply_to, user: link_to_member(@project, issue.author, avatar: false) }}
           - else
             #{s_('IssueList|created %{timeAgoString} by %{user}').html_safe % { timeAgoString: time_ago_with_tooltip(issue.created_at, placement: 'bottom'), user: link_to_member(@project, issue.author, avatar: false) }}
           = render_if_exists 'shared/issuable/gitlab_team_member_badge', author: issue.author

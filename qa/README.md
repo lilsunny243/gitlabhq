@@ -88,6 +88,74 @@ bundle exec bin/qa Test::Instance::All {GDK IP ADDRESS}
 - Note: If you want to run tests requiring SSH against GDK, you will need to [modify your GDK setup](https://gitlab.com/gitlab-org/gitlab-qa/blob/master/docs/run_qa_against_gdk.md).
 - Note: If this is your first time running GDK, you can use the password pre-set for `root`. [See supported GitLab environment variables](https://gitlab.com/gitlab-org/gitlab-qa/-/blob/master/docs/what_tests_can_be_run.md#supported-gitlab-environment-variables). If you have changed your `root` password, use that when exporting `GITLAB_INITIAL_ROOT_PASSWORD`.
 
+#### Run the end-to-end tests on GitLab in Docker
+
+GitLab can be [installed in Docker](https://docs.gitlab.com/ee/install/docker.html).
+
+See the section above for situations that might require adjustment to the commands below or to the configuration of the GitLab instance. [You can find more information in the documentation](https://docs.gitlab.com/ee/install/docker.html).
+
+##### On a Unix like operating system
+
+1.  Use the following command to start an instance that you can visit at `http://127.0.0.1`:
+
+   ```
+   docker run \    
+    --hostname 127.0.0.1 \
+    --publish 80:80 --publish 22:22 \
+    --name gitlab \
+    --shm-size 256m \
+    --env GITLAB_OMNIBUS_CONFIG="gitlab_rails['initial_root_password']='5iveL\!fe';" \
+    gitlab/gitlab-ee:nightly
+   ```
+
+  Note: If you are on a Mac with [Apple Silicon](https://support.apple.com/en-us/HT211814), you will also need to add: `--platform=linux/amd64`
+
+2. Once GitLab is up and accessible on `http://127.0.0.1`, in another shell tab, navigate to the `qa` directory of the checkout of the GitLab repository on your computer and run the following commands.
+
+   ```bash
+   bundle install
+   export WEBDRIVER_HEADLESS=false
+   export GITLAB_INITIAL_ROOT_PASSWORD=5iveL\!fe
+   export QA_GITLAB_URL="http://127.0.0.1"
+   ```
+
+3. Most tests that do not require special setup could then be run with the following command. We will run `log_in_spec.rb` in this example.
+
+   ```bash
+   bundle exec rspec ./qa/specs/features/browser_ui/1_manage/login/log_in_spec.rb
+   ```
+
+##### On a Windows PC
+
+1. If you don't already have these, install:
+   * [Google Chrome](https://www.google.com/chrome/)
+   * [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)
+   * [Git](https://git-scm.com/download/win)
+   * [Ruby](https://rubyinstaller.org/downloads/). Please refer to the [`.ruby-version` file](../.ruby-version) for the exact version of Ruby to install.
+
+   Note: Please be aware that [Docker Desktop must be set to use Linux containers](https://learn.microsoft.com/en-us/virtualization/windowscontainers/quick-start/quick-start-windows-10-linux#run-your-first-linux-container).
+
+2. Use the following command to start an instance that you can visit at `http://127.0.0.1`. You might need to grant admin rights if asked:
+
+   ```
+   docker run --hostname 127.0.0.1 --publish 80:80 --publish 22:22 --name gitlab --shm-size 256m --env GITLAB_OMNIBUS_CONFIG="gitlab_rails['initial_root_password']='5iveL\!fe';" gitlab/gitlab-ee:nightly
+   ```
+
+3. Once GitLab is up and accessible on `http://127.0.0.1`, in another command prompt window, navigate to the `qa` directory of the checkout of the GitLab repository on your computer and run the following commands.
+
+   ```bash
+   bundle install
+   set WEBDRIVER_HEADLESS=false
+   set GITLAB_INITIAL_ROOT_PASSWORD=5iveL\!fe
+   set QA_GITLAB_URL=http://127.0.0.1
+   ```
+
+4. Most tests that do not require special setup could then be run with the following command. We will run `log_in_spec.rb` in this example.
+
+   ```bash
+   bundle exec rspec .\qa\specs\features\browser_ui\1_manage\login\log_in_spec.rb
+   ```
+
 #### Running EE tests
 
 When running EE tests you'll need to have a license available. GitLab engineers can [request a license](https://about.gitlab.com/handbook/developer-onboarding/#working-on-gitlab-ee).
@@ -241,9 +309,8 @@ feature flag ([via the API](https://docs.gitlab.com/ee/api/features.html)) if no
 run all the tests in the `Test::Instance::All` scenario, and then enable the
 feature flag again if it was enabled earlier.
 
-Note: the QA framework doesn't currently allow you to easily toggle a feature
-flag during a single test, [as you can in unit tests](https://docs.gitlab.com/ee/development/feature_flags/index.html),
-but [that capability is planned](https://gitlab.com/gitlab-org/quality/team-tasks/issues/77).
+Note: You can also [toggle feature
+flags in the tests themselves](https://docs.gitlab.com/ee/development/testing_guide/end_to_end/feature_flags.html).
 
 Note also that the `--` separator isn't used because `--enable-feature` and `--disable-feature`
 are QA framework options, not `rspec` options.

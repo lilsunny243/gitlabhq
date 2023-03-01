@@ -1,6 +1,7 @@
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { addNumericSuffix } from '~/ide/utils';
 import { sprintf, __ } from '~/locale';
+import Tracking from '~/tracking';
 import { leftSidebarViews } from '../../../constants';
 import eventHub from '../../../eventhub';
 import { parseCommitError } from '../../../lib/errors';
@@ -143,7 +144,7 @@ export const commitChanges = ({ commit, state, getters, dispatch, rootState, roo
       commit(types.UPDATE_LOADING, false);
 
       if (!data.short_id) {
-        createFlash({
+        createAlert({
           message: data.message,
           fadeTransition: false,
           addBodyClass: true,
@@ -160,6 +161,10 @@ export const commitChanges = ({ commit, state, getters, dispatch, rootState, roo
           },
           { root: true },
         );
+      }
+
+      if (rootState.learnGitlabSource) {
+        Tracking.event(undefined, 'commit', { label: 'web_ide_learn_gitlab_source' });
       }
 
       dispatch('setLastCommitMessage', data);
@@ -183,7 +188,11 @@ export const commitChanges = ({ commit, state, getters, dispatch, rootState, roo
 
             dispatch(
               'redirectToUrl',
-              createNewMergeRequestUrl(currentProject.web_url, branchName, targetBranch),
+              createNewMergeRequestUrl(
+                currentProject.web_url,
+                encodeURIComponent(branchName),
+                encodeURIComponent(targetBranch),
+              ),
               { root: true },
             );
           }

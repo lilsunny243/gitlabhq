@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -35,7 +35,8 @@ You can use the following environment variables to override certain values:
 | `GITLAB_ROOT_PASSWORD`                     | string  | Sets the password for the `root` user on installation.                                                  |
 | `GITLAB_SHARED_RUNNERS_REGISTRATION_TOKEN` | string  | Sets the initial registration token used for runners.                                                   |
 | `RAILS_ENV`                                | string  | The Rails environment; can be one of `production`, `development`, `staging`, or `test`.                 |
-| `UNSTRUCTURED_RAILS_LOG`                   | string  | Enables the unstructured log in addition to JSON logs (defaults to `true`).                             |
+| `UNSTRUCTURED_RAILS_LOG`                   | string  | Enables the unstructured log in addition to JSON logs (defaults to `false`).                             |
+| `GITLAB_RAILS_CACHE_DEFAULT_TTL_SECONDS` | integer | The default TTL used for entries stored in the Rails-cache. Default is `28800`. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/95042) in 15.3. |
 
 ## Adding more variables
 
@@ -49,5 +50,5 @@ To set environment variables, follow [these instructions](https://docs.gitlab.co
 
 It's possible to preconfigure the GitLab Docker image by adding the environment
 variable `GITLAB_OMNIBUS_CONFIG` to the `docker run` command.
-For more information, see the [Pre-configure Docker container](https://docs.gitlab.com/omnibus/docker/#pre-configure-docker-container)
+For more information, see the [Pre-configure Docker container](../install/docker.md#pre-configure-docker-container)
 section of the Omnibus GitLab documentation.

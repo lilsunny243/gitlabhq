@@ -6,7 +6,7 @@ RSpec.describe Gitlab::Database::LoadBalancing::SidekiqServerMiddleware, :clean_
   let(:middleware) { described_class.new }
   let(:worker) { worker_class.new }
   let(:location) { '0/D525E3A8' }
-  let(:wal_locations) { { Gitlab::Database::MAIN_DATABASE_NAME.to_sym => location } }
+  let(:wal_locations) { { Gitlab::Database::MAIN_DATABASE_NAME.to_s => location } }
   let(:job) { { "retry" => 3, "job_id" => "a180b47c-3fd6-41b8-81e9-34da61c3400e", 'wal_locations' => wal_locations } }
 
   before do
@@ -33,8 +33,7 @@ RSpec.describe Gitlab::Database::LoadBalancing::SidekiqServerMiddleware, :clean_
 
           data_consistency data_consistency, feature_flag: feature_flag
 
-          def perform(*args)
-          end
+          def perform(*args); end
         end
       end
 
@@ -315,10 +314,28 @@ RSpec.describe Gitlab::Database::LoadBalancing::SidekiqServerMiddleware, :clean_
       expect(middleware.send(:databases_in_sync?, locations))
         .to eq(false)
     end
+
+    context 'when locations have string keys' do
+      it 'returns false when the load balancers are not in sync' do
+        locations = {}
+
+        Gitlab::Database::LoadBalancing.each_load_balancer do |lb|
+          locations[lb.name.to_s] = 'foo'
+
+          allow(lb)
+            .to receive(:select_up_to_date_host)
+                  .with('foo')
+                  .and_return(false)
+        end
+
+        expect(middleware.send(:databases_in_sync?, locations))
+          .to eq(false)
+      end
+    end
   end
 
   def process_job(job)
-    Sidekiq::JobRetry.new.local(worker_class, job.to_json, 'default') do
+    Sidekiq::JobRetry.new(Sidekiq).local(worker_class, job.to_json, 'default') do
       worker_class.process_job(job)
     end
   end

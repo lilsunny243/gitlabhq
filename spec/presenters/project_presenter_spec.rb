@@ -10,13 +10,15 @@ RSpec.describe ProjectPresenter do
   describe '#license_short_name' do
     context 'when project.repository has a license_key' do
       it 'returns the nickname of the license if present' do
-        allow(project.repository).to receive(:license_key).and_return('agpl-3.0')
+        allow(project.repository).to receive(:license).and_return(
+          ::Gitlab::Git::DeclaredLicense.new(name: 'foo', nickname: 'GNU AGPLv3'))
 
         expect(presenter.license_short_name).to eq('GNU AGPLv3')
       end
 
       it 'returns the name of the license if nickname is not present' do
-        allow(project.repository).to receive(:license_key).and_return('mit')
+        allow(project.repository).to receive(:license).and_return(
+          ::Gitlab::Git::DeclaredLicense.new(name: 'MIT License'))
 
         expect(presenter.license_short_name).to eq('MIT License')
       end
@@ -24,7 +26,7 @@ RSpec.describe ProjectPresenter do
 
     context 'when project.repository has no license_key but a license_blob' do
       it 'returns LICENSE' do
-        allow(project.repository).to receive(:license_key).and_return(nil)
+        allow(project.repository).to receive(:license).and_return(nil)
 
         expect(presenter.license_short_name).to eq('LICENSE')
       end
@@ -74,21 +76,21 @@ RSpec.describe ProjectPresenter do
         let_it_be(:project) { create(:project, :public, :repository) }
 
         it 'returns files and readme if user has repository access' do
-          allow(presenter).to receive(:can?).with(nil, :download_code, project).and_return(true)
+          allow(presenter).to receive(:can?).with(nil, :read_code, project).and_return(true)
 
           expect(presenter.default_view).to eq('files')
         end
 
         it 'returns wiki if user does not have repository access and can read wiki, which exists' do
           allow(project).to receive(:wiki_repository_exists?).and_return(true)
-          allow(presenter).to receive(:can?).with(nil, :download_code, project).and_return(false)
+          allow(presenter).to receive(:can?).with(nil, :read_code, project).and_return(false)
           allow(presenter).to receive(:can?).with(nil, :read_wiki, project).and_return(true)
 
           expect(presenter.default_view).to eq('wiki')
         end
 
         it 'returns activity if user does not have repository or wiki access' do
-          allow(presenter).to receive(:can?).with(nil, :download_code, project).and_return(false)
+          allow(presenter).to receive(:can?).with(nil, :read_code, project).and_return(false)
           allow(presenter).to receive(:can?).with(nil, :read_issue, project).and_return(false)
           allow(presenter).to receive(:can?).with(nil, :read_wiki, project).and_return(false)
 
@@ -102,8 +104,21 @@ RSpec.describe ProjectPresenter do
           expect(release).to be_truthy
           expect(presenter.releases_anchor_data).to have_attributes(
             is_link: true,
-            label: a_string_including("#{project.releases.count}"),
+            label: a_string_including(project.releases.count.to_s),
             link: presenter.project_releases_path(project)
+          )
+        end
+
+        it 'returns environments anchor' do
+          environment = create(:environment, project: project)
+          unavailable_environment = create(:environment, project: project)
+          unavailable_environment.stop
+
+          expect(environment).to be_truthy
+          expect(presenter.environments_anchor_data).to have_attributes(
+            is_link: true,
+            label: a_string_including(project.environments.available.count.to_s),
+            link: presenter.project_environments_path(project)
           )
         end
       end
@@ -115,7 +130,7 @@ RSpec.describe ProjectPresenter do
 
       context 'when the user is allowed to see the code' do
         it 'returns the project view' do
-          allow(presenter).to receive(:can?).with(user, :download_code, project).and_return(true)
+          allow(presenter).to receive(:can?).with(user, :read_code, project).and_return(true)
 
           expect(presenter.default_view).to eq('readme')
         end
@@ -124,7 +139,7 @@ RSpec.describe ProjectPresenter do
       context 'with wikis enabled and the right policy for the user' do
         before do
           project.project_feature.update_attribute(:issues_access_level, 0)
-          allow(presenter).to receive(:can?).with(user, :download_code, project).and_return(false)
+          allow(presenter).to receive(:can?).with(user, :read_code, project).and_return(false)
         end
 
         it 'returns wiki if the user has the right policy and the wiki exists' do
@@ -144,7 +159,7 @@ RSpec.describe ProjectPresenter do
 
       context 'with issues as a feature available' do
         it 'return issues' do
-          allow(presenter).to receive(:can?).with(user, :download_code, project).and_return(false)
+          allow(presenter).to receive(:can?).with(user, :read_code, project).and_return(false)
           allow(presenter).to receive(:can?).with(user, :read_issue, project).and_return(true)
           allow(presenter).to receive(:can?).with(user, :read_wiki, project).and_return(false)
 
@@ -155,7 +170,7 @@ RSpec.describe ProjectPresenter do
       context 'with no activity, no wikies and no issues' do
         it 'returns activity as default' do
           project.project_feature.update_attribute(:issues_access_level, 0)
-          allow(presenter).to receive(:can?).with(user, :download_code, project).and_return(false)
+          allow(presenter).to receive(:can?).with(user, :read_code, project).and_return(false)
           allow(presenter).to receive(:can?).with(user, :read_wiki, project).and_return(false)
           allow(presenter).to receive(:can?).with(user, :read_issue, project).and_return(false)
 
@@ -284,6 +299,46 @@ RSpec.describe ProjectPresenter do
           link: presenter.project_usage_quotas_path(project)
         )
       end
+
+      describe '#gitlab_ci_anchor_data' do
+        before do
+          project.update!(auto_devops_enabled: false)
+        end
+
+        context 'when user cannot collaborate' do
+          it 'returns no value' do
+            expect(presenter.gitlab_ci_anchor_data).to be(nil)
+          end
+        end
+
+        context 'when user can collaborate' do
+          before do
+            project.add_developer(user)
+          end
+
+          context 'and the CI/CD file is missing' do
+            it 'returns `Set up CI/CD` button' do
+              expect(presenter.gitlab_ci_anchor_data).to have_attributes(
+                is_link: false,
+                label: a_string_including('Set up CI/CD'),
+                link: presenter.project_ci_pipeline_editor_path(project)
+              )
+            end
+          end
+
+          context 'and there is a CI/CD file' do
+            it 'returns `CI/CD configuration` button' do
+              allow(project.repository).to receive(:gitlab_ci_yml).and_return 'Default content'
+
+              expect(presenter.gitlab_ci_anchor_data).to have_attributes(
+                is_link: false,
+                label: a_string_including('CI/CD configuration'),
+                link: presenter.project_ci_pipeline_editor_path(project)
+              )
+            end
+          end
+        end
+      end
     end
 
     describe '#releases_anchor_data' do
@@ -293,7 +348,7 @@ RSpec.describe ProjectPresenter do
         expect(release).to be_truthy
         expect(presenter.releases_anchor_data).to have_attributes(
           is_link: true,
-          label: a_string_including("#{project.releases.count}"),
+          label: a_string_including(project.releases.count.to_s),
           link: presenter.project_releases_path(project)
         )
       end
@@ -327,7 +382,7 @@ RSpec.describe ProjectPresenter do
       it 'returns branches data' do
         expect(presenter.branches_anchor_data).to have_attributes(
           is_link: true,
-          label: a_string_including("#{project.repository.branches.size}"),
+          label: a_string_including(project.repository.branches.size.to_s),
           link: presenter.project_branches_path(project)
         )
       end
@@ -337,7 +392,7 @@ RSpec.describe ProjectPresenter do
       it 'returns tags data' do
         expect(presenter.tags_anchor_data).to have_attributes(
           is_link: true,
-          label: a_string_including("#{project.repository.tags.size}"),
+          label: a_string_including(project.repository.tags.size.to_s),
           link: presenter.project_tags_path(project)
         )
       end
@@ -484,6 +539,12 @@ RSpec.describe ProjectPresenter do
     end
 
     describe '#autodevops_anchor_data' do
+      it 'returns nil if builds feature is not available' do
+        allow(project).to receive(:feature_available?).with(:builds, user).and_return(false)
+
+        expect(presenter.autodevops_anchor_data).to be_nil
+      end
+
       context 'when Auto Devops is enabled' do
         it 'returns anchor data' do
           allow(project).to receive(:auto_devops_enabled?).and_return(true)
@@ -584,6 +645,58 @@ RSpec.describe ProjectPresenter do
         end
       end
     end
+
+    describe '#wiki_anchor_data' do
+      using RSpec::Parameterized::TableSyntax
+
+      let(:anchor_goto_wiki) do
+        have_attributes(
+          is_link: false,
+          label: a_string_ending_with('Wiki'),
+          link: wiki_path(project.wiki),
+          class_modifier: 'btn-default'
+        )
+      end
+
+      let(:anchor_add_wiki) do
+        have_attributes(
+          is_link: false,
+          label: a_string_ending_with('Add Wiki'),
+          link: "#{wiki_path(project.wiki)}?view=create"
+        )
+      end
+
+      where(:wiki_enabled, :can_read_wiki, :has_home_page, :can_create_wiki, :expected_result) do
+        true  | true  | true  | true  | ref(:anchor_goto_wiki)
+        true  | true  | true  | false | ref(:anchor_goto_wiki)
+        true  | true  | false | true  | ref(:anchor_add_wiki)
+        true  | true  | false | false | nil
+        true  | false | true  | true  | nil
+        true  | false | true  | false | nil
+        true  | false | false | true  | nil
+        true  | false | false | false | nil
+        false | true  | true  | true  | nil
+        false | true  | true  | false | nil
+        false | true  | true  | false | nil
+        false | true  | false | true  | nil
+        false | true  | false | false | nil
+        false | false | true  | true  | nil
+        false | false | true  | false | nil
+        false | false | false | true  | nil
+        false | false | false | false | nil
+      end
+
+      with_them do
+        before do
+          allow(project).to receive(:wiki_enabled?).and_return(wiki_enabled)
+          allow(presenter).to receive(:can?).with(user, :read_wiki, project).and_return(can_read_wiki)
+          allow(project.wiki).to receive(:has_home_page?).and_return(has_home_page)
+          allow(presenter).to receive(:can?).with(user, :create_wiki, project).and_return(can_create_wiki)
+        end
+
+        it { expect(presenter.wiki_anchor_data).to match(expected_result) }
+      end
+    end
   end
 
   describe '#statistics_buttons' do
@@ -614,14 +727,6 @@ RSpec.describe ProjectPresenter do
 
     context 'empty repo' do
       let(:project) { create(:project, :stubbed_repository) }
-
-      context 'for a guest user' do
-        it 'orders the items correctly' do
-          expect(empty_repo_statistics_buttons.map(&:label)).to start_with(
-            a_string_including('No license')
-          )
-        end
-      end
 
       it 'includes a button to configure integrations for maintainers' do
         project.add_maintainer(user)

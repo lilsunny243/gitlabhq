@@ -6,13 +6,19 @@ RSpec.shared_context 'ProjectPolicy context' do
   let_it_be(:reporter) { create(:user) }
   let_it_be(:developer) { create(:user) }
   let_it_be(:maintainer) { create(:user) }
+  let_it_be(:inherited_guest) { create(:user) }
+  let_it_be(:inherited_reporter) { create(:user) }
+  let_it_be(:inherited_developer) { create(:user) }
+  let_it_be(:inherited_maintainer) { create(:user) }
   let_it_be(:owner) { create(:user) }
   let_it_be(:admin) { create(:admin) }
   let_it_be(:non_member) { create(:user) }
+  let_it_be_with_refind(:group) { create(:group, :public) }
   let_it_be_with_refind(:private_project) { create(:project, :private, namespace: owner.namespace) }
   let_it_be_with_refind(:internal_project) { create(:project, :internal, namespace: owner.namespace) }
   let_it_be_with_refind(:public_project) { create(:project, :public, namespace: owner.namespace) }
-  let_it_be_with_refind(:public_project_in_group) { create(:project, :public, namespace: create(:group, :public)) }
+  let_it_be_with_refind(:public_project_in_group) { create(:project, :public, namespace: group) }
+  let_it_be_with_refind(:private_project_in_group) { create(:project, :private, namespace: group) }
 
   let(:base_guest_permissions) do
     %i[
@@ -32,7 +38,8 @@ RSpec.shared_context 'ProjectPolicy context' do
       read_commit_status read_confidential_issues read_container_image
       read_harbor_registry read_deployment read_environment read_merge_request
       read_metrics_dashboard_annotation read_pipeline read_prometheus
-      read_sentry_issue update_issue create_merge_request_in
+      read_sentry_issue update_issue create_merge_request_in read_external_emails
+      read_internal_note
     ]
   end
 
@@ -62,7 +69,7 @@ RSpec.shared_context 'ProjectPolicy context' do
       admin_project admin_project_member admin_snippet admin_terraform_state
       admin_wiki create_deploy_token destroy_deploy_token
       push_to_delete_protected_branch read_deploy_token update_snippet
-      destroy_upload
+      destroy_upload admin_member_access_request rename_project
     ]
   end
 
@@ -77,9 +84,16 @@ RSpec.shared_context 'ProjectPolicy context' do
   let(:base_owner_permissions) do
     %i[
       archive_project change_namespace change_visibility_level destroy_issue
-      destroy_merge_request manage_owners remove_fork_project remove_project rename_project
+      destroy_merge_request manage_owners remove_fork_project remove_project
       set_issue_created_at set_issue_iid set_issue_updated_at
       set_note_created_at
+    ]
+  end
+
+  let(:admin_permissions) do
+    %i[
+      read_project_for_iids update_max_artifacts_size read_storage_disk_path
+      owner_access admin_remote_mirror read_internal_note
     ]
   end
 
@@ -95,6 +109,11 @@ RSpec.shared_context 'ProjectPolicy context' do
   let(:owner_permissions) { base_owner_permissions + additional_owner_permissions }
 
   before_all do
+    group.add_guest(inherited_guest)
+    group.add_reporter(inherited_reporter)
+    group.add_developer(inherited_developer)
+    group.add_maintainer(inherited_maintainer)
+
     [private_project, internal_project, public_project, public_project_in_group].each do |project|
       project.add_guest(guest)
       project.add_reporter(reporter)

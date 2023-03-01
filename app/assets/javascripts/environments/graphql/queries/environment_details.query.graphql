@@ -1,0 +1,87 @@
+query getEnvironmentDetails(
+  $projectFullPath: ID!
+  $environmentName: String
+  $first: Int
+  $last: Int
+  $after: String
+  $before: String
+) {
+  project(fullPath: $projectFullPath) {
+    id
+    name
+    fullPath
+    environment(name: $environmentName) {
+      id
+      name
+      lastDeployment(status: SUCCESS) {
+        id
+        job {
+          id
+          name
+        }
+      }
+      deployments(
+        orderBy: { createdAt: DESC }
+        first: $first
+        last: $last
+        after: $after
+        before: $before
+      ) {
+        pageInfo {
+          startCursor
+          endCursor
+          hasNextPage
+          hasPreviousPage
+        }
+        nodes {
+          id
+          iid
+          status
+          ref
+          tag
+          job {
+            name
+            id
+            webPath
+            playable
+            deploymentPipeline: pipeline {
+              id
+              jobs(whenExecuted: ["manual"], retried: false) {
+                nodes {
+                  id
+                  name
+                  playable
+                  scheduledAt
+                  webPath
+                }
+              }
+            }
+          }
+          commit {
+            id
+            shortId
+            message
+            webUrl
+            authorGravatar
+            authorName
+            authorEmail
+            author {
+              id
+              name
+              avatarUrl
+              webUrl
+            }
+          }
+          triggerer {
+            id
+            webUrl
+            name
+            avatarUrl
+          }
+          createdAt
+          finishedAt
+        }
+      }
+    }
+  }
+}

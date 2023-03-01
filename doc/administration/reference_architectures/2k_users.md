@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Reference architecture: up to 2,000 users **(FREE SELF)**
@@ -18,27 +18,37 @@ For a full list of reference architectures, see
 > - **Validation and test results:** The Quality Engineering team does [regular smoke and performance tests](index.md#validation-and-test-results) to ensure the reference architectures remain compliant
 >   - **Test requests per second (RPS) rates:** API: 40 RPS, Web: 4 RPS, Git (Pull): 4 RPS, Git (Push): 1 RPS
 >   - **[Latest Results](https://gitlab.com/gitlab-org/quality/performance/-/wikis/Benchmarks/Latest/2k)**
+> - **Unsure which Reference Architecture to use?** [Go to this guide for more info](index.md#deciding-which-architecture-to-use).
 
 | Service                    | Nodes | Configuration          | GCP             | AWS          | Azure    |
 |----------------------------|-------|------------------------|-----------------|--------------|----------|
 | Load balancer<sup>3</sup>  | 1     | 2 vCPU, 1.8 GB memory  | `n1-highcpu-2`  | `c5.large`   | `F2s v2` |
 | PostgreSQL<sup>1</sup>     | 1     | 2 vCPU, 7.5 GB memory  | `n1-standard-2` | `m5.large`   | `D2s v3` |
 | Redis<sup>2</sup>          | 1     | 1 vCPU, 3.75 GB memory | `n1-standard-1` | `m5.large`   | `D2s v3` |
-| Gitaly                     | 1     | 4 vCPU, 15 GB memory   | `n1-standard-4` | `m5.xlarge`  | `D4s v3` |
+| Gitaly<sup>5</sup>         | 1     | 4 vCPU, 15 GB memory   | `n1-standard-4` | `m5.xlarge`  | `D4s v3` |
 | GitLab Rails               | 2     | 8 vCPU, 7.2 GB memory  | `n1-highcpu-8`  | `c5.2xlarge` | `F8s v2` |
 | Monitoring node            | 1     | 2 vCPU, 1.8 GB memory  | `n1-highcpu-2`  | `c5.large`   | `F2s v2` |
 | Object storage<sup>4</sup> | -     | -                      | -               | -            | -        |
-| NFS server (non-Gitaly)    | 1     | 4 vCPU, 3.6 GB memory  | `n1-highcpu-4`  | `c5.xlarge`  | `F4s v2` |
 
 <!-- markdownlint-disable MD029 -->
-1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work. However, Amazon Aurora is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and Azure Database for PostgreSQL is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61). Consul is primarily used for PostgreSQL high availability so can be ignored when using a PostgreSQL PaaS setup. However, Consul is also used optionally by Prometheus for Omnibus auto host discovery.
-2. Can be optionally run as reputable third-party external PaaS Redis solutions. Google Memorystore and AWS ElastiCache are known to work.
-3. Can be optionally run as reputable third-party load balancing services (LB PaaS). AWS ELB is known to work.
+1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+    - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work.
+    - [Google AlloyDB](https://cloud.google.com/alloydb) and [Amazon RDS Multi-AZ DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html) have not been tested and are not recommended. Both solutions are specifically not expected to work with GitLab Geo.
+      - Note that [Amazon RDS Multi-AZ DB instance](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html) is a separate product and is supported.
+    - [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and [Azure Database for PostgreSQL](https://azure.microsoft.com/en-gb/products/postgresql/#overview) is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61).
+    - Consul is primarily used for Omnibus PostgreSQL high availability so can be ignored when using a PostgreSQL PaaS setup. However, Consul is also used optionally by Prometheus for Omnibus auto host discovery.
+2. Can be optionally run on reputable third-party external PaaS Redis solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+    - [Google Memorystore](https://cloud.google.com/memorystore) and [Amazon ElastiCache](https://aws.amazon.com/elasticache/) are known to work.
+3. Can be optionally run on reputable third-party load balancing services (LB PaaS). See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+    - [Google Cloud Load Balancing](https://cloud.google.com/load-balancing) and [Amazon Elastic Load Balancing](https://aws.amazon.com/elasticloadbalancing/) are known to work.
 4. Should be run on reputable Cloud Provider or Self Managed solutions. More information can be found in the [Configure the object storage](#configure-the-object-storage) section.
+5. Gitaly has been designed and tested with repositories of varying sizes that follow best practices. However, large
+   repositories or monorepos that don't follow these practices can significantly impact Gitaly requirements. Refer to
+   [Large repositories](index.md#large-repositories) for more information.
 <!-- markdownlint-enable MD029 -->
 
 NOTE:
-For all PaaS solutions that involve configuring instances, it is strongly recommended to implement a minimum of three nodes in three different availability zones to align with resilient cloud architecture practices.
+For all PaaS solutions that involve configuring instances, it's recommended to deploy them over multiple availability zones for resilience if desired.
 
 ```plantuml
 @startuml 2k
@@ -72,28 +82,7 @@ monitor .[#7FFFD4,norank]u--> elb
 
 ## Requirements
 
-Before starting, you should take note of the following requirements / guidance for this reference architecture.
-
-### Supported CPUs
-
-This reference architecture was built and tested on Google Cloud Platform (GCP) using the
-[Intel Xeon E5 v3 (Haswell)](https://cloud.google.com/compute/docs/cpu-platforms)
-CPU platform as a baseline ([Sysbench benchmark](https://gitlab.com/gitlab-org/quality/performance/-/wikis/Reference-Architectures/GCP-CPU-Benchmarks)).
-
-Newer, similarly sized CPUs are supported and may have improved performance as a result. For Omnibus environments, ARM-based equivalents are also supported.
-
-NOTE:
-Any "burstable" instance types are not recommended due to inconsistent performance.
-
-### Supported infrastructure
-
-As a general guidance, GitLab should run on most infrastructure such as reputable Cloud Providers (AWS, GCP, Azure) and their services, or self managed (ESXi) that meet both the specs detailed above, as well as any requirements in this section. However, this does not constitute a guarantee for every potential permutation.
-
-Be aware of the following specific call outs:
-
-- [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is incompatible. See [14.4.0](../../update/index.md#1440) for more details.
-- [Azure Database for PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/#:~:text=Azure%20Database%20for%20PostgreSQL%20is,high%20availability%2C%20and%20dynamic%20scalability.) is [not recommended](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61) due to known performance issues or missing features.
-- [Azure Blob Storage](https://docs.microsoft.com/en-us/azure/storage/blobs/) is recommended to be configured with [Premium accounts](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-block-blob-premium) to ensure consistent performance.
+Before starting, see the [requirements](index.md#requirements) for reference architectures.
 
 ## Setup components
 
@@ -114,9 +103,6 @@ To set up GitLab and its components to accommodate up to 2,000 users:
    shared data objects.
 1. [Configure Advanced Search](#configure-advanced-search) (optional) for faster,
    more advanced code search across your entire GitLab instance.
-1. [Configure NFS](#configure-nfs-optional) (optional, and not recommended)
-   to have shared disk storage service as an alternative to Gitaly or object
-   storage.
 
 ## Configure the external load balancer
 
@@ -124,8 +110,7 @@ In a multi-node GitLab configuration, you'll need a load balancer to route
 traffic to the application servers. The specifics on which load balancer to use
 or its exact configuration is beyond the scope of GitLab documentation. We assume
 that if you're managing multi-node systems like GitLab, you already have a load
-balancer of choice and that the routing methods used are distributing calls evenly
-between all nodes. Some load balancer examples include HAProxy (open-source),
+balancer of choice. Some load balancer examples include HAProxy (open-source),
 F5 Big-IP LTM, and Citrix Net Scaler. This documentation outline the ports and
 protocols needed for use with GitLab.
 
@@ -142,96 +127,116 @@ several different options:
 - [The load balancer terminates SSL with backend SSL](#load-balancer-terminates-ssl-with-backend-ssl)
   and communication is *secure* between the load balancer and the application node.
 
-### Application node terminates SSL
+### Balancing algorithm
 
-Configure your load balancer to pass connections on port 443 as `TCP` instead
-of `HTTP(S)`. This will pass the connection unaltered to the application node's
-NGINX service, which has the SSL certificate and listens to port 443.
+We recommend that a least-connection load balancing algorithm or equivalent
+is used wherever possible to ensure equal spread of calls to the nodes and good performance.
 
-For details about managing SSL certificates and configuring NGINX, see the
-[HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
-
-### Load balancer terminates SSL without backend SSL
-
-Configure your load balancer to use the `HTTP(S)` protocol instead of `TCP`.
-The load balancer will be responsible for both managing SSL certificates and
-terminating SSL.
-
-Due to communication between the load balancer and GitLab not being secure,
-you'll need to complete some additional configuration. For details, see the
-[proxied SSL documentation](https://docs.gitlab.com/omnibus/settings/ssl.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination).
-
-### Load balancer terminates SSL with backend SSL
-
-Configure your load balancers (or single balancer, if you have only one) to use
-the `HTTP(S)` protocol rather than `TCP`. The load balancers will be
-responsible for the managing SSL certificates for end users.
-
-Traffic will be secure between the load balancers and NGINX in this scenario,
-and there's no need to add a configuration for proxied SSL. However, you'll
-need to add a configuration to GitLab to configure SSL certificates. For
-details about managing SSL certificates and configuring NGINX, see the
-[HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html).
+We don't recommend the use of round-robin algorithms as they are known to not
+spread connections equally in practice.
 
 ### Readiness checks
 
 Ensure the external load balancer only routes to working services with built
 in monitoring endpoints. The [readiness checks](../../user/admin_area/monitoring/health_check.md)
-all require [additional configuration](../monitoring/ip_whitelist.md)
+all require [additional configuration](../monitoring/ip_allowlist.md)
 on the nodes being checked, otherwise, the external load balancer will not be able to
 connect.
 
 ### Ports
 
-The basic load balancer ports you should use are described in the following
-table:
+The basic ports to be used are shown in the table below.
 
-| Port    | Backend Port | Protocol                 |
+| LB Port | Backend Port | Protocol                 |
 | ------- | ------------ | ------------------------ |
 | 80      | 80           | HTTP (*1*)               |
 | 443     | 443          | TCP or HTTPS (*1*) (*2*) |
 | 22      | 22           | TCP                      |
 
-- (*1*): [Web terminal](../../ci/environments/index.md#web-terminals-deprecated) support
-  requires your load balancer to correctly handle WebSocket connections.
-  When using HTTP or HTTPS proxying, your load balancer must be configured
-  to pass through the `Connection` and `Upgrade` hop-by-hop headers. For
-  details, see the [web terminal](../integration/terminal.md) integration guide.
-- (*2*): When using the HTTPS protocol for port 443, you'll need to add an SSL
-  certificate to the load balancers. If you need to terminate SSL at the
-  GitLab application server, use the TCP protocol.
+- (*1*): [Web terminal](../../ci/environments/index.md#web-terminals-deprecated) support requires
+  your load balancer to correctly handle WebSocket connections. When using
+  HTTP or HTTPS proxying, this means your load balancer must be configured
+  to pass through the `Connection` and `Upgrade` hop-by-hop headers. See the
+  [web terminal](../integration/terminal.md) integration guide for
+  more details.
+- (*2*): When using HTTPS protocol for port 443, you will need to add an SSL
+  certificate to the load balancers. If you wish to terminate SSL at the
+  GitLab application server instead, use TCP protocol.
 
 If you're using GitLab Pages with custom domain support you will need some
-additional port configurations. GitLab Pages requires a separate virtual IP
-address. Configure DNS to point the `pages_external_url` from
-`/etc/gitlab/gitlab.rb` to the new virtual IP address. For more information,
-see the [GitLab Pages documentation](../pages/index.md).
+additional port configurations.
+GitLab Pages requires a separate virtual IP address. Configure DNS to point the
+`pages_external_url` from `/etc/gitlab/gitlab.rb` at the new virtual IP address. See the
+[GitLab Pages documentation](../pages/index.md) for more information.
 
-| Port    | Backend Port  | Protocol  |
+| LB Port | Backend Port  | Protocol  |
 | ------- | ------------- | --------- |
 | 80      | Varies (*1*)  | HTTP      |
 | 443     | Varies (*1*)  | TCP (*2*) |
 
 - (*1*): The backend port for GitLab Pages depends on the
   `gitlab_pages['external_http']` and `gitlab_pages['external_https']`
-  settings. For details, see the [GitLab Pages documentation](../pages/index.md).
-- (*2*): Port 443 for GitLab Pages must use the TCP protocol. Users can
-  configure custom domains with custom SSL, which wouldn't be possible if SSL
-  was terminated at the load balancer.
+  setting. See [GitLab Pages documentation](../pages/index.md) for more details.
+- (*2*): Port 443 for GitLab Pages should always use the TCP protocol. Users can
+  configure custom domains with custom SSL, which would not be possible
+  if SSL was terminated at the load balancer.
 
 #### Alternate SSH Port
 
 Some organizations have policies against opening SSH port 22. In this case,
-it may be helpful to configure an alternate SSH hostname that instead allows
-users to use SSH over port 443. An alternate SSH hostname requires a new
-virtual IP address compared to the previously described GitLab HTTP
-configuration.
+it may be helpful to configure an alternate SSH hostname that allows users
+to use SSH on port 443. An alternate SSH hostname will require a new virtual IP address
+compared to the other GitLab HTTP configuration above.
 
-Configure DNS for an alternate SSH hostname, such as `altssh.gitlab.example.com`:
+Configure DNS for an alternate SSH hostname such as `altssh.gitlab.example.com`.
 
 | LB Port | Backend Port | Protocol |
 | ------- | ------------ | -------- |
 | 443     | 22           | TCP      |
+
+### SSL
+
+The next question is how you will handle SSL in your environment.
+There are several different options:
+
+- [The application node terminates SSL](#application-node-terminates-ssl).
+- [The load balancer terminates SSL without backend SSL](#load-balancer-terminates-ssl-without-backend-ssl)
+  and communication is not secure between the load balancer and the application node.
+- [The load balancer terminates SSL with backend SSL](#load-balancer-terminates-ssl-with-backend-ssl)
+  and communication is *secure* between the load balancer and the application node.
+
+#### Application node terminates SSL
+
+Configure your load balancer to pass connections on port 443 as `TCP` rather
+than `HTTP(S)` protocol. This will pass the connection to the application node's
+NGINX service untouched. NGINX will have the SSL certificate and listen on port 443.
+
+See the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
+for details on managing SSL certificates and configuring NGINX.
+
+#### Load balancer terminates SSL without backend SSL
+
+Configure your load balancer to use the `HTTP(S)` protocol rather than `TCP`.
+The load balancer will then be responsible for managing SSL certificates and
+terminating SSL.
+
+Since communication between the load balancer and GitLab will not be secure,
+there is some additional configuration needed. See the
+[proxied SSL documentation](https://docs.gitlab.com/omnibus/settings/ssl.html#configure-a-reverse-proxy-or-load-balancer-ssl-termination)
+for details.
+
+#### Load balancer terminates SSL with backend SSL
+
+Configure your load balancers to use the 'HTTP(S)' protocol rather than 'TCP'.
+The load balancers will be responsible for managing SSL certificates that
+end users will see.
+
+Traffic will also be secure between the load balancers and NGINX in this
+scenario. There is no need to add configuration for proxied SSL since the
+connection will be secure all the way. However, configuration will need to be
+added to GitLab to configure SSL certificates. See
+the [HTTPS documentation](https://docs.gitlab.com/omnibus/settings/ssl.html)
+for details on managing SSL certificates and configuring NGINX.
 
 <div align="right">
   <a type="button" class="btn btn-default" href="#setup-components">
@@ -249,7 +254,7 @@ to be used with GitLab.
 If you're hosting GitLab on a cloud provider, you can optionally use a
 managed service for PostgreSQL.
 
-A reputable provider or solution should be used for this. [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work. However, Amazon Aurora is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and Azure Database for PostgreSQL is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61).
+A reputable provider or solution should be used for this. [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work. However, Amazon Aurora is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and Azure Database for PostgreSQL is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61). See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
 
 If you use a cloud-managed service, or provide your own PostgreSQL:
 
@@ -404,9 +409,15 @@ are supported and can be added if needed.
 specifically the number of projects and those projects' sizes.
 
 NOTE:
-The Reference Architecture specs have been designed with good headroom in mind
-but for Gitaly, increased specs or switching to Gitaly Cluster
-may be required for notably large data sets or load.
+Increased specs for Gitaly nodes may be required in some circumstances such as
+significantly large repositories or if any [additional workloads](index.md#additional-workloads),
+such as [server hooks](../server_hooks.md), have been added.
+
+NOTE:
+Gitaly has been designed and tested with repositories of varying sizes that follow best practices.
+However, large repositories or monorepos not following these practices can significantly
+impact Gitaly performance and requirements.
+Refer to [Large repositories](index.md#large-repositories) for more information.
 
 Due to Gitaly having notable input and output requirements, we strongly
 recommend that all Gitaly nodes use solid-state drives (SSDs). These SSDs
@@ -589,31 +600,6 @@ but this is dependent on workload.
 
 On each node perform the following:
 
-1. If you're [using NFS](#configure-nfs-optional):
-
-   1. If necessary, install the NFS client utility packages using the following
-      commands:
-
-      ```shell
-      # Ubuntu/Debian
-      apt-get install nfs-common
-
-      # CentOS/Red Hat
-      yum install nfs-utils nfs-utils-lib
-      ```
-
-   1. Specify the necessary NFS mounts in `/etc/fstab`.
-      The exact contents of `/etc/fstab` will depend on how you chose
-      to configure your NFS server. See the [NFS documentation](../nfs.md)
-      for examples and the various options.
-
-   1. Create the shared directories. These may be different depending on your NFS
-      mount locations.
-
-      ```shell
-      mkdir -p /var/opt/gitlab/.ssh /var/opt/gitlab/gitlab-rails/uploads /var/opt/gitlab/gitlab-rails/shared /var/opt/gitlab/gitlab-ci/builds /var/opt/gitlab/git-data
-      ```
-
 1. [Download and install](https://about.gitlab.com/install/) the Omnibus GitLab
    package of your choice. Be sure to follow _only_ installation steps 1 and 2
    on the page.
@@ -661,8 +647,8 @@ On each node perform the following:
    puma['listen'] = '0.0.0.0'
    sidekiq['listen_address'] = "0.0.0.0"
 
-   # Configure Sidekiq with 2 workers and 10 max concurrency
-   sidekiq['max_concurrency'] = 10
+   # Configure Sidekiq with 2 workers and 20 max concurrency
+   sidekiq['max_concurrency'] = 20
    sidekiq['queue_groups'] = ['*'] * 2
 
    # Add the monitoring node's IP address to the monitoring whitelist and allow it to
@@ -741,8 +727,9 @@ On each node perform the following:
    [GitLab Rails post-configuration](#gitlab-rails-post-configuration) section.
 
 1. [Reconfigure GitLab](../restart_gitlab.md#omnibus-gitlab-reconfigure) for the changes to take effect.
-
+1. [Enable incremental logging](#enable-incremental-logging).
 1. Run `sudo gitlab-rake gitlab:gitaly:check` to confirm the node can connect to Gitaly.
+
 1. Tail the logs to see the requests:
 
    ```shell
@@ -887,21 +874,10 @@ running [Prometheus](../monitoring/prometheus/index.md) and
 
 ## Configure the object storage
 
-GitLab supports using an object storage service for holding several types of
-data, and is recommended over [NFS](#configure-nfs-optional). In general,
-object storage services are better for larger environments, as object storage
-is typically much more performant, reliable, and scalable.
-
-GitLab has been tested on a number of object storage providers:
-
-- [Amazon S3](https://aws.amazon.com/s3/)
-- [Google Cloud Storage](https://cloud.google.com/storage)
-- [Digital Ocean Spaces](https://www.digitalocean.com/products/spaces)
-- [Oracle Cloud Infrastructure](https://docs.cloud.oracle.com/en-us/iaas/Content/Object/Tasks/s3compatibleapi.htm)
-- [OpenStack Swift (S3 compatibility mode)](https://docs.openstack.org/swift/latest/s3_compat.html)
-- [Azure Blob storage](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
-- On-premises hardware and appliances from various storage vendors.
-- MinIO. We have [a guide to deploying this](https://docs.gitlab.com/charts/advanced/external-object-storage/minio.html) within our Helm Chart documentation.
+GitLab supports using an [object storage](../object_storage.md) service for holding numerous types of data.
+It's recommended over [NFS](../nfs.md) for data objects and in general it's better
+in larger setups as object storage is typically much more performant, reliable,
+and scalable.
 
 There are two ways of specifying object storage configuration in GitLab:
 
@@ -910,29 +886,13 @@ There are two ways of specifying object storage configuration in GitLab:
 - [Storage-specific form](../object_storage.md#storage-specific-configuration): Every object defines its
   own object storage [connection and configuration](../object_storage.md#connection-settings).
 
-Starting with GitLab 13.2, consolidated object storage configuration is available. It simplifies your GitLab configuration since the connection details are shared across object types. Refer to [Consolidated object storage configuration](../object_storage.md#consolidated-object-storage-configuration) guide for instructions on how to set it up.
+The consolidated form is used in the following examples when available.
 
-GitLab Runner returns job logs in chunks which Omnibus GitLab caches temporarily on disk in `/var/opt/gitlab/gitlab-ci/builds` by default, even when using consolidated object storage. With default configuration, this directory needs to be shared via NFS on any GitLab Rails and Sidekiq nodes.
-
-In GitLab 13.6 and later, it's also recommended to switch to [Incremental logging](../job_logs.md#incremental-logging-architecture), which uses Redis instead of disk space for temporary caching of job logs. This is required when no NFS node has been deployed.
-
-For configuring object storage in GitLab 13.1 and earlier, or for storage types not
-supported by consolidated configuration form, refer to the following guides based
-on what features you intend to use:
-
-|Object storage type|Supported by consolidated configuration?|
-|-------------------|----------------------------------------|
-| [Backups](../../raketasks/backup_gitlab.md#upload-backups-to-a-remote-cloud-storage) | No |
-| [Job artifacts](../job_artifacts.md#using-object-storage) including archived job logs | Yes |
-| [LFS objects](../lfs/index.md#storing-lfs-objects-in-remote-object-storage) | Yes |
-| [Uploads](../uploads.md#using-object-storage) | Yes |
-| [Container Registry](../packages/container_registry.md#use-object-storage) (optional feature) | No |
-| [Merge request diffs](../merge_request_diffs.md#using-object-storage) | Yes |
-| [Mattermost](https://docs.mattermost.com/administration/config-settings.html#file-storage)| No |
-| [Packages](../packages/index.md#using-object-storage) (optional feature) | Yes |
-| [Dependency Proxy](../packages/dependency_proxy.md#using-object-storage) (optional feature) | Yes |
-| [Autoscale runner caching](https://docs.gitlab.com/runner/configuration/autoscale.html#distributed-runners-caching) (optional for improved performance) | No |
-| [Terraform state files](../terraform_state.md#using-object-storage) | Yes |
+NOTE:
+When using the [storage-specific form](../object_storage.md#storage-specific-configuration)
+in GitLab 14.x and earlier, you should enable [direct upload mode](../../development/uploads/index.md#direct-upload).
+The previous [background upload](../../development/uploads/index.md#direct-upload) mode,
+which was deprecated in 14.9, requires shared storage such as NFS.
 
 Using separate buckets for each data type is the recommended approach for GitLab.
 This ensures there are no collisions across the various types of data GitLab stores.
@@ -944,6 +904,12 @@ in the future.
     Back to setup components <i class="fa fa-angle-double-up" aria-hidden="true"></i>
   </a>
 </div>
+
+### Enable incremental logging
+
+GitLab Runner returns job logs in chunks which Omnibus GitLab caches temporarily on disk in `/var/opt/gitlab/gitlab-ci/builds` by default, even when using consolidated object storage. With default configuration, this directory needs to be shared through NFS on any GitLab Rails and Sidekiq nodes.
+
+While sharing the job logs through NFS is supported, it's recommended to avoid the need to use NFS by enabling [incremental logging](../job_logs.md#incremental-logging-architecture) (required when no NFS node has been deployed). Incremental logging uses Redis instead of disk space for temporary caching of job logs.
 
 ## Configure Advanced Search **(PREMIUM SELF)**
 
@@ -961,23 +927,6 @@ cluster alongside your instance, read how to
   </a>
 </div>
 
-## Configure NFS (optional)
-
-For improved performance, [object storage](#configure-the-object-storage),
-along with [Gitaly](#configure-gitaly), are recommended over using NFS whenever
-possible.
-
-See how to [configure NFS](../nfs.md).
-
-WARNING:
-Engineering support for NFS for Git repositories is deprecated. Technical support is planned to be
-unavailable from GitLab 15.0. No further enhancements are planned for this feature.
-
-Read:
-
-- [Gitaly and NFS Deprecation](../nfs.md#gitaly-and-nfs-deprecation).
-- About the [correct mount options to use](../nfs.md#upgrade-to-gitaly-cluster-or-disable-caching-if-experiencing-data-loss).
-
 ## Cloud Native Hybrid reference architecture with Helm Charts (alternative)
 
 As an alternative approach, you can also run select components of GitLab as Cloud Native
@@ -992,13 +941,19 @@ compute deployments. With this, _stateless_ components can benefit from cloud na
 workload management benefits while _stateful_ components are deployed in compute VMs
 with Omnibus to benefit from increased permanence.
 
-The 2,000 reference architecture is not a highly-available setup. To achieve HA, you can follow a modified [3K reference architecture](3k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative).
+Refer to the Helm charts [Advanced configuration](https://docs.gitlab.com/charts/advanced/)
+documentation for setup instructions including guidance on what GitLab secrets to sync
+between Kubernetes and the backend components.
 
 NOTE:
 This is an **advanced** setup. Running services in Kubernetes is well known
 to be complex. **This setup is only recommended** if you have strong working
 knowledge and experience in Kubernetes. The rest of this
 section assumes this.
+
+NOTE:
+The 2,000 reference architecture is not a highly-available setup. To achieve HA,
+you can follow a modified [3K reference architecture](3k_users.md#cloud-native-hybrid-reference-architecture-with-helm-charts-alternative).
 
 NOTE:
 **Gitaly Cluster is not supported to be run in Kubernetes**.
@@ -1009,12 +964,10 @@ Refer to [epic 6127](https://gitlab.com/groups/gitlab-org/-/epics/6127) for more
 The following tables and diagram detail the hybrid environment using the same formats
 as the normal environment above.
 
-First are the components that run in Kubernetes. The recommendation at this time is to
-use Google Cloud's Kubernetes Engine (GKE) or AWS Elastic Kubernetes Service (EKS) and associated machine types, but the memory
-and CPU requirements should translate to most other providers. We hope to update this in the
-future with further specific cloud provider details.
+First are the components that run in Kubernetes. These run across several node groups, although you can change
+the overall makeup as desired as long as the minimum CPU and Memory requirements are observed.
 
-| Service             | Nodes | Configuration          | GCP             | AWS          | Min Allocatable CPUs and Memory |
+| Service Node Group  | Nodes | Configuration          | GCP             | AWS          | Min Allocatable CPUs and Memory |
 |---------------------|-------|------------------------|-----------------|--------------|---------------------------------|
 | Webservice          | 3     | 8 vCPU, 7.2 GB memory  | `n1-highcpu-8`  | `c5.2xlarge` | 23.7 vCPU, 16.9 GB memory       |
 | Sidekiq             | 2     | 4 vCPU, 15 GB memory   | `n1-standard-4` | `m5.xlarge`  | 7.8 vCPU, 25.9 GB memory        |
@@ -1023,7 +976,7 @@ future with further specific cloud provider details.
 - For this setup, we **recommend** and regularly [test](index.md#validation-and-test-results)
 [Google Kubernetes Engine (GKE)](https://cloud.google.com/kubernetes-engine) and [Amazon Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/). Other Kubernetes services may also work, but your mileage may vary.
 - Nodes configuration is shown as it is forced to ensure pod vCPU / memory ratios and avoid scaling during **performance testing**.
-  - In production deployments, there is no need to assign pods to nodes. A minimum of three nodes in three different availability zones is strongly recommended to align with resilient cloud architecture practices.
+  - In production deployments, there is no need to assign pods to specific nodes. A minimum of three nodes per node group in three different availability zones is strongly recommended to align with resilient cloud architecture practices.
 
 Next are the backend components that run on static compute VMs via Omnibus (or External PaaS
 services where applicable):
@@ -1037,8 +990,14 @@ services where applicable):
 
 <!-- Disable ordered list rule https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md029---ordered-list-item-prefix -->
 <!-- markdownlint-disable MD029 -->
-1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work. However, Amazon Aurora is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and Azure Database for PostgreSQL is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61). Consul is primarily used for PostgreSQL high availability so can be ignored when using a PostgreSQL PaaS setup. However, Consul is also used optionally by Prometheus for Omnibus auto host discovery.
-2. Can be optionally run on reputable third-party external PaaS Redis solutions. Google Memorystore and AWS ElastiCache are known to work.
+1. Can be optionally run on reputable third-party external PaaS PostgreSQL solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+    - [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres/high-availability#normal) and [Amazon RDS](https://aws.amazon.com/rds/) are known to work.
+    - [Google AlloyDB](https://cloud.google.com/alloydb) and [Amazon RDS Multi-AZ DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html) have not been tested and are not recommended. Both solutions are specifically not expected to work with GitLab Geo.
+      - Note that [Amazon RDS Multi-AZ DB instance](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html) is a separate product and is supported.
+    - [Amazon Aurora](https://aws.amazon.com/rds/aurora/) is **incompatible** with load balancing enabled by default in [14.4.0](../../update/index.md#1440), and [Azure Database for PostgreSQL](https://azure.microsoft.com/en-gb/products/postgresql/#overview) is **not recommended** due to [performance issues](https://gitlab.com/gitlab-org/quality/reference-architectures/-/issues/61).
+    - Consul is primarily used for Omnibus PostgreSQL high availability so can be ignored when using a PostgreSQL PaaS setup. However, Consul is also used optionally by Prometheus for Omnibus auto host discovery.
+2. Can be optionally run on reputable third-party external PaaS Redis solutions. See [Recommended cloud providers and services](index.md#recommended-cloud-providers-and-services) for more information.
+    - [Google Memorystore](https://cloud.google.com/memorystore) and [Amazon ElastiCache](https://aws.amazon.com/elasticache/) are known to work.
 3. Should be run on reputable Cloud Provider or Self Managed solutions. More information can be found in the [Configure the object storage](#configure-the-object-storage) section.
 <!-- markdownlint-enable MD029 -->
 

@@ -1,10 +1,10 @@
 ---
 stage: Secure
 group: Composition Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# SPDX license list import **(ULTIMATE SELF)**
+# SPDX license list import Rake task **(ULTIMATE SELF)**
 
 GitLab provides a Rake task for uploading a fresh copy of the [SPDX license list](https://spdx.org/licenses/)
 to a GitLab instance. This list is needed for matching the names of [License Compliance policies](../user/compliance/license_compliance/index.md).

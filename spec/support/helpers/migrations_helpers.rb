@@ -87,6 +87,8 @@ module MigrationsHelpers
     [ApplicationSetting, SystemHook].each do |model|
       model.define_attribute_methods
     end
+
+    Gitlab.ee { License.define_attribute_methods }
   end
 
   def reset_column_information(klass)
@@ -102,7 +104,7 @@ module MigrationsHelpers
     # We stub this way because we can't stub on
     # `current_application_settings` due to `method_missing` is
     # depending on current_application_settings...
-    allow(ActiveRecord::Base.connection)
+    allow(Gitlab::Database::Migration::V1_0::MigrationRecord.connection)
       .to receive(:active?)
       .and_return(false)
     allow(Gitlab::Runtime)
@@ -156,10 +158,10 @@ module MigrationsHelpers
   end
 
   def migrate!
-    open_transactions = ActiveRecord::Base.connection.open_transactions
+    open_transactions = Gitlab::Database::Migration::V1_0::MigrationRecord.connection.open_transactions
     allow_next_instance_of(described_class) do |migration|
       allow(migration).to receive(:transaction_open?) do
-        ActiveRecord::Base.connection.open_transactions > open_transactions
+        Gitlab::Database::Migration::V1_0::MigrationRecord.connection.open_transactions > open_transactions
       end
     end
 

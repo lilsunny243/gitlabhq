@@ -26,7 +26,7 @@ RSpec.describe Integrations::Jira do
   end
 
   before do
-    WebMock.stub_request(:get, /serverInfo/).to_return(body: server_info_results.to_json )
+    WebMock.stub_request(:get, /serverInfo/).to_return(body: server_info_results.to_json)
   end
 
   it_behaves_like Integrations::ResetSecretFields do
@@ -81,9 +81,10 @@ RSpec.describe Integrations::Jira do
         jira_integration.jira_issue_transition_id = 'foo bar'
 
         expect(jira_integration).not_to be_valid
-        expect(jira_integration.errors.full_messages).to eq([
-          'Jira issue transition IDs must be a list of numbers that can be split with , or ;'
-        ])
+        expect(jira_integration.errors.full_messages).to eq(
+          [
+            'Jira issue transition IDs must be a list of numbers that can be split with , or ;'
+          ])
       end
     end
   end
@@ -161,7 +162,7 @@ RSpec.describe Integrations::Jira do
   end
 
   describe '#fields' do
-    let(:integration) { create(:jira_integration) }
+    let(:integration) { jira_integration }
 
     subject(:fields) { integration.fields }
 
@@ -171,7 +172,7 @@ RSpec.describe Integrations::Jira do
   end
 
   describe '#sections' do
-    let(:integration) { create(:jira_integration) }
+    let(:integration) { jira_integration }
 
     subject(:sections) { integration.sections.map { |s| s[:type] } }
 
@@ -213,6 +214,8 @@ RSpec.describe Integrations::Jira do
       'EXT_EXT-1234'       | 'EXT_EXT-1234'
       'EXT3_EXT-1234'      | 'EXT3_EXT-1234'
       '3EXT_EXT-1234'      | ''
+      'CVE-2022-123'       | ''
+      'CVE-123'            | 'CVE-123'
     end
 
     with_them do
@@ -227,9 +230,12 @@ RSpec.describe Integrations::Jira do
 
     where(:url, :result) do
       'https://abc.atlassian.net' | true
+      'http://abc.atlassian.net'  | false
       'abc.atlassian.net'         | false # This is how it behaves currently, but we may need to consider adding scheme if missing
       'https://somethingelse.com' | false
-      nil                         | false
+      'javascript://test.atlassian.net/%250dalert(document.domain)' | false
+      'https://example.com".atlassian.net' | false
+      nil | false
     end
 
     with_them do
@@ -286,7 +292,7 @@ RSpec.describe Integrations::Jira do
         let(:server_info_results) { { 'deploymentType' => 'FutureCloud' } }
 
         context 'and URL ends in .atlassian.net' do
-          let(:api_url) { 'http://example-api.atlassian.net' }
+          let(:api_url) { 'https://example-api.atlassian.net' }
 
           it 'deployment_type is set to cloud' do
             expect(integration.jira_tracker_data).to be_deployment_cloud
@@ -294,7 +300,7 @@ RSpec.describe Integrations::Jira do
         end
 
         context 'and URL is something else' do
-          let(:api_url) { 'http://my-jira-api.someserver.com' }
+          let(:api_url) { 'https://my-jira-api.someserver.com' }
 
           it 'deployment_type is set to server' do
             expect(integration.jira_tracker_data).to be_deployment_server
@@ -306,7 +312,7 @@ RSpec.describe Integrations::Jira do
         let(:server_info_results) { {} }
 
         context 'and URL ends in .atlassian.net' do
-          let(:api_url) { 'http://example-api.atlassian.net' }
+          let(:api_url) { 'https://example-api.atlassian.net' }
 
           it 'deployment_type is set to cloud' do
             expect(Gitlab::AppLogger).to receive(:warn).with(message: "Jira API returned no ServerInfo, setting deployment_type from URL", server_info: server_info_results, url: api_url)
@@ -315,7 +321,7 @@ RSpec.describe Integrations::Jira do
         end
 
         context 'and URL is something else' do
-          let(:api_url) { 'http://my-jira-api.someserver.com' }
+          let(:api_url) { 'https://my-jira-api.someserver.com' }
 
           it 'deployment_type is set to server' do
             expect(Gitlab::AppLogger).to receive(:warn).with(message: "Jira API returned no ServerInfo, setting deployment_type from URL", server_info: server_info_results, url: api_url)
@@ -329,28 +335,7 @@ RSpec.describe Integrations::Jira do
   # we need to make sure we are able to read both from properties and jira_tracker_data table
   # TODO: change this as part of https://gitlab.com/gitlab-org/gitlab/issues/29404
   context 'overriding properties' do
-    let(:access_params) do
-      { url: url, api_url: api_url, username: username, password: password,
-        jira_issue_transition_id: transition_id }
-    end
-
-    let(:data_params) do
-      {
-        url: url, api_url: api_url,
-        username: username, password: password,
-        jira_issue_transition_id: transition_id
-      }
-    end
-
     shared_examples 'handles jira fields' do
-      let(:data_params) do
-        {
-          url: url, api_url: api_url,
-          username: username, password: password,
-          jira_issue_transition_id: transition_id
-        }
-      end
-
       context 'reading data' do
         it 'reads data correctly' do
           expect(integration.url).to eq(url)
@@ -446,69 +431,52 @@ RSpec.describe Integrations::Jira do
     end
 
     # this  will be removed as part of https://gitlab.com/gitlab-org/gitlab/issues/29404
-    context 'when data are stored in properties' do
-      let(:properties) { data_params }
-      let!(:integration) do
-        create(:jira_integration, :without_properties_callback, properties: properties.merge(additional: 'something'))
+    context 'with properties' do
+      let(:data_params) do
+        {
+          url: url, api_url: api_url,
+          username: username, password: password,
+          jira_issue_transition_id: transition_id
+        }
       end
 
-      it_behaves_like 'handles jira fields'
-    end
-
-    context 'when data are stored in separated fields' do
-      let(:integration) do
-        create(:jira_integration, data_params.merge(properties: {}))
-      end
-
-      it_behaves_like 'handles jira fields'
-    end
-
-    context 'when data are stored in both properties and separated fields' do
-      let(:properties) { data_params }
-      let(:integration) do
-        create(:jira_integration, :without_properties_callback, properties: properties).tap do |integration|
-          create(:jira_tracker_data, data_params.merge(integration: integration))
+      context 'when data are stored in properties' do
+        let(:integration) do
+          create(:jira_integration, :without_properties_callback, project: project, properties: data_params.merge(additional: 'something'))
         end
+
+        it_behaves_like 'handles jira fields'
       end
 
-      it_behaves_like 'handles jira fields'
+      context 'when data are stored in separated fields' do
+        let(:integration) do
+          create(:jira_integration, data_params.merge(properties: {}, project: project))
+        end
+
+        it_behaves_like 'handles jira fields'
+      end
+
+      context 'when data are stored in both properties and separated fields' do
+        let(:integration) do
+          create(:jira_integration, :without_properties_callback, properties: data_params, project: project).tap do |integration|
+            create(:jira_tracker_data, data_params.merge(integration: integration))
+          end
+        end
+
+        it_behaves_like 'handles jira fields'
+      end
     end
   end
 
   describe '#client' do
-    subject do
+    it 'uses the default GitLab::HTTP timeouts' do
+      timeouts = Gitlab::HTTP::DEFAULT_TIMEOUT_OPTIONS
       stub_request(:get, 'http://jira.example.com/foo')
 
       expect(Gitlab::HTTP).to receive(:httparty_perform_request)
         .with(Net::HTTP::Get, '/foo', hash_including(timeouts)).and_call_original
 
       jira_integration.client.get('/foo')
-    end
-
-    context 'when the FF :jira_raise_timeouts is enabled' do
-      let(:timeouts) do
-        {
-          open_timeout: 2.minutes,
-          read_timeout: 2.minutes,
-          write_timeout: 2.minutes
-        }
-      end
-
-      it 'uses custom timeouts' do
-        subject
-      end
-    end
-
-    context 'when the FF :jira_raise_timeouts is disabled' do
-      before do
-        stub_feature_flags(jira_raise_timeouts: false)
-      end
-
-      let(:timeouts) { Gitlab::HTTP::DEFAULT_TIMEOUT_OPTIONS }
-
-      it 'uses the default GitLab::HTTP timeouts' do
-        subject
-      end
     end
   end
 
@@ -619,10 +587,9 @@ RSpec.describe Integrations::Jira do
         close_issue
       end
 
-      it_behaves_like 'Snowplow event tracking' do
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
         subject { close_issue }
 
-        let(:feature_flag_name) { :route_hll_to_snowplow_phase2 }
         let(:category) { 'Integrations::Jira' }
         let(:action) { 'perform_integrations_action' }
         let(:namespace) { project.namespace }
@@ -869,7 +836,7 @@ RSpec.describe Integrations::Jira do
     end
 
     context 'when resource is a merge request' do
-      let(:resource) { create(:merge_request) }
+      let_it_be(:resource) { create(:merge_request, source_project: project) }
       let(:commit_id) { resource.diff_head_sha }
 
       it_behaves_like 'close_issue'
@@ -975,8 +942,7 @@ RSpec.describe Integrations::Jira do
         subject
       end
 
-      it_behaves_like 'Snowplow event tracking' do
-        let(:feature_flag_name) { :route_hll_to_snowplow_phase2 }
+      it_behaves_like 'Snowplow event tracking with RedisHLL context' do
         let(:category) { 'Integrations::Jira' }
         let(:action) { 'perform_integrations_action' }
         let(:namespace) { project.namespace }
@@ -1081,7 +1047,7 @@ RSpec.describe Integrations::Jira do
     end
 
     it 'removes trailing slashes from url' do
-      integration = described_class.new(url: 'http://jira.test.com/path/')
+      integration = described_class.new(url: 'http://jira.test.com/path/', project: project)
 
       expect(integration.url).to eq('http://jira.test.com/path')
     end
@@ -1102,7 +1068,7 @@ RSpec.describe Integrations::Jira do
   end
 
   context 'generating external URLs' do
-    let(:integration) { described_class.new(url: 'http://jira.test.com/path/') }
+    let(:integration) { described_class.new(url: 'http://jira.test.com/path/', project: project) }
 
     describe '#web_url' do
       it 'handles paths, slashes, and query string' do
@@ -1127,9 +1093,7 @@ RSpec.describe Integrations::Jira do
         expect(integration.web_url).to eq('')
       end
 
-      it 'includes Atlassian referrer for gitlab.com' do
-        allow(Gitlab).to receive(:com?).and_return(true)
-
+      it 'includes Atlassian referrer for SaaS', :saas do
         expect(integration.web_url).to eq("http://jira.test.com/path?#{described_class::ATLASSIAN_REFERRER_GITLAB_COM.to_query}")
 
         allow(Gitlab).to receive(:staging?).and_return(true)

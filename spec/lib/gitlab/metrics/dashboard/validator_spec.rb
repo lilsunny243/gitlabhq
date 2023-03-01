@@ -33,9 +33,9 @@ RSpec.describe Gitlab::Metrics::Dashboard::Validator do
         context 'with metric identifier present in current dashboard' do
           before do
             create(:prometheus_metric,
-              identifier:     'metric_a1',
+              identifier: 'metric_a1',
               dashboard_path: 'test/path.yml',
-              project:        project
+              project: project
             )
           end
 
@@ -45,9 +45,9 @@ RSpec.describe Gitlab::Metrics::Dashboard::Validator do
         context 'with metric identifier present in another dashboard' do
           before do
             create(:prometheus_metric,
-              identifier:     'metric_a1',
+              identifier: 'metric_a1',
               dashboard_path: 'some/other/dashboard/path.yml',
-              project:        project
+              project: project
             )
           end
 
@@ -94,9 +94,9 @@ RSpec.describe Gitlab::Metrics::Dashboard::Validator do
         context 'with metric identifier present in current dashboard' do
           before do
             create(:prometheus_metric,
-              identifier:     'metric_a1',
+              identifier: 'metric_a1',
               dashboard_path: 'test/path.yml',
-              project:        project
+              project: project
             )
           end
 
@@ -106,9 +106,9 @@ RSpec.describe Gitlab::Metrics::Dashboard::Validator do
         context 'with metric identifier present in another dashboard' do
           before do
             create(:prometheus_metric,
-              identifier:     'metric_a1',
+              identifier: 'metric_a1',
               dashboard_path: 'some/other/dashboard/path.yml',
-              project:        project
+              project: project
             )
           end
 
@@ -140,58 +140,6 @@ RSpec.describe Gitlab::Metrics::Dashboard::Validator do
         let_it_be(:invalid_dashboard) { load_dashboard_yaml(fixture_file('lib/gitlab/metrics/dashboard/dashboard_panel_is_missing_metrics.yml')) }
 
         it_behaves_like 'validation failed', '/panel_groups/0/panels/0 is missing required keys: metrics'
-      end
-    end
-  end
-
-  describe '#errors' do
-    context 'valid dashboard schema' do
-      it 'returns no errors' do
-        expect(described_class.errors(valid_dashboard)).to eq []
-      end
-
-      context 'with duplicate metric_ids' do
-        it 'returns errors' do
-          expect(described_class.errors(duplicate_id_dashboard)).to eq [Gitlab::Metrics::Dashboard::Validator::Errors::DuplicateMetricIds.new]
-        end
-      end
-
-      context 'with dashboard_path and project' do
-        subject { described_class.errors(valid_dashboard, dashboard_path: 'test/path.yml', project: project) }
-
-        context 'with no conflicting metric identifiers in db' do
-          it { is_expected.to eq [] }
-        end
-
-        context 'with metric identifier present in current dashboard' do
-          before do
-            create(:prometheus_metric,
-                   identifier:     'metric_a1',
-                   dashboard_path: 'test/path.yml',
-                   project:        project
-                  )
-          end
-
-          it { is_expected.to eq [] }
-        end
-
-        context 'with metric identifier present in another dashboard' do
-          before do
-            create(:prometheus_metric,
-                   identifier:     'metric_a1',
-                   dashboard_path: 'some/other/dashboard/path.yml',
-                   project:        project
-                  )
-          end
-
-          it { is_expected.to eq [Gitlab::Metrics::Dashboard::Validator::Errors::DuplicateMetricIds.new] }
-        end
-      end
-    end
-
-    context 'invalid dashboard schema' do
-      it 'returns collection of validation errors' do
-        expect(described_class.errors(invalid_dashboard)).to all be_kind_of(Gitlab::Metrics::Dashboard::Validator::Errors::SchemaValidationError)
       end
     end
   end

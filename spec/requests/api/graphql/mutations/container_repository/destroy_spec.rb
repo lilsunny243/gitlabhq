@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Destroying a container repository' do
+RSpec.describe 'Destroying a container repository', feature_category: :container_registry do
   using RSpec::Parameterized::TableSyntax
 
   include GraphqlHelpers
@@ -33,11 +33,11 @@ RSpec.describe 'Destroying a container repository' do
   end
 
   shared_examples 'destroying the container repository' do
-    it 'destroy the container repository' do
+    it 'marks the container repository as delete_scheduled' do
       expect(::Packages::CreateEventService)
           .to receive(:new).with(nil, user, event_name: :delete_repository, scope: :container).and_call_original
       expect(DeleteContainerRepositoryWorker)
-        .to receive(:perform_async).with(user.id, container_repository.id)
+        .not_to receive(:perform_async)
 
       expect { subject }.to change { ::Packages::Event.count }.by(1)
 

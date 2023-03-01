@@ -332,8 +332,8 @@ RSpec.describe MarkupHelper do
     context 'when file is Markdown' do
       let(:extension) { 'md' }
 
-      it 'renders using #markdown_unsafe helper method' do
-        expect(helper).to receive(:markdown_unsafe).with('wiki content', context)
+      it 'renders using CommonMark method' do
+        expect(Banzai).to receive(:render).with('wiki content', context)
 
         helper.render_wiki_content(wiki_page)
       end
@@ -377,24 +377,16 @@ RSpec.describe MarkupHelper do
       end
     end
 
-    context 'when file is Kramdown' do
+    context 'when file is R Markdown' do
       let(:extension) { 'rmd' }
-      let(:content) do
-        <<-EOF
-{::options parse_block_html="true" /}
+      let(:content) { '## Header' }
 
-<div>
-FooBar
-</div>
-        EOF
-      end
-
-      it 'renders using #markdown_unsafe helper method' do
-        expect(helper).to receive(:markdown_unsafe).with(content, context)
+      it 'renders using CommonMark method' do
+        expect(Markup::RenderingService).to receive(:new).and_call_original
 
         result = helper.render_wiki_content(wiki_page)
 
-        expect(result).to be_empty
+        expect(result).to include('Header</h2>')
       end
     end
 
@@ -424,23 +416,9 @@ FooBar
       expect(helper.markup('foo.rst', content).encoding.name).to eq('UTF-8')
     end
 
-    it 'delegates to #markdown_unsafe when file name corresponds to Markdown' do
-      expect(helper).to receive(:gitlab_markdown?).with('foo.md').and_return(true)
-      expect(helper).to receive(:markdown_unsafe).and_return('NOEL')
-
-      expect(helper.markup('foo.md', content)).to eq('NOEL')
-    end
-
-    it 'delegates to #asciidoc_unsafe when file name corresponds to AsciiDoc' do
-      expect(helper).to receive(:asciidoc?).with('foo.adoc').and_return(true)
-      expect(helper).to receive(:asciidoc_unsafe).and_return('NOEL')
-
-      expect(helper.markup('foo.adoc', content)).to eq('NOEL')
-    end
-
     it 'uses passed in rendered content' do
-      expect(helper).not_to receive(:gitlab_markdown?)
-      expect(helper).not_to receive(:markdown_unsafe)
+      expect(Gitlab::MarkupHelper).not_to receive(:gitlab_markdown?)
+      expect(Markup::RenderingService).not_to receive(:execute)
 
       expect(helper.markup('foo.md', content, rendered: '<p>NOEL</p>')).to eq('<p>NOEL</p>')
     end
@@ -448,113 +426,18 @@ FooBar
     it 'defaults to CommonMark' do
       expect(helper.markup('foo.md', 'x^2')).to include('x^2')
     end
-  end
 
-  describe '#markup_unsafe' do
-    subject { helper.markup_unsafe(file_name, text, context) }
+    it 'sets additional context for Asciidoc' do
+      context = {}
+      assign(:commit, commit)
+      assign(:ref, 'ref')
+      assign(:path, 'path')
 
-    let_it_be(:project_base) { create(:project, :repository) }
-    let_it_be(:context) { { project: project_base } }
+      expect(Gitlab::Asciidoc).to receive(:render)
 
-    let(:file_name) { 'foo.bar' }
-    let(:text) { 'Noël' }
+      helper.markup('foo.adoc', content, context)
 
-    context 'when text is missing' do
-      let(:text) { nil }
-
-      it 'returns an empty string' do
-        is_expected.to eq('')
-      end
-    end
-
-    context 'when rendering takes too long' do
-      before do
-        stub_const("MarkupHelper::RENDER_TIMEOUT", 0.1)
-        allow(Gitlab::OtherMarkup).to receive(:render) { sleep(0.2) }
-      end
-
-      it 'times out' do
-        expect(Gitlab::RenderTimeout).to receive(:timeout).and_call_original
-        expect(Gitlab::ErrorTracking).to receive(:track_exception).with(
-          instance_of(Timeout::Error),
-          project_id: project.id, file_name: file_name
-        )
-
-        subject
-      end
-
-      context 'when markup_rendering_timeout is disabled' do
-        it 'waits until the execution completes' do
-          stub_feature_flags(markup_rendering_timeout: false)
-
-          expect(Gitlab::RenderTimeout).not_to receive(:timeout)
-
-          subject
-        end
-      end
-    end
-
-    context 'when file is a markdown file' do
-      let(:file_name) { 'foo.md' }
-
-      it 'returns html (rendered by Banzai)' do
-        expected_html = '<p data-sourcepos="1:1-1:5" dir="auto">Noël</p>'
-
-        expect(Banzai).to receive(:render).with(text, context) { expected_html }
-
-        is_expected.to eq(expected_html)
-      end
-
-      context 'when renderer returns an error' do
-        before do
-          allow(Banzai).to receive(:render).and_raise(StandardError, "An error")
-        end
-
-        it 'returns html (rendered by ActionView:TextHelper)' do
-          is_expected.to eq('<p>Noël</p>')
-        end
-
-        it 'logs the error' do
-          expect(Gitlab::ErrorTracking).to receive(:track_exception).with(
-            instance_of(StandardError),
-            project_id: project.id, file_name: 'foo.md'
-          )
-
-          subject
-        end
-      end
-    end
-
-    context 'when file is asciidoc file' do
-      let(:file_name) { 'foo.adoc' }
-
-      it 'returns html (rendered by Gitlab::Asciidoc)' do
-        expected_html = "<div>\n<p>Noël</p>\n</div>"
-
-        expect(Gitlab::Asciidoc).to receive(:render).with(text, context) { expected_html }
-
-        is_expected.to eq(expected_html)
-      end
-    end
-
-    context 'when file is a regular text file' do
-      let(:file_name) { 'foo.txt' }
-
-      it 'returns html (rendered by ActionView::TagHelper)' do
-        is_expected.to eq('<pre class="plain-readme">Noël</pre>')
-      end
-    end
-
-    context 'when file has an unknown type' do
-      let(:file_name) { 'foo.tex' }
-
-      it 'returns html (rendered by Gitlab::OtherMarkup)' do
-        expected_html = 'Noël'
-
-        expect(Gitlab::OtherMarkup).to receive(:render).with(file_name, text, context) { expected_html }
-
-        is_expected.to eq(expected_html)
-      end
+      expect(context).to include(commit: commit, ref: 'ref', requested_path: 'path')
     end
   end
 
@@ -566,21 +449,21 @@ FooBar
         object = create_object('Text with `inline code`')
         expected = 'Text with <code>inline code</code>'
 
-        expect(first_line_in_markdown(object, attribute, 100, project: project)).to match(expected)
+        expect(helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)).to match(expected)
       end
 
       it 'truncates the text with multiple paragraphs' do
         object = create_object("Paragraph 1\n\nParagraph 2")
         expected = 'Paragraph 1...'
 
-        expect(first_line_in_markdown(object, attribute, 100, project: project)).to match(expected)
+        expect(helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)).to match(expected)
       end
 
       it 'displays the first line of a code block' do
         object = create_object("```\nCode block\nwith two lines\n```")
         expected = %r{<pre.+><code><span class="line">Code block\.\.\.</span>\n</code></pre>}
 
-        expect(first_line_in_markdown(object, attribute, 100, project: project)).to match(expected)
+        expect(helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)).to match(expected)
       end
 
       it 'truncates a single long line of text' do
@@ -588,19 +471,7 @@ FooBar
         object = create_object(text * 4)
         expected = (text * 2).sub(/.{3}/, '...')
 
-        expect(first_line_in_markdown(object, attribute, 150, project: project)).to match(expected)
-      end
-
-      it 'preserves a link href when link text is truncated' do
-        text = 'The quick brown fox jumped over the lazy dog' # 44 chars
-        link_url = 'http://example.com/foo/bar/baz' # 30 chars
-        input = "#{text}#{text}#{text} #{link_url}" # 163 chars
-        expected_link_text = 'http://example...</a>'
-
-        object = create_object(input)
-
-        expect(first_line_in_markdown(object, attribute, 150, project: project)).to match(link_url)
-        expect(first_line_in_markdown(object, attribute, 150, project: project)).to match(expected_link_text)
+        expect(helper.first_line_in_markdown(object, attribute, 150, is_todo: true, project: project)).to match(expected)
       end
 
       it 'preserves code color scheme' do
@@ -609,28 +480,15 @@ FooBar
           "<code><span class=\"line\"><span class=\"k\">def</span> <span class=\"nf\">test</span>...</span>\n" \
           "</code></pre>\n"
 
-        expect(first_line_in_markdown(object, attribute, 150, project: project)).to eq(expected)
+        expect(helper.first_line_in_markdown(object, attribute, 150, is_todo: true, project: project)).to eq(expected)
       end
 
-      context 'when images are allowed' do
-        it 'preserves data-src for lazy images' do
-          object    = create_object("![ImageTest](/uploads/test.png)")
-          image_url = "data-src=\".*/uploads/test.png\""
-          text      = first_line_in_markdown(object, attribute, 150, project: project, allow_images: true)
+      it 'removes any images' do
+        object = create_object("![ImageTest](/uploads/test.png)")
+        text   = helper.first_line_in_markdown(object, attribute, 150, is_todo: true, project: project)
 
-          expect(text).to match(image_url)
-          expect(text).to match('<a')
-        end
-      end
-
-      context 'when images are not allowed' do
-        it 'removes any images' do
-          object = create_object("![ImageTest](/uploads/test.png)")
-          text   = first_line_in_markdown(object, attribute, 150, project: project)
-
-          expect(text).not_to match('<img')
-          expect(text).not_to match('<a')
-        end
+        expect(text).not_to match('<img')
+        expect(text).not_to match('<a')
       end
 
       context 'labels formatting' do
@@ -640,7 +498,7 @@ FooBar
           create(:label, title: 'label_1', project: project)
           object = create_object(label_title, project: project)
 
-          first_line_in_markdown(object, attribute, 150, project: project)
+          helper.first_line_in_markdown(object, attribute, 150, is_todo: true, project: project)
         end
 
         it 'preserves style attribute for a label that can be accessed by current_user' do
@@ -661,53 +519,19 @@ FooBar
       end
 
       it 'keeps whitelisted tags' do
-        html = '<a><i></i></a> <strong>strong</strong><em>em</em><b>b</b>'
+        html = '<i></i> <strong>strong</strong><em>em</em><b>b</b>'
 
         object = create_object(html)
-        result = first_line_in_markdown(object, attribute, 100, project: project)
+        result = helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)
 
         expect(result).to include(html)
-      end
-
-      it 'truncates Markdown properly' do
-        object = create_object("@#{user.username}, can you look at this?\nHello world\n")
-        actual = first_line_in_markdown(object, attribute, 100, project: project)
-
-        doc = Nokogiri::HTML.parse(actual)
-
-        # Make sure we didn't create invalid markup
-        expect(doc.errors).to be_empty
-
-        # Leading user link
-        expect(doc.css('a').length).to eq(1)
-        expect(doc.css('a')[0].attr('href')).to eq user_path(user)
-        expect(doc.css('a')[0].text).to eq "@#{user.username}"
-
-        expect(doc.content).to eq "@#{user.username}, can you look at this?..."
-      end
-
-      it 'truncates Markdown with emoji properly' do
-        object = create_object("foo :wink:\nbar :grinning:")
-        actual = first_line_in_markdown(object, attribute, 100, project: project)
-
-        doc = Nokogiri::HTML.parse(actual)
-
-        # Make sure we didn't create invalid markup
-        # But also account for the 2 errors caused by the unknown `gl-emoji` elements
-        expect(doc.errors.length).to eq(2)
-
-        expect(doc.css('gl-emoji').length).to eq(2)
-        expect(doc.css('gl-emoji')[0].attr('data-name')).to eq 'wink'
-        expect(doc.css('gl-emoji')[1].attr('data-name')).to eq 'grinning'
-
-        expect(doc.content).to eq "foo 😉\nbar 😀"
       end
 
       it 'does not post-process truncated text', :request_store do
         object = create_object("hello \n\n [Test](README.md)")
 
         expect do
-          first_line_in_markdown(object, attribute, nil, project: project)
+          helper.first_line_in_markdown(object, attribute, 100, is_todo: true, project: project)
         end.not_to change { Gitlab::GitalyClient.get_request_count }
       end
     end

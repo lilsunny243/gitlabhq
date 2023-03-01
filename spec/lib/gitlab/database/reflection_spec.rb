@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database::Reflection do
+RSpec.describe Gitlab::Database::Reflection, feature_category: :database do
   let(:database) { described_class.new(ApplicationRecord) }
 
   describe '#username' do
@@ -312,6 +312,12 @@ RSpec.describe Gitlab::Database::Reflection do
       stub_statements("SELECT datname FROM pg_database WHERE datname = 'azure_maintenance'")
 
       expect(database.flavor).to eq('Azure Database for PostgreSQL - Single Server')
+    end
+
+    it 'recognizes AlloyDB for PostgreSQL' do
+      stub_statements("SELECT name FROM pg_settings WHERE name LIKE 'alloydb%'")
+
+      expect(database.flavor).to eq('AlloyDB for PostgreSQL')
     end
 
     it 'returns nil if can not recognize the flavor' do

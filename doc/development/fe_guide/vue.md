@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Vue
@@ -65,9 +65,66 @@ To do that, you can use the `data` attributes in the HTML element and query them
 You should only do this while initializing the application, because the mounted element is replaced
 with a Vue-generated DOM.
 
+The `data` attributes are [only able to accept String values](https://developer.mozilla.org/en-US/docs/Learn/HTML/Howto/Use_data_attributes#javascript_access),
+so you will need to cast or convert other variable types to String.
+
 The advantage of providing data from the DOM to the Vue instance through `props` or
 `provide` in the `render` function, instead of querying the DOM inside the main Vue
 component, is that you avoid creating a fixture or an HTML element in the unit test.
+
+##### The `initSimpleApp` helper
+
+`initSimpleApp` is a helper function that streamlines the process of mounting a component in Vue.js. It accepts two arguments: a selector string representing the mount point in the HTML, and a Vue component.
+
+To use `initSimpleApp`:
+
+1. Include an HTML element in the page with an ID or unique class.
+1. Add a data-view-model attribute containing a JSON object.
+1. Import the desired Vue component, and pass it along with a valid CSS selector string
+   that selects the HTML element to `initSimpleApp`. This string mounts the component
+   at the specified location.
+
+`initSimpleApp` automatically retrieves the content of the data-view-model attribute as a JSON object and passes it as props to the mounted Vue component. This can be used to pre-populate the component with data.
+
+Example:
+
+```vue
+//my_component.vue
+<template>
+  <div>
+    <p>Prop1: {{ prop1 }}</p>
+    <p>Prop2: {{ prop2 }}</p>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'MyComponent',
+  props: {
+    prop1: {
+      type: String,
+      required: true
+    },
+    prop2: {
+      type: Number,
+      required: true
+    }
+  }
+}
+</script>
+```
+
+```html
+<div id="js-my-element" data-view-model='{"prop1": "my object", "prop2": 42 }'></div>
+```
+
+```javascript
+//index.js
+import MyComponent from './my_component.vue'
+import initSimpleApp from '~/helpers/init_simple_app_helper'
+
+initSimpleApp('#js-my-element', MyComponent)
+```
 
 ##### `provide` and `inject`
 
@@ -408,11 +465,11 @@ export function useCount(initialValue) {
   const count = ref(initialValue)
 
   function incrementCount() {
-    ref.value += 1
+    count.value += 1
   }
 
   function decrementCount() {
-    ref.value -= 1
+    count.value -= 1
   }
 
   return { count, incrementCount, decrementCount }

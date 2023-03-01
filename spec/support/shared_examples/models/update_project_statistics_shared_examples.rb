@@ -15,7 +15,7 @@ RSpec.shared_examples 'UpdateProjectStatistics' do |with_counter_attribute|
 
   def read_pending_increment
     Gitlab::Redis::SharedState.with do |redis|
-      key = project.statistics.counter_key(project_statistics_name)
+      key = project.statistics.counter(project_statistics_name).key
       redis.get(key).to_i
     end
   end
@@ -25,10 +25,7 @@ RSpec.shared_examples 'UpdateProjectStatistics' do |with_counter_attribute|
   def expect_flush_counter_increments_worker_performed
     expect(FlushCounterIncrementsWorker)
       .to receive(:perform_in)
-      .with(CounterAttribute::WORKER_DELAY, project.statistics.class.name, project.statistics.id, project_statistics_name)
-    expect(FlushCounterIncrementsWorker)
-      .to receive(:perform_in)
-      .with(CounterAttribute::WORKER_DELAY, project.statistics.class.name, project.statistics.id, :storage_size)
+      .with(Gitlab::Counters::BufferedCounter::WORKER_DELAY, project.statistics.class.name, project.statistics.id, project_statistics_name)
 
     yield
 
@@ -63,8 +60,11 @@ RSpec.shared_examples 'UpdateProjectStatistics' do |with_counter_attribute|
         end
 
         it 'stores pending increments for async update' do
+          expected_increment = have_attributes(amount: delta, ref: subject.id)
+
           expect(ProjectStatistics)
             .to receive(:increment_statistic)
+            .with(project, project_statistics_name, expected_increment)
             .and_call_original
 
           subject.write_attribute(statistic_attribute, read_attribute + delta)
@@ -111,11 +111,8 @@ RSpec.shared_examples 'UpdateProjectStatistics' do |with_counter_attribute|
         end
 
         context 'when it is destroyed from the project level' do
-          it 'does not update the project statistics' do
-            expect(ProjectStatistics)
-              .not_to receive(:increment_statistic)
-
-            expect(Projects::DestroyService.new(project, project.first_owner).execute).to eq(true)
+          it 'does not store pending increments for async update' do
+            expect { Projects::DestroyService.new(project, project.first_owner).execute }.not_to change { read_pending_increment }
           end
 
           it 'does not schedule a namespace statistics worker' do

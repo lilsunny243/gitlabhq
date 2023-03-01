@@ -2,7 +2,8 @@
 
 require 'rake_helper'
 
-RSpec.describe 'gitlab:usage data take tasks', :silence_stdout do
+RSpec.describe 'gitlab:usage data take tasks', :silence_stdout, feature_category: :service_ping do
+  include StubRequests
   include UsageDataHelpers
 
   let(:metrics_file) { Rails.root.join('tmp', 'test', 'sql_metrics_queries.json') }
@@ -42,6 +43,58 @@ RSpec.describe 'gitlab:usage data take tasks', :silence_stdout do
       run_rake_task('gitlab:usage_data:generate_sql_metrics_queries')
 
       expect(Pathname.new(metrics_file)).to exist
+    end
+  end
+
+  describe 'generate_and_send' do
+    let(:service_ping_payload_url) do
+      File.join(ServicePing::SubmitService::STAGING_BASE_URL, ServicePing::SubmitService::USAGE_DATA_PATH)
+    end
+
+    let(:service_ping_metadata_url) do
+      File.join(ServicePing::SubmitService::STAGING_BASE_URL, ServicePing::SubmitService::METADATA_PATH)
+    end
+
+    let(:payload) { { recorded_at: Time.current } }
+
+    before do
+      allow_next_instance_of(ServicePing::BuildPayload) do |service|
+        allow(service).to receive(:execute).and_return(payload)
+      end
+      stub_response(body: payload.merge(conv_index: { usage_data_id: 123 }))
+      stub_response(body: nil, url: service_ping_metadata_url, status: 201)
+    end
+
+    it 'generates and sends Service Ping payload' do
+      expect { run_rake_task('gitlab:usage_data:generate_and_send') }.to output(/.*201.*/).to_stdout
+    end
+
+    describe 'generate_ci_template_events' do
+      around do |example|
+        FileUtils.rm_rf(Gitlab::UsageDataCounters::CiTemplateUniqueCounter::KNOWN_EVENTS_FILE_PATH)
+
+        example.run
+
+        `git checkout -- #{Gitlab::UsageDataCounters::CiTemplateUniqueCounter::KNOWN_EVENTS_FILE_PATH}`
+      end
+
+      it "generates #{Gitlab::UsageDataCounters::CiTemplateUniqueCounter::KNOWN_EVENTS_FILE_PATH}",
+        quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/386191' do
+        run_rake_task('gitlab:usage_data:generate_ci_template_events')
+
+        expect(File.exist?(Gitlab::UsageDataCounters::CiTemplateUniqueCounter::KNOWN_EVENTS_FILE_PATH)).to be true
+      end
+    end
+
+    private
+
+    def stub_response(body:, url: service_ping_payload_url, status: 201)
+      stub_full_request(url, method: :post)
+        .to_return(
+          headers: { 'Content-Type' => 'application/json' },
+          body: body.to_json,
+          status: status
+        )
     end
   end
 end

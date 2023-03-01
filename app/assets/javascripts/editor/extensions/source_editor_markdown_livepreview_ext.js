@@ -1,7 +1,7 @@
-import { KeyMod, KeyCode } from 'monaco-editor';
+import { KeyMod, KeyCode, Emitter } from 'monaco-editor';
 import { debounce } from 'lodash';
 import { BLOB_PREVIEW_ERROR } from '~/blob_edit/constants';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { sanitize } from '~/lib/dompurify';
 import axios from '~/lib/utils/axios_utils';
 import syntaxHighlight from '~/syntax_highlight';
@@ -56,6 +56,7 @@ export class EditorMarkdownPreviewExtension {
       layoutChangeListener: undefined,
       path: setupOptions.previewMarkdownPath,
       actionShowPreviewCondition: instance.createContextKey('toggleLivePreview', true),
+      eventEmitter: new Emitter(),
     };
     this.toolbarButtons = [];
 
@@ -71,6 +72,8 @@ export class EditorMarkdownPreviewExtension {
         EditorMarkdownPreviewExtension.resizePreviewLayout(instance, newWidth);
       }
     });
+
+    this.preview.eventEmitter.event(this.togglePreview.bind(this, instance));
   }
 
   onBeforeUnuse(instance) {
@@ -117,6 +120,9 @@ export class EditorMarkdownPreviewExtension {
         category: 'primary',
         selectedLabel: EXTENSION_MARKDOWN_HIDE_PREVIEW_LABEL,
         onClick: () => instance.togglePreview(),
+        data: {
+          qaSelector: 'editor_toolbar_button',
+        },
       },
     ];
     instance.toolbar.addItems(this.toolbarButtons);
@@ -152,7 +158,7 @@ export class EditorMarkdownPreviewExtension {
         syntaxHighlight(previewEl.querySelectorAll('.js-syntax-highlight'));
         previewEl.style.display = 'block';
       })
-      .catch(() => createFlash(BLOB_PREVIEW_ERROR));
+      .catch(() => createAlert(BLOB_PREVIEW_ERROR));
   }
 
   setupPreviewAction(instance) {
@@ -187,6 +193,31 @@ export class EditorMarkdownPreviewExtension {
     });
   }
 
+  togglePreview(instance) {
+    if (!this.preview?.el) {
+      this.preview.el = setupDomElement({ injectToEl: instance.getDomNode().parentElement });
+    }
+    this.togglePreviewLayout(instance);
+    this.togglePreviewPanel(instance);
+
+    this.preview.actionShowPreviewCondition.set(!this.preview.actionShowPreviewCondition.get());
+
+    if (!this.preview?.shown) {
+      this.preview.modelChangeListener = instance.onDidChangeModelContent(
+        debounce(this.fetchPreview.bind(this, instance), EXTENSION_MARKDOWN_PREVIEW_UPDATE_DELAY),
+      );
+    } else {
+      this.preview.modelChangeListener.dispose();
+    }
+
+    this.preview.shown = !this.preview?.shown;
+    if (instance.toolbar) {
+      instance.toolbar.updateItem(EXTENSION_MARKDOWN_PREVIEW_ACTION_ID, {
+        selected: this.preview.shown,
+      });
+    }
+  }
+
   provides() {
     return {
       markdownPreview: this.preview,
@@ -195,33 +226,7 @@ export class EditorMarkdownPreviewExtension {
 
       setupPreviewAction: (instance) => this.setupPreviewAction(instance),
 
-      togglePreview: (instance) => {
-        if (!this.preview?.el) {
-          this.preview.el = setupDomElement({ injectToEl: instance.getDomNode().parentElement });
-        }
-        this.togglePreviewLayout(instance);
-        this.togglePreviewPanel(instance);
-
-        this.preview.actionShowPreviewCondition.set(!this.preview.actionShowPreviewCondition.get());
-
-        if (!this.preview?.shown) {
-          this.preview.modelChangeListener = instance.onDidChangeModelContent(
-            debounce(
-              this.fetchPreview.bind(this, instance),
-              EXTENSION_MARKDOWN_PREVIEW_UPDATE_DELAY,
-            ),
-          );
-        } else {
-          this.preview.modelChangeListener.dispose();
-        }
-
-        this.preview.shown = !this.preview?.shown;
-        if (instance.toolbar) {
-          instance.toolbar.updateItem(EXTENSION_MARKDOWN_PREVIEW_ACTION_ID, {
-            selected: this.preview.shown,
-          });
-        }
-      },
+      togglePreview: (instance) => this.togglePreview(instance),
     };
   }
 }

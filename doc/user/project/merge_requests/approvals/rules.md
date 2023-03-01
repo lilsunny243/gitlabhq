@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Merge request approval rules **(PREMIUM)**
@@ -32,9 +32,14 @@ use the default approval rules from the target (upstream) project, not the sourc
 
 To add a merge request approval rule:
 
-1. Go to your project and select **Settings > General**.
-1. Expand **Merge request (MR) approvals**, and then select **Add approval rule**.
+1. Go to your project and select **Settings > Merge requests**.
+1. In the **Merge request approvals** section, scroll to **Approval rules**.
+1. Select **Add approval rule**.
 1. Add a human-readable **Rule name**.
+1. Select a **Target branch**:
+   - To apply the rule to all branches, select **All branches**.
+   - To apply the rule to all protected branches, select **All protected branches** (GitLab 15.3 and later).
+   - To apply the rule to a specific branch, select it from the list.
 1. Set the number of required approvals in **Approvals required**. A value of `0` makes
    [the rule optional](#configure-optional-approval-rules), and any number greater than `0`
    creates a required rule.
@@ -65,8 +70,9 @@ to existing merge requests:
 
 To edit a merge request approval rule:
 
-1. Go to your project and select **Settings > General**.
-1. Expand **Merge request (MR) approvals**, and then select **Edit**.
+1. Go to your project and select **Settings > Merge requests**.
+1. In the **Merge request approvals** section, scroll to **Approval rules**.
+1. Select **Edit** next to the rule you want to edit.
 1. Optional. Change the **Rule name**.
 1. Set the number of required approvals in **Approvals required**. The minimum value is `0`.
 1. Add or remove eligible approvers, as needed:
@@ -155,11 +161,11 @@ approve in these ways:
 If you add [code owners](../../code_owners.md) to your repository, the owners of files
 become eligible approvers in the project. To enable this merge request approval rule:
 
-1. Go to your project and select **Settings > General**.
-1. Expand **Merge request (MR) approvals**.
-1. Locate **All eligible users** and select the number of approvals required:
+1. Go to your project and select **Settings > Merge requests**.
+1. In the **Merge request approvals** section, scroll to **Approval rules**.
+1. Locate the **All eligible users** rule, and select the number of approvals required:
 
-![MR approvals by Code Owners](img/mr_approvals_by_code_owners_v15_2.png)
+   ![MR approvals by Code Owners](img/mr_approvals_by_code_owners_v15_2.png)
 
 You can also
 [require code owner approval](../../protected_branches.md#require-code-owner-approval-on-a-protected-branch)
@@ -180,11 +186,12 @@ granting them push access:
 1. [Create a new group](../../../group/manage.md#create-a-group).
 1. [Add the user to the group](../../../group/manage.md#add-users-to-a-group),
    and select the Reporter role for the user.
-1. [Share the project with your group](../../members/share_project_with_groups.md#share-a-project-with-a-group-of-users),
+1. [Share the project with your group](../../members/share_project_with_groups.md#share-a-project-with-a-group),
    based on the Reporter role.
-1. Go to your project and select **Settings > General**.
-1. Expand **Merge request (MR) approvals**.
-1. Select **Add approval rule** or **Update approval rule** and target the protected branch.
+1. Go to your project and select **Settings > Merge requests**.
+1. In the **Merge request approvals** section, scroll to **Approval rules**, and either:
+   - For a new rule, select **Add approval rule** and target the protected branch.
+   - For an existing rule, select **Edit** and target the protected branch.
 1. [Add the group](../../../group/manage.md#create-a-group) to the permission list.
 
    ![Update approval rule](img/update_approval_rule_v13_10.png)
@@ -218,20 +225,18 @@ appreciated, but not required. To make an approval rule optional:
 
 ## Approvals for protected branches
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/460) in GitLab 12.8.
-> - **All protected branches** target branch option [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/360930) in GitLab 15.3.
+> **All protected branches** target branch option [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/360930) in GitLab 15.3.
 
 Approval rules are often relevant only to specific branches, like your
 [default branch](../../repository/branches/default.md). To configure an
 approval rule for certain branches:
 
 1. [Create an approval rule](#add-an-approval-rule).
-1. Go to your project and select **Settings**.
-1. Expand **Merge request (MR) approvals**.
-1. Select a **Target branch**:
-   - To apply the rule to all branches, select **All branches**.
+1. Go to your project and select **Settings > Merge requests**.
+1. In the **Merge request approvals** section, scroll to **Approval rules**.
+1. For **Target branch**:
    - To apply the rule to all protected branches, select **All protected branches** (GitLab 15.3 and later).
-   - To apply the rule to a specific branch, select it from the list:
+   - To apply the rule to a specific branch, select it from the list.
 
 1. To enable this configuration, read
    [Code Owner's approvals for protected branches](../../protected_branches.md#require-code-owner-approval-on-a-protected-branch).
@@ -248,6 +253,15 @@ the API.
 
 For more information about this validation error, read
 [issue 285129](https://gitlab.com/gitlab-org/gitlab/-/issues/285129).
+
+### Groups need explicit or inherited Developer role on a project
+
+A group created to handle approvals may be created in a different area of the
+project hierarchy than the project requiring review. If this happens, the approvals group
+isn't recognized as a valid Code Owner for the project, nor does it display in the
+project's **Approvals** list. To fix this problem, add the approval group as a shared group
+high enough in the shared hierarchy so the project requiring review inherits this
+group of users.
 
 ## Security Approvals **(ULTIMATE)**
 

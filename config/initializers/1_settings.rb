@@ -27,6 +27,7 @@ end
 
 # backwards compatibility, we only have one host
 if Settings.ldap['enabled'] || Rails.env.test?
+  Settings.ldap['sync_name'] = true if Settings.ldap['sync_name'].nil?
   if Settings.ldap['host'].present?
     # We detected old LDAP configuration syntax. Update the config to make it
     # look like it was entered with the new syntax.
@@ -117,6 +118,27 @@ Settings.omniauth.cas3['session_duration'] ||= 8.hours
 Settings.omniauth['session_tickets'] ||= Settingslogic.new({})
 Settings.omniauth.session_tickets['cas3'] = 'ticket'
 
+# Handle backward compatibility with the renamed kerberos_spnego provider
+# https://gitlab.com/gitlab-org/gitlab/-/merge_requests/96335#note_1094265436
+Gitlab.ee do
+  kerberos_spnego = Settings.omniauth.providers.find { |p| p.name == 'kerberos_spnego' }
+  if kerberos_spnego
+    Settings.omniauth.providers.delete_if { |p| p.name == 'kerberos' }
+    kerberos_spnego['name'] = 'kerberos'
+
+    omniauth_keys = %w(allow_single_sign_on auto_link_user external_providers sync_profile_from_provider allow_bypass_two_factor)
+    omniauth_keys.each do |key|
+      next unless Settings.omniauth[key].is_a?(Array)
+
+      Settings.omniauth[key].map! { |p| p == 'kerberos_spnego' ? 'kerberos' : p }
+    end
+
+    if Settings.omniauth['auto_sign_in_with_provider'] == 'kerberos_spnego'
+      Settings.omniauth['auto_sign_in_with_provider'] = 'kerberos'
+    end
+  end
+end
+
 # Fill out omniauth-gitlab settings. It is needed for easy set up GHE or GH by just specifying url.
 
 github_default_url = "https://github.com"
@@ -162,6 +184,7 @@ Settings.gitlab['default_project_creation'] ||= ::Gitlab::Access::DEVELOPER_MAIN
 Settings.gitlab['default_project_deletion_protection'] ||= false
 Settings.gitlab['default_projects_limit'] ||= 100000
 Settings.gitlab['default_branch_protection'] ||= 2
+# `default_can_create_group` is deprecated since GitLab 15.5 in favour of the `can_create_group` column on `ApplicationSetting`.
 Settings.gitlab['default_can_create_group'] = true if Settings.gitlab['default_can_create_group'].nil?
 Settings.gitlab['default_theme'] = Gitlab::Themes::APPLICATION_DEFAULT if Settings.gitlab['default_theme'].nil?
 Settings.gitlab['host'] ||= ENV['GITLAB_HOST'] || 'localhost'
@@ -199,7 +222,7 @@ Settings.gitlab['issue_closing_pattern'] = '\b((?:[Cc]los(?:e[sd]?|ing)|\b[Ff]ix
 Settings.gitlab['default_projects_features'] ||= {}
 Settings.gitlab['webhook_timeout'] ||= 10
 Settings.gitlab['graphql_timeout'] ||= 30
-Settings.gitlab['max_attachment_size'] ||= 10
+Settings.gitlab['max_attachment_size'] ||= 100
 Settings.gitlab['session_expire_delay'] ||= 10080
 Settings.gitlab['unauthenticated_session_expire_delay'] ||= 2.hours.to_i
 Settings.gitlab.default_projects_features['issues']             = true if Settings.gitlab.default_projects_features['issues'].nil?
@@ -214,11 +237,11 @@ Settings.gitlab['import_sources'] ||= Gitlab::ImportSources.values
 Settings.gitlab['trusted_proxies'] ||= []
 Settings.gitlab['content_security_policy'] ||= {}
 Settings.gitlab['allowed_hosts'] ||= []
-Settings.gitlab['no_todos_messages'] ||= YAML.load_file(Rails.root.join('config', 'no_todos_messages.yml'))
 Settings.gitlab['impersonation_enabled'] ||= true if Settings.gitlab['impersonation_enabled'].nil?
 Settings.gitlab['usage_ping_enabled'] = true if Settings.gitlab['usage_ping_enabled'].nil?
 Settings.gitlab['max_request_duration_seconds'] ||= 57
 Settings.gitlab['display_initial_root_password'] = false if Settings.gitlab['display_initial_root_password'].nil?
+Settings.gitlab['weak_passwords_digest_set'] ||= YAML.safe_load(File.open(Rails.root.join('config', 'weak_password_digests.yml')), permitted_classes: [String]).to_set.freeze
 
 Gitlab.ee do
   Settings.gitlab['mirror_max_delay'] ||= 300
@@ -243,6 +266,7 @@ Settings['gitlab_ci'] ||= Settingslogic.new({})
 Settings.gitlab_ci['shared_runners_enabled'] = true if Settings.gitlab_ci['shared_runners_enabled'].nil?
 Settings.gitlab_ci['builds_path']           = Settings.absolute(Settings.gitlab_ci['builds_path'] || "builds/")
 Settings.gitlab_ci['url']                 ||= Settings.__send__(:build_gitlab_ci_url)
+Settings.gitlab_ci['component_fqdn']      ||= Settings.__send__(:build_ci_component_fqdn)
 
 #
 # CI Secure Files
@@ -258,12 +282,14 @@ Settings.ci_secure_files['object_store'] = ObjectStoreSettings.legacy_parse(Sett
 Settings['incoming_email'] ||= Settingslogic.new({})
 Settings.incoming_email['enabled'] = false if Settings.incoming_email['enabled'].nil?
 Settings.incoming_email['inbox_method'] ||= 'imap'
+Settings.incoming_email['encrypted_secret_file'] = Settings.absolute(Settings.incoming_email['encrypted_secret_file'] || File.join(Settings.encrypted_settings['path'], "incoming_email.yaml.enc"))
 
 #
 # Service desk email
 #
 Settings['service_desk_email'] ||= Settingslogic.new({})
 Settings.service_desk_email['enabled'] = false if Settings.service_desk_email['enabled'].nil?
+Settings.service_desk_email['encrypted_secret_file'] = Settings.absolute(Settings.service_desk_email['encrypted_secret_file'] || File.join(Settings.encrypted_settings['path'], "service_desk_email.yaml.enc"))
 
 #
 # Build Artifacts
@@ -418,6 +444,15 @@ Settings.mattermost['enabled'] = false if Settings.mattermost['enabled'].nil?
 Settings.mattermost['host'] = nil unless Settings.mattermost.enabled
 
 #
+# Jira Connect (GitLab for Jira Cloud App)
+#
+Settings['jira_connect'] ||= Settingslogic.new({})
+
+Settings.jira_connect['atlassian_js_url'] ||= 'https://connect-cdn.atl-paas.net/all.js'
+Settings.jira_connect['enforce_jira_base_url_https'] = true if Settings.jira_connect['enforce_jira_base_url_https'].nil?
+Settings.jira_connect['additional_iframe_ancestors'] ||= []
+
+#
 # Gravatar
 #
 Settings['gravatar'] ||= Settingslogic.new({})
@@ -435,6 +470,7 @@ if Gitlab.ee? && Settings['ee_cron_jobs']
   Settings.cron_jobs.merge!(Settings.ee_cron_jobs)
 end
 
+Settings.cron_jobs['poll_interval'] ||= nil
 Settings.cron_jobs['stuck_ci_jobs_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['stuck_ci_jobs_worker']['cron'] ||= '0 * * * *'
 Settings.cron_jobs['stuck_ci_jobs_worker']['job_class'] = 'StuckCiJobsWorker'
@@ -492,6 +528,9 @@ Settings.cron_jobs['remove_unaccepted_member_invites_worker']['job_class'] = 'Re
 Settings.cron_jobs['prune_old_events_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['prune_old_events_worker']['cron'] ||= '0 */6 * * *'
 Settings.cron_jobs['prune_old_events_worker']['job_class'] = 'PruneOldEventsWorker'
+Settings.cron_jobs['gitlab_export_prune_project_export_jobs_worker'] ||= Settingslogic.new({})
+Settings.cron_jobs['gitlab_export_prune_project_export_jobs_worker']['cron'] ||= '30 3 * * */7'
+Settings.cron_jobs['gitlab_export_prune_project_export_jobs_worker']['job_class'] = 'Gitlab::Export::PruneProjectExportJobsWorker'
 Settings.cron_jobs['trending_projects_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['trending_projects_worker']['cron'] = '0 1 * * *'
 Settings.cron_jobs['trending_projects_worker']['job_class'] = 'TrendingProjectsWorker'
@@ -549,6 +588,9 @@ Settings.cron_jobs['container_registry_migration_observer_worker']['job_class'] 
 Settings.cron_jobs['container_registry_migration_enqueuer_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['container_registry_migration_enqueuer_worker']['cron'] ||= '15,45 */1 * * *'
 Settings.cron_jobs['container_registry_migration_enqueuer_worker']['job_class'] = 'ContainerRegistry::Migration::EnqueuerWorker'
+Settings.cron_jobs['cleanup_container_registry_worker'] ||= Settingslogic.new({})
+Settings.cron_jobs['cleanup_container_registry_worker']['cron'] ||= '*/5 * * * *'
+Settings.cron_jobs['cleanup_container_registry_worker']['job_class'] = 'ContainerRegistry::CleanupWorker'
 Settings.cron_jobs['image_ttl_group_policy_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['image_ttl_group_policy_worker']['cron'] ||= '40 0 * * *'
 Settings.cron_jobs['image_ttl_group_policy_worker']['job_class'] = 'DependencyProxy::ImageTtlGroupPolicyWorker'
@@ -556,7 +598,7 @@ Settings.cron_jobs['cleanup_dependency_proxy_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['cleanup_dependency_proxy_worker']['cron'] ||= '20 3,15 * * *'
 Settings.cron_jobs['cleanup_dependency_proxy_worker']['job_class'] = 'DependencyProxy::CleanupDependencyProxyWorker'
 Settings.cron_jobs['cleanup_package_registry_worker'] ||= Settingslogic.new({})
-Settings.cron_jobs['cleanup_package_registry_worker']['cron'] ||= '20 0,12 * * *'
+Settings.cron_jobs['cleanup_package_registry_worker']['cron'] ||= '20 * * * *'
 Settings.cron_jobs['cleanup_package_registry_worker']['job_class'] = 'Packages::CleanupPackageRegistryWorker'
 Settings.cron_jobs['x509_issuer_crl_check_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['x509_issuer_crl_check_worker']['cron'] ||= '30 1 * * *'
@@ -633,6 +675,12 @@ Settings.cron_jobs['loose_foreign_keys_cleanup_worker']['job_class'] = 'LooseFor
 Settings.cron_jobs['ci_runner_versions_reconciliation_worker'] ||= Settingslogic.new({})
 Settings.cron_jobs['ci_runner_versions_reconciliation_worker']['cron'] ||= '@daily'
 Settings.cron_jobs['ci_runner_versions_reconciliation_worker']['job_class'] = 'Ci::Runners::ReconcileExistingRunnerVersionsCronWorker'
+Settings.cron_jobs['users_migrate_records_to_ghost_user_in_batches_worker'] ||= Settingslogic.new({})
+Settings.cron_jobs['users_migrate_records_to_ghost_user_in_batches_worker']['cron'] ||= '*/2 * * * *'
+Settings.cron_jobs['users_migrate_records_to_ghost_user_in_batches_worker']['job_class'] = 'Users::MigrateRecordsToGhostUserInBatchesWorker'
+Settings.cron_jobs['ci_runners_stale_machines_cleanup_worker'] ||= Settingslogic.new({})
+Settings.cron_jobs['ci_runners_stale_machines_cleanup_worker']['cron'] ||= '36 4 * * *'
+Settings.cron_jobs['ci_runners_stale_machines_cleanup_worker']['job_class'] = 'Ci::Runners::StaleMachinesCleanupCronWorker'
 
 Gitlab.ee do
   Settings.cron_jobs['analytics_devops_adoption_create_all_snapshots_worker'] ||= Settingslogic.new({})
@@ -689,9 +737,6 @@ Gitlab.ee do
   Settings.cron_jobs['geo_repository_verification_secondary_scheduler_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['geo_repository_verification_secondary_scheduler_worker']['cron'] ||= '*/1 * * * *'
   Settings.cron_jobs['geo_repository_verification_secondary_scheduler_worker']['job_class'] ||= 'Geo::RepositoryVerification::Secondary::SchedulerWorker'
-  Settings.cron_jobs['geo_container_repository_sync_worker'] ||= Settingslogic.new({})
-  Settings.cron_jobs['geo_container_repository_sync_worker']['cron'] ||= '*/1 * * * *'
-  Settings.cron_jobs['geo_container_repository_sync_worker']['job_class'] ||= 'Geo::ContainerRepositorySyncDispatchWorker'
   Settings.cron_jobs['historical_data_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['historical_data_worker']['cron'] ||= '0 12 * * *'
   Settings.cron_jobs['historical_data_worker']['job_class'] = 'HistoricalDataWorker'
@@ -713,9 +758,6 @@ Gitlab.ee do
   Settings.cron_jobs['ldap_sync_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['ldap_sync_worker']['cron'] ||= '30 1 * * *'
   Settings.cron_jobs['ldap_sync_worker']['job_class'] = 'LdapSyncWorker'
-  Settings.cron_jobs['free_user_cap_data_remediation'] ||= Settingslogic.new({})
-  Settings.cron_jobs['free_user_cap_data_remediation']['cron'] ||= '17 6,10,14,18 * * *'
-  Settings.cron_jobs['free_user_cap_data_remediation']['job_class'] = 'Namespaces::FreeUserCap::RemediationWorker'
   Settings.cron_jobs['update_max_seats_used_for_gitlab_com_subscriptions_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['update_max_seats_used_for_gitlab_com_subscriptions_worker']['cron'] ||= '0 12 * * *'
   Settings.cron_jobs['update_max_seats_used_for_gitlab_com_subscriptions_worker']['job_class'] = 'UpdateMaxSeatsUsedForGitlabComSubscriptionsWorker'
@@ -734,6 +776,9 @@ Gitlab.ee do
   Settings.cron_jobs['elastic_migration_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['elastic_migration_worker']['cron'] ||= '*/30 * * * *'
   Settings.cron_jobs['elastic_migration_worker']['job_class'] ||= 'Elastic::MigrationWorker'
+  Settings.cron_jobs['search_index_curation_worker'] ||= Settingslogic.new({})
+  Settings.cron_jobs['search_index_curation_worker']['cron'] ||= '*/1 * * * *'
+  Settings.cron_jobs['search_index_curation_worker']['job_class'] ||= 'Search::IndexCurationWorker'
   Settings.cron_jobs['sync_seat_link_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['sync_seat_link_worker']['cron'] ||= "#{rand(60)} #{rand(3..4)} * * * UTC"
   Settings.cron_jobs['sync_seat_link_worker']['job_class'] = 'SyncSeatLinkWorker'
@@ -747,7 +792,7 @@ Gitlab.ee do
   Settings.cron_jobs['iterations_generator_worker']['cron'] ||= '5 0 * * *'
   Settings.cron_jobs['iterations_generator_worker']['job_class'] = 'Iterations::Cadences::ScheduleCreateIterationsWorker'
   Settings.cron_jobs['vulnerability_statistics_schedule_worker'] ||= Settingslogic.new({})
-  Settings.cron_jobs['vulnerability_statistics_schedule_worker']['cron'] ||= '15 1 * * *'
+  Settings.cron_jobs['vulnerability_statistics_schedule_worker']['cron'] ||= '15 1,20 * * *'
   Settings.cron_jobs['vulnerability_statistics_schedule_worker']['job_class'] = 'Vulnerabilities::Statistics::ScheduleWorker'
   Settings.cron_jobs['vulnerability_historical_statistics_deletion_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['vulnerability_historical_statistics_deletion_worker']['cron'] ||= '15 3 * * *'
@@ -758,9 +803,9 @@ Gitlab.ee do
   Settings.cron_jobs['security_orchestration_policy_rule_schedule_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['security_orchestration_policy_rule_schedule_worker']['cron'] ||= '*/15 * * * *'
   Settings.cron_jobs['security_orchestration_policy_rule_schedule_worker']['job_class'] = 'Security::OrchestrationPolicyRuleScheduleWorker'
-  Settings.cron_jobs['security_findings_cleanup_worker'] ||= Settingslogic.new({})
-  Settings.cron_jobs['security_findings_cleanup_worker']['cron'] ||= '0 */4 * * 6,0'
-  Settings.cron_jobs['security_findings_cleanup_worker']['job_class'] = 'Security::Findings::CleanupWorker'
+  Settings.cron_jobs['security_scans_purge_worker'] ||= Settingslogic.new({})
+  Settings.cron_jobs['security_scans_purge_worker']['cron'] ||= '0 */4 * * 6,0'
+  Settings.cron_jobs['security_scans_purge_worker']['job_class'] = 'Security::Scans::PurgeWorker'
   Settings.cron_jobs['app_sec_dast_profile_schedule_worker'] ||= Settingslogic.new({})
   Settings.cron_jobs['app_sec_dast_profile_schedule_worker']['cron'] ||= '7-59/15 * * * *'
   Settings.cron_jobs['app_sec_dast_profile_schedule_worker']['job_class'] = 'AppSec::Dast::ProfileScheduleWorker'
@@ -779,10 +824,25 @@ Gitlab.ee do
   Settings.cron_jobs['licenses_reset_submit_license_usage_data_banner'] ||= Settingslogic.new({})
   Settings.cron_jobs['licenses_reset_submit_license_usage_data_banner']['cron'] ||= "0 0 * * *"
   Settings.cron_jobs['licenses_reset_submit_license_usage_data_banner']['job_class'] = 'Licenses::ResetSubmitLicenseUsageDataBannerWorker'
+  Settings.cron_jobs['abandoned_trial_emails'] ||= Settingslogic.new({})
+  Settings.cron_jobs['abandoned_trial_emails']['cron'] ||= "0 1 * * *"
+  Settings.cron_jobs['abandoned_trial_emails']['job_class'] = 'Emails::AbandonedTrialEmailsCronWorker'
+  Settings.cron_jobs['package_metadata_sync_worker'] ||= Settingslogic.new({})
+  Settings.cron_jobs['package_metadata_sync_worker']['cron'] ||= "0 * * * *"
+  Settings.cron_jobs['package_metadata_sync_worker']['job_class'] = 'PackageMetadata::SyncWorker'
   Gitlab.com do
+    Settings.cron_jobs['free_user_cap_backfill_notification_jobs_worker'] ||= Settingslogic.new({})
+    Settings.cron_jobs['free_user_cap_backfill_notification_jobs_worker']['cron'] ||= '*/5 * * * *'
+    Settings.cron_jobs['free_user_cap_backfill_notification_jobs_worker']['job_class'] = 'Namespaces::FreeUserCap::BackfillNotificationJobsWorker'
     Settings.cron_jobs['disable_legacy_open_source_license_for_inactive_projects'] ||= Settingslogic.new({})
     Settings.cron_jobs['disable_legacy_open_source_license_for_inactive_projects']['cron'] ||= "30 5 * * 0"
     Settings.cron_jobs['disable_legacy_open_source_license_for_inactive_projects']['job_class'] = 'Projects::DisableLegacyOpenSourceLicenseForInactiveProjectsWorker'
+    Settings.cron_jobs['notify_seats_exceeded_batch_worker'] ||= Settingslogic.new({})
+    Settings.cron_jobs['notify_seats_exceeded_batch_worker']['cron'] ||= '0 3 * * *'
+    Settings.cron_jobs['notify_seats_exceeded_batch_worker']['job_class'] ||= 'GitlabSubscriptions::NotifySeatsExceededBatchWorker'
+    Settings.cron_jobs['gitlab_subscriptions_schedule_refresh_seats_worker'] ||= Settingslogic.new({})
+    Settings.cron_jobs['gitlab_subscriptions_schedule_refresh_seats_worker']['cron'] ||= "0 */6 * * *"
+    Settings.cron_jobs['gitlab_subscriptions_schedule_refresh_seats_worker']['job_class'] = 'GitlabSubscriptions::ScheduleRefreshSeatsWorker'
   end
 end
 
@@ -791,7 +851,7 @@ end
 #
 Settings['sidekiq'] ||= Settingslogic.new({})
 Settings['sidekiq']['log_format'] ||= 'default'
-Settings['sidekiq']['routing_rules'] ||= []
+Settings['sidekiq']['routing_rules'] = Settings.build_sidekiq_routing_rules(Settings['sidekiq']['routing_rules'])
 
 #
 # GitLab Shell
@@ -830,12 +890,22 @@ Settings.gitlab_kas['internal_url'] ||= 'grpc://localhost:8153'
 # Settings.gitlab_kas['external_k8s_proxy_url'] ||= 'grpc://localhost:8154' # NOTE: Do not set a default until all distributions have been updated with a correct value
 
 #
+# Suggested Reviewers
+#
+Gitlab.ee do
+  Settings['suggested_reviewers'] ||= Settingslogic.new({})
+  Settings.suggested_reviewers['secret_file'] ||= Rails.root.join('.gitlab_suggested_reviewers_secret')
+end
+
+#
 # Repositories
 #
 Settings['repositories'] ||= Settingslogic.new({})
 Settings.repositories['storages'] ||= {}
 
 Settings.repositories.storages.each do |key, storage|
+  next if Settings.repositories.storages[key].is_a?(Gitlab::GitalyClient::StorageSettings)
+
   Settings.repositories.storages[key] = Gitlab::GitalyClient::StorageSettings.new(storage)
 end
 
@@ -885,6 +955,18 @@ Settings['satellites'] ||= Settingslogic.new({})
 Settings.satellites['path'] = Settings.absolute(Settings.satellites['path'] || "tmp/repo_satellites/")
 
 #
+# Microsoft Graph Mailer
+#
+Settings['microsoft_graph_mailer'] ||= Settingslogic.new({})
+Settings.microsoft_graph_mailer['enabled'] = false if Settings.microsoft_graph_mailer['enabled'].nil?
+Settings.microsoft_graph_mailer['user_id'] ||= nil
+Settings.microsoft_graph_mailer['tenant'] ||= nil
+Settings.microsoft_graph_mailer['client_id'] ||= nil
+Settings.microsoft_graph_mailer['client_secret'] ||= nil
+Settings.microsoft_graph_mailer['azure_ad_endpoint'] ||= 'https://login.microsoftonline.com'
+Settings.microsoft_graph_mailer['graph_endpoint'] ||= 'https://graph.microsoft.com'
+
+#
 # Kerberos
 #
 Gitlab.ee do
@@ -897,8 +979,8 @@ Gitlab.ee do
   Settings.kerberos['https'] = Settings.gitlab.https if Settings.kerberos['https'].nil?
   Settings.kerberos['port'] ||= Settings.kerberos.https ? 8443 : 8088
 
-  if Settings.kerberos['enabled'] && !Settings.omniauth.providers.map(&:name).include?('kerberos_spnego')
-    Settings.omniauth.providers << Settingslogic.new({ 'name' => 'kerberos_spnego' })
+  if Settings.kerberos['enabled'] && !Settings.omniauth.providers.map(&:name).include?('kerberos')
+    Settings.omniauth.providers << Settingslogic.new({ 'name' => 'kerberos' })
   end
 end
 
@@ -988,6 +1070,7 @@ Settings.monitoring.sidekiq_health_checks['port'] ||= 8092
 
 Settings.monitoring['web_exporter'] ||= Settingslogic.new({})
 Settings.monitoring.web_exporter['enabled'] ||= false
+Settings.monitoring.web_exporter['log_enabled'] ||= true
 Settings.monitoring.web_exporter['address'] ||= 'localhost'
 Settings.monitoring.web_exporter['port'] ||= 8083
 Settings.monitoring.web_exporter['tls_enabled'] ||= false
@@ -1002,6 +1085,12 @@ Settings.prometheus['enabled'] ||= false
 Settings.prometheus['server_address'] ||= nil
 
 #
+# Bullet settings
+#
+Settings['bullet'] ||= Settingslogic.new({})
+Settings.bullet['enabled'] ||= Rails.env.development?
+
+#
 # Shutdown settings
 #
 Settings['shutdown'] ||= Settingslogic.new({})
@@ -1012,6 +1101,7 @@ Settings.shutdown['blackout_seconds'] ||= 10
 #
 if Rails.env.test?
   Settings.gitlab['default_projects_limit']   = 42
+  # `default_can_create_group` is deprecated since GitLab 15.5 in favour of the `can_create_group` column on `ApplicationSetting`.
   Settings.gitlab['default_can_create_group'] = true
   Settings.gitlab['default_can_create_team']  = false
 end

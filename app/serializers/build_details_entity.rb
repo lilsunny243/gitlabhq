@@ -4,14 +4,14 @@ class BuildDetailsEntity < Ci::JobEntity
   expose :coverage, :erased_at, :finished_at, :duration
   expose :tag_list, as: :tags
   expose :has_trace?, as: :has_trace
-  expose :stage
+  expose :stage_name, as: :stage
   expose :stuck?, as: :stuck
   expose :user, using: UserEntity
   expose :runner, using: RunnerEntity
   expose :metadata, using: BuildMetadataEntity
   expose :pipeline, using: Ci::PipelineEntity
 
-  expose :deployment_status, if: -> (*) { build.starts_environment? } do
+  expose :deployment_status, if: -> (*) { build.deployment_job? } do
     expose :deployment_status, as: :status
     expose :persisted_environment, as: :environment do |build, options|
       options.merge(deployment_details: false).yield_self do |opts|

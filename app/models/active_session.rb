@@ -67,7 +67,7 @@ class ActiveSession
   def self.set(user, request)
     Gitlab::Redis::Sessions.with do |redis|
       session_private_id = request.session.id.private_id
-      client = DeviceDetector.new(request.user_agent)
+      client = Gitlab::SafeDeviceDetector.new(request.user_agent)
       timestamp = Time.current
       expiry = Settings.gitlab['session_expire_delay'] * 60
 
@@ -83,24 +83,26 @@ class ActiveSession
         is_impersonated: request.session[:impersonator_id].present?
       )
 
-      redis.pipelined do |pipeline|
-        pipeline.setex(
-          key_name(user.id, session_private_id),
-          expiry,
-          active_user_session.dump
-        )
+      Gitlab::Instrumentation::RedisClusterValidator.allow_cross_slot_commands do
+        redis.pipelined do |pipeline|
+          pipeline.setex(
+            key_name(user.id, session_private_id),
+            expiry,
+            active_user_session.dump
+          )
 
-        # Deprecated legacy format - temporary to support mixed deployments
-        pipeline.setex(
-          key_name_v1(user.id, session_private_id),
-          expiry,
-          Marshal.dump(active_user_session)
-        )
+          # Deprecated legacy format - temporary to support mixed deployments
+          pipeline.setex(
+            key_name_v1(user.id, session_private_id),
+            expiry,
+            Marshal.dump(active_user_session)
+          )
 
-        pipeline.sadd(
-          lookup_key_name(user.id),
-          session_private_id
-        )
+          pipeline.sadd?(
+            lookup_key_name(user.id),
+            session_private_id
+          )
+        end
       end
     end
   end
@@ -298,7 +300,7 @@ class ActiveSession
       session_ids_and_entries.each do |session_id, entry|
         next if entry
 
-        pipeline.srem(lookup_key, session_id)
+        pipeline.srem?(lookup_key, session_id)
         removed << session_id
       end
     end

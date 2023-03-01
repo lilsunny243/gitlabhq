@@ -5,7 +5,7 @@ module Gitlab
   class RepositoryCache
     attr_reader :repository, :namespace, :backend
 
-    def initialize(repository, extra_namespace: nil, backend: Rails.cache)
+    def initialize(repository, extra_namespace: nil, backend: self.class.store)
       @repository = repository
       @namespace = "#{repository.full_path}"
       @namespace += ":#{repository.project.id}" if repository.project
@@ -47,6 +47,10 @@ module Gitlab
       write(key, value) if value
 
       value
+    end
+
+    def self.store
+      Gitlab::Redis::RepositoryCache.cache_store
     end
   end
 end

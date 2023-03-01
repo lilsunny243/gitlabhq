@@ -18,6 +18,12 @@
     },
     "line": {
       "type": "integer"
+    },
+    "web_url": {
+      "type": "string"
+    },
+    "engine_name": {
+      "type": "string"
     }
   },
   "additionalProperties": false

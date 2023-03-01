@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # ChatOps on GitLab.com
@@ -22,16 +22,16 @@ To request access to ChatOps on GitLab.com:
 1. Sign in to [Internal GitLab for Operations](https://ops.gitlab.net/users/sign_in)
    with one of the following methods (Okta is not supported):
 
-   - The same username you use on GitLab.com. You may have to choose a different username later.
-   - Clicking the **Sign in with Google** button to sign in with your GitLab.com email address.
+   - The same username you use on GitLab.com.
+   - Selecting the **Sign in with Google** button to sign in with your GitLab.com email address.
 
 1. Confirm that your username in [Internal GitLab for Operations](https://ops.gitlab.net/)
    is the same as your username in [GitLab.com](https://gitlab.com/). If the usernames
-   don't match, update the username in [User Settings/Account for the Ops instance](https://ops.gitlab.net/-/profile/account).
+   don't match, update the username in [User Settings/Account for the Ops instance](https://ops.gitlab.net/-/profile/account). Matching usernames are required to reduce the administrative effort of running multiple platforms. Matching usernames also help with tasks like managing access requests and offboarding.
 
 1. Comment in your onboarding issue, and tag your onboarding buddy and your manager.
    Request they add you to the `ops` ChatOps project by running this command
-   in the `#chat-ops-test` Slack channel, replacing `<username>` with your username:
+   in the `#chat-ops-test` Slack channel, replacing `<username>` with your GitLab.com username:
    `/chatops run member add <username> gitlab-com/chatops --ops`
 
    ```plaintext

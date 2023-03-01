@@ -27,7 +27,7 @@ export default {
     numberOfLessParticipants: {
       type: Number,
       required: false,
-      default: 7,
+      default: 8,
     },
     showParticipantLabel: {
       type: Boolean,
@@ -99,7 +99,7 @@ export default {
     >
       <gl-icon name="users" />
       <gl-loading-icon v-if="loading" size="sm" />
-      <span v-else data-testid="collapsed-count" class="gl-pt-2 gl-px-3 gl-font-sm">
+      <span v-else class="gl-pt-2 gl-px-3 gl-font-sm">
         {{ participantCount }}
       </span>
     </div>
@@ -123,7 +123,7 @@ export default {
             :size="24"
             :tooltip-text="participant.name"
             :img-alt="participant.name"
-            css-classes="avatar-inline"
+            css-classes="gl-mr-0!"
             tooltip-placement="bottom"
           />
         </a>
@@ -133,7 +133,6 @@ export default {
       <gl-button
         variant="link"
         button-text-classes="gl-text-secondary"
-        data-testid="more-participants"
         @click="toggleMoreParticipants"
         >{{ toggleLabel }}</gl-button
       >

@@ -1,11 +1,12 @@
 import { GlModal } from '@gitlab/ui';
-import { shallowMount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
-import { nextTick } from 'vue';
+import Vue, { nextTick } from 'vue';
+import waitForPromises from 'helpers/wait_for_promises';
 import { TEST_HOST } from 'helpers/test_constants';
-import createFlash from '~/flash';
+import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
-
+import { HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import UpdateUsername from '~/profile/account/components/update_username.vue';
 
 jest.mock('~/flash');
@@ -21,8 +22,10 @@ describe('UpdateUsername component', () => {
   let wrapper;
   let axiosMock;
 
+  const findNewUsernameInput = () => wrapper.findByTestId('new-username-input');
+
   const createComponent = (props = {}) => {
-    wrapper = shallowMount(UpdateUsername, {
+    wrapper = shallowMountExtended(UpdateUsername, {
       propsData: {
         ...defaultProps,
         ...props,
@@ -41,10 +44,11 @@ describe('UpdateUsername component', () => {
   afterEach(() => {
     wrapper.destroy();
     axiosMock.restore();
+    Vue.config.errorHandler = null;
   });
 
   const findElements = () => {
-    const modal = wrapper.find(GlModal);
+    const modal = wrapper.findComponent(GlModal);
 
     return {
       modal,
@@ -54,6 +58,13 @@ describe('UpdateUsername component', () => {
       modalHeader: modal.find('.modal-title'),
       confirmModalBtn: wrapper.find('.btn-confirm'),
     };
+  };
+
+  const clickModalWithErrorResponse = () => {
+    Vue.config.errorHandler = jest.fn(); // silence thrown error
+    const { modal } = findElements();
+    modal.vm.$emit('primary');
+    return waitForPromises();
   };
 
   it('has a disabled button if the username was not changed', async () => {
@@ -80,11 +91,7 @@ describe('UpdateUsername component', () => {
 
     beforeEach(async () => {
       createComponent();
-      // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
-      // eslint-disable-next-line no-restricted-syntax
-      wrapper.setData({ newUsername });
-
-      await nextTick();
+      await findNewUsernameInput().setValue(newUsername);
     });
 
     it('confirmation modal contains proper header and body', async () => {
@@ -97,28 +104,29 @@ describe('UpdateUsername component', () => {
     });
 
     it('executes API call on confirmation button click', async () => {
-      axiosMock.onPut(actionUrl).replyOnce(() => [200, { message: 'Username changed' }]);
+      axiosMock.onPut(actionUrl).replyOnce(() => [HTTP_STATUS_OK, { message: 'Username changed' }]);
       jest.spyOn(axios, 'put');
 
-      await wrapper.vm.onConfirm();
-      await nextTick();
+      const { modal } = findElements();
+      modal.vm.$emit('primary');
+      await waitForPromises();
 
       expect(axios.put).toHaveBeenCalledWith(actionUrl, { user: { username: newUsername } });
     });
 
     it('sets the username after a successful update', async () => {
-      const { input, openModalBtn } = findElements();
+      const { input, openModalBtn, modal } = findElements();
 
       axiosMock.onPut(actionUrl).replyOnce(() => {
         expect(input.attributes('disabled')).toBe('disabled');
         expect(openModalBtn.props('disabled')).toBe(false);
         expect(openModalBtn.props('loading')).toBe(true);
 
-        return [200, { message: 'Username changed' }];
+        return [HTTP_STATUS_OK, { message: 'Username changed' }];
       });
 
-      await wrapper.vm.onConfirm();
-      await nextTick();
+      modal.vm.$emit('primary');
+      await waitForPromises();
 
       expect(input.attributes('disabled')).toBe(undefined);
       expect(openModalBtn.props('disabled')).toBe(true);
@@ -133,10 +141,11 @@ describe('UpdateUsername component', () => {
         expect(openModalBtn.props('disabled')).toBe(false);
         expect(openModalBtn.props('loading')).toBe(true);
 
-        return [400, { message: 'Invalid username' }];
+        return [HTTP_STATUS_BAD_REQUEST, { message: 'Invalid username' }];
       });
 
-      await expect(wrapper.vm.onConfirm()).rejects.toThrow();
+      await clickModalWithErrorResponse();
+
       expect(input.attributes('disabled')).toBe(undefined);
       expect(openModalBtn.props('disabled')).toBe(false);
       expect(openModalBtn.props('loading')).toBe(false);
@@ -144,24 +153,24 @@ describe('UpdateUsername component', () => {
 
     it('shows an error message if the error response has a `message` property', async () => {
       axiosMock.onPut(actionUrl).replyOnce(() => {
-        return [400, { message: 'Invalid username' }];
+        return [HTTP_STATUS_BAD_REQUEST, { message: 'Invalid username' }];
       });
 
-      await expect(wrapper.vm.onConfirm()).rejects.toThrow();
+      await clickModalWithErrorResponse();
 
-      expect(createFlash).toBeCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: 'Invalid username',
       });
     });
 
     it("shows a fallback error message if the error response doesn't have a `message` property", async () => {
       axiosMock.onPut(actionUrl).replyOnce(() => {
-        return [400];
+        return [HTTP_STATUS_BAD_REQUEST];
       });
 
-      await expect(wrapper.vm.onConfirm()).rejects.toThrow();
+      await clickModalWithErrorResponse();
 
-      expect(createFlash).toBeCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: 'An error occurred while updating your username, please try again.',
       });
     });

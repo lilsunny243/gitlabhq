@@ -3,7 +3,7 @@
 module QA
   RSpec.describe 'Package', :orchestrated, :packages, :object_storage,
                             feature_flag: { name: 'rubygem_packages', scope: :project } do
-    describe 'RubyGems Repository' do
+    describe 'RubyGems Repository', product_group: :package_registry do
       include Runtime::Fixtures
 
       let(:project) do
@@ -21,7 +21,7 @@ module QA
       end
 
       let!(:runner) do
-        Resource::Runner.fabricate! do |runner|
+        Resource::ProjectRunner.fabricate! do |runner|
           runner.name = "qa-runner-#{Time.now.to_i}"
           runner.tags = ["runner-for-#{project.name}"]
           runner.executor = :docker
@@ -40,9 +40,6 @@ module QA
 
       after do
         Runtime::Feature.disable(:rubygem_packages, project: project)
-        runner.remove_via_api!
-        package.remove_via_api!
-        project.remove_via_api!
       end
 
       it 'publishes a Ruby gem', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347649' do

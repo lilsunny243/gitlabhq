@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'ffaker'
 
-RSpec.describe Banzai::Filter::CommitTrailersFilter do
+RSpec.describe Banzai::Filter::CommitTrailersFilter, feature_category: :source_code_management do
   include FilterSpecHelper
   include CommitTrailersSpecHelper
 
@@ -132,6 +132,13 @@ RSpec.describe Banzai::Filter::CommitTrailersFilter do
   context "ignores" do
     it 'commit messages without trailers' do
       exp = message = commit_html(Array.new(5) { FFaker::Lorem.sentence }.join("\n"))
+      doc = filter(message)
+
+      expect(doc.to_html).to match Regexp.escape(exp)
+    end
+
+    it 'trailers without emails' do
+      exp = message = commit_html(Array.new(5) { 'Merged-By:' }.join("\n"))
       doc = filter(message)
 
       expect(doc.to_html).to match Regexp.escape(exp)

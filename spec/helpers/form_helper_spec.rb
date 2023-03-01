@@ -6,31 +6,34 @@ RSpec.describe FormHelper do
   include Devise::Test::ControllerHelpers
 
   describe '#dropdown_max_select' do
-    context "with the :limit_reviewer_and_assignee_size feature flag on" do
-      it 'correctly returns the max amount of reviewers or assignees to allow' do
-        max = MergeRequest::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
+    it 'correctly returns the max amount of reviewers or assignees to allow' do
+      max = Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
 
-        expect(helper.dropdown_max_select({}))
-          .to eq(max)
-        expect(helper.dropdown_max_select({ 'max-select'.to_sym => 5 }))
-          .to eq(5)
-        expect(helper.dropdown_max_select({ 'max-select'.to_sym => max + 5 }))
-          .to eq(max)
+      expect(helper.dropdown_max_select({}))
+        .to eq(max)
+      expect(helper.dropdown_max_select({ 'max-select'.to_sym => 5 }))
+        .to eq(5)
+      expect(helper.dropdown_max_select({ 'max-select'.to_sym => max + 5 }))
+        .to eq(max)
+    end
+  end
+
+  describe '#assignees_dropdown_options' do
+    let(:merge_request) { build(:merge_request) }
+
+    context "with multiple assignees" do
+      it 'correctly returns the max amount of assignees to allow' do
+        allow(helper).to receive(:merge_request_supports_multiple_assignees?).and_return(true)
+
+        expect(helper.assignees_dropdown_options(:merge_request)[:data][:'max-select'])
+          .to eq(Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS)
       end
     end
 
-    context "with the :limit_reviewer_and_assignee_size feature flag off" do
-      before do
-        stub_feature_flags(limit_reviewer_and_assignee_size: false)
-      end
-
-      it 'correctly returns the max amount of reviewers or assignees to allow' do
-        expect(helper.dropdown_max_select({}))
-          .to eq(nil)
-        expect(helper.dropdown_max_select({ 'max-select'.to_sym => 5 }))
-          .to eq(5)
-        expect(helper.dropdown_max_select({ 'max-select'.to_sym => 120 }))
-          .to eq(120)
+    context "with only 1 assignee" do
+      it 'correctly returns the max amount of assignees to allow' do
+        expect(helper.assignees_dropdown_options(:merge_request)[:data][:'max-select'])
+          .to eq(1)
       end
     end
   end
@@ -38,43 +41,19 @@ RSpec.describe FormHelper do
   describe '#reviewers_dropdown_options' do
     let(:merge_request) { build(:merge_request) }
 
-    context "with the :limit_reviewer_and_assignee_size feature flag on" do
-      context "with multiple reviewers" do
-        it 'correctly returns the max amount of reviewers or assignees to allow' do
-          allow(helper).to receive(:merge_request_supports_multiple_reviewers?).and_return(true)
+    context "with multiple reviewers" do
+      it 'correctly returns the max amount of reviewers or assignees to allow' do
+        allow(helper).to receive(:merge_request_supports_multiple_reviewers?).and_return(true)
 
-          expect(helper.reviewers_dropdown_options(merge_request)[:data][:'max-select'])
-            .to eq(MergeRequest::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS)
-        end
-      end
-
-      context "with only 1 reviewer" do
-        it 'correctly returns the max amount of reviewers or assignees to allow' do
-          expect(helper.reviewers_dropdown_options(merge_request)[:data][:'max-select'])
-            .to eq(1)
-        end
+        expect(helper.reviewers_dropdown_options(merge_request)[:data][:'max-select'])
+          .to eq(Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS)
       end
     end
 
-    context "with the :limit_reviewer_and_assignee_size feature flag off" do
-      before do
-        stub_feature_flags(limit_reviewer_and_assignee_size: false)
-      end
-
-      context "with multiple reviewers" do
-        it 'correctly returns the max amount of reviewers or assignees to allow' do
-          allow(helper).to receive(:merge_request_supports_multiple_reviewers?).and_return(true)
-
-          expect(helper.reviewers_dropdown_options(merge_request)[:data][:'max-select'])
-            .to eq(nil)
-        end
-      end
-
-      context "with only 1 reviewer" do
-        it 'correctly returns the max amount of reviewers or assignees to allow' do
-          expect(helper.reviewers_dropdown_options(merge_request)[:data][:'max-select'])
-            .to eq(1)
-        end
+    context "with only 1 reviewer" do
+      it 'correctly returns the max amount of reviewers or assignees to allow' do
+        expect(helper.reviewers_dropdown_options(merge_request)[:data][:'max-select'])
+          .to eq(1)
       end
     end
   end
@@ -133,6 +112,24 @@ RSpec.describe FormHelper do
         expect(errors).to include('<li>Error 2</li>')
         expect(errors).to include('<li><span class="str-truncated-100">Title is truncated</span></li>')
         expect(errors).to include('<li>Error 3</li>')
+      end
+    end
+
+    it 'renders custom messages without the attribute name prefix' do
+      model = double(errors: errors_stub('Error 1'))
+      model.errors.add(:name, 'is already taken')
+      model.errors.add(:code_name, 'This code name is not allowed')
+
+      allow(model.class).to receive(:human_attribute_name) do |attribute|
+        attribute.to_s.capitalize
+      end
+
+      errors = helper.form_errors(model, custom_message: [:code_name])
+
+      aggregate_failures do
+        expect(errors).to include('<li>Error 1</li>')
+        expect(errors).to include('<li>Name is already taken</li>')
+        expect(errors).to include('<li>This code name is not allowed</li>')
       end
     end
 

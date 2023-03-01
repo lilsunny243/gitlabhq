@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Notes::CreateService do
+RSpec.describe Notes::CreateService, feature_category: :team_planning do
   let_it_be(:project) { create(:project, :repository) }
   let_it_be(:issue) { create(:issue, project: project) }
   let_it_be(:user) { create(:user) }
@@ -18,6 +18,10 @@ RSpec.describe Notes::CreateService do
     end
 
     context "valid params" do
+      it_behaves_like 'does not trigger GraphQL subscription mergeRequestMergeStatusUpdated' do
+        let(:action) { note }
+      end
+
       it 'returns a valid note' do
         expect(note).to be_valid
       end
@@ -101,6 +105,38 @@ RSpec.describe Notes::CreateService do
 
         it_behaves_like 'an incident management tracked event', :incident_management_incident_comment do
           let(:current_user) { user }
+        end
+
+        it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+          let(:namespace) { issue.namespace }
+          let(:category) { described_class.to_s }
+          let(:action) { 'incident_management_incident_comment' }
+          let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
+        end
+      end
+
+      context 'in a commit', :snowplow do
+        let_it_be(:commit) { create(:commit, project: project) }
+        let(:opts) { { note: 'Awesome comment', noteable_type: 'Commit', commit_id: commit.id } }
+
+        let(:counter) { Gitlab::UsageDataCounters::NoteCounter }
+
+        let(:execute_create_service) { described_class.new(project, user, opts).execute }
+
+        it 'tracks commit comment usage data', :clean_gitlab_redis_shared_state do
+          expect(counter).to receive(:count).with(:create, 'Commit').and_call_original
+
+          expect do
+            execute_create_service
+          end.to change { counter.read(:create, 'Commit') }.by(1)
+        end
+
+        it_behaves_like 'Snowplow event tracking with Redis context' do
+          let(:category) { described_class.name }
+          let(:action) { 'create_commit_comment' }
+          let(:label) { 'counts.commit_comment' }
+          let(:namespace) { project.namespace }
+          let(:feature_flag_name) { :route_hll_to_snowplow_phase4 }
         end
       end
 
@@ -222,6 +258,10 @@ RSpec.describe Notes::CreateService do
                          confidential: false)
             end
 
+            it_behaves_like 'triggers GraphQL subscription mergeRequestMergeStatusUpdated' do
+              let(:action) { described_class.new(project_with_repo, user, new_opts).execute }
+            end
+
             it 'note is associated with a note diff file' do
               MergeRequests::MergeToRefService.new(project: merge_request.project, current_user: merge_request.author).execute(merge_request)
 
@@ -237,6 +277,16 @@ RSpec.describe Notes::CreateService do
                 expect(Discussions::CaptureDiffNotePositionService).not_to receive(:new)
 
                 described_class.new(project_with_repo, user, new_opts).execute(skip_capture_diff_note_position: true)
+              end
+            end
+
+            context 'when skip_merge_status_trigger execute option is set to true' do
+              it_behaves_like 'does not trigger GraphQL subscription mergeRequestMergeStatusUpdated' do
+                let(:action) do
+                  described_class
+                    .new(project_with_repo, user, new_opts)
+                    .execute(skip_merge_status_trigger: true)
+                end
               end
             end
 
@@ -383,7 +433,7 @@ RSpec.describe Notes::CreateService do
           end
         end
 
-        context 'for merge requests' do
+        context 'for merge requests', feature_category: :code_review_workflow do
           let_it_be(:merge_request) { create(:merge_request, source_project: project, labels: [bug_label]) }
 
           let(:issuable) { merge_request }
@@ -406,9 +456,9 @@ RSpec.describe Notes::CreateService do
                   expect(issuable.draft?).to eq(can_use_quick_action)
                 }
               ),
-              # Remove draft status
+              # Remove draft (set ready) status
               QuickAction.new(
-                action_text: "/draft",
+                action_text: "/ready",
                 before_action: -> {
                   issuable.reload.update!(title: "Draft: title")
                 },
@@ -457,7 +507,7 @@ RSpec.describe Notes::CreateService do
       end
     end
 
-    context 'personal snippet note' do
+    context 'personal snippet note', feature_category: :source_code_management do
       subject { described_class.new(nil, user, params).execute }
 
       let(:snippet) { create(:personal_snippet) }
@@ -478,7 +528,7 @@ RSpec.describe Notes::CreateService do
       end
     end
 
-    context 'design note' do
+    context 'design note', feature_category: :design_management do
       subject(:service) { described_class.new(project, user, params) }
 
       let_it_be(:design) { create(:design, :with_file) }

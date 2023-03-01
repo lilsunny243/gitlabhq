@@ -13,6 +13,7 @@ module BulkImports
 
     CACHE_KEY_EXPIRATION = 2.hours
     NDJSON_EXPORT_TIMEOUT = 90.minutes
+    EMPTY_EXPORT_STATUS_TIMEOUT = 5.minutes
 
     def initialize(context)
       @context = context
@@ -183,7 +184,11 @@ module BulkImports
       end
 
       def relation
-        class_attributes[:relation_name]
+        class_attributes[:relation_name] || default_relation
+      end
+
+      def default_relation
+        self.name.demodulize.chomp('Pipeline').underscore
       end
 
       private

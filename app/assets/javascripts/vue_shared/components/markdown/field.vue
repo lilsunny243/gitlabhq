@@ -1,15 +1,16 @@
 <script>
-import { GlIcon, GlSafeHtmlDirective } from '@gitlab/ui';
+import { GlIcon } from '@gitlab/ui';
 import $ from 'jquery';
-import '~/behaviors/markdown/render_gfm';
 import { debounce, unescape } from 'lodash';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import GLForm from '~/gl_form';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import axios from '~/lib/utils/axios_utils';
 import { stripHtml } from '~/lib/utils/text_utility';
 import { __, sprintf } from '~/locale';
 import Suggestions from '~/vue_shared/components/markdown/suggestions.vue';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import MarkdownHeader from './header.vue';
 import MarkdownToolbar from './toolbar.vue';
 
@@ -25,7 +26,7 @@ export default {
     Suggestions,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   mixins: [glFeatureFlagsMixin()],
   props: {
@@ -81,6 +82,11 @@ export default {
       required: false,
       default: true,
     },
+    autocompleteDataSources: {
+      type: Object,
+      required: false,
+      default: () => ({}),
+    },
     line: {
       type: Object,
       required: false,
@@ -120,6 +126,16 @@ export default {
       type: Array,
       required: false,
       default: () => [],
+    },
+    showContentEditorSwitcher: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    drawioEnabled: {
+      type: Boolean,
+      required: false,
+      default: false,
     },
   },
   data() {
@@ -251,6 +267,7 @@ export default {
         contacts: this.enableAutocomplete,
       },
       true,
+      this.autocompleteDataSources,
     );
   },
   beforeDestroy() {
@@ -272,7 +289,7 @@ export default {
         this.fetchMarkdown()
           .then((data) => this.renderMarkdown(data))
           .catch(() =>
-            createFlash({
+            createAlert({
               message: __('Error loading markdown preview'),
             }),
           );
@@ -313,9 +330,11 @@ export default {
       this.markdownPreview = data.body || __('Nothing to preview.');
 
       this.$nextTick()
-        .then(() => $(this.$refs['markdown-preview']).renderGFM())
+        .then(() => {
+          renderGFM(this.$refs['markdown-preview']);
+        })
         .catch(() =>
-          createFlash({
+          createAlert({
             message: __('Error rendering Markdown preview'),
           }),
         );
@@ -341,6 +360,10 @@ export default {
       :enable-preview="enablePreview"
       :show-suggest-popover="showSuggestPopover"
       :suggestion-start-index="suggestionsStartIndex"
+      :uploads-path="uploadsPath"
+      :markdown-preview-path="markdownPreviewPath"
+      :drawio-enabled="drawioEnabled"
+      data-testid="markdownHeader"
       :restricted-tool-bar-items="restrictedToolBarItems"
       @preview-markdown="showPreviewTab"
       @write-markdown="showWriteTab"
@@ -361,6 +384,8 @@ export default {
           :quick-actions-docs-path="quickActionsDocsPath"
           :can-attach-file="canAttachFile"
           :show-comment-tool-bar="showCommentToolBar"
+          :show-content-editor-switcher="showContentEditorSwitcher"
+          @enableContentEditor="$emit('enableContentEditor')"
         />
       </div>
     </div>

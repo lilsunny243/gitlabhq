@@ -5,6 +5,7 @@ import {
   GlDropdownSectionHeader,
   GlSearchBoxByType,
 } from '@gitlab/ui';
+import { last } from 'lodash';
 import { nextTick } from 'vue';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
@@ -134,7 +135,7 @@ describe('Access Level Dropdown', () => {
       await waitForPromises();
     });
 
-    it('renders headers for each section ', () => {
+    it('renders headers for each section', () => {
       expect(findAllDropdownHeaders()).toHaveLength(4);
     });
 
@@ -164,7 +165,7 @@ describe('Access Level Dropdown', () => {
       expect(findDropdown().props('toggleClass')).toBe('gl-text-gray-500!');
     });
 
-    it('when no items selected, displays a default fallback label and has default CSS class ', () => {
+    it('when no items selected, displays a default fallback label and has default CSS class', () => {
       expect(findDropdownToggleLabel()).toBe(i18n.selectUsers);
       expect(findDropdown().props('toggleClass')).toBe('gl-text-gray-500!');
     });
@@ -217,7 +218,7 @@ describe('Access Level Dropdown', () => {
   });
 
   describe('selecting an item', () => {
-    it('selects the item on click and deselects on the next click ', async () => {
+    it('selects the item on click and deselects on the next click', async () => {
       createComponent();
       await waitForPromises();
 
@@ -230,7 +231,7 @@ describe('Access Level Dropdown', () => {
       expect(item.props('isChecked')).toBe(false);
     });
 
-    it('emits a formatted update on selection ', async () => {
+    it('emits a formatted update on selection', async () => {
       // ids: the items appear in that order in the dropdown
       // 1 2 3 - roles
       // 4 5 6 - groups
@@ -254,7 +255,6 @@ describe('Access Level Dropdown', () => {
 
       createComponent({ preselectedItems });
       await waitForPromises();
-      const spy = jest.spyOn(wrapper.vm, '$emit');
       const dropdownItems = findAllDropdownItems();
       // select new item from each group
       findDropdownItemWithText(dropdownItems, 'role1').trigger('click');
@@ -267,7 +267,7 @@ describe('Access Level Dropdown', () => {
       findDropdownItemWithText(dropdownItems, 'user8').trigger('click');
       findDropdownItemWithText(dropdownItems, 'key11').trigger('click');
 
-      expect(spy).toHaveBeenLastCalledWith('select', [
+      expect(last(wrapper.emitted('select'))[0]).toStrictEqual([
         { access_level: 1 },
         { id: 112, access_level: 2, _destroy: true },
         { id: 113, access_level: 3 },
@@ -347,12 +347,10 @@ describe('Access Level Dropdown', () => {
     });
 
     it('should emit `hidden` event with dropdown selection', () => {
-      jest.spyOn(wrapper.vm, '$emit');
-
       findAllDropdownItems().at(1).trigger('click');
 
       findDropdown().vm.$emit('hidden');
-      expect(wrapper.vm.$emit).toHaveBeenCalledWith('hidden', [{ access_level: 2 }]);
+      expect(wrapper.emitted('hidden')[0][0]).toStrictEqual([{ access_level: 2 }]);
     });
   });
 });

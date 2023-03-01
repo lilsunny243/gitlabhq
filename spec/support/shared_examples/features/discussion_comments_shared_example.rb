@@ -19,6 +19,8 @@ RSpec.shared_examples 'thread comments for commit and snippet' do |resource_name
 
     find('.js-comment-button').click
 
+    wait_for_all_requests
+
     expect(page).to have_content(comment)
 
     new_comment = all(comments_selector).last
@@ -209,7 +211,7 @@ RSpec.shared_examples 'thread comments for issue, epic and merge request' do |re
       wait_for_all_requests
 
       expect(page).to have_content(comment)
-      expect(page).to have_content "@#{user.username} closed"
+      expect(page).to have_content "#{user.name} closed"
 
       new_comment = all(comments_selector).last
 
@@ -301,10 +303,10 @@ RSpec.shared_examples 'thread comments for issue, epic and merge request' do |re
 
         if resource_name == 'merge request'
           let(:note_id) { find("#{comments_selector} .note:first-child", match: :first)['data-note-id'] }
-          let(:reply_id) { find("#{comments_selector} .note:last-of-type", match: :first)['data-note-id'] }
+          let(:reply_id) { all("#{comments_selector} [data-note-id]")[1]['data-note-id'] }
 
           it 'can be replied to after resolving' do
-            find('button[data-qa-selector="resolve_discussion_button"]').click # rubocop:disable QA/SelectorUsage
+            find('button[data-testid="resolve-discussion-button"]').click
             wait_for_requests
 
             refresh
@@ -316,7 +318,7 @@ RSpec.shared_examples 'thread comments for issue, epic and merge request' do |re
           it 'shows resolved thread when toggled' do
             submit_reply('a')
 
-            find('button[data-qa-selector="resolve_discussion_button"]').click # rubocop:disable QA/SelectorUsage
+            find('button[data-testid="resolve-discussion-button"]').click
             wait_for_requests
 
             expect(page).to have_selector(".note-row-#{note_id}", visible: true)
@@ -334,7 +336,7 @@ RSpec.shared_examples 'thread comments for issue, epic and merge request' do |re
           click_button 'Start thread & close issue'
 
           expect(page).to have_content(comment)
-          expect(page).to have_content "@#{user.username} closed"
+          expect(page).to have_content "#{user.name} closed"
 
           new_discussion = all(comments_selector)[-2]
 

@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create redirects for GitLab Pages **(FREE)**
@@ -41,13 +41,11 @@ this test suite!
 To create redirects, create a configuration file named `_redirects` in the
 `public/` directory of your GitLab Pages site.
 
-Note that:
-
 - All paths must start with a forward slash `/`.
 - A default status code of `301` is applied if no [status code](#http-status-codes) is provided.
 - The `_redirects` file has a file size limit and a maximum number of rules per project,
   configured at the instance level. Only the first matching rules within the configured maximum are processed.
-  The default file size limit is 64KB, and the default maximum number of rules is 1,000.
+  The default file size limit is 64 KB, and the default maximum number of rules is 1,000.
 - If your GitLab Pages site uses the default domain name (such as
   `namespace.gitlab.io/projectname`) you must prefix every rule with the project name:
 
@@ -74,7 +72,7 @@ is ignored because `hello.html` exists:
 /projectname/hello.html /projectname/world.html 302
 ```
 
-GitLab doesn't support Netlify's
+GitLab does not support Netlify
 [force option](https://docs.netlify.com/routing/redirects/rewrites-proxies/#shadowing)
 to change this behavior.
 
@@ -108,9 +106,8 @@ and an [HTTP status code](#http-status-codes):
 
 ## Rewrites
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab-pages/-/merge_requests/458) in GitLab 14.3.
-> - Enabled on GitLab.com.
-> - Disabled by default in self-managed GitLab behind the [`FF_ENABLE_PLACEHOLDERS` feature flag](#feature-flag-for-rewrites).
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab-pages/-/merge_requests/458) in GitLab 14.3 [with a flag](../../../administration/feature_flags.md) named `FF_ENABLE_PLACEHOLDERS`. Disabled by default.
+> - [Enabled on GitLab.com and self-managed](https://gitlab.com/gitlab-org/gitlab-pages/-/issues/619) in GitLab 15.2.
 
 Provide a status code of `200` to serve the content of the `to` path when the
 request matches the `from`:
@@ -232,7 +229,7 @@ rule 10: valid
 rule 11: valid
 ```
 
-## Differences from Netlify's implementation
+## Differences from Netlify implementation
 
 Most supported `_redirects` rules behave the same in both GitLab and Netlify.
 However, there are some minor differences:
@@ -267,28 +264,3 @@ However, there are some minor differences:
   - Netlify redirects to `/new/:placeholder` (with a
   literal `:placeholder`).
   - GitLab redirects to `/new/`.
-
-## Feature flag for rewrites
-
-FLAG:
-Rewrites in GitLab Pages is under development, and is deployed behind a feature flag
-that is **disabled by default**.
-
-To enable rewrites, for [Omnibus installations](../../../administration/pages/index.md), define the
-`FF_ENABLE_PLACEHOLDERS` environment variable in the
-[global settings](../../../administration/pages/index.md#global-settings).
-Add the following line to `/etc/gitlab/gitlab.rb` and
-[reconfigure the instance](../../../administration/restart_gitlab.md#omnibus-gitlab-reconfigure):
-
-```ruby
-gitlab_pages['env']['FF_ENABLE_PLACEHOLDERS'] = 'true'
-```
-
-For [source installations](../../../administration/pages/source.md), define the
-`FF_ENABLE_PLACEHOLDERS` environment variable, then
-[restart GitLab](../../../administration/restart_gitlab.md#installations-from-source):
-
-```shell
-export FF_ENABLE_PLACEHOLDERS="true"
-/path/to/pages/bin/gitlab-pages -config gitlab-pages.conf
-```

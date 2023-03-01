@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils';
 import MockAdapter from 'axios-mock-adapter';
 import CiIcon from '~/vue_shared/components/ci_icon.vue';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import PipelineStage from '~/pipelines/components/pipeline_mini_graph/pipeline_stage.vue';
 import eventHub from '~/pipelines/event_hub';
 import waitForPromises from 'helpers/wait_for_promises';
@@ -72,7 +73,7 @@ describe('Pipelines stage component', () => {
     beforeEach(async () => {
       createComponent({ updateDropdown: true });
 
-      mock.onGet(dropdownPath).reply(200, stageReply);
+      mock.onGet(dropdownPath).reply(HTTP_STATUS_OK, stageReply);
 
       await openStageDropdown();
     });
@@ -121,7 +122,7 @@ describe('Pipelines stage component', () => {
 
   describe('when user opens dropdown and stage request is successful', () => {
     beforeEach(async () => {
-      mock.onGet(dropdownPath).reply(200, stageReply);
+      mock.onGet(dropdownPath).reply(HTTP_STATUS_OK, stageReply);
       createComponent();
 
       await openStageDropdown();
@@ -129,10 +130,11 @@ describe('Pipelines stage component', () => {
       await axios.waitForAll();
     });
 
-    it('renders the received data and emit `clickedDropdown` event', async () => {
+    it('renders the received data and emits the correct events', async () => {
       expect(findDropdownMenu().text()).toContain(stageReply.latest_statuses[0].name);
       expect(findDropdownMenuTitle().text()).toContain(stageReply.name);
       expect(eventHub.$emit).toHaveBeenCalledWith('clickedDropdown');
+      expect(wrapper.emitted('miniGraphStageClick')).toEqual([[]]);
     });
 
     it('refreshes when updateDropdown is set to true', async () => {
@@ -147,7 +149,7 @@ describe('Pipelines stage component', () => {
 
   describe('when user opens dropdown and stage request fails', () => {
     it('should close the dropdown', async () => {
-      mock.onGet(dropdownPath).reply(500);
+      mock.onGet(dropdownPath).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
       createComponent();
 
       await openStageDropdown();
@@ -162,7 +164,7 @@ describe('Pipelines stage component', () => {
     beforeEach(async () => {
       const copyStage = { ...stageReply };
       copyStage.latest_statuses[0].name = 'this is the updated content';
-      mock.onGet('bar.json').reply(200, copyStage);
+      mock.onGet('bar.json').reply(HTTP_STATUS_OK, copyStage);
       createComponent({
         stage: {
           status: {
@@ -185,10 +187,10 @@ describe('Pipelines stage component', () => {
     });
   });
 
-  describe('pipelineActionRequestComplete', () => {
+  describe('job update in dropdown', () => {
     beforeEach(async () => {
-      mock.onGet(dropdownPath).reply(200, stageReply);
-      mock.onPost(`${stageReply.latest_statuses[0].status.action.path}.json`).reply(200);
+      mock.onGet(dropdownPath).reply(HTTP_STATUS_OK, stageReply);
+      mock.onPost(`${stageReply.latest_statuses[0].status.action.path}.json`).reply(HTTP_STATUS_OK);
 
       createComponent();
       await waitForPromises();
@@ -203,30 +205,17 @@ describe('Pipelines stage component', () => {
       await findCiActionBtn().trigger('click');
     };
 
-    it('closes dropdown when job item action is clicked', async () => {
-      const hidden = jest.fn();
-
-      wrapper.vm.$root.$on('bv::dropdown::hide', hidden);
-
-      expect(hidden).toHaveBeenCalledTimes(0);
-
+    it('keeps dropdown open when job item action is clicked', async () => {
       await clickCiAction();
       await waitForPromises();
 
-      expect(hidden).toHaveBeenCalledTimes(1);
-    });
-
-    it('emits `pipelineActionRequestComplete` when job item action is clicked', async () => {
-      await clickCiAction();
-      await waitForPromises();
-
-      expect(wrapper.emitted('pipelineActionRequestComplete')).toHaveLength(1);
+      expect(findDropdown().classes('show')).toBe(true);
     });
   });
 
   describe('With merge trains enabled', () => {
     it('shows a warning on the dropdown', async () => {
-      mock.onGet(dropdownPath).reply(200, stageReply);
+      mock.onGet(dropdownPath).reply(HTTP_STATUS_OK, stageReply);
       createComponent({
         isMergeTrain: true,
       });
@@ -243,7 +232,7 @@ describe('Pipelines stage component', () => {
 
   describe('With merge trains disabled', () => {
     beforeEach(async () => {
-      mock.onGet(dropdownPath).reply(200, stageReply);
+      mock.onGet(dropdownPath).reply(HTTP_STATUS_OK, stageReply);
       createComponent();
 
       await openStageDropdown();

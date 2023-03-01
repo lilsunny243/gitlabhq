@@ -1,10 +1,11 @@
 <script>
 import { refreshUserMergeRequestCounts } from '~/commons/nav/user_merge_requests';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
+import { TYPE_ISSUE } from '~/issues/constants';
 import { __ } from '~/locale';
-import eventHub from '~/sidebar/event_hub';
-import Store from '~/sidebar/stores/sidebar_store';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import eventHub from '../../event_hub';
+import Store from '../../stores/sidebar_store';
 import AssigneeTitle from './assignee_title.vue';
 import Assignees from './assignees.vue';
 import AssigneesRealtime from './assignees_realtime.vue';
@@ -34,7 +35,7 @@ export default {
     issuableType: {
       type: String,
       required: false,
-      default: 'issue',
+      default: TYPE_ISSUE,
     },
     issuableIid: {
       type: String,
@@ -63,7 +64,7 @@ export default {
   computed: {
     shouldEnableRealtime() {
       // Note: Realtime is only available on issues right now, future support for MR wil be built later.
-      return this.issuableType === 'issue';
+      return this.issuableType === TYPE_ISSUE;
     },
     queryVariables() {
       return {
@@ -113,7 +114,7 @@ export default {
         })
         .catch(() => {
           this.loading = false;
-          return createFlash({
+          return createAlert({
             message: __('Error occurred when saving assignees'),
           });
         });

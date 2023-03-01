@@ -5,10 +5,14 @@ module IssuableCollectionsAction
   include IssuableCollections
   include IssuesCalendar
 
+  included do
+    before_action :check_search_rate_limit!, only: [:issues, :merge_requests], if: -> {
+      params[:search].present?
+    }
+  end
+
   # rubocop:disable Gitlab/ModuleWithInstanceVariables
   def issues
-    show_alert_if_search_is_disabled
-
     @issues = issuables_collection
               .non_archived
               .page(params[:page])
@@ -22,11 +26,13 @@ module IssuableCollectionsAction
   end
 
   def merge_requests
-    show_alert_if_search_is_disabled
-
     @merge_requests = issuables_collection.page(params[:page])
 
     @issuable_meta_data = Gitlab::IssuableMetadata.new(current_user, @merge_requests).data
+  rescue ActiveRecord::QueryCanceled => exception # rubocop:disable Database/RescueQueryCanceled
+    log_exception(exception)
+
+    @search_timeout_occurred = true
   end
   # rubocop:enable Gitlab/ModuleWithInstanceVariables
 
@@ -59,9 +65,11 @@ module IssuableCollectionsAction
   end
 
   def finder_options
+    issue_types = Issue::TYPES_FOR_LIST
+
     super.merge(
       non_archived: true,
-      issue_types: Issue::TYPES_FOR_LIST
+      issue_types: issue_types
     )
   end
 end

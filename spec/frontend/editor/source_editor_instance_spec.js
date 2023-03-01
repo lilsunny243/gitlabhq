@@ -160,7 +160,7 @@ describe('Source Editor Instance', () => {
   });
 
   describe('public API', () => {
-    it.each(['use', 'unuse'], 'provides "%s" as public method by default', (method) => {
+    it.each(['use', 'unuse'])('provides "%s" as public method by default', (method) => {
       seInstance = new SourceEditorInstance();
       expect(seInstance[method]).toBeDefined();
     });
@@ -248,7 +248,7 @@ describe('Source Editor Instance', () => {
           const useExtension = () => {
             seInstance.use(extensions);
           };
-          expect(useExtension).toThrowError(thrownError);
+          expect(useExtension).toThrow(thrownError);
         },
       );
 
@@ -336,7 +336,7 @@ describe('Source Editor Instance', () => {
           const unuse = () => {
             seInstance.unuse(unuseExtension);
           };
-          expect(unuse).toThrowError(thrownError);
+          expect(unuse).toThrow(thrownError);
         },
       );
 
@@ -382,7 +382,7 @@ describe('Source Editor Instance', () => {
         },
       );
 
-      it('it does not remove entry from the global registry to keep for potential future re-use', () => {
+      it('does not remove entry from the global registry to keep for potential future re-use', () => {
         const extensionStore = new Map();
         seInstance = new SourceEditorInstance({}, extensionStore);
         const extensions = seInstance.use(fullExtensionsArray);

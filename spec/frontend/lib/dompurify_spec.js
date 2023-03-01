@@ -1,4 +1,4 @@
-import { sanitize } from '~/lib/dompurify';
+import { sanitize, defaultConfig } from '~/lib/dompurify';
 
 // GDK
 const rootGon = {
@@ -45,7 +45,7 @@ const invalidProtocolUrls = [
 /* eslint-enable no-script-url */
 const validProtocolUrls = ['slack://open', 'x-devonthink-item://90909', 'x-devonthink-item:90909'];
 
-const forbiddenDataAttrs = ['data-remote', 'data-url', 'data-type', 'data-method'];
+const forbiddenDataAttrs = defaultConfig.FORBID_ATTR;
 const acceptedDataAttrs = ['data-random', 'data-custom'];
 
 describe('~/lib/dompurify', () => {
@@ -92,6 +92,11 @@ describe('~/lib/dompurify', () => {
     expect(sanitize('<math><mstyle displaystyle="true"></mstyle></math>')).toBe('<math></math>');
     // removes link tag (this is DOMPurify's default behavior)
     expect(sanitize('<link rel="stylesheet" href="styles.css">')).toBe('');
+  });
+
+  it("doesn't allow form tags", () => {
+    expect(sanitize('<form>')).toBe('');
+    expect(sanitize('<form method="post" action="path"></form>')).toBe('');
   });
 
   describe.each`
@@ -203,7 +208,7 @@ describe('~/lib/dompurify', () => {
       expect(el.getAttribute('rel')).toBe('noreferrer noopener');
     });
 
-    it('does not update `rel` values when target is not `_blank` ', () => {
+    it('does not update `rel` values when target is not `_blank`', () => {
       const html = `<a href="https://example.com" target="_self" rel="help">internal</a>`;
       const el = getSanitizedNode(html);
 

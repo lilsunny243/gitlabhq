@@ -17,7 +17,7 @@ describe('getCurrentHoverElement', () => {
     value
     ${'test'}
     ${undefined}
-  `('it returns cached current key', ({ value }) => {
+  `('returns cached current key', ({ value }) => {
     if (value) {
       cachedData.set('current', value);
     }
@@ -52,7 +52,7 @@ describe('addInteractionClass', () => {
     ${1} | ${0} | ${0}
     ${1} | ${0} | ${0}
   `(
-    'it sets code navigation attributes for line $line and character $char',
+    'sets code navigation attributes for line $line and character $char',
     ({ line, char, index }) => {
       addInteractionClass({ path: 'index.js', d: { start_line: line, start_char: char } });
 
@@ -86,6 +86,14 @@ describe('addInteractionClass', () => {
       expect(spans[0].textContent).toBe(' ');
       expect(spans[1].textContent).toBe('Text');
       expect(spans[2].textContent).toBe(' ');
+    });
+
+    it('adds the correct class names to wrapped nodes', () => {
+      setHTMLFixture(
+        '<div data-path="index.js"><div class="blob-content"><div id="LC1" class="line"><span class="test"> Text </span></div></div></div>',
+      );
+      addInteractionClass({ ...params, wrapTextNodes: true });
+      expect(findAllSpans()[1].classList.contains('test')).toBe(true);
     });
   });
 });

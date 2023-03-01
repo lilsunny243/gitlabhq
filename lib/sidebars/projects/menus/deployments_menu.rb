@@ -6,9 +6,13 @@ module Sidebars
       class DeploymentsMenu < ::Sidebars::Menu
         override :configure_menu_items
         def configure_menu_items
-          add_item(feature_flags_menu_item)
           add_item(environments_menu_item)
+          add_item(feature_flags_menu_item)
           add_item(releases_menu_item)
+
+          if Feature.enabled?(:show_pages_in_deployments_menu, context.current_user, type: :experiment)
+            add_item(pages_menu_item)
+          end
 
           true
         end
@@ -30,6 +34,11 @@ module Sidebars
           'deployments'
         end
 
+        override :serialize_as_menu_item_args
+        def serialize_as_menu_item_args
+          nil
+        end
+
         private
 
         def feature_flags_menu_item
@@ -40,6 +49,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Feature Flags'),
             link: project_feature_flags_path(context.project),
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: :feature_flags },
             container_html_options: { class: 'shortcuts-feature-flags' },
             item_id: :feature_flags
@@ -54,6 +64,7 @@ module Sidebars
           ::Sidebars::MenuItem.new(
             title: _('Environments'),
             link: project_environments_path(context.project),
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
             active_routes: { controller: :environments },
             container_html_options: { class: 'shortcuts-environments' },
             item_id: :environments
@@ -62,16 +73,31 @@ module Sidebars
 
         def releases_menu_item
           if !can?(context.current_user, :read_release, context.project) ||
-            context.project.empty_repo?
+              context.project.empty_repo?
             return ::Sidebars::NilMenuItem.new(item_id: :releases)
           end
 
           ::Sidebars::MenuItem.new(
             title: _('Releases'),
             link: project_releases_path(context.project),
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
             item_id: :releases,
             active_routes: { controller: :releases },
             container_html_options: { class: 'shortcuts-deployments-releases' }
+          )
+        end
+
+        def pages_menu_item
+          unless context.project.pages_available? && context.current_user&.can?(:update_pages, context.project)
+            return ::Sidebars::NilMenuItem.new(item_id: :pages)
+          end
+
+          ::Sidebars::MenuItem.new(
+            title: _('Pages'),
+            link: project_pages_path(context.project),
+            super_sidebar_parent: Sidebars::Projects::SuperSidebarMenus::OperationsMenu,
+            active_routes: { path: 'pages#show' },
+            item_id: :pages
           )
         end
       end

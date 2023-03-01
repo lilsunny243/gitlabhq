@@ -3,7 +3,7 @@ type: reference
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/time_tracking.html'
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Time tracking **(FREE)**
@@ -42,7 +42,8 @@ You can see the estimated time remaining when you hover over the time tracking i
 
 Prerequisites:
 
-- You must have at least the Reporter role for the project.
+- In issues, you must have at least the Reporter role for the project.
+- In merge requests, you must have at least the Developer role for the project.
 
 To enter an estimate, use the `/estimate` [quick action](quick_actions.md), followed by the time.
 
@@ -57,7 +58,8 @@ Every time you enter a new time estimate, it overwrites the previous value.
 
 Prerequisites:
 
-- You must have at least the Reporter role for the project.
+- In issues, you must have at least the Reporter role for the project.
+- In merge requests, you must have at least the Developer role for the project.
 
 To remove an estimate entirely, use the `/remove_estimate` [quick action](quick_actions.md).
 
@@ -73,6 +75,25 @@ issue or the merge request.
 Prerequisites:
 
 - You must have at least the Reporter role for the project.
+
+#### Using the user interface
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/101563) in GitLab 15.7.
+
+To add a time entry using the user interface:
+
+1. In the **Time tracking** section of the sidebar, select **Add time entry** (**{plus}**). A modal opens.
+1. Enter:
+
+   - The amount of time spent.
+   - Optional. When it was spent.
+   - Optional. A summary.
+
+1. Select **Save**.
+
+The **Spent** total in the sidebar is updated and you can view all entries in a [time tracking report](#view-a-time-tracking-report).
+
+#### Using a quick action
 
 To enter time spent, use the `/spend` [quick action](quick_actions.md), followed by the time.
 
@@ -90,15 +111,10 @@ Draft MR and respond to initial comments
 /spend 30m
 ```
 
-### Add time spent on a specific date
+To log when time was spent, enter a date after the time, using the `YYYY-MM-DD` format.
 
-Prerequisites:
-
-- You must have at least the Reporter role for the project.
-
-You can log time in the past by providing a date after the time.
 For example, to log 1 hour of time spent on 31 January 2021,
-type `/spend 1h 2021-01-31`.
+enter `/spend 1h 2021-01-31`.
 
 If you type a future date, no time is logged.
 
@@ -157,10 +173,10 @@ The following time units are available:
 
 | Time unit | What to type                | Conversion rate |
 | --------- | --------------------------- | --------------- |
-| Month     | `mo`, `month`, or `months`  | 4w (160h)       |
-| Week      | `w`, `week`, or `weeks`     | 5d (40h)        |
-| Day       | `d`, `day`, or `days`       | 8h              |
-| Hour      | `h`, `hour`, or `hours`     | 60m             |
+| Month     | `mo`, `month`, or `months`  | 4 w (160 h)      |
+| Week      | `w`, `week`, or `weeks`     | 5 d (40 h)       |
+| Day       | `d`, `day`, or `days`       | 8 h              |
+| Hour      | `h`, `hour`, or `hours`     | 60 m             |
 | Minute    | `m`, `minute`, or `minutes` |                 |
 
 ### Limit displayed units to hours **(FREE SELF)**
@@ -170,7 +186,7 @@ The following time units are available:
 In GitLab self-managed instances, you can limit the display of time units to hours.
 To do so:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Localization**.
 1. Under **Time tracking**, select the **Limit display of time tracking units to hours** checkbox.

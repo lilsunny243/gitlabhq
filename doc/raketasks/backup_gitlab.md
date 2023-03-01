@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Back up GitLab
@@ -34,6 +34,11 @@ files. You are highly advised to read about [storing configuration files](#stori
 WARNING:
 The backup command requires [additional parameters](backup_restore.md#back-up-and-restore-for-installations-using-pgbouncer) when
 your installation is using PgBouncer, for either performance reasons or when using it with a Patroni cluster.
+
+WARNING:
+Before GitLab 15.5.0, the backup command doesn't verify if another backup is already running, as described in
+[issue 362593](https://gitlab.com/gitlab-org/gitlab/-/issues/362593). We strongly recommend
+you make sure that all backups are complete before starting a new one.
 
 Depending on your version of GitLab, use the following command if you installed
 GitLab using the Omnibus package:
@@ -134,7 +139,7 @@ For installation from source:
 - `/home/git/gitlab/config/secrets.yml`
 - `/home/git/gitlab/config/gitlab.yml`
 
-For [Docker installations](https://docs.gitlab.com/omnibus/docker/), you must
+For [Docker installations](../install/docker.md), you must
 back up the volume where the configuration files are stored. If you created
 the GitLab container according to the documentation, it should be in the
 `/srv/gitlab/config` directory.
@@ -211,7 +216,7 @@ To ensure the generated archive is transferable by rsync, you can set the `GZIP_
 option. This sets the `--rsyncable` option to `gzip`, which is useful only in
 combination with setting [the Backup filename option](#backup-filename).
 
-Note that the `--rsyncable` option in `gzip` isn't guaranteed to be available
+The `--rsyncable` option in `gzip` isn't guaranteed to be available
 on all distributions. To verify that it's available in your distribution, run
 `gzip --help` or consult the man pages.
 
@@ -235,8 +240,6 @@ You can exclude specific directories from the backup by adding the environment v
 - `pages` (Pages content)
 - `repositories` (Git repositories data)
 - `packages` (Packages)
-
-All wikis are backed up as part of the `repositories` group. Non-existent wikis are skipped during a backup.
 
 NOTE:
 When [backing up and restoring Helm Charts](https://docs.gitlab.com/charts/architecture/backup-restore.html), there is an additional option `packages`, which refers to any packages managed by the GitLab [package registry](../user/packages/package_registry/index.md).
@@ -327,8 +330,16 @@ FLAG:
 On self-managed GitLab, by default this feature is available. To hide the feature, ask an administrator to [disable the feature flag](../administration/feature_flags.md) named `incremental_repository_backup`.
 On GitLab.com, this feature is not available.
 
-Incremental backups can be faster than full backups because they only pack changes since the last backup into the backup
-bundle for each repository. There must be an existing backup to create an incremental backup from:
+NOTE:
+Only repositories support incremental backups. Therefore, if you use `INCREMENTAL=yes`, the task
+creates a self-contained backup tar archive. This is because all subtasks except repositories are
+still creating full backups (they overwrite the existing full backup).
+See [issue 19256](https://gitlab.com/gitlab-org/gitlab/-/issues/19256) for a feature request to
+support incremental backups for all subtasks.
+
+Incremental repository backups can be faster than full repository backups because they only pack changes since the last backup into the backup bundle for each repository.
+The incremental backup archives are not linked to each other: each archive is a self-contained backup of the instance. There must be an existing backup
+to create an incremental backup from:
 
 - In GitLab 14.9 and 14.10, use the `BACKUP=<timestamp_of_backup>` option to choose the backup to use. The chosen previous backup is overwritten.
 - In GitLab 15.0 and later, use the `PREVIOUS_BACKUP=<timestamp_of_backup>` option to choose the backup to use. By default, a backup file is created
@@ -341,7 +352,7 @@ To create an incremental backup, run:
 sudo gitlab-backup create INCREMENTAL=yes PREVIOUS_BACKUP=<timestamp_of_backup>
 ```
 
-Incremental backups can also be created from [an untarred backup](#skipping-tar-creation) by using `SKIP=tar`:
+To create an [untarred](#skipping-tar-creation) incremental backup from a tarred backup, use `SKIP=tar`:
 
 ```shell
 sudo gitlab-backup create INCREMENTAL=yes SKIP=tar
@@ -400,7 +411,7 @@ You can let the backup script upload (using the [Fog library](https://fog.io/))
 the `.tar` file it creates. In the following example, we use Amazon S3 for
 storage, but Fog also lets you use [other storage providers](https://fog.io/storage/).
 GitLab also [imports cloud drivers](https://gitlab.com/gitlab-org/gitlab/-/blob/da46c9655962df7d49caef0e2b9f6bbe88462a02/Gemfile#L113)
-for AWS, Google, OpenStack Swift, Rackspace, and Aliyun. A local driver is
+for AWS, Google, and Aliyun. A local driver is
 [also available](#upload-to-locally-mounted-shares).
 
 [Read more about using object storage with GitLab](../administration/object_storage.md).
@@ -421,6 +432,8 @@ For Omnibus GitLab packages:
      # 'use_iam_profile' => true
    }
    gitlab_rails['backup_upload_remote_directory'] = 'my.s3.bucket'
+   # Consider using multipart uploads when file size reaches 100MB. Enter a number in bytes.
+   # gitlab_rails['backup_multipart_chunk_size'] = 104857600
    ```
 
 1. [Reconfigure GitLab](../administration/restart_gitlab.md#omnibus-gitlab-reconfigure)
@@ -452,7 +465,7 @@ gitlab_rails['backup_upload_storage_options'] = {
 
 ##### SSE-KMS
 
-To enable SSE-KMS, you'll need the
+To enable SSE-KMS, you need the
 [KMS key via its Amazon Resource Name (ARN) in the `arn:aws:kms:region:acct-id:key/key-id` format](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html).
 Under the `backup_upload_storage_options` configuration setting, set:
 
@@ -744,8 +757,8 @@ You can send backups to a locally-mounted share (for example, `NFS`,`CIFS`, or `
 
 To do this, you must set the following configuration keys:
 
-- `backup_upload_remote_directory`: mounted directory that backups are copied to.
-- `backup_upload_connection.local_root`: subdirectory of the `backup_upload_remote_directory` directory. It is created if it doesn't exist.
+- `backup_upload_connection.local_root`: mounted directory that backups are copied to.
+- `backup_upload_remote_directory`: subdirectory of the `backup_upload_connection.local_root` directory. It is created if it doesn't exist.
   If you want to copy the tarballs to the root of your mounted directory, use `.`.
 
 When mounted, the directory set in the `local_root` key must be owned by either:
@@ -887,7 +900,7 @@ When troubleshooting backup problems, however, replace `CRON=1` with `--trace` t
 ## Limit backup lifetime for local files (prune old backups)
 
 WARNING:
-The process described in this section don't work if you used a [custom filename](#backup-filename)
+The process described in this section doesn't work if you used a [custom filename](#backup-filename)
 for your backups.
 
 To prevent regular backups from using all your disk space, you may want to set a limited lifetime

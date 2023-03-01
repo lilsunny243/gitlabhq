@@ -1,6 +1,6 @@
 <script>
 import { GlAlert } from '@gitlab/ui';
-import { TYPE_WORK_ITEM } from '~/graphql_shared/constants';
+import { TYPENAME_WORK_ITEM } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import { visitUrl } from '~/lib/utils/url_utility';
 import ZenMode from '~/zen_mode';
@@ -31,21 +31,19 @@ export default {
   },
   computed: {
     gid() {
-      return convertToGraphQLId(TYPE_WORK_ITEM, this.id);
+      return convertToGraphQLId(TYPENAME_WORK_ITEM, this.id);
     },
   },
   mounted() {
     this.ZenMode = new ZenMode();
   },
   methods: {
-    deleteWorkItem(workItemType) {
+    deleteWorkItem({ workItemType, workItemId: id }) {
       this.$apollo
         .mutate({
           mutation: deleteWorkItemMutation,
           variables: {
-            input: {
-              id: this.gid,
-            },
+            input: { id },
           },
         })
         .then(({ data: { workItemDelete, errors } }) => {
@@ -72,6 +70,10 @@ export default {
 <template>
   <div>
     <gl-alert v-if="error" variant="danger" @dismiss="error = ''">{{ error }}</gl-alert>
-    <work-item-detail :work-item-id="gid" @deleteWorkItem="deleteWorkItem($event)" />
+    <work-item-detail
+      :work-item-id="gid"
+      :work-item-iid="id"
+      @deleteWorkItem="deleteWorkItem($event)"
+    />
   </div>
 </template>

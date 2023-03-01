@@ -14,7 +14,7 @@ module API
 
     before do
       require_repository_enabled!
-      authorize! :download_code, user_project
+      authorize! :read_code, user_project
     end
 
     rescue_from Gitlab::Git::Repository::NoRepository do
@@ -24,22 +24,27 @@ module API
     helpers do
       params :filter_params do
         optional :search, type: String, desc: 'Return list of branches matching the search criteria'
+        optional :regex, type: String, desc: 'Return list of branches matching the regex'
         optional :sort, type: String, desc: 'Return list of branches sorted by the given field', values: %w[name_asc updated_asc updated_desc]
       end
     end
 
     params do
-      requires :id, type: String, desc: 'The ID of a project'
+      requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
     end
     resource :projects, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
       desc 'Get a project repository branches' do
         success Entities::Branch
+        success code: 200, model: Entities::Branch
+        failure [{ code: 404, message: '404 Project Not Found' }]
+        tags %w[branches]
+        is_array true
       end
       params do
         use :pagination
         use :filter_params
 
-        optional :page_token, type: String, desc: 'Name of branch to start the paginaition from'
+        optional :page_token, type: String, desc: 'Name of branch to start the pagination from'
       end
       get ':id/repository/branches', urgency: :low do
         cache_action([user_project, :branches, current_user, declared_params], expires_in: 30.seconds) do
@@ -52,37 +57,35 @@ module API
 
           merged_branch_names = repository.merged_branch_names(branches.map(&:name))
 
-          if Feature.enabled?(:api_caching_branches, user_project, type: :development)
-            present_cached(
-              branches,
-              with: Entities::Branch,
-              current_user: current_user,
-              project: user_project,
-              merged_branch_names: merged_branch_names,
-              expires_in: 10.minutes,
-              cache_context: -> (branch) { [current_user&.cache_key, merged_branch_names.include?(branch.name)] }
-            )
-          else
-            present(
-              branches,
-              with: Entities::Branch,
-              current_user: current_user,
-              project: user_project,
-              merged_branch_names: merged_branch_names
-            )
-          end
+          present_cached(
+            branches,
+            with: Entities::Branch,
+            current_user: current_user,
+            project: user_project,
+            merged_branch_names: merged_branch_names,
+            expires_in: 60.minutes,
+            cache_context: -> (branch) { [current_user&.cache_key, merged_branch_names.include?(branch.name)] }
+          )
         end
       end
 
       resource ':id/repository/branches/:branch', requirements: BRANCH_ENDPOINT_REQUIREMENTS do
-        desc 'Get a single branch' do
-          success Entities::Branch
-        end
         params do
           requires :branch, type: String, desc: 'The name of the branch'
         end
+        desc 'Check if a branch exists' do
+          success [{ code: 204, message: 'No Content' }]
+          failure [{ code: 404, message: 'Not Found' }]
+          tags %w[branches]
+        end
         head do
           user_project.repository.branch_exists?(params[:branch]) ? no_content! : not_found!
+        end
+        desc 'Get a single repository branch' do
+          success Entities::Branch
+          success code: 200, model: Entities::Branch
+          failure [{ code: 404, message: 'Branch Not Found' }, { code: 404, message: 'Project Not Found' }]
+          tags %w[branches]
         end
         get '/', urgency: :low do
           branch = find_branch!(params[:branch])
@@ -97,6 +100,9 @@ module API
       # but it works with the changed data model to infer `developers_can_merge` and `developers_can_push`.
       desc 'Protect a single branch' do
         success Entities::Branch
+        success code: 200, model: Entities::Branch
+        failure [{ code: 404, message: '404 Branch Not Found' }]
+        tags %w[branches]
       end
       params do
         requires :branch, type: String, desc: 'The name of the branch', allow_blank: false
@@ -136,6 +142,9 @@ module API
       # Note: This API will be deprecated in favor of the protected branches API.
       desc 'Unprotect a single branch' do
         success Entities::Branch
+        success code: 200, model: Entities::Branch
+        failure [{ code: 404, message: '404 Project Not Found' }, { code: 404, message: '404 Branch Not Found' }]
+        tags %w[branches]
       end
       params do
         requires :branch, type: String, desc: 'The name of the branch', allow_blank: false
@@ -155,6 +164,9 @@ module API
 
       desc 'Create branch' do
         success Entities::Branch
+        success code: 201, model: Entities::Branch
+        failure [{ code: 400, message: 'Failed to create branch' }, { code: 400, message: 'Branch already exists' }]
+        tags %w[branches]
       end
       params do
         requires :branch, type: String, desc: 'The name of the branch', allow_blank: false
@@ -176,7 +188,11 @@ module API
         end
       end
 
-      desc 'Delete a branch'
+      desc 'Delete a branch' do
+        success code: 204
+        failure [{ code: 404, message: 'Branch Not Found' }]
+        tags %w[branches]
+      end
       params do
         requires :branch, type: String, desc: 'The name of the branch', allow_blank: false
       end
@@ -197,7 +213,11 @@ module API
         end
       end
 
-      desc 'Delete all merged branches'
+      desc 'Delete all merged branches' do
+        success code: 202, message: '202 Accepted'
+        failure [{ code: 404, message: '404 Project Not Found' }]
+        tags %w[branches]
+      end
       delete ':id/repository/merged_branches' do
         ::Branches::DeleteMergedService.new(user_project, current_user).async_execute
 

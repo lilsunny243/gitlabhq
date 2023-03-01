@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, :reliable do
+  RSpec.describe 'Package', :orchestrated, :packages, :object_storage, :reliable, product_group: :package_registry, feature_flag: { name: 'maven_central_request_forwarding', scope: :global } do
     describe 'Maven group level endpoint' do
       include Runtime::Fixtures
+      include Support::Helpers::MaskToken
       include_context 'packages registry qa scenario'
 
       let(:group_id) { 'com.gitlab.qa' }
@@ -11,6 +12,18 @@ module QA
       let(:package_name) { "#{group_id}/#{artifact_id}".tr('.', '/') }
       let(:package_version) { '1.3.7' }
       let(:package_type) { 'maven' }
+
+      let(:group_deploy_token) do
+        Resource::GroupDeployToken.fabricate_via_api! do |deploy_token|
+          deploy_token.name = 'maven-group-deploy-token'
+          deploy_token.group = package_project.group
+          deploy_token.scopes = %w[
+            read_repository
+            read_package_registry
+            write_package_registry
+          ]
+        end
+      end
 
       context 'via maven' do
         where do
@@ -28,7 +41,11 @@ module QA
             'using a ci job token' => {
               authentication_token_type: :ci_job_token,
               maven_header_name: 'Job-Token',
-              testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347579'
+              testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347579',
+              quarantine: {
+                issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/373189',
+                type: :stale
+              }
             }
           }
         end
@@ -37,37 +54,31 @@ module QA
           let(:token) do
             case authentication_token_type
             when :personal_access_token
-              personal_access_token
+              use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: personal_access_token, project: package_project)
+              use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: personal_access_token, project: client_project)
             when :ci_job_token
-              '${env.CI_JOB_TOKEN}'
+              '${CI_JOB_TOKEN}'
             when :project_deploy_token
-              project_deploy_token.token
+              use_ci_variable(name: 'GROUP_DEPLOY_TOKEN', value: group_deploy_token.token, project: package_project)
+              use_ci_variable(name: 'GROUP_DEPLOY_TOKEN', value: group_deploy_token.token, project: client_project)
             end
           end
 
-          it 'pushes and pulls a maven package', testcase: params[:testcase] do
+          it 'pushes and pulls a maven package', testcase: params[:testcase], quarantine: params[:quarantine] do
             Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
               Resource::Repository::Commit.fabricate_via_api! do |commit|
-                maven_upload_package_yaml = ERB.new(read_fixture('package_managers/maven', 'maven_upload_package.yaml.erb')).result(binding)
-                package_pom_xml = ERB.new(read_fixture('package_managers/maven', 'package_pom.xml.erb')).result(binding)
-                settings_xml = ERB.new(read_fixture('package_managers/maven', 'settings.xml.erb')).result(binding)
+                gitlab_ci_yaml = ERB.new(read_fixture('package_managers/maven/group/producer', 'gitlab_ci.yaml.erb')).result(binding)
+                pom_xml = ERB.new(read_fixture('package_managers/maven/group/producer', 'pom.xml.erb')).result(binding)
+                settings_xml = ERB.new(read_fixture('package_managers/maven/group/producer', 'settings.xml.erb')).result(binding)
 
                 commit.project = package_project
                 commit.commit_message = 'Add files'
-                commit.add_files([
-                  {
-                    file_path: '.gitlab-ci.yml',
-                    content: maven_upload_package_yaml
-                  },
-                  {
-                    file_path: 'pom.xml',
-                    content: package_pom_xml
-                  },
-                  {
-                    file_path: 'settings.xml',
-                    content: settings_xml
-                  }
-                ])
+                commit.add_files(
+                  [
+                    { file_path: '.gitlab-ci.yml', content: gitlab_ci_yaml },
+                    { file_path: 'pom.xml', content: pom_xml },
+                    { file_path: 'settings.xml', content: settings_xml }
+                  ])
               end
             end
 
@@ -97,26 +108,18 @@ module QA
 
             Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
               Resource::Repository::Commit.fabricate_via_api! do |commit|
-                maven_install_package_yaml = ERB.new(read_fixture('package_managers/maven', 'maven_install_package.yaml.erb')).result(binding)
-                client_pom_xml = ERB.new(read_fixture('package_managers/maven', 'client_pom.xml.erb')).result(binding)
-                settings_xml = ERB.new(read_fixture('package_managers/maven', 'settings.xml.erb')).result(binding)
+                gitlab_ci_yaml = ERB.new(read_fixture('package_managers/maven/group/consumer', 'gitlab_ci.yaml.erb')).result(binding)
+                pom_xml = ERB.new(read_fixture('package_managers/maven/group/consumer', 'pom.xml.erb')).result(binding)
+                settings_xml = ERB.new(read_fixture('package_managers/maven/group/consumer', 'settings.xml.erb')).result(binding)
 
                 commit.project = client_project
                 commit.commit_message = 'Add files'
-                commit.add_files([
-                  {
-                    file_path: '.gitlab-ci.yml',
-                    content: maven_install_package_yaml
-                  },
-                  {
-                    file_path: 'pom.xml',
-                    content: client_pom_xml
-                  },
-                  {
-                    file_path: 'settings.xml',
-                    content: settings_xml
-                  }
-                ])
+                commit.add_files(
+                  [
+                    { file_path: '.gitlab-ci.yml', content: gitlab_ci_yaml },
+                    { file_path: 'pom.xml', content: pom_xml },
+                    { file_path: 'settings.xml', content: settings_xml }
+                  ])
               end
             end
 
@@ -137,176 +140,175 @@ module QA
 
       context 'duplication setting' do
         before do
+          use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: personal_access_token, project: package_project)
+          use_ci_variable(name: 'PERSONAL_ACCESS_TOKEN', value: personal_access_token, project: client_project)
           package_project.group.visit!
-
           Page::Group::Menu.perform(&:go_to_package_settings)
         end
 
         context 'when disabled' do
-          where do
-            {
-              'using a personal access token' => {
-                authentication_token_type: :personal_access_token,
-                maven_header_name: 'Private-Token',
-                testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347581'
-              },
-              'using a project deploy token' => {
-                authentication_token_type: :project_deploy_token,
-                maven_header_name: 'Deploy-Token',
-                testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347584'
-              },
-              'using a ci job token' => {
-                authentication_token_type: :ci_job_token,
-                maven_header_name: 'Job-Token',
-                testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347578'
-              }
-            }
+          before do
+            Page::Group::Settings::PackageRegistries.perform(&:set_allow_duplicates_disabled)
           end
 
-          with_them do
-            let(:token) do
-              case authentication_token_type
-              when :personal_access_token
-                personal_access_token
-              when :ci_job_token
-                '${env.CI_JOB_TOKEN}'
-              when :project_deploy_token
-                project_deploy_token.token
-              end
+          it 'prevents users from publishing duplicates', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/377491' do
+            create_package(package_project)
+            show_latest_deploy_job
+
+            Page::Project::Job::Show.perform do |job|
+              expect(job).to be_successful(timeout: 400)
             end
 
-            before do
-              Page::Group::Settings::PackageRegistries.perform(&:set_allow_duplicates_disabled)
-            end
+            Page::Project::Job::Show.perform(&:retry!)
 
-            it 'prevents users from publishing group level Maven packages duplicates', testcase: params[:testcase] do
-              create_duplicated_package
+            show_latest_deploy_job
 
-              push_duplicated_package
-
-              client_project.visit!
-
-              show_latest_deploy_job
-
-              Page::Project::Job::Show.perform do |job|
-                expect(job).not_to be_successful(timeout: 800)
-              end
+            Page::Project::Job::Show.perform do |job|
+              expect(job).not_to be_successful(timeout: 400)
             end
           end
         end
 
         context 'when enabled' do
-          where do
-            {
-              'using a personal access token' => {
-                authentication_token_type: :personal_access_token,
-                maven_header_name: 'Private-Token',
-                testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347580'
-              },
-              'using a project deploy token' => {
-                authentication_token_type: :project_deploy_token,
-                maven_header_name: 'Deploy-Token',
-                testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347583'
-              },
-              'using a ci job token' => {
-                authentication_token_type: :ci_job_token,
-                maven_header_name: 'Job-Token',
-                testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347577'
-              }
-            }
+          before do
+            Page::Group::Settings::PackageRegistries.perform(&:set_allow_duplicates_enabled)
           end
 
-          with_them do
-            let(:token) do
-              case authentication_token_type
-              when :personal_access_token
-                personal_access_token
-              when :ci_job_token
-                '${env.CI_JOB_TOKEN}'
-              when :project_deploy_token
-                project_deploy_token.token
-              end
+          it 'allows users to publish duplicates', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/377492' do
+            create_package(package_project)
+
+            show_latest_deploy_job
+
+            Page::Project::Job::Show.perform do |job|
+              expect(job).to be_successful(timeout: 400)
             end
 
-            before do
-              Page::Group::Settings::PackageRegistries.perform(&:set_allow_duplicates_enabled)
-            end
+            Page::Project::Job::Show.perform(&:retry!)
 
-            it 'allows users to publish group level Maven packages duplicates', testcase: params[:testcase] do
-              create_duplicated_package
+            show_latest_deploy_job
 
-              push_duplicated_package
-
-              show_latest_deploy_job
-
-              Page::Project::Job::Show.perform do |job|
-                expect(job).to be_successful(timeout: 800)
-              end
+            Page::Project::Job::Show.perform do |job|
+              expect(job).to be_successful(timeout: 400)
             end
           end
         end
 
-        def create_duplicated_package
-          settings_xml_with_pat = ERB.new(read_fixture('package_managers/maven', 'settings_with_pat.xml.erb')).result(binding)
-          package_pom_xml = ERB.new(read_fixture('package_managers/maven', 'package_pom.xml.erb')).result(binding)
-
-          with_fixtures([
-              {
-                file_path: 'pom.xml',
-                content: package_pom_xml
-              },
-              {
-                file_path: 'settings.xml',
-                content: settings_xml_with_pat
-              }
-            ]) do |dir|
-            Service::DockerRun::Maven.new(dir).publish!
-          end
-
-          package_project.visit!
-
-          Page::Project::Menu.perform(&:click_packages_link)
-
-          Page::Project::Packages::Index.perform do |index|
-            expect(index).to have_package(package_name)
-          end
-        end
-
-        def push_duplicated_package
+        def create_package(project)
           Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
             Resource::Repository::Commit.fabricate_via_api! do |commit|
-              maven_upload_package_yaml = ERB.new(read_fixture('package_managers/maven', 'maven_upload_package.yaml.erb')).result(binding)
-              package_pom_xml = ERB.new(read_fixture('package_managers/maven', 'package_pom.xml.erb')).result(binding)
-              settings_xml = ERB.new(read_fixture('package_managers/maven', 'settings.xml.erb')).result(binding)
+              gitlab_ci_yaml = ERB.new(read_fixture('package_managers/maven/group/producer', 'gitlab_ci.yaml.erb')).result(binding)
+              pom_xml = ERB.new(read_fixture('package_managers/maven/group/producer', 'pom.xml.erb')).result(binding)
+              settings_xml_with_pat = ERB.new(read_fixture('package_managers/maven/group', 'settings_with_pat.xml.erb')).result(binding)
 
-              commit.project = client_project
+              commit.project = project
               commit.commit_message = 'Add .gitlab-ci.yml'
-              commit.add_files([
-                                {
-                                  file_path: '.gitlab-ci.yml',
-                                  content: maven_upload_package_yaml
-                                },
-                                {
-                                  file_path: 'pom.xml',
-                                  content: package_pom_xml
-                                },
-                                {
-                                  file_path: 'settings.xml',
-                                  content: settings_xml
-                                }
-              ])
+              commit.add_files(
+                [
+                  { file_path: '.gitlab-ci.yml', content: gitlab_ci_yaml },
+                  { file_path: 'pom.xml', content: pom_xml },
+                  { file_path: 'settings.xml', content: settings_xml_with_pat }
+                ])
             end
           end
         end
 
         def show_latest_deploy_job
-          client_project.visit!
+          package_project.visit!
 
           Flow::Pipeline.visit_latest_pipeline
 
           Page::Project::Pipeline::Show.perform do |pipeline|
             pipeline.click_job('deploy')
           end
+        end
+      end
+    end
+
+    describe 'Maven request forwarding' do
+      include Runtime::Fixtures
+
+      let(:group_id) { 'com.gitlab.qa' }
+      let(:artifact_id) { "maven-#{SecureRandom.hex(8)}" }
+      let(:package_name) { "#{group_id}/#{artifact_id}".tr('.', '/') }
+      let(:package_version) { '1.3.7' }
+      let(:personal_access_token) { Runtime::Env.personal_access_token }
+      let(:group) { Resource::Group.fabricate_via_api! }
+
+      let(:imported_project) do
+        Resource::ProjectImportedFromURL.fabricate_via_browser_ui! do |project|
+          project.name = "maven_imported_project"
+          project.group = group
+          project.gitlab_repository_path = 'https://gitlab.com/gitlab-org/quality/imported-projects/maven.git'
+        end
+      end
+
+      let(:gitlab_address_with_port) do
+        uri = URI.parse(Runtime::Scenario.gitlab_address)
+        "#{uri.scheme}://#{uri.host}:#{uri.port}"
+      end
+
+      let(:package) do
+        Resource::Package.init do |package|
+          package.name = package_name
+          package.project = imported_project
+        end
+      end
+
+      let(:runner) do
+        Resource::ProjectRunner.fabricate! do |runner|
+          runner.name = "qa-runner-#{Time.now.to_i}"
+          runner.tags = ["runner-for-#{imported_project.group.name}"]
+          runner.executor = :docker
+          runner.token = imported_project.group.reload!.runners_token
+        end
+      end
+
+      before do
+        Runtime::Feature.enable(:maven_central_request_forwarding)
+        Flow::Login.sign_in_unless_signed_in
+
+        imported_project
+        runner
+      end
+
+      after do
+        Runtime::Feature.disable(:maven_central_request_forwarding)
+
+        runner.remove_via_api!
+        package.remove_via_api!
+        imported_project.remove_via_api!
+      end
+
+      it(
+        'uses GitLab as a mirror of the central proxy',
+        :skip_live_env,
+        testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/375988'
+      ) do
+        Support::Retrier.retry_on_exception(max_attempts: 3, sleep_interval: 2) do
+          Resource::Repository::Commit.fabricate_via_api! do |commit|
+            settings_xml = ERB.new(read_fixture('package_managers/maven/group/consumer/request_forwarding', 'settings.xml.erb')).result(binding)
+            gitlab_ci_yaml = ERB.new(read_fixture('package_managers/maven/group/consumer/request_forwarding', 'gitlab_ci.yaml.erb')).result(binding)
+
+            commit.project = imported_project
+            commit.commit_message = 'Add files'
+            commit.add_files(
+              [
+                { file_path: '.gitlab-ci.yml', content: gitlab_ci_yaml },
+                { file_path: 'settings.xml', content: settings_xml }
+              ])
+          end
+        end
+
+        imported_project.visit!
+
+        Flow::Pipeline.visit_latest_pipeline
+
+        Page::Project::Pipeline::Show.perform do |pipeline|
+          pipeline.click_job('install')
+        end
+
+        Page::Project::Job::Show.perform do |job|
+          expect(job).to be_successful(timeout: 800)
         end
       end
     end

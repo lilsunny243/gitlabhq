@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 ---
 
 # Push rules **(PREMIUM)**
@@ -36,7 +36,7 @@ Prerequisite:
 
 To create global push rules:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Push Rules**.
 1. Expand **Push rules**.
 1. Set the rule you want.
@@ -48,7 +48,7 @@ The push rule of an individual project overrides the global push rule.
 To override global push rules for a specific project, or to update the rules
 for an existing project to match new global push rules:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Repository**.
 1. Expand **Push rules**.
 1. Set the rule you want.
@@ -77,6 +77,15 @@ Use these rules for your commit messages.
 - **Reject expression in commit messages**: Commit messages must not match
   the expression. To allow any commit message, leave empty.
   Uses multiline mode, which can be disabled by using `(?-m)`.
+
+## Reject commits that aren't DCO certified
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/98810) in GitLab 15.5.
+
+Commits signed with the [Developer Certificate of Origin](https://developercertificate.org/) (DCO)
+certify the contributor wrote, or has the right to submit, the code contributed in that commit.
+You can require all commits to your project to comply with the DCO. This push rule requires a
+`Signed-off-by:` trailer in every commit message, and rejects any commits that lack it.
 
 ## Validate branch names
 
@@ -258,7 +267,7 @@ to use them as normal characters in a match condition.
 
 ## Related topics
 
-- [Server hooks](../../../administration/server_hooks.md), to create complex custom push rules
+- [Git server hooks](../../../administration/server_hooks.md) (previously called server hooks), to create complex custom push rules
 - [Signing commits with GPG](gpg_signed_commits/index.md)
 - [Protected branches](../protected_branches.md)
 
@@ -284,3 +293,28 @@ enabled, unsigned commits may still appear in the commit history if a commit was
 created in GitLab itself. As expected, commits created outside GitLab and
 pushed to the repository are rejected. For more information about this issue,
 read [issue #19185](https://gitlab.com/gitlab-org/gitlab/-/issues/19185).
+
+### Bulk update push rules for _all_ projects
+
+To update the push rules to be the same for all projects,
+you need to use [the rails console](../../../administration/operations/rails_console.md#starting-a-rails-console-session),
+or write a script to update each project using the [Push Rules API endpoint](../../../api/projects.md#push-rules).
+
+For example, to enable **Check whether the commit author is a GitLab user** and **Do not allow users to remove Git tags with `git push`** checkboxes,
+and create a filter for allowing commits from a specific email domain only through rails console:
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+``` ruby
+Project.find_each do |p|
+  pr = p.push_rule || PushRule.new(project: p)
+  # Check whether the commit author is a GitLab user
+  pr.member_check = true
+  # Do not allow users to remove Git tags with `git push`
+  pr.deny_delete_tag = true
+  # Commit author's email
+  pr.author_email_regex = '@domain\.com$'
+  pr.save!
+end
+```

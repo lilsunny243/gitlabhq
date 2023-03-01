@@ -1,0 +1,34 @@
+fragment ListItemShared on CiRunner {
+  id
+  description
+  runnerType
+  shortSha
+  version
+  ipAddress
+  active
+  locked
+  jobCount
+  tagList
+  createdAt
+  contactedAt
+  status(legacyMode: null)
+  jobExecutionStatus
+  userPermissions {
+    updateRunner
+    deleteRunner
+  }
+  groups(first: 1) {
+    nodes {
+      id
+      name
+      fullName
+      webUrl
+    }
+  }
+  ownerProject {
+    id
+    name
+    nameWithNamespace
+    webUrl
+  }
+}

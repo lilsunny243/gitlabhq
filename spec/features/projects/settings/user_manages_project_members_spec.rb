@@ -2,9 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > User manages project members' do
+RSpec.describe 'Projects > Settings > User manages project members', feature_category: :projects do
   include Spec::Support::Helpers::Features::MembersHelpers
   include Spec::Support::Helpers::ModalHelpers
+  include ListboxHelpers
 
   let(:group) { create(:group, name: 'OpenSource') }
   let(:project) { create(:project, :with_namespace_settings) }
@@ -22,13 +23,12 @@ RSpec.describe 'Projects > Settings > User manages project members' do
   it 'cancels a team member', :js do
     visit(project_project_members_path(project))
 
-    page.within find_member_row(user_dmitriy) do
-      click_button 'Remove member'
-    end
+    show_actions_for_username(user_dmitriy)
+    click_button _('Remove member')
 
     within_modal do
       expect(page).to have_unchecked_field 'Also unassign this user from related issues and merge requests'
-      click_button('Remove member')
+      click_button _('Remove member')
     end
 
     visit(project_project_members_path(project))
@@ -47,11 +47,9 @@ RSpec.describe 'Projects > Settings > User manages project members' do
     click_on 'Select a project'
     wait_for_requests
 
-    click_button project2.name
+    select_listbox_item(project2.name_with_namespace)
     click_button 'Import project members'
     wait_for_requests
-
-    page.refresh
 
     expect(find_member_row(user_mike)).to have_content('Reporter')
   end

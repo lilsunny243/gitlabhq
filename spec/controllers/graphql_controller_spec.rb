@@ -2,15 +2,11 @@
 
 require 'spec_helper'
 
-RSpec.describe GraphqlController do
+RSpec.describe GraphqlController, feature_category: :integrations do
   include GraphqlHelpers
 
   # two days is enough to make timezones irrelevant
   let_it_be(:last_activity_on) { 2.days.ago.to_date }
-
-  before do
-    stub_feature_flags(graphql: true)
-  end
 
   describe 'rescue_from' do
     let_it_be(:message) { 'green ideas sleep furiously' }
@@ -47,9 +43,27 @@ RSpec.describe GraphqlController do
       post :execute
 
       expect(json_response).to include(
-        'errors' => include(a_hash_including('message' => /Internal server error/,
-                                             'raisedAt' => /graphql_controller_spec.rb/))
+        'errors' => include(
+          a_hash_including('message' => /Internal server error/, 'raisedAt' => /graphql_controller_spec.rb/)
+        )
       )
+    end
+
+    it 'handles Gitlab::Auth::TooManyIps', :aggregate_failures do
+      allow(controller).to receive(:execute) do
+        raise Gitlab::Auth::TooManyIps.new(150, '123.123.123.123', 10)
+      end
+
+      expect(controller).to receive(:log_exception).and_call_original
+
+      post :execute
+
+      expect(json_response).to include(
+        'errors' => include(
+          a_hash_including('message' => 'User 150 from IP: 123.123.123.123 tried logging from too many ips: 10')
+        )
+      )
+      expect(response).to have_gitlab_http_status(:forbidden)
     end
   end
 
@@ -88,10 +102,11 @@ RSpec.describe GraphqlController do
         post :execute, params: { _json: multiplex }
 
         expect(response).to have_gitlab_http_status(:ok)
-        expect(json_response).to eq([
-          { 'data' => { '__typename' => 'Query' } },
-          { 'data' => { '__typename' => 'Query' } }
-        ])
+        expect(json_response).to eq(
+          [
+            { 'data' => { '__typename' => 'Query' } },
+            { 'data' => { '__typename' => 'Query' } }
+          ])
       end
 
       it 'sets a limit on the total query size' do
@@ -194,7 +209,7 @@ RSpec.describe GraphqlController do
 
         expected_message = "Authentication error: " \
         "enable 2FA in your profile settings to continue using GitLab: %{mfa_help_page}" %
-        { mfa_help_page: EnforcesTwoFactorAuthentication::MFA_HELP_PAGE }
+          { mfa_help_page: controller.mfa_help_page_url }
 
         expect(json_response).to eq({ 'errors' => [{ 'message' => expected_message }] })
       end
@@ -315,11 +330,24 @@ RSpec.describe GraphqlController do
 
       expect(assigns(:context)[:request]).to eq request
     end
+
+    it 'sets `context[:remove_deprecated]` to false by default' do
+      post :execute
+
+      expect(assigns(:context)[:remove_deprecated]).to be false
+    end
+
+    it 'sets `context[:remove_deprecated]` to true when `remove_deprecated` param is truthy' do
+      post :execute, params: { remove_deprecated: '1' }
+
+      expect(assigns(:context)[:remove_deprecated]).to be true
+    end
   end
 
   describe 'Admin Mode' do
-    let(:admin) { create(:admin) }
-    let(:project) { create(:project) }
+    let_it_be(:admin) { create(:admin) }
+    let_it_be(:project) { create(:project) }
+
     let(:graphql_query) { graphql_query_for('project', { 'fullPath' => project.full_path }, %w(id name)) }
 
     before do

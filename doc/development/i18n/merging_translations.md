@@ -1,7 +1,7 @@
 ---
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Merging translations from Crowdin
@@ -36,7 +36,7 @@ it should be disapproved in Crowdin. Our strings must use [variables](externaliz
 for HTML instead.
 
 It might be useful to pause the integration on the Crowdin side for a
-moment so translations don't keep coming. You can do this by clicking
+moment so translations don't keep coming. You can do this by selecting
 **Pause sync** on the [Crowdin integration settings page](https://translate.gitlab.com/project/gitlab-ee/settings#integration).
 
 ## Merging translations
@@ -79,7 +79,7 @@ recreate it with the following steps:
 ## Manually update the translation levels
 
 There's no automated way to pull the translation levels from Crowdin, to display
-this information in the language selection dropdown. Therefore, the translation
+this information in the language selection dropdown list. Therefore, the translation
 levels are hard-coded in the `TRANSLATION_LEVELS` constant in [`i18n.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/i18n.rb),
 and must be regularly updated.
 

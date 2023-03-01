@@ -28,10 +28,6 @@ RSpec.describe Spam::SpamVerdictService do
     extra_attributes
   end
 
-  before do
-    stub_feature_flags(allow_possible_spam: false)
-  end
-
   shared_examples 'execute spam verdict service' do
     subject { service.execute }
 
@@ -119,9 +115,9 @@ RSpec.describe Spam::SpamVerdictService do
       end
     end
 
-    context 'if allow_possible_spam flag is true' do
+    context 'if allow_possible_spam application setting is true' do
       before do
-        stub_feature_flags(allow_possible_spam: true)
+        stub_application_setting(allow_possible_spam: true)
       end
 
       context 'and a service returns a verdict that should be overridden' do
@@ -371,6 +367,9 @@ RSpec.describe Spam::SpamVerdictService do
           end
 
           it 'returns nil' do
+            expect(Gitlab::ErrorTracking).to receive(:log_exception).with(
+              an_instance_of(GRPC::Aborted), error: ::Spam::SpamConstants::ERROR_TYPE
+            )
             expect(subject).to eq([ALLOW, attribs, true])
           end
         end
@@ -383,17 +382,20 @@ RSpec.describe Spam::SpamVerdictService do
             expect(subject).to eq [DISALLOW, attribs]
           end
         end
-      end
 
-      context 'if the endpoint times out' do
-        let(:attribs) { nil }
+        context 'if the endpoint times out' do
+          let(:attribs) { nil }
 
-        before do
-          allow(spam_client).to receive(:spam?).and_raise(GRPC::DeadlineExceeded)
-        end
+          before do
+            allow(spam_client).to receive(:spam?).and_raise(GRPC::DeadlineExceeded)
+          end
 
-        it 'returns nil' do
-          expect(subject).to eq([ALLOW, attribs, true])
+          it 'returns nil' do
+            expect(Gitlab::ErrorTracking).to receive(:log_exception).with(
+              an_instance_of(GRPC::DeadlineExceeded), error: ::Spam::SpamConstants::ERROR_TYPE
+            )
+            expect(subject).to eq([ALLOW, attribs, true])
+          end
         end
       end
     end

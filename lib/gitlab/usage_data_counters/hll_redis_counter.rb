@@ -12,45 +12,10 @@ module Gitlab
       UnknownAggregation = Class.new(EventError)
       AggregationMismatch = Class.new(EventError)
       SlotMismatch = Class.new(EventError)
-      CategoryMismatch = Class.new(EventError)
       InvalidContext = Class.new(EventError)
 
       KNOWN_EVENTS_PATH = File.expand_path('known_events/*.yml', __dir__)
       ALLOWED_AGGREGATIONS = %i(daily weekly).freeze
-
-      CATEGORIES_FOR_TOTALS = %w[
-        analytics
-        code_review
-        compliance
-        ecosystem
-        epic_boards_usage
-        epics_usage
-        error_tracking
-        ide_edit
-        incident_management
-        issues_edit
-        pipeline_authoring
-        quickactions
-      ].freeze
-
-      CATEGORIES_COLLECTED_FROM_METRICS_DEFINITIONS = %w[
-        ci_users
-        deploy_token_packages
-        error_tracking
-        ide_edit
-        importer
-        incident_management_alerts
-        kubernetes_agent
-        pipeline_authoring
-        search
-        secure
-        snippets
-        source_code
-        terraform
-        testing
-        user_packages
-        work_items
-      ].freeze
 
       # Track event on entity_id
       # Increment a Redis HLL counter for unique event_name and entity_id
@@ -61,8 +26,6 @@ module Gitlab
       #
       # - name: g_compliance_dashboard # Unique event name
       #   redis_slot: compliance       # Optional slot name, if not defined it will use name as a slot, used for totals
-      #   category: compliance         # Group events in categories
-      #   expiry: 29                   # Optional expiration time in days, default value 29 days for daily and 6.weeks for weekly
       #   aggregation: daily           # Aggregation level, keys are stored daily or weekly
       #   feature_flag:                # The event feature flag
       #
@@ -105,48 +68,8 @@ module Gitlab
         def unique_events(event_names:, start_date:, end_date:, context: '')
           count_unique_events(event_names: event_names, start_date: start_date, end_date: end_date, context: context) do |events|
             raise SlotMismatch, events unless events_in_same_slot?(events)
-            raise CategoryMismatch, events unless events_in_same_category?(events)
             raise AggregationMismatch, events unless events_same_aggregation?(events)
             raise InvalidContext if context.present? && !context.in?(valid_context_list)
-          end
-        end
-
-        def categories
-          @categories ||= known_events.map { |event| event[:category] }.uniq
-        end
-
-        def categories_collected_from_metrics_definitions
-          CATEGORIES_COLLECTED_FROM_METRICS_DEFINITIONS
-        end
-
-        # @param category [String] the category name
-        # @return [Array<String>] list of event names for given category
-        def events_for_category(category)
-          known_events.select { |event| event[:category] == category.to_s }.map { |event| event[:name] }
-        end
-
-        # Recent 7 or 28 days unique events data for events defined in /lib/gitlab/usage_data_counters/known_events/
-        #
-        #   - For metrics for which we store a key per day, we have the last 7 days or last 28 days of data.
-        #   - For metrics for which we store a key per week, we have the last complete week or last 4 complete weeks
-        #     daily or weekly information is in the file we have for events definition /lib/gitlab/usage_data_counters/known_events/
-        #   - Most of the metrics have weekly aggregation. We recommend this as it generates fewer keys in Redis to store.
-        #   - The aggregation used doesn't affect data granulation.
-        def unique_events_data
-          categories_pending_migration.each_with_object({}) do |category, category_results|
-            events_names = events_for_category(category)
-
-            event_results = events_names.each_with_object({}) do |event, hash|
-              hash["#{event}_weekly"] = unique_events(**weekly_time_range.merge(event_names: [event])) unless event == "i_package_composer_deploy_token"
-              hash["#{event}_monthly"] = unique_events(**monthly_time_range.merge(event_names: [event]))
-            end
-
-            if eligible_for_totals?(events_names) && CATEGORIES_FOR_TOTALS.include?(category)
-              event_results["#{category}_total_unique_counts_weekly"] = unique_events(**weekly_time_range.merge(event_names: events_names))
-              event_results["#{category}_total_unique_counts_monthly"] = unique_events(**monthly_time_range.merge(event_names: events_names))
-            end
-
-            category_results["#{category}"] = event_results
           end
         end
 
@@ -167,16 +90,13 @@ module Gitlab
 
         private
 
-        def categories_pending_migration
-          (categories - categories_collected_from_metrics_definitions)
-        end
-
         def track(values, event_name, context: '', time: Time.zone.now)
           return unless ::ServicePing::ServicePingSettings.enabled?
 
           event = event_for(event_name)
           Gitlab::ErrorTracking.track_and_raise_for_dev_exception(UnknownEvent.new("Unknown event #{event_name}")) unless event.present?
 
+          return if event.blank?
           return unless feature_enabled?(event)
 
           Gitlab::Redis::HLL.add(key: redis_key(event, time, context), value: values, expiry: expiry(event))
@@ -211,15 +131,6 @@ module Gitlab
           Feature.enabled?(event[:feature_flag]) && Feature.enabled?(:redis_hll_tracking, type: :ops)
         end
 
-        # Allow to add totals for events that are in the same redis slot, category and have the same aggregation level
-        # and if there are more than 1 event
-        def eligible_for_totals?(events_names)
-          return false if events_names.size <= 1
-
-          events = events_for(events_names)
-          events_in_same_slot?(events) && events_in_same_category?(events) && events_same_aggregation?(events)
-        end
-
         def keys_for_aggregation(aggregation, events:, start_date:, end_date:, context: '')
           if aggregation.to_sym == :daily
             daily_redis_keys(events: events, start_date: start_date, end_date: end_date, context: context)
@@ -251,19 +162,12 @@ module Gitlab
           events.all? { |event| event[:redis_slot].present? && event[:redis_slot] == slot }
         end
 
-        def events_in_same_category?(events)
-          category = events.first[:category]
-          events.all? { |event| event[:category] == category }
-        end
-
         def events_same_aggregation?(events)
           aggregation = events.first[:aggregation]
           events.all? { |event| event[:aggregation] == aggregation }
         end
 
         def expiry(event)
-          return event[:expiry].days if event[:expiry].present?
-
           event[:aggregation].to_sym == :daily ? DEFAULT_DAILY_KEY_EXPIRY_LENGTH : DEFAULT_WEEKLY_KEY_EXPIRY_LENGTH
         end
 

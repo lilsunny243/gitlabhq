@@ -10,6 +10,7 @@ module Ci
     def initialize(current_user:, params:)
       @params = params
       @group = params.delete(:group)
+      @project = params.delete(:project)
       @current_user = current_user
     end
 
@@ -36,13 +37,19 @@ module Ci
     private
 
     def search!
-      @group ? group_runners : all_runners
+      if @project
+        project_runners
+      elsif @group
+        group_runners
+      else
+        all_runners
+      end
 
       @runners = @runners.search(@params[:search]) if @params[:search].present?
     end
 
     def all_runners
-      raise Gitlab::Access::AccessDeniedError unless @current_user&.admin?
+      raise Gitlab::Access::AccessDeniedError unless @current_user&.can_admin_all_resources?
 
       @runners = Ci::Runner.all
     end
@@ -55,9 +62,21 @@ module Ci
                    Ci::Runner.belonging_to_group(@group.id)
                  when :descendants, nil
                    Ci::Runner.belonging_to_group_or_project_descendants(@group.id)
+                 when :all_available
+                   unless can?(@current_user, :read_group_all_available_runners, @group)
+                     raise Gitlab::Access::AccessDeniedError
+                   end
+
+                   Ci::Runner.usable_from_scope(@group)
                  else
                    raise ArgumentError, 'Invalid membership filter'
                  end
+    end
+
+    def project_runners
+      raise Gitlab::Access::AccessDeniedError unless can?(@current_user, :admin_project, @project)
+
+      @runners = ::Ci::Runner.owned_or_instance_wide(@project.id)
     end
 
     def filter_by_active!

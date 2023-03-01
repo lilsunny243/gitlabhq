@@ -119,11 +119,19 @@ RSpec.describe Gitlab::EtagCaching::Middleware, :clean_gitlab_redis_shared_state
     let(:expected_items) do
       {
         etag_route: endpoint,
-        params:     {},
-        format:     :html,
-        method:     'GET',
-        path:       enabled_path,
-        status:     status_code
+        params: {},
+        format: :html,
+        method: 'GET',
+        path: enabled_path,
+        status: status_code,
+        request_urgency: :medium,
+        target_duration_s: 0.5,
+        metadata: a_hash_including(
+          {
+            'meta.caller_id' => 'Projects::NotesController#index',
+            'meta.feature_category' => 'team_planning'
+          }
+        )
       }
     end
 
@@ -137,8 +145,11 @@ RSpec.describe Gitlab::EtagCaching::Middleware, :clean_gitlab_redis_shared_state
       expect(payload[:headers].env['HTTP_IF_NONE_MATCH']).to eq('W/"123"')
     end
 
-    it 'log subscriber processes action' do
-      expect_any_instance_of(ActionController::LogSubscriber).to receive(:process_action)
+    it "publishes process_action.action_controller event to be picked up by lograge's subscriber" do
+      # Lograge unhooks the default Rails subscriber (ActionController::LogSubscriber)
+      # and replaces with its own (Lograge::LogSubscribers::ActionController).
+      # When `lograge.keep_original_rails_log = true`, ActionController::LogSubscriber is kept.
+      expect_any_instance_of(Lograge::LogSubscribers::ActionController).to receive(:process_action)
         .with(instance_of(ActiveSupport::Notifications::Event))
         .and_call_original
 
@@ -172,10 +183,11 @@ RSpec.describe Gitlab::EtagCaching::Middleware, :clean_gitlab_redis_shared_state
       expect(headers).to include('X-Gitlab-From-Cache' => 'true')
     end
 
-    it "pushes route's feature category to the context" do
+    it "pushes expected information in to the context" do
       expect(Gitlab::ApplicationContext).to receive(:push).with(
         feature_category: 'team_planning',
-        caller_id: 'Projects::NotesController#index'
+        caller_id: 'Projects::NotesController#index',
+        remote_ip: '127.0.0.1'
       )
 
       _, _, _ = middleware.call(build_request(path, if_none_match))
@@ -291,7 +303,8 @@ RSpec.describe Gitlab::EtagCaching::Middleware, :clean_gitlab_redis_shared_state
     { 'PATH_INFO' => path,
       'HTTP_IF_NONE_MATCH' => if_none_match,
       'rack.input' => '',
-      'REQUEST_METHOD' => 'GET' }
+      'REQUEST_METHOD' => 'GET',
+      'REMOTE_ADDR' => '127.0.0.1' }
   end
 
   def payload_for(event)

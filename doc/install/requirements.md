@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Installation system requirements **(FREE SELF)**
@@ -54,12 +54,12 @@ Memory requirements are dependent on the number of users and expected workload. 
 
 The following is the recommended minimum Memory hardware guidance for a handful of example GitLab user base sizes.
 
-- **4GB RAM** is the **required** minimum memory size and supports up to 500 users
-  - Our [Memory Team](https://about.gitlab.com/handbook/engineering/development/enablement/data_stores/memory/) is working to reduce the memory requirement.
-- 8GB RAM supports up to 1000 users
+- **4 GB RAM** is the **required** minimum memory size and supports up to 500 users
+  - Our [Memory Team](https://about.gitlab.com/handbook/engineering/development/enablement/data_stores/application_performance/) is working to reduce the memory requirement.
+- 8 GB RAM supports up to 1000 users
 - More users? Consult the [reference architectures page](../administration/reference_architectures/index.md)
 
-In addition to the above, we generally recommend having at least 2GB of swap on your server,
+In addition to the above, we generally recommend having at least 2 GB of swap on your server,
 even if you currently have enough available RAM. Having swap helps to reduce the chance of errors occurring
 if your available memory changes. We also recommend configuring the kernel's swappiness setting
 to a low value like `10` to make the most of your RAM while still having the swap
@@ -77,8 +77,7 @@ process, such as PostgreSQL, which can have disastrous consequences.
 
 PostgreSQL is the only supported database, which is bundled with the Omnibus GitLab package.
 You can also use an [external PostgreSQL database](https://docs.gitlab.com/omnibus/settings/database.html#using-a-non-packaged-postgresql-database-management-server).
-Support for MySQL was removed in GitLab 12.1. Existing users using GitLab with
-MySQL/MariaDB are advised to [migrate to PostgreSQL](../update/mysql_to_postgresql.md) before upgrading.
+Support for MySQL was removed in [GitLab 12.1](../update/index.md#1210).
 
 ### PostgreSQL Requirements
 
@@ -121,6 +120,18 @@ test based on those. We try to be compatible with most external (not managed by
 Omnibus GitLab) databases (for example, [AWS Relational Database Service (RDS)](https://aws.amazon.com/rds/)),
 but we can't guarantee compatibility.
 
+#### Operating system locale compatibility and silent index corruption
+
+Changes to locale data in `glibc` means that PostgreSQL database files are not fully compatible
+between different OS releases.
+
+To avoid index corruption, [check for locale compatibility](../administration/geo/replication/troubleshooting.md#check-os-locale-data-compatibility)
+when:
+
+- Moving binary PostgreSQL data between servers.
+- Upgrading your Linux distribution.
+- Updating or changing third party container images.
+
 #### Gitaly Cluster database requirements
 
 [Read more in the Gitaly Cluster documentation](../administration/gitaly/praefect.md).
@@ -143,7 +154,7 @@ of GitLab Support or other GitLab engineers.
 - GitLab may create new schemas as part of Rails database migrations. This happens when performing
   a GitLab upgrade. The GitLab database account requires access to do this.
 
-- GitLab creates and modifies tables during the upgrade process, and also as part of normal
+- GitLab creates and modifies tables during the upgrade process, and also as part of standard
   operations to manage partitioned tables.
 
 - You should not modify the GitLab schema (for example, adding triggers or modifying tables).
@@ -236,17 +247,17 @@ works.
 
 ### Puma per worker maximum memory
 
-By default, each Puma worker is limited to 1024 MB of memory.
-This setting [can be adjusted](../administration/operations/puma.md#change-the-memory-limit-setting) and should be considered
+By default, each Puma worker is limited to 1.2 GB of memory.
+You can [adjust this memory setting](../administration/operations/puma.md#reducing-memory-use) and should do so
 if you must increase the number of Puma workers.
 
 ## Redis and Sidekiq
 
 Redis stores all user sessions and the background task queue.
-The storage requirements for Redis are minimal, about 25kB per user.
+The storage requirements for Redis are minimal, about 25 kB per user.
 Sidekiq processes the background jobs with a multi-threaded process.
-This process starts with the entire Rails stack (200MB+) but it can grow over time due to memory leaks.
-On a very active server (10,000 billable users) the Sidekiq process can use 1GB+ of memory.
+This process starts with the entire Rails stack (200 MB+) but it can grow over time due to memory leaks.
+On a very active server (10,000 billable users) the Sidekiq process can use 1 GB+ of memory.
 
 ## Prometheus and its exporters
 
@@ -299,7 +310,7 @@ GitLab supports the following web browsers:
 - [Google Chrome](https://www.google.com/chrome/)
 - [Chromium](https://www.chromium.org/getting-involved/dev-channel/)
 - [Apple Safari](https://www.apple.com/safari/)
-- [Microsoft Edge](https://www.microsoft.com/en-us/edge)
+- [Microsoft Edge](https://www.microsoft.com/en-us/edge?form=MA13FJ)
 
 For the listed web browsers, GitLab supports:
 
@@ -322,6 +333,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

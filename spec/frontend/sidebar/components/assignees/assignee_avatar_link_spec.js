@@ -1,7 +1,7 @@
 import { shallowMount } from '@vue/test-utils';
 import { GlLink } from '@gitlab/ui';
 import { TEST_HOST } from 'helpers/test_constants';
-import { TYPE_USER } from '~/graphql_shared/constants';
+import { TYPENAME_USER } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import AssigneeAvatar from '~/sidebar/components/assignees/assignee_avatar.vue';
 import AssigneeAvatarLink from '~/sidebar/components/assignees/assignee_avatar_link.vue';
@@ -46,7 +46,7 @@ describe('AssigneeAvatarLink component', () => {
   it('renders assignee avatar', () => {
     createComponent();
 
-    expect(wrapper.find(AssigneeAvatar).props()).toEqual(
+    expect(wrapper.findComponent(AssigneeAvatar).props()).toEqual(
       expect.objectContaining({
         issuableType: TEST_ISSUABLE_TYPE,
         user: userDataMock(),
@@ -133,7 +133,7 @@ describe('AssigneeAvatarLink component', () => {
     createComponent({
       tooltipHasName: true,
       issuableType: 'issue',
-      user: { ...userDataMock(), id: convertToGraphQLId(TYPE_USER, userId) },
+      user: { ...userDataMock(), id: convertToGraphQLId(TYPENAME_USER, userId) },
     });
 
     expect(findUserLink().attributes('data-user-id')).toBe(String(userId));
@@ -143,7 +143,7 @@ describe('AssigneeAvatarLink component', () => {
     issuableType       | userId
     ${'merge_request'} | ${undefined}
     ${'issue'}         | ${'1'}
-  `('it sets data-user-id as $userId for $issuableType', ({ issuableType, userId }) => {
+  `('sets data-user-id as $userId for $issuableType', ({ issuableType, userId }) => {
     createComponent({
       issuableType,
     });

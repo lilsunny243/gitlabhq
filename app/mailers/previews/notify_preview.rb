@@ -61,7 +61,7 @@ class NotifyPreview < ActionMailer::Preview
   end
 
   def new_mention_in_merge_request_email
-    Notify.new_mention_in_merge_request_email(user.id, issue.id, user.id).message
+    Notify.new_mention_in_merge_request_email(user.id, merge_request.id, user.id).message
   end
 
   def closed_issue_email
@@ -84,6 +84,10 @@ class NotifyPreview < ActionMailer::Preview
     Notify.import_issues_csv_email(user.id, project.id, { success: 3, errors: [5, 6, 7], valid_file: true })
   end
 
+  def import_work_items_csv_email
+    Notify.import_work_items_csv_email(user.id, project.id, { success: 4, error_lines: [2, 3, 4], parse_error: false })
+  end
+
   def issues_csv_email
     Notify.issues_csv_email(user, project, '1997,Ford,E350', { truncated: false, rows_expected: 3, rows_written: 3 }).message
   end
@@ -97,7 +101,7 @@ class NotifyPreview < ActionMailer::Preview
   end
 
   def closed_merge_request_email
-    Notify.closed_merge_request_email(user.id, issue.id, user.id).message
+    Notify.closed_merge_request_email(user.id, merge_request.id, user.id).message
   end
 
   def merge_request_status_email
@@ -181,6 +185,10 @@ class NotifyPreview < ActionMailer::Preview
     Notify.unknown_sign_in_email(user, '127.0.0.1', Time.current).message
   end
 
+  def two_factor_otp_attempt_failed_email
+    Notify.two_factor_otp_attempt_failed_email(user, '127.0.0.1').message
+  end
+
   def new_email_address_added_email
     Notify.new_email_address_added_email(user, 'someone@gitlab.com').message
   end
@@ -205,22 +213,30 @@ class NotifyPreview < ActionMailer::Preview
     Notify.inactive_project_deletion_warning_email(project, user, '2022-04-22').message
   end
 
-  def user_auto_banned_instance_email
-    ::Notify.user_auto_banned_email(user.id, user.id, max_project_downloads: 5, within_seconds: 600).message
-  end
-
-  def user_auto_banned_namespace_email
-    ::Notify.user_auto_banned_email(user.id, user.id, max_project_downloads: 5, within_seconds: 600, group: group).message
-  end
-
   def verification_instructions_email
-    Notify.verification_instructions_email(user.id, token: '123456', expires_in: 60).message
+    Notify.verification_instructions_email(user.email, token: '123456').message
+  end
+
+  def project_was_exported_email
+    Notify.project_was_exported_email(user, project).message
+  end
+
+  def request_review_merge_request_email
+    Notify.request_review_merge_request_email(user.id, merge_request.id, user.id).message
+  end
+
+  def project_was_moved_email
+    Notify.project_was_moved_email(project.id, user.id, "gitlab/gitlab").message
+  end
+
+  def github_gists_import_errors_email
+    Notify.github_gists_import_errors_email(user.id, { '12345' => 'Snippet maximum file count exceeded', '67890' => 'error message 2' }).message
   end
 
   private
 
   def project
-    @project ||= Project.find_by_full_path('gitlab-org/gitlab-test')
+    @project ||= Project.first
   end
 
   def issue

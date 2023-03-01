@@ -10,6 +10,8 @@ import {
 import fuzzaldrinPlus from 'fuzzaldrin-plus';
 import axios from '~/lib/utils/axios_utils';
 import { __, s__ } from '~/locale';
+import Tracking from '~/tracking';
+import { TRACKING_CATEGORIES } from '../../constants';
 
 export const i18n = {
   downloadArtifacts: __('Download artifacts'),
@@ -29,6 +31,7 @@ export default {
     GlSearchBoxByType,
     GlLoadingIcon,
   },
+  mixins: [Tracking.mixin()],
   inject: {
     artifactsEndpoint: {
       default: '',
@@ -52,6 +55,9 @@ export default {
     };
   },
   computed: {
+    hasArtifacts() {
+      return this.artifacts.length > 0;
+    },
     filteredArtifacts() {
       return this.searchQuery.length > 0
         ? fuzzaldrinPlus.filter(this.artifacts, this.searchQuery, { key: 'name' })
@@ -60,6 +66,10 @@ export default {
   },
   methods: {
     fetchArtifacts() {
+      // refactor tracking based on action once this dropdown supports
+      // actions other than artifacts
+      this.track('click_artifacts_dropdown', { label: TRACKING_CATEGORIES.table });
+
       this.isLoading = true;
       // Replace the placeholder with the ID of the pipeline we are viewing
       const endpoint = this.artifactsEndpoint.replace(
@@ -79,7 +89,9 @@ export default {
         });
     },
     handleDropdownShown() {
-      this.$refs.searchInput.focusInput();
+      if (this.hasArtifacts) {
+        this.$refs.searchInput.focusInput();
+      }
     },
   },
 };
@@ -105,12 +117,12 @@ export default {
 
     <gl-loading-icon v-else-if="isLoading" size="sm" />
 
-    <gl-dropdown-item v-else-if="!artifacts.length" data-testid="artifacts-empty-message">
+    <gl-dropdown-item v-else-if="!hasArtifacts" data-testid="artifacts-empty-message">
       {{ $options.i18n.emptyArtifactsMessage }}
     </gl-dropdown-item>
 
     <template #header>
-      <gl-search-box-by-type v-if="artifacts.length" ref="searchInput" v-model.trim="searchQuery" />
+      <gl-search-box-by-type v-if="hasArtifacts" ref="searchInput" v-model.trim="searchQuery" />
     </template>
 
     <gl-dropdown-item

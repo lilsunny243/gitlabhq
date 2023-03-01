@@ -1,22 +1,20 @@
-import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
+import { GlCollapsibleListbox } from '@gitlab/ui';
 import Vue from 'vue';
-import { parseBoolean } from '~/lib/utils/common_utils';
 
 export function parseAttributes(el) {
-  const { items: itemsString, selected, right: rightString } = el.dataset;
+  const { items: itemsString, selected, placement } = el.dataset;
 
   const items = JSON.parse(itemsString);
-  const right = parseBoolean(rightString);
 
   const { className } = el;
 
-  return { items, selected, right, className };
+  return { items, selected, placement, className };
 }
 
 export function initListbox(el, { onChange } = {}) {
   if (!el) return null;
 
-  const { items, selected, right, className } = parseAttributes(el);
+  const { items, selected, placement, className } = parseAttributes(el);
 
   return new Vue({
     el,
@@ -31,37 +29,25 @@ export function initListbox(el, { onChange } = {}) {
       },
     },
     render(h) {
-      return h(
-        GlDropdown,
-        {
-          props: {
-            text: this.text,
-            right,
-          },
-          class: className,
+      return h(GlCollapsibleListbox, {
+        props: {
+          items,
+          placement,
+          selected: this.selected,
+          toggleText: this.text,
         },
-        items.map((item) =>
-          h(
-            GlDropdownItem,
-            {
-              props: {
-                isCheckItem: true,
-                isChecked: this.selected === item.value,
-              },
-              on: {
-                click: () => {
-                  this.selected = item.value;
+        class: className,
+        on: {
+          select: (selectedValue) => {
+            this.selected = selectedValue;
+            const selectedItem = items.find(({ value }) => value === selectedValue);
 
-                  if (typeof onChange === 'function') {
-                    onChange(item);
-                  }
-                },
-              },
-            },
-            item.text,
-          ),
-        ),
-      );
+            if (typeof onChange === 'function') {
+              onChange(selectedItem);
+            }
+          },
+        },
+      });
     },
   });
 }

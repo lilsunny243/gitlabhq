@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 # Test an operation that triggers background jobs requiring administrative rights
-RSpec.describe 'Admin mode for workers', :request_store do
+RSpec.describe 'Admin mode for workers', :request_store, feature_category: :system_access do
   include Spec::Support::Helpers::Features::AdminUsersHelpers
 
   let(:user) { create(:user) }
@@ -56,7 +56,7 @@ RSpec.describe 'Admin mode for workers', :request_store do
 
         visit admin_user_path(user_to_delete)
 
-        expect(page).to have_title('Not Found')
+        expect(find('h1.page-title')).to have_content('(Blocked)')
       end
     end
   end

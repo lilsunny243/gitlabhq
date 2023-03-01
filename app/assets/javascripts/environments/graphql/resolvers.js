@@ -30,8 +30,8 @@ const mapEnvironment = (env) => ({
 
 export const resolvers = (endpoint) => ({
   Query: {
-    environmentApp(_context, { page, scope }, { cache }) {
-      return axios.get(endpoint, { params: { nested: true, page, scope } }).then((res) => {
+    environmentApp(_context, { page, scope, search }, { cache }) {
+      return axios.get(endpoint, { params: { nested: true, page, scope, search } }).then((res) => {
         const headers = normalizeHeaders(res.headers);
         const interval = headers['POLL-INTERVAL'];
         const pageInfo = { ...parseIntPagination(headers), __typename: 'LocalPageInfo' };
@@ -54,13 +54,14 @@ export const resolvers = (endpoint) => ({
             ...convertObjectPropsToCamelCase(res.data.review_app),
             __typename: 'ReviewApp',
           },
+          canStopStaleEnvironments: res.data.can_stop_stale_environments,
           stoppedCount: res.data.stopped_count,
           __typename: 'LocalEnvironmentApp',
         };
       });
     },
-    folder(_, { environment: { folderPath }, scope }) {
-      return axios.get(folderPath, { params: { scope, per_page: 3 } }).then((res) => ({
+    folder(_, { environment: { folderPath }, scope, search }) {
+      return axios.get(folderPath, { params: { scope, search, per_page: 3 } }).then((res) => ({
         availableCount: res.data.available_count,
         environments: res.data.environments.map(mapEnvironment),
         stoppedCount: res.data.stopped_count,

@@ -16,13 +16,13 @@ RSpec.describe API::Entities::Release do
   end
 
   describe 'evidences' do
-    context 'when the current user can download code' do
+    context 'when the current user can read code' do
       let(:entity_evidence) { entity[:evidences].first }
 
       it 'exposes the evidence sha and the json path' do
         allow(Ability).to receive(:allowed?).and_call_original
         allow(Ability).to receive(:allowed?)
-          .with(user, :download_code, project).and_return(true)
+          .with(user, :read_code, project).and_return(true)
 
         expect(entity_evidence[:sha]).to eq(evidence.summary_sha)
         expect(entity_evidence[:collected_at]).to eq(evidence.collected_at)
@@ -36,11 +36,11 @@ RSpec.describe API::Entities::Release do
       end
     end
 
-    context 'when the current user cannot download code' do
+    context 'when the current user cannot read code' do
       it 'does not expose any evidence data' do
         allow(Ability).to receive(:allowed?).and_call_original
         allow(Ability).to receive(:allowed?)
-          .with(user, :download_code, project).and_return(false)
+          .with(user, :read_code, project).and_return(false)
 
         expect(entity.keys).not_to include(:evidences)
       end
@@ -75,6 +75,18 @@ RSpec.describe API::Entities::Release do
         expect(description_html).not_to include(issue_path)
         expect(description_html).not_to include(issue_title)
       end
+    end
+  end
+
+  describe 'links' do
+    subject(:links) { entity.as_json['_links'] }
+
+    before do
+      project.add_developer(user)
+    end
+
+    it 'includes links' do
+      expect(links.keys).to include('closed_issues_url', 'closed_merge_requests_url', 'edit_url', 'merged_merge_requests_url', 'opened_issues_url', 'opened_merge_requests_url', 'self')
     end
   end
 end

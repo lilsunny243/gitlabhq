@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Project iterations API **(PREMIUM)**
@@ -22,8 +22,8 @@ Returns a list of project iterations.
 GET /projects/:id/iterations
 GET /projects/:id/iterations?state=opened
 GET /projects/:id/iterations?state=closed
-GET /projects/:id/iterations?title=1.0
 GET /projects/:id/iterations?search=version
+GET /projects/:id/iterations?include_ancestors=false
 ```
 
 | Attribute           | Type    | Required | Description |

@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Pipelines API **(FREE)**
@@ -11,7 +11,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 By default, `GET` requests return 20 results at a time because the API results
 are paginated.
 
-Read more on [pagination](index.md#pagination).
+Read more on [pagination](rest/index.md#pagination).
 
 ## List project pipelines
 
@@ -26,7 +26,7 @@ GET /projects/:id/pipelines
 
 | Attribute | Type    | Required | Description         |
 |-----------|---------|----------|---------------------|
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `scope`   | string  | no       | The scope of pipelines, one of: `running`, `pending`, `finished`, `branches`, `tags` |
 | `status`  | string  | no       | The status of pipelines, one of: `created`, `waiting_for_resource`, `preparing`, `pending`, `running`, `success`, `failed`, `canceled`, `skipped`, `manual`, `scheduled` |
 | `source`  | string  | no       | In [GitLab 14.3 and later](https://gitlab.com/gitlab-org/gitlab/-/issues/325439), how the pipeline was triggered, one of: `push`, `web`, `trigger`, `schedule`, `api`, `external`, `pipeline`, `chat`, `webide`, `merge_request_event`, `external_pull_request_event`, `parent_pipeline`, `ondemand_dast_scan`, or `ondemand_dast_validation`. |
@@ -80,7 +80,7 @@ Example of response
 
 Get one pipeline from a project.
 
-You can also get a single [child pipeline](../ci/pipelines/parent_child_pipelines.md).
+You can also get a single [child pipeline](../ci/pipelines/downstream_pipelines.md#parent-child-pipelines).
 [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/36494) in GitLab 13.3.
 
 ```plaintext
@@ -89,7 +89,7 @@ GET /projects/:id/pipelines/:pipeline_id
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes      | The ID of a pipeline   |
 
 ```shell
@@ -137,7 +137,7 @@ GET /projects/:id/pipelines/:pipeline_id/variables
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes      | The ID of a pipeline   |
 
 ```shell
@@ -173,7 +173,7 @@ GET /projects/:id/pipelines/:pipeline_id/test_report
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes      | The ID of a pipeline   |
 
 Sample request:
@@ -229,7 +229,7 @@ GET /projects/:id/pipelines/:pipeline_id/test_report_summary
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes      | The ID of a pipeline   |
 
 Sample request:
@@ -269,6 +269,67 @@ Sample response:
 }
 ```
 
+## Get the latest pipeline
+
+Get the latest pipeline for a specific ref in a project.
+
+```plaintext
+GET /projects/:id/pipelines/latest
+```
+
+| Attribute   | Type    | Required | Description         |
+|-------------|---------|----------|---------------------|
+| `ref`       | string  | no       | The branch or tag to check for the latest pipeline. Defaults to the default branch when not specified. |
+
+```shell
+curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/pipelines/latest"
+```
+
+Example of response
+
+```json
+{
+    "id": 287,
+    "iid": 144,
+    "project_id": 21,
+    "sha": "50f0acb76a40e34a4ff304f7347dcc6587da8a14",
+    "ref": "main",
+    "status": "success",
+    "source": "push",
+    "created_at": "2022-09-21T01:05:07.200Z",
+    "updated_at": "2022-09-21T01:05:50.185Z",
+    "web_url": "http://127.0.0.1:3000/test-group/test-project/-/pipelines/287",
+    "before_sha": "8a24fb3c5877a6d0b611ca41fc86edc174593e2b",
+    "tag": false,
+    "yaml_errors": null,
+    "user": {
+        "id": 1,
+        "username": "root",
+        "name": "Administrator",
+        "state": "active",
+        "avatar_url": "https://www.gravatar.com/avatar/e64c7d89f26bd1972efa854d13d7dd61?s=80&d=identicon",
+        "web_url": "http://127.0.0.1:3000/root"
+    },
+    "started_at": "2022-09-21T01:05:14.197Z",
+    "finished_at": "2022-09-21T01:05:50.175Z",
+    "committed_at": null,
+    "duration": 34,
+    "queued_duration": 6,
+    "coverage": null,
+    "detailed_status": {
+        "icon": "status_success",
+        "text": "passed",
+        "label": "passed",
+        "group": "success",
+        "tooltip": "passed",
+        "has_details": false,
+        "details_path": "/test-group/test-project/-/pipelines/287",
+        "illustration": null,
+        "favicon": "/assets/ci_favicons/favicon_status_success-8451333011eee8ce9f2ab25dc487fe24a8758c694827a582f17f42b0a90446a2.png"
+    }
+}
+```
+
 ## Create a new pipeline
 
 > `iid` in response [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/342223) in GitLab 14.6.
@@ -279,9 +340,9 @@ POST /projects/:id/pipeline
 
 | Attribute   | Type    | Required | Description         |
 |-------------|---------|----------|---------------------|
-| `id`        | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`        | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `ref`       | string  | yes      | The branch or tag to run the pipeline on. |
-| `variables` | array   | no       | An [array of hashes](index.md#array-of-hashes) containing the variables available in the pipeline, matching the structure `[{ 'key': 'UPLOAD_TO_S3', 'variable_type': 'file', 'value': 'true' }, {'key': 'TEST', 'value': 'test variable'}]`. If `variable_type` is excluded, it defaults to `env_var`. |
+| `variables` | array   | no       | An [array of hashes](rest/index.md#array-of-hashes) containing the variables available in the pipeline, matching the structure `[{ 'key': 'UPLOAD_TO_S3', 'variable_type': 'file', 'value': 'true' }, {'key': 'TEST', 'value': 'test variable'}]`. If `variable_type` is excluded, it defaults to `env_var`. |
 
 ```shell
 curl --request POST --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/pipeline?ref=main"
@@ -330,7 +391,7 @@ POST /projects/:id/pipelines/:pipeline_id/retry
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes   | The ID of a pipeline |
 
 ```shell
@@ -378,7 +439,7 @@ POST /projects/:id/pipelines/:pipeline_id/cancel
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes   | The ID of a pipeline |
 
 ```shell
@@ -427,7 +488,7 @@ related objects, such as builds, logs, artifacts, and triggers.
 **This action cannot be undone.**
 
 Deleting a pipeline does not automatically delete its
-[child pipelines](../ci/pipelines/parent_child_pipelines.md).
+[child pipelines](../ci/pipelines/downstream_pipelines.md#parent-child-pipelines).
 See the [related issue](https://gitlab.com/gitlab-org/gitlab/-/issues/39503)
 for details.
 
@@ -437,7 +498,7 @@ DELETE /projects/:id/pipelines/:pipeline_id
 
 | Attribute  | Type    | Required | Description         |
 |------------|---------|----------|---------------------|
-| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`       | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `pipeline_id` | integer | yes      | The ID of a pipeline   |
 
 ```shell

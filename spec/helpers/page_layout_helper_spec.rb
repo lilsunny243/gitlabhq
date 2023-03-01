@@ -108,8 +108,8 @@ RSpec.describe PageLayoutHelper do
       tags = helper.page_card_meta_tags
 
       aggregate_failures do
-        expect(tags).to include %q(<meta property="twitter:label1" content="foo" />)
-        expect(tags).to include %q(<meta property="twitter:data1" content="bar" />)
+        expect(tags).to include %q(<meta property="twitter:label1" content="foo">)
+        expect(tags).to include %q(<meta property="twitter:data1" content="bar">)
       end
     end
 
@@ -222,6 +222,22 @@ RSpec.describe PageLayoutHelper do
     end
   end
 
+  describe '#full_content_class' do
+    before do
+      allow(helper).to receive(:current_user).and_return(build(:user))
+    end
+
+    it 'has a content_class set' do
+      assign(:content_class, '_content_class_')
+
+      expect(helper.full_content_class).to eq 'container-fluid container-limited _content_class_'
+    end
+
+    it 'has no content_class set' do
+      expect(helper.full_content_class).to eq 'container-fluid container-limited '
+    end
+  end
+
   describe '#user_status_properties' do
     let(:user) { build(:user) }
 
@@ -241,12 +257,17 @@ RSpec.describe PageLayoutHelper do
       let(:time) { 3.hours.ago }
 
       before do
-        user.status = UserStatus.new(message: 'Some message', emoji: 'basketball', availability: 'busy', clear_status_at: time)
+        user.status = UserStatus.new(
+          message: 'Some message',
+          emoji: 'basketball',
+          availability: 'busy',
+          clear_status_at: time
+        )
       end
 
       it 'merges the status properties with the defaults' do
         is_expected.to eq({
-          current_clear_status_after: time.to_s,
+          current_clear_status_after: time.to_s(:iso8601),
           current_availability: 'busy',
           current_emoji: 'basketball',
           current_message: 'Some message',

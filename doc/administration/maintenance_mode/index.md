@@ -1,16 +1,16 @@
 ---
 stage: Systems
 group: Geo
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Maintenance Mode **(PREMIUM SELF)**
 
 > [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2149) in GitLab 13.9.
 
-Maintenance Mode allows administrators to reduce write operations to a minimum while maintenance tasks are performed. The main goal is to block all external actions that change the internal state, including the PostgreSQL database, but especially files, Git repositories, Container repositories, and so on.
+Maintenance Mode allows administrators to reduce write operations to a minimum while maintenance tasks are performed. The main goal is to block all external actions that change the internal state, including the PostgreSQL database, but especially files, Git repositories, and Container repositories.
 
-Once Maintenance Mode is enabled, in-progress actions finish relatively quickly since no new actions are coming in, and internal state changes are minimal.
+When Maintenance Mode is enabled, in-progress actions finish relatively quickly since no new actions are coming in, and internal state changes are minimal.
 In that state, various maintenance tasks are easier, and services can be stopped completely or be
 further degraded for a much shorter period of time than might otherwise be needed. For example, stopping cron jobs and draining queues should be fairly quick.
 
@@ -21,7 +21,7 @@ Maintenance Mode allows most external actions that do not change internal state.
 There are three ways to enable Maintenance Mode as an administrator:
 
 - **Web UI**:
-  1. On the top bar, select **Menu > Admin**.
+  1. On the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Settings > General**.
   1. Expand **Maintenance Mode**, and toggle **Enable Maintenance Mode**.
      You can optionally add a message for the banner as well.
@@ -45,7 +45,7 @@ There are three ways to enable Maintenance Mode as an administrator:
 There are three ways to disable Maintenance Mode:
 
 - **Web UI**:
-  1. On the top bar, select **Menu > Admin**.
+  1. On the top bar, select **Main menu > Admin**.
   1. On the left sidebar, select **Settings > General**.
   1. Expand **Maintenance Mode**, and toggle **Enable Maintenance Mode**.
      You can optionally add a message for the banner as well.
@@ -82,9 +82,9 @@ them to disable Maintenance Mode after it's been enabled.
 
 ### Authentication
 
-All users can log in and out of the GitLab instance but no new users can be created.
+All users can sign in and out of the GitLab instance but no new users can be created.
 
-If there are [LDAP syncs](../auth/ldap/index.md) scheduled for that time, they fail since user creation is disabled. Similarly, [user creations based on SAML](../../integration/saml.md#general-setup) fail.
+If there are [LDAP syncs](../auth/ldap/index.md) scheduled for that time, they fail since user creation is disabled. Similarly, [user creations based on SAML](../../integration/saml.md#configure-saml-support-in-gitlab) fail.
 
 ### Git actions
 
@@ -113,9 +113,9 @@ For most JSON requests, `POST`, `PUT`, `PATCH`, and `DELETE` are blocked, and th
 |:----:|:--------------------------------------:|:----:|
 | `POST` | `/admin/application_settings/general` | To allow updating application settings in the administrator UI |
 | `PUT`  | `/api/v4/application/settings` | To allow updating application settings with the API |
-| `POST` | `/users/sign_in` | To allow users to log in. |
-| `POST` | `/users/sign_out`| To allow users to log out. |
-| `POST` | `/oauth/token` | To allow users to log in to a Geo secondary for the first time. |
+| `POST` | `/users/sign_in` | To allow users to sign in. |
+| `POST` | `/users/sign_out`| To allow users to sign out. |
+| `POST` | `/oauth/token` | To allow users to sign in to a Geo secondary for the first time. |
 | `POST` | `/admin/session`, `/admin/session/destroy` | To allow [Admin Mode for GitLab administrators](https://gitlab.com/groups/gitlab-org/-/epics/2158) |
 | `POST` | Paths ending with `/compare`| Git revision routes. |
 | `POST` | `.git/git-upload-pack` | To allow Git pull/clone. |
@@ -150,7 +150,7 @@ is turned off.
 
 Deployments don't go through because pipelines are unfinished.
 
-It is recommended to disable auto deploys during Maintenance Mode, and enable them once it is disabled.
+It is recommended to disable auto deploys during Maintenance Mode, and enable them when it is disabled.
 
 #### Terraform integration
 
@@ -173,12 +173,12 @@ it is recommended that you disable all cron jobs except for those related to Geo
 
 To monitor queues and disable jobs:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Monitoring > Background Jobs**.
 
 ### Incident management
 
-[Incident management](../../operations/incident_management/index.md) functions are limited. The creation of [alerts](../../operations/incident_management/alerts.md) and [incidents](../../operations/incident_management/incidents.md#incident-creation) are paused entirely. Notifications and paging on alerts and incidents are therefore disabled.
+[Incident management](../../operations/incident_management/index.md) functions are limited. The creation of [alerts](../../operations/incident_management/alerts.md) and [incidents](../../operations/incident_management/manage_incidents.md#create-an-incident) are paused entirely. Notifications and paging on alerts and incidents are therefore disabled.
 
 ### Feature flags
 

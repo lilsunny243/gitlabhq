@@ -1,10 +1,10 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Merge request widget extensions **(FREE)**
+# Merge request widget extensions
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/44616) in GitLab 13.6.
 
@@ -40,7 +40,7 @@ export default {
     summary(data) {},     // Required: Level 1 summary text
     statusIcon(data) {},  // Required: Level 1 status icon
     tertiaryButtons() {}, // Optional: Level 1 action buttons
-    shouldCollapse() {}, // Optional: Add logic to determine if the widget can expand or not
+    shouldCollapse(data) {}, // Optional: Add logic to determine if the widget can expand or not
   },
   methods: {
     fetchCollapsedData(props) {}, // Required: Fetches data required for collapsed state
@@ -85,7 +85,7 @@ special formatting is required. When the extension receives this data,
 it is set to `collapsedData`. You can access `collapsedData` in any computed property or
 method.
 
-When the user clicks **Expand**, the `fetchFullData` method is called. This method
+When the user selects **Expand**, the `fetchFullData` method is called. This method
 also gets called with the props as an argument. This method **must** also return
 the full data. However, this data must be correctly formatted to match the format
 mentioned in the data structure section.
@@ -355,7 +355,12 @@ To generate these known events for a single widget:
     1. `redis_slot` = `code_review`
     1. `category` = `code_review`
     1. `aggregation` = `weekly`
-1. Add each event to the appropriate aggregates in `config/metrics/aggregates/code_review.yml`
+1. Add each event (those listed in the command in step 7, replacing `test_reports`
+   with the appropriate name slug) to the aggregate files:
+    1. `config/metrics/counts_7d/{timestamp}_code_review_category_monthly_active_users.yml`
+    1. `config/metrics/counts_7d/{timestamp}_code_review_group_monthly_active_users.yml`
+    1. `config/metrics/counts_28d/{timestamp}_code_review_category_monthly_active_users.yml`
+    1. `config/metrics/counts_28d/{timestamp}_code_review_group_monthly_active_users.yml`
 
 ### Add new events
 

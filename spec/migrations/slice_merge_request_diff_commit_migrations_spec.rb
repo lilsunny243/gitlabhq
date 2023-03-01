@@ -3,7 +3,7 @@
 require 'spec_helper'
 require_migration!
 
-RSpec.describe SliceMergeRequestDiffCommitMigrations, :migration do
+RSpec.describe SliceMergeRequestDiffCommitMigrations, :migration, feature_category: :code_review_workflow do
   let(:migration) { described_class.new }
 
   describe '#up' do
@@ -49,12 +49,13 @@ RSpec.describe SliceMergeRequestDiffCommitMigrations, :migration do
           .pending
           .to_a
 
-        expect(new_jobs.map(&:arguments)).to eq([
-          [1, 5_001],
-          [5_001, 10_001],
-          [10_001, 15_001],
-          [15_001, 20_001]
-        ])
+        expect(new_jobs.map(&:arguments)).to eq(
+          [
+            [1, 5_001],
+            [5_001, 10_001],
+            [10_001, 15_001],
+            [15_001, 20_001]
+          ])
       end
 
       it 'schedules a background migration for the first job' do

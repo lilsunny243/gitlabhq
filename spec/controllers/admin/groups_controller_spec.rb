@@ -43,65 +43,57 @@ RSpec.describe Admin::GroupsController do
         post :create, params: { group: {  path: 'test', name: 'test', admin_note_attributes: { note: 'test' } } }
       end.to change { Namespace::AdminNote.count }.by(1)
     end
+
+    it 'delegates to Groups::CreateService service instance' do
+      expect_next_instance_of(::Groups::CreateService) do |service|
+        expect(service).to receive(:execute).once.and_call_original
+      end
+
+      post :create, params: { group: { path: 'test', name: 'test' } }
+    end
   end
 
-  describe 'PUT #members_update' do
-    let_it_be(:group_user) { create(:user) }
-
-    it 'adds user to members', :aggregate_failures, :snowplow do
-      put :members_update, params: {
-                             id: group,
-                             user_id: group_user.id,
-                             access_level: Gitlab::Access::GUEST
-                           }
-
-      expect(controller).to set_flash.to 'Users were successfully added.'
-      expect(response).to redirect_to(admin_group_path(group))
-      expect(group.users).to include group_user
-      expect_snowplow_event(
-        category: 'Members::CreateService',
-        action: 'create_member',
-        label: 'admin-group-page',
-        property: 'existing_user',
-        user: admin
-      )
+  describe 'PUT #update' do
+    subject(:update!) do
+      put :update, params: { id: group.to_param, group: { runner_registration_enabled: new_value } }
     end
 
-    it 'can add unlimited members', :aggregate_failures do
-      put :members_update, params: {
-                             id: group,
-                             user_id: 1.upto(1000).to_a.join(','),
-                             access_level: Gitlab::Access::GUEST
-                           }
+    context 'with runner registration disabled' do
+      let(:runner_registration_enabled) { false }
+      let(:new_value) { '1' }
 
-      expect(controller).to set_flash.to 'Users were successfully added.'
-      expect(response).to redirect_to(admin_group_path(group))
+      it 'updates the setting successfully' do
+        update!
+
+        expect(response).to have_gitlab_http_status(:found)
+        expect(group.reload.runner_registration_enabled).to eq(true)
+      end
+
+      it 'does not change the registration token' do
+        expect do
+          update!
+          group.reload
+        end.not_to change(group, :runners_token)
+      end
     end
 
-    it 'adds no user to members', :aggregate_failures do
-      put :members_update, params: {
-                             id: group,
-                             user_id: '',
-                             access_level: Gitlab::Access::GUEST
-                           }
+    context 'with runner registration enabled' do
+      let(:runner_registration_enabled) { true }
+      let(:new_value) { '0' }
 
-      expect(controller).to set_flash.to 'No users specified.'
-      expect(response).to redirect_to(admin_group_path(group))
-      expect(group.users).not_to include group_user
-    end
+      it 'updates the setting successfully' do
+        update!
 
-    it 'updates the project_creation_level successfully' do
-      expect do
-        post :update, params: { id: group.to_param, group: { project_creation_level: ::Gitlab::Access::NO_ONE_PROJECT_ACCESS } }
-      end.to change { group.reload.project_creation_level }.to(::Gitlab::Access::NO_ONE_PROJECT_ACCESS)
-    end
+        expect(response).to have_gitlab_http_status(:found)
+        expect(group.reload.runner_registration_enabled).to eq(false)
+      end
 
-    it 'updates the subgroup_creation_level successfully' do
-      expect do
-        post :update,
-             params: { id: group.to_param,
-                       group: { subgroup_creation_level: ::Gitlab::Access::OWNER_SUBGROUP_ACCESS } }
-      end.to change { group.reload.subgroup_creation_level }.to(::Gitlab::Access::OWNER_SUBGROUP_ACCESS)
+      it 'changes the registration token' do
+        expect do
+          update!
+          group.reload
+        end.to change(group, :runners_token)
+      end
     end
   end
 end

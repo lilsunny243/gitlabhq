@@ -13,9 +13,15 @@ import * as diffActions from '~/diffs/store/actions';
 import * as types from '~/diffs/store/mutation_types';
 import * as utils from '~/diffs/store/utils';
 import * as treeWorkerUtils from '~/diffs/utils/tree_worker_utils';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
 import * as commonUtils from '~/lib/utils/common_utils';
+import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_NOT_FOUND,
+  HTTP_STATUS_OK,
+} from '~/lib/utils/http_status';
 import { mergeUrlParams } from '~/lib/utils/url_utility';
 import eventHub from '~/notes/event_hub';
 import { diffMetadata } from '../mock_data/diff_metadata';
@@ -54,7 +60,7 @@ describe('DiffsStoreActions', () => {
     ['requestAnimationFrame', 'requestIdleCallback'].forEach((method) => {
       global[method] = originalMethods[method];
     });
-    createFlash.mockClear();
+    createAlert.mockClear();
     mock.restore();
   });
 
@@ -142,7 +148,7 @@ describe('DiffsStoreActions', () => {
             endpointBatch,
           ),
         )
-        .reply(200, res1)
+        .reply(HTTP_STATUS_OK, res1)
         .onGet(
           mergeUrlParams(
             {
@@ -154,7 +160,7 @@ describe('DiffsStoreActions', () => {
             endpointBatch,
           ),
         )
-        .reply(200, res2);
+        .reply(HTTP_STATUS_OK, res2);
 
       return testAction(
         diffActions.fetchDiffFilesBatch,
@@ -175,48 +181,23 @@ describe('DiffsStoreActions', () => {
         [{ type: 'startRenderDiffsQueue' }, { type: 'startRenderDiffsQueue' }],
       );
     });
-
-    it.each`
-      viewStyle     | otherView
-      ${'inline'}   | ${'parallel'}
-      ${'parallel'} | ${'inline'}
-    `(
-      'should make a request with the view parameter "$viewStyle" when the batchEndpoint already contains "$otherView"',
-      ({ viewStyle, otherView }) => {
-        const endpointBatch = '/fetch/diffs_batch';
-
-        diffActions
-          .fetchDiffFilesBatch({
-            commit: () => {},
-            state: {
-              endpointBatch: `${endpointBatch}?view=${otherView}`,
-              diffViewType: viewStyle,
-            },
-          })
-          .then(() => {
-            expect(mock.history.get[0].url).toContain(`view=${viewStyle}`);
-            expect(mock.history.get[0].url).not.toContain(`view=${otherView}`);
-          })
-          .catch(() => {});
-      },
-    );
   });
 
   describe('fetchDiffFilesMeta', () => {
-    const endpointMetadata = '/fetch/diffs_metadata.json?view=inline';
+    const endpointMetadata = '/fetch/diffs_metadata.json?view=inline&w=0';
     const noFilesData = { ...diffMetadata };
 
     beforeEach(() => {
       delete noFilesData.diff_files;
-
-      mock.onGet(endpointMetadata).reply(200, diffMetadata);
     });
 
     it('should fetch diff meta information', () => {
+      mock.onGet(endpointMetadata).reply(HTTP_STATUS_OK, diffMetadata);
+
       return testAction(
         diffActions.fetchDiffFilesMeta,
         {},
-        { endpointMetadata, diffViewType: 'inline' },
+        { endpointMetadata, diffViewType: 'inline', showWhitespace: true },
         [
           { type: types.SET_LOADING, payload: true },
           { type: types.SET_LOADING, payload: false },
@@ -231,6 +212,44 @@ describe('DiffsStoreActions', () => {
         [],
       );
     });
+
+    it('should show a warning on 404 reponse', async () => {
+      mock.onGet(endpointMetadata).reply(HTTP_STATUS_NOT_FOUND);
+
+      await testAction(
+        diffActions.fetchDiffFilesMeta,
+        {},
+        { endpointMetadata, diffViewType: 'inline', showWhitespace: true },
+        [{ type: types.SET_LOADING, payload: true }],
+        [],
+      );
+
+      expect(createAlert).toHaveBeenCalledTimes(1);
+      expect(createAlert).toHaveBeenCalledWith({
+        message: expect.stringMatching(
+          'Building your merge request. Wait a few moments, then refresh this page.',
+        ),
+        variant: 'warning',
+      });
+    });
+
+    it('should show no warning on any other status code', async () => {
+      mock.onGet(endpointMetadata).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+      try {
+        await testAction(
+          diffActions.fetchDiffFilesMeta,
+          {},
+          { endpointMetadata, diffViewType: 'inline', showWhitespace: true },
+          [{ type: types.SET_LOADING, payload: true }],
+          [],
+        );
+      } catch (error) {
+        expect(error.response.status).toBe(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      }
+
+      expect(createAlert).not.toHaveBeenCalled();
+    });
   });
 
   describe('fetchCoverageFiles', () => {
@@ -239,7 +258,7 @@ describe('DiffsStoreActions', () => {
     it('should commit SET_COVERAGE_DATA with received response', () => {
       const data = { files: { 'app.js': { 1: 0, 2: 1 } } };
 
-      mock.onGet(endpointCoverage).reply(200, { data });
+      mock.onGet(endpointCoverage).reply(HTTP_STATUS_OK, { data });
 
       return testAction(
         diffActions.fetchCoverageFiles,
@@ -251,11 +270,11 @@ describe('DiffsStoreActions', () => {
     });
 
     it('should show flash on API error', async () => {
-      mock.onGet(endpointCoverage).reply(400);
+      mock.onGet(endpointCoverage).reply(HTTP_STATUS_BAD_REQUEST);
 
       await testAction(diffActions.fetchCoverageFiles, {}, { endpointCoverage }, [], []);
-      expect(createFlash).toHaveBeenCalledTimes(1);
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledTimes(1);
+      expect(createAlert).toHaveBeenCalledWith({
         message: expect.stringMatching('Something went wrong'),
       });
     });
@@ -374,7 +393,7 @@ describe('DiffsStoreActions', () => {
       return testAction(
         diffActions.assignDiscussionsToDiff,
         [],
-        { diffFiles: [] },
+        { diffFiles: [], flatBlobsList: [] },
         [],
         [{ type: 'setCurrentDiffFileIdFromNote', payload: '123' }],
       );
@@ -536,7 +555,7 @@ describe('DiffsStoreActions', () => {
       const nextLineNumbers = {};
       const options = { endpoint, params, lineNumbers, fileHash, isExpandDown, nextLineNumbers };
       const contextLines = { contextLines: [{ lineCode: 6 }] };
-      mock.onGet(endpoint).reply(200, contextLines);
+      mock.onGet(endpoint).reply(HTTP_STATUS_OK, contextLines);
 
       return testAction(
         diffActions.loadMoreLines,
@@ -559,7 +578,7 @@ describe('DiffsStoreActions', () => {
       const file = { hash: 123, load_collapsed_diff_url: '/load/collapsed/diff/url' };
       const data = { hash: 123, parallelDiffLines: [{ lineCode: 1 }] };
       const commit = jest.fn();
-      mock.onGet(file.loadCollapsedDiffUrl).reply(200, data);
+      mock.onGet(file.loadCollapsedDiffUrl).reply(HTTP_STATUS_OK, data);
 
       return diffActions
         .loadCollapsedDiff({ commit, getters: { commitId: null }, state }, file)
@@ -595,6 +614,50 @@ describe('DiffsStoreActions', () => {
 
       expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
         params: { commit_id: '123', w: '0' },
+      });
+    });
+
+    describe('version parameters', () => {
+      const diffId = '4';
+      const startSha = 'abc';
+      const pathRoot = 'a/a/-/merge_requests/1';
+      let file;
+      let getters;
+
+      beforeAll(() => {
+        file = { load_collapsed_diff_url: '/load/collapsed/diff/url' };
+        getters = {};
+      });
+
+      beforeEach(() => {
+        jest.spyOn(axios, 'get').mockReturnValue(Promise.resolve({ data: {} }));
+      });
+
+      it('fetches the data when there is no mergeRequestDiff', () => {
+        diffActions.loadCollapsedDiff({ commit() {}, getters, state }, file);
+
+        expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
+          params: expect.any(Object),
+        });
+      });
+
+      it.each`
+        desc                                   | versionPath                                              | start_sha    | diff_id
+        ${'no additional version information'} | ${`${pathRoot}?search=terms`}                            | ${undefined} | ${undefined}
+        ${'the diff_id'}                       | ${`${pathRoot}?diff_id=${diffId}`}                       | ${undefined} | ${diffId}
+        ${'the start_sha'}                     | ${`${pathRoot}?start_sha=${startSha}`}                   | ${startSha}  | ${undefined}
+        ${'all available version information'} | ${`${pathRoot}?diff_id=${diffId}&start_sha=${startSha}`} | ${startSha}  | ${diffId}
+      `('fetches the data and includes $desc', ({ versionPath, start_sha, diff_id }) => {
+        jest.spyOn(axios, 'get').mockReturnValue(Promise.resolve({ data: {} }));
+
+        diffActions.loadCollapsedDiff(
+          { commit() {}, getters, state: { mergeRequestDiff: { version_path: versionPath } } },
+          file,
+        );
+
+        expect(axios.get).toHaveBeenCalledWith(file.load_collapsed_diff_url, {
+          params: expect.objectContaining({ start_sha, diff_id }),
+        });
       });
     });
   });
@@ -954,7 +1017,7 @@ describe('DiffsStoreActions', () => {
       putSpy = jest.spyOn(axios, 'put');
       gon = window.gon;
 
-      mock.onPut(endpointUpdateUser).reply(200, {});
+      mock.onPut(endpointUpdateUser).reply(HTTP_STATUS_OK, {});
       jest.spyOn(eventHub, '$emit').mockImplementation();
     });
 
@@ -1031,7 +1094,7 @@ describe('DiffsStoreActions', () => {
   describe('fetchFullDiff', () => {
     describe('success', () => {
       beforeEach(() => {
-        mock.onGet(`${TEST_HOST}/context`).replyOnce(200, ['test']);
+        mock.onGet(`${TEST_HOST}/context`).replyOnce(HTTP_STATUS_OK, ['test']);
       });
 
       it('commits the success and dispatches an action to expand the new lines', () => {
@@ -1052,7 +1115,7 @@ describe('DiffsStoreActions', () => {
 
     describe('error', () => {
       beforeEach(() => {
-        mock.onGet(`${TEST_HOST}/context`).replyOnce(500);
+        mock.onGet(`${TEST_HOST}/context`).replyOnce(HTTP_STATUS_INTERNAL_SERVER_ERROR);
       });
 
       it('dispatches receiveFullDiffError', () => {
@@ -1116,7 +1179,7 @@ describe('DiffsStoreActions', () => {
     describe('success', () => {
       beforeEach(() => {
         renamedFile = { ...testFile, context_lines_path: SUCCESS_URL };
-        mock.onGet(SUCCESS_URL).replyOnce(200, testData);
+        mock.onGet(SUCCESS_URL).replyOnce(HTTP_STATUS_OK, testData);
       });
 
       it.each`
@@ -1216,7 +1279,7 @@ describe('DiffsStoreActions', () => {
   describe('setSuggestPopoverDismissed', () => {
     it('commits SET_SHOW_SUGGEST_POPOVER', async () => {
       const state = { dismissEndpoint: `${TEST_HOST}/-/user_callouts` };
-      mock.onPost(state.dismissEndpoint).reply(200, {});
+      mock.onPost(state.dismissEndpoint).reply(HTTP_STATUS_OK, {});
 
       jest.spyOn(axios, 'post');
 
@@ -1334,39 +1397,38 @@ describe('DiffsStoreActions', () => {
   describe('setCurrentDiffFileIdFromNote', () => {
     it('commits SET_CURRENT_DIFF_FILE', () => {
       const commit = jest.fn();
-      const state = { diffFiles: [{ file_hash: '123' }] };
+      const getters = { flatBlobsList: [{ fileHash: '123' }] };
       const rootGetters = {
         getDiscussion: () => ({ diff_file: { file_hash: '123' } }),
         notesById: { 1: { discussion_id: '2' } },
       };
 
-      diffActions.setCurrentDiffFileIdFromNote({ commit, state, rootGetters }, '1');
+      diffActions.setCurrentDiffFileIdFromNote({ commit, getters, rootGetters }, '1');
 
       expect(commit).toHaveBeenCalledWith(types.SET_CURRENT_DIFF_FILE, '123');
     });
 
     it('does not commit SET_CURRENT_DIFF_FILE when discussion has no diff_file', () => {
       const commit = jest.fn();
-      const state = { diffFiles: [{ file_hash: '123' }] };
       const rootGetters = {
         getDiscussion: () => ({ id: '1' }),
         notesById: { 1: { discussion_id: '2' } },
       };
 
-      diffActions.setCurrentDiffFileIdFromNote({ commit, state, rootGetters }, '1');
+      diffActions.setCurrentDiffFileIdFromNote({ commit, rootGetters }, '1');
 
       expect(commit).not.toHaveBeenCalled();
     });
 
     it('does not commit SET_CURRENT_DIFF_FILE when diff file does not exist', () => {
       const commit = jest.fn();
-      const state = { diffFiles: [{ file_hash: '123' }] };
+      const getters = { flatBlobsList: [{ fileHash: '123' }] };
       const rootGetters = {
         getDiscussion: () => ({ diff_file: { file_hash: '124' } }),
         notesById: { 1: { discussion_id: '2' } },
       };
 
-      diffActions.setCurrentDiffFileIdFromNote({ commit, state, rootGetters }, '1');
+      diffActions.setCurrentDiffFileIdFromNote({ commit, getters, rootGetters }, '1');
 
       expect(commit).not.toHaveBeenCalled();
     });
@@ -1377,7 +1439,7 @@ describe('DiffsStoreActions', () => {
       return testAction(
         diffActions.navigateToDiffFileIndex,
         0,
-        { diffFiles: [{ file_hash: '123' }] },
+        { flatBlobsList: [{ fileHash: '123' }] },
         [{ type: types.SET_CURRENT_DIFF_FILE, payload: '123' }],
         [],
       );
@@ -1391,7 +1453,7 @@ describe('DiffsStoreActions', () => {
     beforeEach(() => {
       putSpy = jest.spyOn(axios, 'put');
 
-      mock.onPut(updateUserEndpoint).reply(200, {});
+      mock.onPut(updateUserEndpoint).reply(HTTP_STATUS_OK, {});
     });
 
     it.each`

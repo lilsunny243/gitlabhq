@@ -43,7 +43,7 @@ RSpec.shared_examples 'maps Sentry exceptions' do |http_method|
   }
 
   exceptions.each do |exception, message|
-    context "#{exception}" do
+    context exception do
       before do
         stub_request(
           http_method || :get,
@@ -56,5 +56,41 @@ RSpec.shared_examples 'maps Sentry exceptions' do |http_method|
           .to raise_exception(ErrorTracking::SentryClient::Error, message)
       end
     end
+  end
+end
+
+RSpec.shared_examples 'non-numeric input handling in Sentry response' do |field|
+  context 'with non-numeric error id' do
+    where(:id_input) do
+      ['string', '-1', '1\n2']
+    end
+
+    with_them do
+      it 'raises exception' do
+        message = %(Sentry API response contains invalid value for field "#{field}": #{id_input.inspect} is not numeric)
+
+        expect { subject }.to raise_error(ErrorTracking::SentryClient::InvalidFieldValueError, message)
+      end
+    end
+  end
+end
+
+# Expects to following variables:
+#   - subject
+#   - sentry_api_response
+#   - sentry_url, token
+RSpec.shared_examples 'Sentry API response size limit' do
+  let(:invalid_deep_size) { instance_double(Gitlab::Utils::DeepSize, valid?: false) }
+
+  before do
+    allow(Gitlab::Utils::DeepSize)
+      .to receive(:new)
+      .with(sentry_api_response, any_args)
+      .and_return(invalid_deep_size)
+  end
+
+  it 'raises an exception when response is too large' do
+    expect { subject }.to raise_error(ErrorTracking::SentryClient::ResponseInvalidSizeError,
+                                      'Sentry API response is too big. Limit is 1 MB.')
   end
 end

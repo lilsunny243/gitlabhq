@@ -59,6 +59,8 @@ module Gitlab
     require_dependency Rails.root.join('lib/gitlab/redis/trace_chunks')
     require_dependency Rails.root.join('lib/gitlab/redis/rate_limiting')
     require_dependency Rails.root.join('lib/gitlab/redis/sessions')
+    require_dependency Rails.root.join('lib/gitlab/redis/repository_cache')
+    require_dependency Rails.root.join('lib/gitlab/redis/db_load_balancing')
     require_dependency Rails.root.join('lib/gitlab/current_settings')
     require_dependency Rails.root.join('lib/gitlab/middleware/read_only')
     require_dependency Rails.root.join('lib/gitlab/middleware/compressed_json')
@@ -255,23 +257,39 @@ module Gitlab
     config.assets.precompile << "mailers/*.css"
     config.assets.precompile << "page_bundles/_mixins_and_variables_and_functions.css"
     config.assets.precompile << "page_bundles/admin/application_settings_metrics_and_profiling.css"
+    config.assets.precompile << "page_bundles/admin/elasticsearch_form.css"
+    config.assets.precompile << "page_bundles/admin/geo_nodes.css"
+    config.assets.precompile << "page_bundles/admin/geo_replicable.css"
     config.assets.precompile << "page_bundles/admin/jobs_index.css"
     config.assets.precompile << "page_bundles/alert_management_details.css"
     config.assets.precompile << "page_bundles/alert_management_settings.css"
+    config.assets.precompile << "page_bundles/billings.css"
     config.assets.precompile << "page_bundles/boards.css"
+    config.assets.precompile << "page_bundles/branches.css"
     config.assets.precompile << "page_bundles/build.css"
     config.assets.precompile << "page_bundles/ci_status.css"
+    config.assets.precompile << "page_bundles/ci_cd_settings.css"
+    config.assets.precompile << "page_bundles/cluster_agents.css"
+    config.assets.precompile << "page_bundles/clusters.css"
     config.assets.precompile << "page_bundles/cycle_analytics.css"
+    config.assets.precompile << "page_bundles/dashboard.css"
     config.assets.precompile << "page_bundles/dashboard_projects.css"
+    config.assets.precompile << "page_bundles/design_management.css"
     config.assets.precompile << "page_bundles/dev_ops_reports.css"
+    config.assets.precompile << "page_bundles/editor.css"
     config.assets.precompile << "page_bundles/environments.css"
     config.assets.precompile << "page_bundles/epics.css"
     config.assets.precompile << "page_bundles/error_tracking_details.css"
     config.assets.precompile << "page_bundles/error_tracking_index.css"
+    config.assets.precompile << "page_bundles/graph_charts.css"
     config.assets.precompile << "page_bundles/group.css"
     config.assets.precompile << "page_bundles/ide.css"
     config.assets.precompile << "page_bundles/import.css"
     config.assets.precompile << "page_bundles/incident_management_list.css"
+    config.assets.precompile << "page_bundles/incidents.css"
+    config.assets.precompile << "page_bundles/issues_analytics.css"
+    config.assets.precompile << "page_bundles/issuable.css"
+    config.assets.precompile << "page_bundles/issuable_list.css"
     config.assets.precompile << "page_bundles/issues_list.css"
     config.assets.precompile << "page_bundles/issues_show.css"
     config.assets.precompile << "page_bundles/jira_connect.css"
@@ -280,10 +298,13 @@ module Gitlab
     config.assets.precompile << "page_bundles/marketing_popover.css"
     config.assets.precompile << "page_bundles/members.css"
     config.assets.precompile << "page_bundles/merge_conflicts.css"
+    config.assets.precompile << "page_bundles/merge_request_analytics.css"
     config.assets.precompile << "page_bundles/merge_requests.css"
     config.assets.precompile << "page_bundles/milestone.css"
     config.assets.precompile << "page_bundles/new_namespace.css"
+    config.assets.precompile << "page_bundles/notifications.css"
     config.assets.precompile << "page_bundles/oncall_schedules.css"
+    config.assets.precompile << "page_bundles/operations.css"
     config.assets.precompile << "page_bundles/escalation_policies.css"
     config.assets.precompile << "page_bundles/pipeline.css"
     config.assets.precompile << "page_bundles/pipeline_schedules.css"
@@ -291,27 +312,38 @@ module Gitlab
     config.assets.precompile << "page_bundles/pipeline_editor.css"
     config.assets.precompile << "page_bundles/productivity_analytics.css"
     config.assets.precompile << "page_bundles/profile.css"
+    config.assets.precompile << "page_bundles/project_quality.css"
     config.assets.precompile << "page_bundles/profile_two_factor_auth.css"
+    config.assets.precompile << "page_bundles/profiles/preferences.css"
     config.assets.precompile << "page_bundles/project.css"
     config.assets.precompile << "page_bundles/projects_edit.css"
+    config.assets.precompile << "page_bundles/prometheus.css"
+    config.assets.precompile << "page_bundles/promotions.css"
+    config.assets.precompile << "page_bundles/releases.css"
     config.assets.precompile << "page_bundles/reports.css"
     config.assets.precompile << "page_bundles/roadmap.css"
+    config.assets.precompile << "page_bundles/requirements.css"
     config.assets.precompile << "page_bundles/runner_details.css"
+    config.assets.precompile << "page_bundles/search.css"
     config.assets.precompile << "page_bundles/security_dashboard.css"
     config.assets.precompile << "page_bundles/security_discover.css"
+    config.assets.precompile << "page_bundles/settings.css"
     config.assets.precompile << "page_bundles/signup.css"
     config.assets.precompile << "page_bundles/terminal.css"
     config.assets.precompile << "page_bundles/terms.css"
     config.assets.precompile << "page_bundles/todos.css"
+    config.assets.precompile << "page_bundles/tree.css"
+    config.assets.precompile << "page_bundles/users.css"
     config.assets.precompile << "page_bundles/wiki.css"
     config.assets.precompile << "page_bundles/work_items.css"
     config.assets.precompile << "page_bundles/xterm.css"
     config.assets.precompile << "lazy_bundles/cropper.css"
-    config.assets.precompile << "lazy_bundles/select2.css"
+    config.assets.precompile << "lazy_bundles/gridstack.css"
     config.assets.precompile << "performance_bar.css"
     config.assets.precompile << "disable_animations.css"
     config.assets.precompile << "test_environment.css"
     config.assets.precompile << "snippets.css"
+    config.assets.precompile << "fonts.css"
     config.assets.precompile << "locale/**/app.js"
     config.assets.precompile << "emoji_sprites.css"
     config.assets.precompile << "errors.css"
@@ -323,12 +355,18 @@ module Gitlab
     config.assets.precompile << "highlight/diff_custom_colors_addition.css"
     config.assets.precompile << "highlight/diff_custom_colors_deletion.css"
 
+    # Import woff2 for fonts
+    config.assets.paths << "#{config.root}/node_modules/@gitlab/fonts/"
+    config.assets.precompile << "gitlab-sans/*.woff2"
+    config.assets.precompile << "jetbrains-mono/*.woff2"
+
     # Import gitlab-svgs directly from vendored directory
     config.assets.paths << "#{config.root}/node_modules/@gitlab/svgs/dist"
     config.assets.paths << "#{config.root}/node_modules/@jihulab/svgs/dist" if Gitlab.jh?
     config.assets.precompile << "illustrations/jh/*.svg" if Gitlab.jh?
     config.assets.precompile << "icons.svg"
     config.assets.precompile << "icons.json"
+    config.assets.precompile << "file_icons/file_icons.svg"
     config.assets.precompile << "illustrations/*.svg"
     config.assets.precompile << "illustrations/*.png"
 
@@ -396,25 +434,33 @@ module Gitlab
           expose: headers_to_expose
       end
 
+      allow do
+        origins { |source, env| source == Gitlab::CurrentSettings.jira_connect_proxy_url }
+        resource '/-/jira_connect/oauth_application_id', headers: :any, credentials: false, methods: %i(get options)
+      end
+
+      allow do
+        origins { |source, env| source == Gitlab::CurrentSettings.jira_connect_proxy_url }
+        resource '/-/jira_connect/subscriptions.json', headers: :any, credentials: false, methods: %i(get options)
+      end
+
+      allow do
+        origins { |source, env| source == Gitlab::CurrentSettings.jira_connect_proxy_url }
+        resource '/-/jira_connect/subscriptions/*', headers: :any, credentials: false, methods: %i(delete options)
+      end
+
       # Cross-origin requests must be enabled for the Authorization code with PKCE OAuth flow when used from a browser.
       %w(/oauth/token /oauth/revoke).each do |oauth_path|
         allow do
           origins '*'
           resource oauth_path,
-            headers: %w(Authorization),
+            # These headers are added as defaults to axios.
+            # See: https://gitlab.com/gitlab-org/gitlab/-/blob/dd1e70d3676891025534dc4a1e89ca9383178fe7/app/assets/javascripts/lib/utils/axios_utils.js#L8)
+            # It's added to declare that this is a XHR request and add the CSRF token without which Rails may reject the request from the frontend.
+            headers: %w(Authorization X-CSRF-Token X-Requested-With),
             credentials: false,
             methods: %i(post options)
         end
-      end
-
-      # Cross-origin requests must be enabled to fetch the self-managed application oauth application ID
-      # for the GitLab for Jira app.
-      allow do
-        origins '*'
-        resource '/-/jira_connect/oauth_application_id',
-          headers: :any,
-          methods: %i(get options),
-          credentials: false
       end
 
       # These are routes from doorkeeper-openid_connect:
@@ -453,6 +499,11 @@ module Gitlab
 
     config.generators do |g|
       g.factory_bot false
+    end
+
+    if defined?(FactoryBotRails)
+      config.factory_bot.definition_file_paths << 'ee/spec/factories' if Gitlab.ee?
+      config.factory_bot.definition_file_paths << 'jh/spec/factories' if Gitlab.jh?
     end
 
     # sprocket-rails adds some precompile assets we actually do not need.
@@ -547,8 +598,32 @@ module Gitlab
         # Used in app/services/web_hooks/log_execution_service.rb: log_execution
         ActiveSupport::TimeWithZone,
         ActiveSupport::TimeZone,
-        Gitlab::Color # https://gitlab.com/gitlab-org/gitlab/-/issues/368844
+        Gitlab::Color, # https://gitlab.com/gitlab-org/gitlab/-/issues/368844,
+        Hashie::Array # https://gitlab.com/gitlab-org/gitlab/-/issues/378089
       ]
+      #
+      # Restore setting the YAML permitted classes for ActiveRecord
+      #
+      # In [94d81c3c39e3ddc441c3af3f874e53b197cf3f54][0] rails upstream removed
+      # the code that copied the values of
+      # config.active_record.yaml_column_permitted_classes to
+      # ActiveRecord.yaml_column_permitted_classes during the
+      # config.after_initialize stage.
+      #
+      # We can not move the setting of
+      # config.active_record.yaml_column_permitted_classes out of the
+      # after_initialize because then the gitlab classes are not loaded yet
+      #
+      # This change was also ported to the 6.1 branch and released in 6.1.7.
+      # Some distributions like Debian even [backported this change to
+      # 6.1.6.1][1].
+      #
+      # This restores the code needed to have gitlab work in those cases.
+      #
+      # [0]: https://github.com/rails/rails/commit/94d81c3c39e3ddc441c3af3f874e53b197cf3f54
+      # [1]: https://salsa.debian.org/ruby-team/rails/-/commit/5663e598b41dc4e2058db22e1ee0d678e5c483ba
+      #
+      ActiveRecord::Base.yaml_column_permitted_classes = config.active_record.yaml_column_permitted_classes
 
       # on_master_start yields immediately in unclustered environments and runs
       # when the primary process is done initializing otherwise.

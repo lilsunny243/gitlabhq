@@ -1,20 +1,20 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Sidekiq guides
 
 We use [Sidekiq](https://github.com/mperham/sidekiq) as our background
-job processor. These guides are for writing jobs that will work well on
+job processor. These guides are for writing jobs that works well on
 GitLab.com and be consistent with our existing worker classes. For
 information on administering GitLab, see [configuring Sidekiq](../../administration/sidekiq/index.md).
 
 There are pages with additional detail on the following topics:
 
 1. [Compatibility across updates](compatibility_across_updates.md)
-1. [Job idempotency and job deduplication](idempotent_jobs.md)
+1. [Job idempotence and job deduplication](idempotent_jobs.md)
 1. [Limited capacity worker: continuously performing work with a specified concurrency](limited_capacity_worker.md)
 1. [Logging](logging.md)
 1. [Worker attributes](worker_attributes.md)
@@ -27,7 +27,7 @@ There are pages with additional detail on the following topics:
 
 All workers should include `ApplicationWorker` instead of `Sidekiq::Worker`,
 which adds some convenience methods and automatically sets the queue based on
-the [routing rules](../../administration/sidekiq/extra_sidekiq_routing.md#queue-routing-rules).
+the [routing rules](../../administration/sidekiq/processing_specific_job_classes.md#routing-rules).
 
 ## Retries
 
@@ -35,6 +35,31 @@ Sidekiq defaults to using [25 retries](https://github.com/mperham/sidekiq/wiki/E
 with back-off between each retry. 25 retries means that the last retry
 would happen around three weeks after the first attempt (assuming all 24
 prior retries failed).
+
+This means that a lot can happen in between the job being scheduled
+and its execution. Therefore, we must guard workers so they don't
+fail 25 times when the state changes after they are scheduled. For
+example, a job should not fail when the project it was scheduled for
+is deleted.
+
+Instead of:
+
+```ruby
+def perform(project_id)
+  project = Project.find(project_id)
+  # ...
+end
+```
+
+Do this:
+
+```ruby
+def perform(project_id)
+  project = Project.find_by_id(project_id)
+  return unless project
+  # ...
+end
+```
 
 For most workers - especially [idempotent workers](idempotent_jobs.md) -
 the default of 25 retries is more than sufficient. Many of our older
@@ -49,7 +74,7 @@ A lower retry count may be applicable if any of the below apply:
 1. The worker is not idempotent and running it multiple times could
    leave the system in an inconsistent state. For example, a worker that
    posts a system note and then performs an action: if the second step
-   fails and the worker retries, the system note will be posted again.
+   fails and the worker retries, the system note is posted again.
 1. The worker is a cronjob that runs frequently. For example, if a cron
    job runs every hour, then we don't need to retry beyond an hour
    because we don't need two of the same job running at once.
@@ -58,12 +83,43 @@ Each retry for a worker is counted as a failure in our metrics. A worker
 which always fails 9 times and succeeds on the 10th would have a 90%
 error rate.
 
+If you want to manually retry the worker without tracking the exception in Sentry,
+use an exception class inherited from `Gitlab::SidekiqMiddleware::RetryError`.
+
+```ruby
+ServiceUnavailable = Class.new(::Gitlab::SidekiqMiddleware::RetryError)
+
+def perform
+  ...
+
+  raise ServiceUnavailable if external_service_unavailable?
+end
+```
+
+## Failure handling
+
+Failures are typically handled by Sidekiq itself, which takes advantage of the inbuilt retry mechanism mentioned above. You should allow exceptions to be raised so that Sidekiq can reschedule the job.
+
+If you need to perform an action when a job fails after all of its retry attempts, add it to the `sidekiq_retries_exhausted` method.
+
+```ruby
+sidekiq_retries_exhausted do |msg, ex|
+  project = Project.find(msg['args'].first)
+  project.perform_a_rollback # handle the permanent failure
+end
+
+def perform(project_id)
+  project = Project.find(project_id)
+  project.some_action # throws an exception
+end
+```
+
 ## Sidekiq Queues
 
 Previously, each worker had its own queue, which was automatically set based on the
 worker class name. For a worker named `ProcessSomethingWorker`, the queue name
 would be `process_something`. You can now route workers to a specific queue using
-[queue routing rules](../../administration/sidekiq/extra_sidekiq_routing.md#queue-routing-rules).
+[queue routing rules](../../administration/sidekiq/processing_specific_job_classes.md#routing-rules).
 In GDK, new workers are routed to a queue named `default`.
 
 If you're not sure what queue a worker uses,
@@ -75,8 +131,8 @@ gitlab:sidekiq:all_queues_yml:generate` to regenerate
 `app/workers/all_queues.yml` or `ee/app/workers/all_queues.yml` so that
 it can be picked up by
 [`sidekiq-cluster`](../../administration/sidekiq/extra_sidekiq_processes.md)
-in installations that don't use routing rules. To learn more about potential changes,
-read [Use routing rules by default and deprecate queue selectors for self-managed](https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/596).
+in installations that don't use routing rules. For more information about potential changes,
+see [epic 596](https://gitlab.com/groups/gitlab-com/gl-infra/-/epics/596).
 
 Additionally, run
 `bin/rake gitlab:sidekiq:sidekiq_queues_yml:generate` to regenerate
@@ -118,7 +174,7 @@ queues in a namespace (technically: all queues prefixed with the namespace name)
 when a namespace is provided instead of a simple queue name in the `--queue`
 (`-q`) option, or in the `:queues:` section in `config/sidekiq_queues.yml`.
 
-Note that adding a worker to an existing namespace should be done with care, as
+Adding a worker to an existing namespace should be done with care, as
 the extra jobs take resources away from jobs from workers that were already
 there, if the resources available to the Sidekiq process handling the namespace
 are not adjusted appropriately.
@@ -157,9 +213,9 @@ can read the number or type of provided arguments.
 
 GitLab stores Sidekiq jobs and their arguments in Redis. To avoid
 excessive memory usage, we compress the arguments of Sidekiq jobs
-if their original size is bigger than 100KB.
+if their original size is bigger than 100 KB.
 
-After compression, if their size still exceeds 5MB, it raises an
+After compression, if their size still exceeds 5 MB, it raises an
 [`ExceedLimitError`](https://gitlab.com/gitlab-org/gitlab/-/blob/f3dd89e5e510ea04b43ffdcb58587d8f78a8d77c/lib/gitlab/sidekiq_middleware/size_limiter/exceed_limit_error.rb#L8)
 error when scheduling the job.
 
@@ -186,3 +242,9 @@ default weight, which is 1.
 
 Each Sidekiq worker must be tested using RSpec, just like any other class. These
 tests should be placed in `spec/workers`.
+
+## Interacting with Sidekiq Redis and APIs
+
+The application should minimise interaction with of any `Sidekiq.redis` and Sidekiq [APIs](https://github.com/mperham/sidekiq/blob/main/lib/sidekiq/api.rb). Such interactions in generic application logic should be abstracted to a [Sidekiq middleware](https://gitlab.com/gitlab-org/gitlab/-/tree/master/lib/gitlab/sidekiq_middleware) for re-use across teams. By decoupling application logic from Sidekiq datastore, it allows for greater freedom when horizontally scaling the GitLab background processing setup.
+
+Some exceptions to this rule would be migration-related logic or administration operations.

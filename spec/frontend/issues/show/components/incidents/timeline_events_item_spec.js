@@ -1,5 +1,5 @@
 import timezoneMock from 'timezone-mock';
-import { GlIcon, GlDropdown } from '@gitlab/ui';
+import { GlIcon, GlDropdown, GlBadge } from '@gitlab/ui';
 import { nextTick } from 'vue';
 import { timelineItemI18n } from '~/issues/show/components/incidents/constants';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
@@ -9,8 +9,8 @@ import { mockEvents } from './mock_data';
 describe('IncidentTimelineEventList', () => {
   let wrapper;
 
-  const mountComponent = ({ propsData, provide } = {}) => {
-    const { action, noteHtml, occurredAt } = mockEvents[0];
+  const mountComponent = ({ propsData, provide, mockEvent = mockEvents[0] } = {}) => {
+    const { action, noteHtml, occurredAt } = mockEvent;
     wrapper = mountExtended(IncidentTimelineEventItem, {
       propsData: {
         action,
@@ -19,7 +19,7 @@ describe('IncidentTimelineEventList', () => {
         ...propsData,
       },
       provide: {
-        canUpdate: false,
+        canUpdateTimelineEvent: false,
         ...provide,
       },
     });
@@ -27,25 +27,25 @@ describe('IncidentTimelineEventList', () => {
 
   const findCommentIcon = () => wrapper.findComponent(GlIcon);
   const findEventTime = () => wrapper.findByTestId('event-time');
+  const findEventTags = () => wrapper.findAllComponents(GlBadge);
   const findDropdown = () => wrapper.findComponent(GlDropdown);
   const findDeleteButton = () => wrapper.findByText(timelineItemI18n.delete);
+  const findEditButton = () => wrapper.findByText(timelineItemI18n.edit);
 
   describe('template', () => {
-    it('shows comment icon', () => {
+    beforeEach(() => {
       mountComponent();
+    });
 
+    it('shows comment icon', () => {
       expect(findCommentIcon().exists()).toBe(true);
     });
 
     it('sets correct props for icon', () => {
-      mountComponent();
-
       expect(findCommentIcon().props('name')).toBe(mockEvents[0].action);
     });
 
     it('displays the correct time', () => {
-      mountComponent();
-
       expect(findEventTime().text()).toBe('15:59 UTC');
     });
 
@@ -58,8 +58,6 @@ describe('IncidentTimelineEventList', () => {
       describe(timezone, () => {
         beforeEach(() => {
           timezoneMock.register(timezone);
-
-          mountComponent();
         });
 
         afterEach(() => {
@@ -72,29 +70,55 @@ describe('IncidentTimelineEventList', () => {
       });
     });
 
+    describe.each([
+      { eventTags: [], expected: 0 },
+      { eventTags: ['Start time'], expected: 1 },
+      { eventTags: ['Start time', 'End time'], expected: 2 },
+    ])('timeline event tags', ({ eventTags, expected }) => {
+      it(`shows ${expected} badges when ${expected} tags are provided`, () => {
+        mountComponent({ propsData: { eventTags } });
+
+        expect(findEventTags().exists()).toBe(Boolean(expected));
+        expect(findEventTags().length).toBe(eventTags.length);
+      });
+    });
+
     describe('action dropdown', () => {
       it('does not show the action dropdown by default', () => {
-        mountComponent();
-
         expect(findDropdown().exists()).toBe(false);
         expect(findDeleteButton().exists()).toBe(false);
       });
 
+      it('does not show edit item when event was system generated', () => {
+        const systemGeneratedMockEvent = {
+          ...mockEvents[0],
+          action: 'status',
+        };
+
+        mountComponent({
+          provide: { canUpdateTimelineEvent: true },
+          mockEvent: systemGeneratedMockEvent,
+        });
+
+        expect(findDropdown().exists()).toBe(true);
+        expect(findEditButton().exists()).toBe(false);
+      });
+
       it('shows dropdown and delete item when user has update permission', () => {
-        mountComponent({ provide: { canUpdate: true } });
+        mountComponent({ provide: { canUpdateTimelineEvent: true } });
 
         expect(findDropdown().exists()).toBe(true);
         expect(findDeleteButton().exists()).toBe(true);
       });
 
       it('triggers a delete when the delete button is clicked', async () => {
-        mountComponent({ provide: { canUpdate: true } });
+        mountComponent({ provide: { canUpdateTimelineEvent: true } });
 
         findDeleteButton().trigger('click');
 
         await nextTick();
 
-        expect(wrapper.emitted().delete).toBeTruthy();
+        expect(wrapper.emitted().delete).toHaveLength(1);
       });
     });
   });

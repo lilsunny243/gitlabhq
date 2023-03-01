@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Plan
 group: Optimize
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Value stream analytics development guide
@@ -71,7 +71,7 @@ which are always available to the end-users regardless of the subscription.
 ### Value streams
 
 Value streams are container objects for the stages. There can be multiple value streams per group
-focusing on different aspects of the Dev Ops lifecycle.
+focusing on different aspects of the DevOps lifecycle.
 
 ### Events
 
@@ -89,7 +89,8 @@ They're responsible for defining a timestamp expression that is used in the calc
 
 #### Implementing an `Event` class
 
-There are a few methods that are required to be implemented, the `StageEvent` base class describes them in great detail. The most important ones are:
+You must implement a few methods, as described in the `StageEvent` base class.
+The most important methods are:
 
 - `object_type`
 - `timestamp_projection`
@@ -260,7 +261,7 @@ considered legacy, which will be phased out at some point.
 
 - Rails Controller (`Analytics::CycleAnalytics` module): Value stream analytics exposes its data via JSON endpoints, implemented within the `analytics` workspace. Configuring the stages are also implements JSON endpoints (CRUD).
 - Services (`Analytics::CycleAnalytics` module): All `Stage` related actions are delegated to respective service objects.
-- Models (`Analytics::CycleAnalytics` module): Models are used to persist the `Stage` objects `ProjectStage` and `GroupStage`.
+- Models (`Analytics::CycleAnalytics` module): Models are used to persist the `Stage` objects.
 - Feature classes (`Gitlab::Analytics::CycleAnalytics` module):
   - Responsible for composing queries and define feature specific business logic.
   - `DataCollector`, `Event`, `StageEvents`, etc.
@@ -286,7 +287,7 @@ The group VSA Vuex store makes use of [Vuex modules](https://vuex.vuejs.org/guid
 
 ### Shared components
 
-Parts of the UI are shared between project VSA and group VSA such as the stage table and path. These shared components live in the project VSA directory `app/assets/javascripts/cycle_analytics/components` and are included at the group level VSA where needed. 
+Parts of the UI are shared between project VSA and group VSA such as the stage table and path. These shared components live in the project VSA directory `app/assets/javascripts/cycle_analytics/components` and are included at the group level VSA where needed.
 
 All the frontend code for group-level features are located in `ee/app/assets/javascripts/analytics/cycle_analytics/components`.
 
@@ -326,3 +327,25 @@ in your rails console (`rails c`):
 ```ruby
 Analytics::CycleAnalytics::ReaggregationWorker.new.perform
 ```
+
+### Seed data
+
+#### Value stream analytics
+
+Seed issues and merge requests for value stream analytics:
+
+  ```shell
+  // Seed 10 issues for the project specified by <project-id>
+  $ VSA_SEED_PROJECT_ID=<project-id> VSA_ISSUE_COUNT=10 SEED_VSA=true FILTER=cycle_analytics rake db:seed_fu
+  ```
+
+#### DORA metrics
+
+Seed DORA daily metrics for value stream, insights and CI/CD analytics:
+
+1. [Create an environment from the UI](../ci/environments/index.md#create-a-static-environment) named `production`.
+1. Open the rails console:
+
+   ```shell
+   rails c
+   ```

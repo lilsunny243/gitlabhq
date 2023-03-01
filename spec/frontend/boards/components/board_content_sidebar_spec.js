@@ -8,11 +8,12 @@ import { stubComponent } from 'helpers/stub_component';
 import BoardContentSidebar from '~/boards/components/board_content_sidebar.vue';
 import BoardSidebarTitle from '~/boards/components/sidebar/board_sidebar_title.vue';
 import { ISSUABLE } from '~/boards/constants';
+import { TYPE_ISSUE } from '~/issues/constants';
 import SidebarDateWidget from '~/sidebar/components/date/sidebar_date_widget.vue';
-import SidebarSeverity from '~/sidebar/components/severity/sidebar_severity.vue';
+import SidebarSeverityWidget from '~/sidebar/components/severity/sidebar_severity_widget.vue';
 import SidebarSubscriptionsWidget from '~/sidebar/components/subscriptions/sidebar_subscriptions_widget.vue';
 import SidebarTodoWidget from '~/sidebar/components/todo_toggle/sidebar_todo_widget.vue';
-import SidebarLabelsWidget from '~/vue_shared/components/sidebar/labels_select_widget/labels_select_root.vue';
+import SidebarLabelsWidget from '~/sidebar/components/labels/labels_select_widget/labels_select_root.vue';
 import { mockActiveIssue, mockIssue, mockIssueGroupPath, mockIssueProjectPath } from '../mock_data';
 
 Vue.use(Vuex);
@@ -26,7 +27,6 @@ describe('BoardContentSidebar', () => {
         sidebarType: ISSUABLE,
         issues: { [mockIssue.id]: { ...mockIssue, epic: null } },
         activeId: mockIssue.id,
-        issuableType: 'issue',
       },
       getters: {
         activeBoardItem: () => {
@@ -35,7 +35,6 @@ describe('BoardContentSidebar', () => {
         groupPathForActiveIssue: () => mockIssueGroupPath,
         projectPathForActiveIssue: () => mockIssueProjectPath,
         isSidebarOpen: () => true,
-        isGroupBoard: () => false,
         ...mockGetters,
       },
       actions: mockActions,
@@ -55,6 +54,8 @@ describe('BoardContentSidebar', () => {
         canUpdate: true,
         rootPath: '/',
         groupId: 1,
+        issuableType: TYPE_ISSUE,
+        isGroupBoard: false,
       },
       store,
       stubs: {
@@ -142,8 +143,22 @@ describe('BoardContentSidebar', () => {
     );
   });
 
-  it('does not render SidebarSeverity', () => {
-    expect(wrapper.findComponent(SidebarSeverity).exists()).toBe(false);
+  it('does not render SidebarSeverityWidget', () => {
+    expect(wrapper.findComponent(SidebarSeverityWidget).exists()).toBe(false);
+  });
+
+  it('does not render SidebarHealthStatusWidget', async () => {
+    const SidebarHealthStatusWidget = (
+      await import('ee_component/sidebar/components/health_status/sidebar_health_status_widget.vue')
+    ).default;
+    expect(wrapper.findComponent(SidebarHealthStatusWidget).exists()).toBe(false);
+  });
+
+  it('does not render SidebarWeightWidget', async () => {
+    const SidebarWeightWidget = (
+      await import('ee_component/sidebar/components/weight/sidebar_weight_widget.vue')
+    ).default;
+    expect(wrapper.findComponent(SidebarWeightWidget).exists()).toBe(false);
   });
 
   describe('when we emit close', () => {
@@ -174,8 +189,8 @@ describe('BoardContentSidebar', () => {
       createComponent();
     });
 
-    it('renders SidebarSeverity', () => {
-      expect(wrapper.findComponent(SidebarSeverity).exists()).toBe(true);
+    it('renders SidebarSeverityWidget', () => {
+      expect(wrapper.findComponent(SidebarSeverityWidget).exists()).toBe(true);
     });
   });
 });

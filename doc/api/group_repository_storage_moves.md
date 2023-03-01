@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Editor
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -32,7 +32,7 @@ push new commits:
 The repository is temporarily read-only. Please try again later.
 ```
 
-This API requires you to [authenticate yourself](index.md#authentication) as an administrator.
+This API requires you to [authenticate yourself](rest/index.md#authentication) as an administrator.
 
 APIs are also available to move other types of repositories:
 
@@ -46,7 +46,7 @@ GET /group_repository_storage_moves
 ```
 
 By default, `GET` requests return 20 results at a time, because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 Example request:
 
@@ -82,7 +82,7 @@ GET /groups/:group_id/repository_storage_moves
 ```
 
 By default, `GET` requests return 20 results at a time, because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 Supported attributes:
 
@@ -194,6 +194,11 @@ Example response:
 
 ## Schedule a repository storage move for a group
 
+Schedules a repository storage move for a group. This endpoint:
+
+- Moves only group Wiki repositories.
+- Doesn't move repositories for projects in a group. To schedule project moves, use the [Project repository storage moves](project_repository_storage_moves.md) API.
+
 ```plaintext
 POST /groups/:group_id/repository_storage_moves
 ```
@@ -234,6 +239,8 @@ Example response:
 ## Schedule repository storage moves for all groups on a storage shard
 
 Schedules repository storage moves for each group repository stored on the source storage shard.
+This endpoint migrates all groups at once. For more information, see
+[Move all groups](../administration/operations/moving_repositories.md#move-all-groups).
 
 ```plaintext
 POST /group_repository_storage_moves

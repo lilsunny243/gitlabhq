@@ -1,12 +1,11 @@
 <script>
-import { GlSafeHtmlDirective } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import { setAttributes } from '~/lib/utils/dom_utils';
-import { BIDI_CHARS, BIDI_CHARS_CLASS_LIST, BIDI_CHAR_TOOLTIP } from '../constants';
+import { getPageParamValue, getPageSearchString } from '~/blob/utils';
 
 export default {
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   mixins: [glFeatureFlagMixin()],
   props: {
@@ -28,31 +27,10 @@ export default {
     },
   },
   computed: {
-    formattedContent() {
-      let { content } = this;
-
-      BIDI_CHARS.forEach((bidiChar) => {
-        if (content.includes(bidiChar)) {
-          content = content.replace(bidiChar, this.wrapBidiChar(bidiChar));
-        }
-      });
-
-      return content;
-    },
-  },
-  methods: {
-    wrapBidiChar(bidiChar) {
-      const span = document.createElement('span');
-
-      setAttributes(span, {
-        class: BIDI_CHARS_CLASS_LIST,
-        title: BIDI_CHAR_TOOLTIP,
-        'data-testid': 'bidi-wrapper',
-      });
-
-      span.innerText = bidiChar;
-
-      return span.outerHTML;
+    pageSearchString() {
+      if (!this.glFeatures.fileLineBlame) return '';
+      const page = getPageParamValue(this.number);
+      return getPageSearchString(this.blamePath, page);
     },
   },
 };
@@ -65,7 +43,7 @@ export default {
       <a
         v-if="glFeatures.fileLineBlame"
         class="gl-user-select-none gl-shadow-none! file-line-blame"
-        :href="`${blamePath}#L${number}`"
+        :href="`${blamePath}${pageSearchString}#L${number}`"
       ></a>
       <a
         :id="`L${number}`"
@@ -78,7 +56,7 @@ export default {
     </div>
 
     <pre
-      class="gl-p-0! gl-w-full gl-overflow-visible! gl-border-none! code highlight gl-line-height-normal"
-    ><code><span :id="`LC${number}`" v-safe-html="formattedContent" :lang="language" class="line" data-testid="content"></span></code></pre>
+      class="gl-p-0! gl-w-full gl-overflow-visible! gl-border-none! code highlight gl-line-height-0"
+    ><code><span :id="`LC${number}`" v-safe-html="content" :lang="language" class="line" data-testid="content"></span></code></pre>
   </div>
 </template>

@@ -9,6 +9,8 @@ class WebHookLog < ApplicationRecord
 
   OVERSIZE_REQUEST_DATA = { 'oversize' => true }.freeze
 
+  attr_accessor :interpolated_url
+
   self.primary_key = :id
 
   partitioned_by :created_at, strategy: :monthly, retain_for: 3.months
@@ -22,10 +24,11 @@ class WebHookLog < ApplicationRecord
   validates :web_hook, presence: true
 
   before_save :obfuscate_basic_auth
-  before_save :redact_author_email
+  before_save :redact_user_emails
+  before_save :set_url_hash, if: -> { interpolated_url.present? }
 
   def self.recent
-    where('created_at >= ?', 2.days.ago.beginning_of_day)
+    where(created_at: 2.days.ago.beginning_of_day..Time.zone.now)
       .order(created_at: :desc)
   end
 
@@ -48,15 +51,26 @@ class WebHookLog < ApplicationRecord
     request_data == OVERSIZE_REQUEST_DATA
   end
 
+  def request_headers
+    super unless web_hook.token?
+    super if self[:request_headers]['X-Gitlab-Token'] == _('[REDACTED]')
+
+    self[:request_headers].merge('X-Gitlab-Token' => _('[REDACTED]'))
+  end
+
   private
 
   def obfuscate_basic_auth
     self.url = safe_url
   end
 
-  def redact_author_email
-    return unless self.request_data.dig('commit', 'author', 'email').present?
+  def redact_user_emails
+    self.request_data.deep_transform_values! do |value|
+      value.to_s =~ URI::MailTo::EMAIL_REGEXP ? _('[REDACTED]') : value
+    end
+  end
 
-    self.request_data['commit']['author']['email'] = _('[REDACTED]')
+  def set_url_hash
+    self.url_hash = Gitlab::CryptoHelper.sha256(interpolated_url)
   end
 end

@@ -1,5 +1,5 @@
 import { __, n__, sprintf } from '~/locale';
-import { IssuableType, WorkspaceType } from '~/issues/constants';
+import { TYPE_ISSUE, WORKSPACE_PROJECT } from '~/issues/constants';
 
 const INTERVALS = {
   minute: 'minute',
@@ -9,11 +9,13 @@ const INTERVALS = {
 
 export const FILE_SYMLINK_MODE = '120000';
 
-export const SHORT_DATE_FORMAT = 'd mmm, yyyy';
+export const SHORT_DATE_FORMAT = 'mmm dd, yyyy';
 
 export const ISO_SHORT_FORMAT = 'yyyy-mm-dd';
 
-export const DATE_FORMATS = [SHORT_DATE_FORMAT, ISO_SHORT_FORMAT];
+export const LONG_DATE_FORMAT_WITH_TZ = 'yyyy-mm-dd HH:MM:ss Z';
+
+export const DATE_FORMATS = [SHORT_DATE_FORMAT, ISO_SHORT_FORMAT, LONG_DATE_FORMAT_WITH_TZ];
 
 const getTimeLabel = (days) => n__('1 day', '%d days', days);
 
@@ -85,11 +87,14 @@ export const confidentialityInfoText = (workspaceType, issuableType) =>
       'Only %{workspaceType} members with %{permissions} can view or be notified about this %{issuableType}.',
     ),
     {
-      workspaceType: workspaceType === WorkspaceType.project ? __('project') : __('group'),
-      issuableType: issuableType === IssuableType.Issue ? __('issue') : __('epic'),
+      workspaceType: workspaceType === WORKSPACE_PROJECT ? __('project') : __('group'),
+      issuableType: issuableType === TYPE_ISSUE ? __('issue') : __('epic'),
       permissions:
-        issuableType === IssuableType.Issue
+        issuableType === TYPE_ISSUE
           ? __('at least the Reporter role, the author, and assignees')
           : __('at least the Reporter role'),
     },
   );
+
+export const EDITING_MODE_MARKDOWN_FIELD = 'markdownField';
+export const EDITING_MODE_CONTENT_EDITOR = 'contentEditor';

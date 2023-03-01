@@ -32,11 +32,10 @@ module QA
         end
 
         view 'app/views/projects/_last_push.html.haml' do
-          element :create_merge_request
+          element :create_merge_request_button
         end
 
         view 'app/views/projects/_home_panel.html.haml' do
-          element :forked_from_link
           element :project_name_content
           element :project_id_content
           element :project_badges_content
@@ -48,13 +47,16 @@ module QA
           element :tree_holder, '.tree-holder' # rubocop:disable QA/ElementWithPattern
         end
 
+        view 'app/assets/javascripts/repository/components/fork_info.vue' do
+          element :forked_from_link
+        end
+
         view 'app/views/projects/buttons/_fork.html.haml' do
-          element :fork_label, "%span= s_('ProjectOverview|Fork')" # rubocop:disable QA/ElementWithPattern
-          element :fork_link, "link_to new_project_fork_path(@project)" # rubocop:disable QA/ElementWithPattern
+          element :fork_button
         end
 
         view 'app/views/projects/empty.html.haml' do
-          element :quick_actions
+          element :quick_actions_container
         end
 
         view 'app/assets/javascripts/repository/components/breadcrumbs.vue' do
@@ -72,7 +74,7 @@ module QA
         end
 
         view 'app/views/projects/blob/viewers/_loading.html.haml' do
-          element :spinner
+          element :spinner_placeholder
         end
 
         view 'app/views/projects/buttons/_download.html.haml' do
@@ -80,11 +82,11 @@ module QA
         end
 
         def wait_for_viewers_to_load
-          has_no_element?(:spinner, wait: QA::Support::Repeater::DEFAULT_MAX_WAIT_TIME)
+          has_no_element?(:spinner_placeholder, wait: QA::Support::Repeater::DEFAULT_MAX_WAIT_TIME)
         end
 
         def create_first_new_file!
-          within_element(:quick_actions) do
+          within_element(:quick_actions_container) do
             click_link_with_text 'New file'
           end
         end
@@ -94,8 +96,12 @@ module QA
           click_element :new_file_menu_item
         end
 
+        # Click by JS is needed to bypass the VSCode Web IDE popover
+        # Change back to regular click_element when vscode_web_ide FF is removed
+        # Rollout issue: https://gitlab.com/gitlab-org/gitlab/-/issues/371084
         def fork_project
-          click_on 'Fork'
+          fork_button = find_element(:fork_button)
+          click_by_javascript(fork_button)
         end
 
         def forked_from?(parent_project_name)
@@ -122,7 +128,7 @@ module QA
         end
 
         def has_create_merge_request_button?
-          has_css?(element_selector_css(:create_merge_request))
+          has_css?(element_selector_css(:create_merge_request_button))
         end
 
         def has_file?(name)
@@ -152,7 +158,7 @@ module QA
             has_create_merge_request_button?
           end
 
-          click_element :create_merge_request
+          click_element :create_merge_request_button
         end
 
         def open_web_ide!

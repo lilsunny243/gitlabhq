@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::Importer::IssueEventsImporter do
+RSpec.describe Gitlab::GithubImport::Importer::IssueEventsImporter, feature_category: :importers do
   subject(:importer) { described_class.new(project, client, parallel: parallel) }
 
   let(:project) { instance_double(Project, id: 4, import_source: 'foo/bar') }
@@ -11,8 +11,8 @@ RSpec.describe Gitlab::GithubImport::Importer::IssueEventsImporter do
   let(:parallel) { true }
   let(:issue_event) do
     struct = Struct.new(
-      :id, :node_id, :url, :actor, :event, :commit_id, :commit_url, :label, :rename, :milestone,
-      :source, :assignee, :assigner, :issue, :created_at, :performed_via_github_app,
+      :id, :node_id, :url, :actor, :event, :commit_id, :commit_url, :label, :rename, :milestone, :source,
+      :assignee, :assigner, :review_requester, :requested_reviewer, :issue, :created_at, :performed_via_github_app,
       keyword_init: true
     )
     struct.new(id: rand(10), event: 'closed', created_at: '2022-04-26 18:30:53 UTC')
@@ -73,14 +73,12 @@ RSpec.describe Gitlab::GithubImport::Importer::IssueEventsImporter do
     end
   end
 
-  describe '#parallel_import' do
+  describe '#parallel_import', :clean_gitlab_redis_cache do
     it 'imports each note in parallel' do
       allow(importer).to receive(:each_object_to_import).and_yield(issue_event)
 
-      expect(Gitlab::GithubImport::ImportIssueEventWorker).to receive(:bulk_perform_in).with(
-        1.second, [
-          [project.id, an_instance_of(Hash), an_instance_of(String)]
-        ], batch_size: 1000, batch_delay: 1.minute
+      expect(Gitlab::GithubImport::ImportIssueEventWorker).to receive(:perform_in).with(
+        1.second, project.id, an_instance_of(Hash), an_instance_of(String)
       )
 
       waiter = importer.parallel_import

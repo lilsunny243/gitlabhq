@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # PyPI API **(FREE)**
@@ -32,7 +32,7 @@ Download a PyPI package file. The [simple API](#group-level-simple-api-entry-poi
 normally supplies this URL.
 
 ```plaintext
-GET groups/:id/packages/pypi/files/:sha256/:file_identifier
+GET groups/:id/-/packages/pypi/files/:sha256/:file_identifier
 ```
 
 | Attribute         | Type   | Required | Description |
@@ -42,13 +42,13 @@ GET groups/:id/packages/pypi/files/:sha256/:file_identifier
 | `file_identifier` | string | yes      | The PyPI package file's name. |
 
 ```shell
-curl --user <username>:<personal_access_token> "https://gitlab.example.com/api/v4/groups/1/packages/pypi/files/5y57017232013c8ac80647f4ca153k3726f6cba62d055cd747844ed95b3c65ff/my.pypi.package-0.0.1.tar.gz"
+curl --user <username>:<personal_access_token> "https://gitlab.example.com/api/v4/groups/1/-/packages/pypi/files/5y57017232013c8ac80647f4ca153k3726f6cba62d055cd747844ed95b3c65ff/my.pypi.package-0.0.1.tar.gz"
 ```
 
 To write the output to a file:
 
 ```shell
-curl --user <username>:<personal_access_token> "https://gitlab.example.com/api/v4/groups/1/packages/pypi/files/5y57017232013c8ac80647f4ca153k3726f6cba62d055cd747844ed95b3c65ff/my.pypi.package-0.0.1.tar.gz" >> my.pypi.package-0.0.1.tar.gz
+curl --user <username>:<personal_access_token> "https://gitlab.example.com/api/v4/groups/1/-/packages/pypi/files/5y57017232013c8ac80647f4ca153k3726f6cba62d055cd747844ed95b3c65ff/my.pypi.package-0.0.1.tar.gz" >> my.pypi.package-0.0.1.tar.gz
 ```
 
 This writes the downloaded file to `my.pypi.package-0.0.1.tar.gz` in the current
@@ -264,8 +264,10 @@ PUT projects/:id/packages/pypi
 | `requires_python` | string | no | The PyPI required version. |
 
 ```shell
-curl --request PUT \
-     --upload-file path/to/my.pypi.package-0.0.1.tar.gz \
+curl --request POST \
+     --form 'content=@path/to/my.pypi.package-0.0.1.tar.gz' \
+     --form 'name=my.pypi.package'
+     --form 'version=1.3.7'
      --user <username>:<personal_access_token> \
      "https://gitlab.example.com/api/v4/projects/1/packages/pypi"
 ```

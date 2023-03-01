@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe API::MergeRequests do
+RSpec.describe API::MergeRequests, feature_category: :source_code_management do
   include ProjectForksHelper
 
   let_it_be(:base_time) { Time.now }
@@ -50,10 +50,9 @@ RSpec.describe API::MergeRequests do
         expect_successful_response_with_paginated_array
       end
 
-      it_behaves_like 'issuable anonymous search' do
+      it_behaves_like 'issuable API rate-limited search' do
         let(:url) { endpoint_path }
         let(:issuable) { merge_request }
-        let(:result) { [merge_request_merged.id, merge_request_locked.id, merge_request_closed.id, merge_request.id] }
       end
     end
 
@@ -118,10 +117,13 @@ RSpec.describe API::MergeRequests do
         it 'returns an array of all merge_requests' do
           get api(endpoint_path, user)
 
-          expect_paginated_array_response([
-            merge_request_merged.id, merge_request_locked.id,
-            merge_request_closed.id, merge_request.id
-          ])
+          expect_paginated_array_response(
+            [
+              merge_request_merged.id,
+              merge_request_locked.id,
+              merge_request_closed.id,
+              merge_request.id
+            ])
 
           expect(json_response.last['title']).to eq(merge_request.title)
           expect(json_response.last).to have_key('web_url')
@@ -171,10 +173,13 @@ RSpec.describe API::MergeRequests do
 
         get api(path, user)
 
-        expect_paginated_array_response([
-          merge_request_merged.id, merge_request_locked.id,
-          merge_request_closed.id, merge_request.id
-        ])
+        expect_paginated_array_response(
+          [
+            merge_request_merged.id,
+            merge_request_locked.id,
+            merge_request_closed.id,
+            merge_request.id
+          ])
         expect(json_response.last.keys).to match_array(%w(id iid title web_url created_at description project_id state updated_at))
         expect(json_response.last['iid']).to eq(merge_request.iid)
         expect(json_response.last['title']).to eq(merge_request.title)
@@ -189,10 +194,13 @@ RSpec.describe API::MergeRequests do
 
         get api(path, user)
 
-        expect_paginated_array_response([
-          merge_request_merged.id, merge_request_locked.id,
-          merge_request_closed.id, merge_request.id
-        ])
+        expect_paginated_array_response(
+          [
+            merge_request_merged.id,
+            merge_request_locked.id,
+            merge_request_closed.id,
+            merge_request.id
+          ])
         expect(json_response.last['title']).to eq(merge_request.title)
       end
 
@@ -353,10 +361,13 @@ RSpec.describe API::MergeRequests do
 
           get api(path, user)
 
-          expect_paginated_array_response([
-            merge_request.id, merge_request_closed.id,
-            merge_request_locked.id, merge_request_merged.id
-          ])
+          expect_paginated_array_response(
+            [
+              merge_request.id,
+              merge_request_closed.id,
+              merge_request_locked.id,
+              merge_request_merged.id
+            ])
           response_dates = json_response.map { |merge_request| merge_request['created_at'] }
           expect(response_dates).to eq(response_dates.sort)
         end
@@ -366,10 +377,13 @@ RSpec.describe API::MergeRequests do
 
           get api(path, user)
 
-          expect_paginated_array_response([
-            merge_request_merged.id, merge_request_locked.id,
-            merge_request_closed.id, merge_request.id
-          ])
+          expect_paginated_array_response(
+            [
+              merge_request_merged.id,
+              merge_request_locked.id,
+              merge_request_closed.id,
+              merge_request.id
+            ])
           response_dates = json_response.map { |merge_request| merge_request['created_at'] }
           expect(response_dates).to eq(response_dates.sort.reverse)
         end
@@ -397,10 +411,13 @@ RSpec.describe API::MergeRequests do
 
           get api(path, user)
 
-          expect_paginated_array_response([
-            merge_request.id, merge_request_locked.id,
-            merge_request_merged.id, merge_request_closed.id
-          ])
+          expect_paginated_array_response(
+            [
+              merge_request.id,
+              merge_request_locked.id,
+              merge_request_merged.id,
+              merge_request_closed.id
+            ])
           response_dates = json_response.map { |merge_request| merge_request['updated_at'] }
           expect(response_dates).to eq(response_dates.sort.reverse)
         end
@@ -410,10 +427,13 @@ RSpec.describe API::MergeRequests do
 
           get api(path, user)
 
-          expect_paginated_array_response([
-            merge_request.id, merge_request_closed.id,
-            merge_request_locked.id, merge_request_merged.id
-          ])
+          expect_paginated_array_response(
+            [
+              merge_request.id,
+              merge_request_closed.id,
+              merge_request_locked.id,
+              merge_request_merged.id
+            ])
           response_dates = json_response.map { |merge_request| merge_request['created_at'] }
           expect(response_dates).to eq(response_dates.sort)
         end
@@ -636,10 +656,9 @@ RSpec.describe API::MergeRequests do
         )
       end
 
-      it_behaves_like 'issuable anonymous search' do
+      it_behaves_like 'issuable API rate-limited search' do
         let(:url) { '/merge_requests' }
         let(:issuable) { merge_request }
-        let(:result) { [merge_request_merged.id, merge_request_locked.id, merge_request_closed.id, merge_request.id] }
       end
 
       it "returns authentication error without any scope" do
@@ -1017,6 +1036,30 @@ RSpec.describe API::MergeRequests do
         context 'when the status changes' do
           before do
             merge_request.mark_as_unchecked!
+          end
+
+          it_behaves_like 'a non-cached MergeRequest api request', 1
+        end
+
+        context 'when the label changes' do
+          before do
+            merge_request.labels << create(:label, project: merge_request.project)
+          end
+
+          it_behaves_like 'a non-cached MergeRequest api request', 1
+        end
+
+        context 'when the assignees change' do
+          before do
+            merge_request.assignees << create(:user)
+          end
+
+          it_behaves_like 'a non-cached MergeRequest api request', 1
+        end
+
+        context 'when the reviewers change' do
+          before do
+            merge_request.reviewers << create(:user)
           end
 
           it_behaves_like 'a non-cached MergeRequest api request', 1
@@ -1738,6 +1781,58 @@ RSpec.describe API::MergeRequests do
         it_behaves_like 'accesses diffs via raw_diffs' do
           let(:params) { { access_raw_diffs: "true" } }
         end
+      end
+    end
+  end
+
+  describe 'GET /projects/:id/merge_requests/:merge_request_iid/diffs' do
+    let_it_be(:merge_request) do
+      create(
+        :merge_request,
+        :simple,
+        author: user,
+        assignees: [user],
+        source_project: project,
+        target_project: project,
+        source_branch: 'markdown',
+        title: "Test",
+        created_at: base_time
+      )
+    end
+
+    it 'returns a 404 when merge_request_iid not found' do
+      get api("/projects/#{project.id}/merge_requests/0/diffs", user)
+      expect(response).to have_gitlab_http_status(:not_found)
+    end
+
+    it 'returns a 404 when merge_request id is used instead of iid' do
+      get api("/projects/#{project.id}/merge_requests/#{merge_request.id}/diffs", user)
+
+      expect(response).to have_gitlab_http_status(:not_found)
+    end
+
+    context 'when merge request author has only guest access' do
+      it_behaves_like 'rejects user from accessing merge request info' do
+        let(:url) { "/projects/#{project.id}/merge_requests/#{merge_request.iid}/diffs" }
+      end
+    end
+
+    it 'returns the diffs of the merge_request' do
+      get api("/projects/#{project.id}/merge_requests/#{merge_request.iid}/diffs", user)
+
+      expect(response).to have_gitlab_http_status(:ok)
+      expect(json_response.size).to eq(merge_request.diffs.size)
+    end
+
+    context 'when pagination params are present' do
+      it 'returns limited diffs' do
+        get(
+          api("/projects/#{project.id}/merge_requests/#{merge_request.iid}/diffs", user),
+          params: { page: 1, per_page: 1 }
+        )
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(json_response.size).to eq(1)
       end
     end
   end
@@ -2976,7 +3071,7 @@ RSpec.describe API::MergeRequests do
   describe "PUT /projects/:id/merge_requests/:merge_request_iid" do
     context 'updates force_remove_source_branch properly' do
       it 'sets to false' do
-        merge_request.update!(merge_params: { 'force_remove_source_branch' => true } )
+        merge_request.update!(merge_params: { 'force_remove_source_branch' => true })
 
         expect(merge_request.force_remove_source_branch?).to be_truthy
 
@@ -2988,7 +3083,7 @@ RSpec.describe API::MergeRequests do
       end
 
       it 'sets to true' do
-        merge_request.update!(merge_params: { 'force_remove_source_branch' => false } )
+        merge_request.update!(merge_params: { 'force_remove_source_branch' => false })
 
         expect(merge_request.force_remove_source_branch?).to be false
 
@@ -3233,7 +3328,7 @@ RSpec.describe API::MergeRequests do
       end
 
       it 'when removing labels, only removes those specified' do
-        put api_base, params: { remove_labels: "#{label.title}" }
+        put api_base, params: { remove_labels: label.title.to_s }
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(json_response['labels']).to eq([label2.title])
@@ -3298,7 +3393,7 @@ RSpec.describe API::MergeRequests do
     end
 
     it 'handles external issues' do
-      jira_project = create(:jira_project, :public, :repository, name: 'JIR_EXT1')
+      jira_project = create(:project, :with_jira_integration, :public, :repository, name: 'JIR_EXT1')
       ext_issue = ExternalIssue.new("#{jira_project.name}-123", jira_project)
       issue = create(:issue, project: jira_project)
       description = "Closes #{ext_issue.to_reference(jira_project)}\ncloses #{issue.to_reference}"

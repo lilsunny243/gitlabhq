@@ -1,7 +1,7 @@
 ---
-stage: Manage
+stage: Govern
 group: Compliance
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Events API **(FREE)**
@@ -10,7 +10,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 
 ### Actions
 
-See [User contribution events](../user/profile/index.md#user-contribution-events) for available types for the `action` parameter.
+See [User contribution events](../user/profile/contributions_calendar.md#user-contribution-events) for available types for the `action` parameter.
 These options are in lowercase.
 
 ### Target Types
@@ -264,7 +264,7 @@ Parameters:
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `project_id` | integer/string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `project_id` | integer/string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `action` | string | no | Include only events of a particular [action type](#actions) |
 | `target_type` | string | no | Include only events of a particular [target type](#target-types) |
 | `before` | date | no |  Include only events created before a particular date. [View how to format dates](#date-formatting). |

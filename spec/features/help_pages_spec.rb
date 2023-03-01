@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Help Pages' do
+RSpec.describe 'Help Pages', feature_category: :not_owned do
   describe 'Get the main help page' do
     before do
       allow(File).to receive(:read).and_call_original
@@ -41,7 +41,7 @@ RSpec.describe 'Help Pages' do
     end
 
     it 'renders the version check badge' do
-      expect(page).to have_selector('.js-gitlab-version-check')
+      expect(page).to have_selector('.js-gitlab-version-check-badge')
     end
   end
 

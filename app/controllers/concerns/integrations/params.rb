@@ -5,6 +5,10 @@ module Integrations
     extend ActiveSupport::Concern
 
     ALLOWED_PARAMS_CE = [
+      :app_store_issuer_id,
+      :app_store_key_id,
+      :app_store_private_key,
+      :app_store_private_key_file_name,
       :active,
       :alert_events,
       :api_key,
@@ -38,6 +42,7 @@ module Integrations
       :external_wiki_url,
       :google_iap_service_account_json,
       :google_iap_audience_client_id,
+      :incident_events,
       :inherit_from_id,
       # We're using `issues_events` and `merge_requests_events`
       # in the view so we still need to explicitly state them
@@ -68,6 +73,8 @@ module Integrations
       :server,
       :server_host,
       :server_port,
+      :service_account_key,
+      :service_account_key_file_name,
       :sound,
       :subdomain,
       :teamcity_url,
@@ -88,6 +95,12 @@ module Integrations
       param_values = return_value[:integration]
 
       if param_values.is_a?(ActionController::Parameters)
+        if %w[update test].include?(action_name) && integration.chat? &&
+            param_values['webhook'] == BaseChatNotification::SECRET_MASK
+
+          param_values.delete('webhook')
+        end
+
         integration.secret_fields.each do |param|
           param_values.delete(param) if param_values[param].blank?
         end

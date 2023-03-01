@@ -1,7 +1,7 @@
 <script>
-import { GlButton, GlEmptyState, GlLoadingIcon, GlTab } from '@gitlab/ui';
+import { GlButton, GlEmptyState, GlLoadingIcon } from '@gitlab/ui';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
-import { TYPE_ISSUE } from '~/graphql_shared/constants';
+import { TYPENAME_ISSUE } from '~/graphql_shared/constants';
 import { fetchPolicies } from '~/lib/graphql';
 import notesEventHub from '~/notes/event_hub';
 import getTimelineEvents from './graphql/queries/get_timeline_events.query.graphql';
@@ -15,12 +15,11 @@ export default {
     GlButton,
     GlEmptyState,
     GlLoadingIcon,
-    GlTab,
     CreateTimelineEvent,
     IncidentTimelineEventsList,
   },
   i18n: timelineTabI18n,
-  inject: ['canUpdate', 'fullPath', 'issuableId'],
+  inject: ['canUpdateTimelineEvent', 'fullPath', 'issuableId'],
   data() {
     return {
       isEventFormVisible: false,
@@ -34,7 +33,7 @@ export default {
       variables() {
         return {
           fullPath: this.fullPath,
-          incidentId: convertToGraphQLId(TYPE_ISSUE, this.issuableId),
+          incidentId: convertToGraphQLId(TYPENAME_ISSUE, this.issuableId),
         };
       },
       update(data) {
@@ -77,7 +76,7 @@ export default {
 </script>
 
 <template>
-  <gl-tab :title="$options.i18n.title">
+  <div>
     <gl-loading-icon v-if="timelineEventLoading" size="lg" color="dark" class="gl-mt-5" />
     <gl-empty-state
       v-else-if="showEmptyState"
@@ -98,8 +97,13 @@ export default {
       :class="{ 'gl-pl-0': !hasTimelineEvents }"
       @hide-new-timeline-events-form="hideEventForm"
     />
-    <gl-button v-if="canUpdate" variant="default" class="gl-mb-3 gl-mt-7" @click="showEventForm">
+    <gl-button
+      v-if="canUpdateTimelineEvent"
+      variant="default"
+      class="gl-mb-3 gl-mt-7"
+      @click="showEventForm"
+    >
       {{ $options.i18n.addEventButton }}
     </gl-button>
-  </gl-tab>
+  </div>
 </template>

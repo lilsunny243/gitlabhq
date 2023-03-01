@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 ---
 
@@ -16,9 +16,7 @@ comments: false
 
 - Add: `git subtree add --prefix <target-folder> <url> <branch> --squash`
 - Pull: `git subtree pull --prefix <target-folder> <url> <branch> --squash`
-- Push: `git subtree add --prefix <target-folder> <url> <branch>`
-- Ex: `git config alias.sbp 'subtree pull --prefix st /
-  git@gitlab.com:balameb/subtree-nested-example.git master --squash'`
+- Push: `git subtree push --prefix <target-folder> <url> <branch>`
 
 ```shell
   # Add an alias

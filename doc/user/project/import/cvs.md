@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Migrating from CVS **(FREE)**
@@ -54,7 +54,7 @@ Wikipedia article on [comparing the different version control software](https://
 
 CVS is old with no new release since 2008. Git provides more tools to work
 with (`git bisect` for one) which makes for a more productive workflow.
-Migrating to Git/GitLab will benefit you:
+Migrating to Git/GitLab benefits you:
 
 - **Shorter learning curve**, Git has a big community and a vast number of
   tutorials to get you started (see our [Git topic](../../../topics/git/index.md)).

@@ -3,6 +3,7 @@
 module Ci
   class ParseDotenvArtifactService < ::BaseService
     include ::Gitlab::Utils::StrongMemoize
+    include ::Gitlab::EncodingHelper
 
     SizeLimitError = Class.new(StandardError)
     ParserError = Class.new(StandardError)
@@ -36,11 +37,15 @@ module Ci
       variables = {}
 
       artifact.each_blob do |blob|
+        # Windows powershell may output UTF-16LE files, so convert the whole file
+        # to UTF-8 before proceeding.
+        blob = strip_bom(encode_utf8_with_replacement_character(blob))
+
         blob.each_line do |line|
           key, value = scan_line!(line)
 
           variables[key] = Ci::JobVariable.new(job_id: artifact.job_id,
-                                               source: :dotenv, key: key, value: value)
+                                               source: :dotenv, key: key, value: value, raw: false)
         end
       end
 

@@ -1,5 +1,3 @@
-import { __ } from '~/locale';
-
 // Language map from Rouge::Lexer to highlight.js
 // Rouge::Lexer - We use it on the BE to determine the language of a source file (https://github.com/rouge-ruby/rouge/blob/master/docs/Languages.md).
 // Highlight.js - We use it on the FE to highlight the syntax of a source file (https://github.com/highlightjs/highlight.js/tree/main/src/languages).
@@ -122,6 +120,8 @@ export const EVENT_LABEL_FALLBACK = 'legacy_fallback';
 
 export const LINES_PER_CHUNK = 70;
 
+export const NEWLINE = '\n';
+
 export const BIDI_CHARS = [
   '\u202A', // Left-to-Right Embedding (Try treating following text as left-to-right)
   '\u202B', // Right-to-Left Embedding (Try treating following text as right-to-left)
@@ -139,13 +139,10 @@ export const BIDI_CHARS = [
 
 export const BIDI_CHARS_CLASS_LIST = 'unicode-bidi has-tooltip';
 
-export const BIDI_CHAR_TOOLTIP = __(
-  'Potentially unwanted character detected: Unicode BiDi Control',
-);
-
-export const HLJS_COMMENT_SELECTOR = 'hljs-comment';
+export const BIDI_CHAR_TOOLTIP = 'Potentially unwanted character detected: Unicode BiDi Control';
 
 export const HLJS_ON_AFTER_HIGHLIGHT = 'after:highlight';
 
-export const NPM_URL = 'https://npmjs.com/package';
-export const GEM_URL = 'https://rubygems.org/gems';
+// We fallback to highlighting these languages with Rouge, see the following issue for more detail:
+// https://gitlab.com/gitlab-org/gitlab/-/issues/384375#note_1212752013
+export const LEGACY_FALLBACKS = ['python'];

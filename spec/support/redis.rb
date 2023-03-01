@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require 'gitlab/redis'
 
 RSpec.configure do |config|
   config.after(:each, :redis) do
@@ -7,51 +8,27 @@ RSpec.configure do |config|
     end
   end
 
-  config.around(:each, :clean_gitlab_redis_cache) do |example|
-    redis_cache_cleanup!
+  Gitlab::Redis::ALL_CLASSES.each do |instance_class|
+    underscored_name = instance_class.store_name.underscore
 
-    example.run
+    config.around(:each, :"clean_gitlab_redis_#{underscored_name}") do |example|
+      public_send("redis_#{underscored_name}_cleanup!")
 
-    redis_cache_cleanup!
+      example.run
+
+      public_send("redis_#{underscored_name}_cleanup!")
+    end
   end
 
-  config.around(:each, :clean_gitlab_redis_shared_state) do |example|
-    redis_shared_state_cleanup!
-
-    example.run
-
-    redis_shared_state_cleanup!
+  config.before(:suite) do
+    Gitlab::Redis::ALL_CLASSES.each do |instance_class|
+      instance_class.with(&:flushdb)
+    end
   end
 
-  config.around(:each, :clean_gitlab_redis_queues) do |example|
-    redis_queues_cleanup!
+  config.before(:each, :use_null_store_as_repository_cache) do |example|
+    null_store = ActiveSupport::Cache::NullStore.new
 
-    example.run
-
-    redis_queues_cleanup!
-  end
-
-  config.around(:each, :clean_gitlab_redis_trace_chunks) do |example|
-    redis_trace_chunks_cleanup!
-
-    example.run
-
-    redis_trace_chunks_cleanup!
-  end
-
-  config.around(:each, :clean_gitlab_redis_rate_limiting) do |example|
-    redis_rate_limiting_cleanup!
-
-    example.run
-
-    redis_rate_limiting_cleanup!
-  end
-
-  config.around(:each, :clean_gitlab_redis_sessions) do |example|
-    redis_sessions_cleanup!
-
-    example.run
-
-    redis_sessions_cleanup!
+    allow(Gitlab::Redis::RepositoryCache).to receive(:cache_store).and_return(null_store)
   end
 end

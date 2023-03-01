@@ -1,15 +1,14 @@
 # frozen_string_literal: true
 
-require 'fast_spec_helper'
-require 'rspec-parameterized'
+require 'spec_helper'
 
 load File.expand_path('../../bin/feature-flag', __dir__)
 
-RSpec.describe 'bin/feature-flag' do
+RSpec.describe 'bin/feature-flag', feature_category: :feature_flags do
   using RSpec::Parameterized::TableSyntax
 
   describe FeatureFlagCreator do
-    let(:argv) { %w[feature-flag-name -t development -g group::memory -i https://url -m http://url] }
+    let(:argv) { %w[feature-flag-name -t development -g group::geo -i https://url -m http://url] }
     let(:options) { FeatureFlagOptionParser.parse(argv) }
     let(:creator) { described_class.new(options) }
     let(:existing_flags) do
@@ -81,8 +80,8 @@ RSpec.describe 'bin/feature-flag' do
         :type              | %w[foo --type development]              | :development
         :type              | %w[foo -t invalid]                      | nil
         :type              | %w[foo --type invalid]                  | nil
-        :group             | %w[foo -g group::memory]                | 'group::memory'
-        :group             | %w[foo --group group::memory]           | 'group::memory'
+        :group             | %w[foo -g group::geo]                   | 'group::geo'
+        :group             | %w[foo --group group::geo]              | 'group::geo'
         :group             | %w[foo -g invalid]                      | nil
         :group             | %w[foo --group invalid]                 | nil
       end
@@ -178,12 +177,12 @@ RSpec.describe 'bin/feature-flag' do
     end
 
     describe '.read_group' do
-      let(:group) { 'group::memory' }
+      let(:group) { 'group::geo' }
 
       it 'reads type from stdin' do
         expect(Readline).to receive(:readline).and_return(group)
         expect do
-          expect(described_class.read_group).to eq('group::memory')
+          expect(described_class.read_group).to eq('group::geo')
         end.to output(/Specify the group introducing the feature flag/).to_stdout
       end
 

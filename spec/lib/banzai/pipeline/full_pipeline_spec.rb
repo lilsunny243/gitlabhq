@@ -2,7 +2,9 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Pipeline::FullPipeline do
+RSpec.describe Banzai::Pipeline::FullPipeline, feature_category: :team_planning do
+  using RSpec::Parameterized::TableSyntax
+
   describe 'References' do
     let(:project) { create(:project, :public) }
     let(:issue)   { create(:issue, project: project) }
@@ -157,7 +159,7 @@ RSpec.describe Banzai::Pipeline::FullPipeline do
       markdown = "\\#{issue.to_reference}"
       output = described_class.to_html(markdown, project: project)
 
-      expect(output).to include("<span>#</span>#{issue.iid}")
+      expect(output).to include("<span data-escaped-char>#</span>#{issue.iid}")
     end
 
     it 'converts user reference with escaped underscore because of italics' do
@@ -166,17 +168,45 @@ RSpec.describe Banzai::Pipeline::FullPipeline do
 
       expect(output).to include('<em>@test_</em>')
     end
+
+    context 'when a reference (such as a label name) is autocompleted with characters that require escaping' do
+      # Labels are fairly representative of the type of characters that can be in a reference
+      # and aligns with the testing in spec/frontend/gfm_auto_complete_spec.js
+      where(:valid, :label_name, :markdown) do
+        # These are currently not supported
+        # true   | 'a~bug'      | '~"a\~bug"'
+        # true   | 'b~~bug~~'   | '~"b\~\~bug\~\~"'
+
+        true   | 'c_bug_'     | '~c_bug\_'
+        true   | 'c_bug_'     | 'Label ~c_bug\_ and _more_ text'
+        true   | 'd _bug_'    | '~"d \_bug\_"'
+        true   | 'e*bug*'     | '~"e\*bug\*"'
+        true   | 'f *bug*'    | '~"f \*bug\*"'
+        true   | 'f *bug*'    | 'Label ~"f \*bug\*" **with** more text'
+        true   | 'g`bug`'     | '~"g\`bug\`" '
+        true   | 'h `bug`'    | '~"h \`bug\`"'
+      end
+
+      with_them do
+        it 'detects valid escaped reference' do
+          create(:label, name: label_name, project: project)
+
+          result = Banzai::Pipeline::FullPipeline.call(markdown, project: project)
+
+          expect(result[:output].css('a').first.attr('class')).to eq 'gfm gfm-label has-tooltip gl-link gl-label-link'
+          expect(result[:output].css('a').first.content).to eq label_name
+        end
+      end
+    end
   end
 
-  describe 'unclosed image links' do
-    it 'detects a significat number of unclosed image links' do
-      markdown = '![a ' * 30
-      msg = <<~TEXT
-        Unable to render markdown - too many unclosed markdown image links detected.
-      TEXT
-      output = described_class.to_html(markdown, project: nil)
+  describe 'cmark-gfm and autlolinks' do
+    it 'does not hang with significant number of unclosed image links' do
+      markdown = '![a ' * 300000
 
-      expect(output).to include(msg.strip)
+      expect do
+        Timeout.timeout(2.seconds) { described_class.to_html(markdown, project: nil) }
+      end.not_to raise_error
     end
   end
 end

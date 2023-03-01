@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Metrics rendering', :js, :kubeclient, :use_clean_rails_memory_store_caching, :sidekiq_inline do
+RSpec.describe 'Metrics rendering', :js, :kubeclient, :use_clean_rails_memory_store_caching, :sidekiq_inline, feature_category: :team_planning do
   include PrometheusHelpers
   include KubernetesHelpers
   include GrafanaApiHelpers
   include MetricsDashboardUrlHelpers
 
   let_it_be(:user) { create(:user) }
-  let_it_be(:project) { create(:prometheus_project) }
+  let_it_be(:project) { create(:project, :with_prometheus_integration) }
   let_it_be(:environment) { create(:environment, project: project) }
 
   let(:issue) { create(:issue, project: project, description: description) }

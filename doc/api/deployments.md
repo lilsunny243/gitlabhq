@@ -1,7 +1,7 @@
 ---
 stage: Release
 group: Release
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
@@ -15,19 +15,24 @@ Get a list of deployments in a project.
 GET /projects/:id/deployments
 ```
 
-| Attribute        | Type           | Required | Description                                                                                                     |
-|------------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`             | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
-| `order_by`       | string         | no       | Return deployments ordered by either one of `id`, `iid`, `created_at`, `updated_at` or `ref` fields. Default is `id`.    |
-| `sort`           | string         | no       | Return deployments sorted in `asc` or `desc` order. Default is `asc`.                                            |
-| `updated_after`  | datetime       | no       | Return deployments updated after the specified date. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). |
-| `updated_before` | datetime       | no       | Return deployments updated before the specified date. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). |
-| `environment`    | string         | no       | The [name of the environment](../ci/environments/index.md) to filter deployments by.       |
-| `status`         | string         | no       | The status to filter deployments by. One of `created`, `running`, `success`, `failed`, `canceled`, `blocked`.
+| Attribute         | Type           | Required | Description                                                                                                     |
+|-------------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
+| `id`              | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `order_by`        | string         | no       | Return deployments ordered by either one of `id`, `iid`, `created_at`, `updated_at`, `finished_at` or `ref` fields. Default is `id`.    |
+| `sort`            | string         | no       | Return deployments sorted in `asc` or `desc` order. Default is `asc`.                                            |
+| `updated_after`   | datetime       | no       | Return deployments updated after the specified date. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). |
+| `updated_before`  | datetime       | no       | Return deployments updated before the specified date. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). |
+| `finished_after`  | datetime       | no       | Return deployments finished after the specified date. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). |
+| `finished_before` | datetime       | no       | Return deployments finished before the specified date. Expected in ISO 8601 format (`2019-03-15T08:00:00Z`). |
+| `environment`     | string         | no       | The [name of the environment](../ci/environments/index.md) to filter deployments by.       |
+| `status`          | string         | no       | The status to filter deployments by. One of `created`, `running`, `success`, `failed`, `canceled`, or `blocked`.
 
 ```shell
 curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/deployments"
 ```
+
+NOTE:
+When using `finished_before` or `finished_after`, you should specify the `order_by` to be `finished_at` and `status` should be `success`.
 
 Example response:
 
@@ -133,7 +138,7 @@ Example response:
       "tag": false,
       "project": {
         "ci_job_token_scope_enabled": false
-      },  
+      },
       "user": {
         "id": 1,
         "name": "Administrator",
@@ -190,7 +195,7 @@ GET /projects/:id/deployments/:deployment_id
 
 | Attribute | Type    | Required | Description         |
 |-----------|---------|----------|---------------------|
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `deployment_id` | integer | yes      | The ID of the deployment |
 
 ```shell
@@ -349,7 +354,7 @@ POST /projects/:id/deployments
 
 | Attribute     | Type           | Required | Description                                                                                                     |
 |---------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user.|
+| `id`          | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user.|
 | `environment` | string         | yes      | The [name of the environment](../ci/environments/index.md) to create the deployment for.                        |
 | `sha`         | string         | yes      | The SHA of the commit that is deployed.                                                                         |
 | `ref`         | string         | yes      | The name of the branch or tag that is deployed.                                                                 |
@@ -407,7 +412,7 @@ PUT /projects/:id/deployments/:deployment_id
 
 | Attribute        | Type           | Required | Description         |
 |------------------|----------------|----------|---------------------|
-| `id`             | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`             | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `deployment_id`  | integer        | yes      | The ID of the deployment to update. |
 | `status`         | string         | yes      | The new status of the deployment. One of `running`, `success`, `failed`, or `canceled`.                         |
 
@@ -477,7 +482,7 @@ DELETE /projects/:id/deployments/:deployment_id
 
 | Attribute | Type    | Required | Description         |
 |-----------|---------|----------|---------------------|
-| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user |
+| `id`      | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user |
 | `deployment_id` | integer | yes      | The ID of the deployment |
 
 ```shell
@@ -487,7 +492,11 @@ curl --request "DELETE" --header "PRIVATE-TOKEN: <your_access_token>" "https://g
 Example responses:
 
 ```json
-{ "message": "202 Accepted" }
+{ "message": "204 Deployment destroyed" }
+```
+
+```json
+{ "message": "403 Forbidden" }
 ```
 
 ```json
@@ -503,8 +512,7 @@ Example responses:
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/35739) in GitLab 12.7.
 
 NOTE:
-Not all deployments can be associated with merge requests.
-Please see
+Not all deployments can be associated with merge requests. See
 [Track what merge requests were deployed to an environment](../ci/environments/index.md#track-newly-included-merge-requests-per-deployment)
 for more information.
 
@@ -533,7 +541,7 @@ POST /projects/:id/deployments/:deployment_id/approval
 
 | Attribute       | Type           | Required | Description                                                                                                     |
 |-----------------|----------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) owned by the authenticated user. |
+| `id`            | integer/string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) owned by the authenticated user. |
 | `deployment_id` | integer        | yes      | The ID of the deployment.                                                                                       |
 | `status`        | string         | yes      | The status of the approval (either `approved` or `rejected`).                                                   |
 | `comment`       | string         | no       | A comment to go with the approval                                                                               |

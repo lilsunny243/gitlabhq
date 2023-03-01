@@ -11,7 +11,9 @@ module API
       success Entities::Projects::Topic
     end
     params do
-      optional :search, type: String, desc: 'Return list of topics matching the search criteria'
+      optional :search, type: String,
+                        desc: 'Return list of topics matching the search criteria',
+                        documentation: { example: 'search' }
       optional :without_projects, type: Boolean, desc: 'Return list of topics without assigned projects'
       use :pagination
     end
@@ -42,7 +44,8 @@ module API
       requires :name, type: String, desc: 'Slug (name)'
       requires :title, type: String, desc: 'Title'
       optional :description, type: String, desc: 'Description'
-      optional :avatar, type: ::API::Validations::Types::WorkhorseFile, desc: 'Avatar image for topic'
+      optional :avatar, type: ::API::Validations::Types::WorkhorseFile, desc: 'Avatar image for topic',
+                        documentation: { type: 'file' }
     end
     post 'topics' do
       authenticated_as_admin!
@@ -65,7 +68,8 @@ module API
       optional :name, type: String, desc: 'Slug (name)'
       optional :title, type: String, desc: 'Title'
       optional :description, type: String, desc: 'Description'
-      optional :avatar, type: ::API::Validations::Types::WorkhorseFile, desc: 'Avatar image for topic'
+      optional :avatar, type: ::API::Validations::Types::WorkhorseFile, desc: 'Avatar image for topic',
+                        documentation: { type: 'file' }
     end
     put 'topics/:id' do
       authenticated_as_admin!
@@ -93,6 +97,26 @@ module API
       topic = ::Projects::Topic.find(params[:id])
 
       destroy_conditionally!(topic)
+    end
+
+    desc 'Merge topics' do
+      detail 'This feature was introduced in GitLab 15.4.'
+      success Entities::Projects::Topic
+    end
+    params do
+      requires :source_topic_id, type: Integer, desc: 'ID of source project topic'
+      requires :target_topic_id, type: Integer, desc: 'ID of target project topic'
+    end
+    post 'topics/merge' do
+      authenticated_as_admin!
+
+      source_topic = ::Projects::Topic.find(params[:source_topic_id])
+      target_topic = ::Projects::Topic.find(params[:target_topic_id])
+
+      response = ::Topics::MergeService.new(source_topic, target_topic).execute
+      render_api_error!(response.message, :bad_request) if response.error?
+
+      present target_topic, with: Entities::Projects::Topic
     end
   end
 end

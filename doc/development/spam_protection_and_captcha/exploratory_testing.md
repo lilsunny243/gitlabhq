@@ -1,7 +1,7 @@
 ---
-stage: Manage
-group: Authentication and Authorization
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+stage: Data Science
+group: Anti-Abuse
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Exploratory testing of CAPTCHAs
@@ -91,7 +91,7 @@ CAPTCHA response string does not matter. It can be any string. If you use a
 real, valid key pair, you must solve the CAPTCHA to obtain a
 valid CAPTCHA response to use. You can do this once only, and only before it expires.
 
-To directly test the GraphQL API via [GraphQL Explorer](http://gdk.test:3000/-/graphql-explorer),
+To directly test the GraphQL API via GraphQL Explorer (`http://gdk.test:3000/-/graphql-explorer`),
 get a reCAPTCHA response string via this form: `public/recaptcha.html` (`http://gdk.test:3000/recaptcha.html`):
 
 ```html
@@ -153,8 +153,8 @@ only models with full Spam and CAPTCHA support.
 
 1. Create an API token.
 1. Export it in your terminal for the REST commands: `export PRIVATE_TOKEN=<your_api_token>`
-1. Ensure you are logged into GitLab development environment at `localhost:3000` before using GraphiQL explorer,
-   because it uses your logged-in user as authorization for running GraphQL queries.
+1. Ensure you are signed into the GitLab development environment at `localhost:3000` before using GraphiQL explorer,
+   because it uses your authenticated user as authorization for running GraphQL queries.
 1. For the GraphQL examples, use the GraphiQL explorer at `http://localhost:3000/-/graphql-explorer`.
 1. Use the `--include` (`-i`) option to `curl` to print the HTTP response headers, including the status code.
 
@@ -353,8 +353,8 @@ GraphQL response:
 }
 ```
 
-### Scenario: allow_possible_spam feature flag enabled
+### Scenario: `allow_possible_spam` application setting enabled
 
-With the `allow_possible_spam` feature flag enabled, the API returns a 200 response. Any
+With the `allow_possible_spam` application setting enabled, the API returns a 200 response. Any
 valid request is successful and no CAPTCHA is presented, even if the request is considered
 spam.

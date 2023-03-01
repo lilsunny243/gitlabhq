@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: tutorial
 ---
 
@@ -176,7 +176,7 @@ Using phpenv also allows to easily configure the PHP environment with:
 phpenv config-add my_config.ini
 ```
 
-*__Important note:__ It seems `phpenv/phpenv`
+**Important note:** It seems `phpenv/phpenv`
  [is abandoned](https://github.com/phpenv/phpenv/issues/57). There is a fork
  at [`madumlao/phpenv`](https://github.com/madumlao/phpenv) that tries to bring
  the project back to life. [`CHH/phpenv`](https://github.com/CHH/phpenv) also
@@ -189,7 +189,7 @@ phpenv config-add my_config.ini
 Since this is a pretty bare installation of the PHP environment, you may need
 some extensions that are not currently present on the build machine.
 
-To install additional extensions simply execute:
+To install additional extensions, execute:
 
 ```shell
 pecl install <extension>
@@ -246,7 +246,7 @@ the [SSH keys](../ssh_keys/index.md) to be able to clone it.
 ## Use databases or other services
 
 Most of the time, you need a running database for your tests to be able to
-run. If you're using the Docker executor, you can leverage Docker's ability to
+run. If you're using the Docker executor, you can leverage Docker to
 link to other containers. With GitLab Runner, this can be achieved by defining
 a `service`.
 
@@ -272,5 +272,5 @@ We have set up an [Example PHP Project](https://gitlab.com/gitlab-examples/php) 
 that runs on [GitLab.com](https://gitlab.com) using our publicly available
 [shared runners](../runners/index.md).
 
-Want to hack on it? Simply fork it, commit, and push your changes. Within a few
+Want to hack on it? Fork it, commit, and push your changes. Within a few
 moments the changes are picked by a public runner and the job begins.

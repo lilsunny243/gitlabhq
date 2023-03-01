@@ -1,12 +1,10 @@
 <script>
-import $ from 'jquery';
-import { GlSafeHtmlDirective } from '@gitlab/ui';
 import { escape } from 'lodash';
 import { mapActions, mapGetters, mapState } from 'vuex';
-
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { __ } from '~/locale';
-import '~/behaviors/markdown/render_gfm';
 import Suggestions from '~/vue_shared/components/markdown/suggestions.vue';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import autosave from '../mixins/autosave';
 import NoteAttachment from './note_attachment.vue';
 import NoteAwardsList from './note_awards_list.vue';
@@ -22,7 +20,7 @@ export default {
     Suggestions,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   mixins: [autosave],
   props: {
@@ -122,7 +120,7 @@ export default {
       'removeSuggestionInfoFromBatch',
     ]),
     renderGFM() {
-      $(this.$refs['note-body']).renderGFM();
+      renderGFM(this.$refs['note-body']);
     },
     handleFormUpdate(noteText, parentElement, callback, resolveDiscussion) {
       this.$emit('handleFormUpdate', { noteText, parentElement, callback, resolveDiscussion });
@@ -210,7 +208,7 @@ export default {
       v-if="note.last_edited_at"
       :edited-at="note.last_edited_at"
       :edited-by="note.last_edited_by"
-      action-text="Edited"
+      :action-text="__('Edited')"
       class="note_edited_ago"
     />
     <note-awards-list

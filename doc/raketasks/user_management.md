@@ -1,12 +1,13 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# User management **(FREE SELF)**
+# User management Rake tasks **(FREE SELF)**
 
-GitLab provides Rake tasks for user management.
+GitLab provides Rake tasks for managing users. Administrators can also use the Admin Area to
+[manage users](../user/admin_area/index.md#administering-users).
 
 ## Add user as a developer to all projects
 
@@ -87,7 +88,7 @@ block_auto_created_users: false
 
 This task disables two-factor authentication (2FA) for all users that have it enabled. This can be
 useful if the GitLab `config/secrets.yml` file has been lost and users are unable
-to log in, for example.
+to sign in, for example.
 
 To disable two-factor authentication for all users, run:
 

@@ -5,13 +5,12 @@ module Ci
     class TrackArtifactReportService
       include Gitlab::Utils::UsageData
 
-      REPORT_TRACKED = %i[test].freeze
-      VALUES_DELIMITER = '_'
+      REPORT_TRACKED = %i[test coverage].freeze
 
       def execute(pipeline)
         REPORT_TRACKED.each do |report|
-          if pipeline.has_reports?(Ci::JobArtifact.of_report_type(report))
-            track_usage_event(event_name(report), [pipeline.id, pipeline.user_id].join(VALUES_DELIMITER))
+          if pipeline.complete_and_has_reports?(Ci::JobArtifact.of_report_type(report))
+            track_usage_event(event_name(report), pipeline.user_id)
           end
         end
       end

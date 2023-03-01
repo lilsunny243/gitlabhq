@@ -65,6 +65,7 @@ module GitalySetup
   def env
     {
       'GEM_PATH' => Gem.path.join(':'),
+      'BUNDLER_SETUP' => nil,
       'BUNDLE_INSTALL_FLAGS' => nil,
       'BUNDLE_IGNORE_CONFIG' => '1',
       'BUNDLE_PATH' => bundle_path,
@@ -197,15 +198,30 @@ module GitalySetup
     end
 
     LOGGER.debug "Checking gitaly-ruby bundle...\n"
+
+    bundle_install unless bundle_check
+
+    abort 'bundle check failed' unless bundle_check
+  end
+
+  def bundle_check
+    bundle_cmd('check')
+  end
+
+  def bundle_install
+    bundle_cmd('install')
+  end
+
+  def bundle_cmd(cmd)
     out = ENV['CI'] ? $stdout : '/dev/null'
-    abort 'bundle check failed' unless system(env, 'bundle', 'check', out: out, chdir: gemfile_dir)
+    system(env, 'bundle', cmd, out: out, chdir: gemfile_dir)
   end
 
   def connect_proc(toml)
     # This code needs to work in an environment where we cannot use bundler,
     # so we cannot easily use the toml-rb gem. This ad-hoc parser should be
     # good enough.
-    config_text = IO.read(toml)
+    config_text = File.read(toml)
 
     config_text.lines.each do |line|
       match_data = line.match(/^\s*(socket_path|listen_addr)\s*=\s*"([^"]*)"$/)

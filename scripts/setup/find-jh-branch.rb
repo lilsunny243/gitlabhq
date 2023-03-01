@@ -92,11 +92,11 @@ class FindJhBranch
   def gitlab
     @gitlab ||= Gitlab.client(
       endpoint: API::DEFAULT_OPTIONS[:endpoint],
-      private_token: API::DEFAULT_OPTIONS[:api_token] || ''
+      private_token: ENV['ADD_JH_FILES_TOKEN'] || ''
     )
   end
 end
 
-if $0 == __FILE__
+if $PROGRAM_NAME == __FILE__
   puts FindJhBranch.new.run
 end

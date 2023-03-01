@@ -8,7 +8,10 @@ module Projects::ProjectMembersHelper
       invite: project_members_list_data(project, invited.nil? ? [] : invited),
       access_request: project_members_list_data(project, access_requests.nil? ? [] : access_requests),
       source_id: project.id,
-      can_manage_members: Ability.allowed?(current_user, :admin_project_member, project)
+      can_manage_members: Ability.allowed?(current_user, :admin_project_member, project),
+      can_manage_access_requests: Ability.allowed?(current_user, :admin_member_access_request, project),
+      group_name: project.group&.name,
+      group_path: project.group&.full_path
     }.to_json
   end
 

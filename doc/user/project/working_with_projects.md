@@ -1,7 +1,7 @@
 ---
 stage: Manage
-group: Workspace
-info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments"
+group: Organization
+info: "To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments"
 ---
 
 # Manage projects **(FREE)**
@@ -11,22 +11,14 @@ code are saved in projects, and most features are in the scope of projects.
 
 ## View projects
 
-To explore projects:
-
-1. On the top bar, select **Menu > Projects**.
-1. Select **Explore projects**.
-
-The **Projects** page shows a list of projects, sorted by last updated date.
-
-- To view projects with the most [stars](#star-a-project), select **Most stars**.
-- To view projects with the largest number of comments in the past month, select **Trending**.
+To view projects, on the top bar, select **Main menu > Projects > View all projects**.
 
 NOTE:
 The **Explore projects** tab is visible to unauthenticated users unless the
 [**Public** visibility level](../admin_area/settings/visibility_and_access_controls.md#restrict-visibility-levels)
-is restricted. Then the tab is visible only to signed-in users.
+is restricted. Then the tab is visible only to authenticated users.
 
-### Who can view the **Projects** page
+### Who can view the Projects page
 
 When you select a project, the project landing page shows the project contents.
 
@@ -53,204 +45,16 @@ visit the `/projects/:id` URL in your browser or other tool accessing the projec
 
 To explore project topics:
 
-1. On the top bar, select **Menu > Projects**.
-1. Select **Explore topics**.
+1. On the top bar, select **Main menu > Projects > View all projects**.
+1. Select the **Explore topics** tab.
+1. To view projects associated with a topic, select a topic.
 
-The **Projects** page shows list of topics sorted by the number of associated projects.
-To view projects associated with a topic, select a topic from the list.
+The **Explore topics** tab shows a list of topics sorted by the number of associated projects.
 
 You can assign topics to a project on the [Project Settings page](settings/index.md#assign-topics-to-a-project).
 
 If you're an instance administrator, you can administer all project topics from the
 [Admin Area's Topics page](../admin_area/index.md#administering-topics).
-
-## Create a project
-
-To create a project in GitLab:
-
-1. On the top bar, select **Menu > Project > Create new project**.
-1. On the **Create new project** page, choose if you want to:
-   - Create a [blank project](#create-a-blank-project).
-   - Create a project from a:
-      - [built-in template](#create-a-project-from-a-built-in-template).
-      - [custom template](#create-a-project-from-a-custom-template).
-      - [HIPAA audit protocol template](#create-a-project-from-the-hipaa-audit-protocol-template).
-   - [Import a project](../../user/project/import/index.md)
-     from a different repository. Contact your GitLab administrator if this option is not available.
-   - [Connect an external repository to GitLab CI/CD](../../ci/ci_cd_for_external_repos/index.md).
-
-- For a list of words that you cannot use as project names, see
-  [reserved project and group names](../../user/reserved_names.md).
-- For a list of characters that you cannot use in project and group names, see
-  [limitations on project and group names](../../user/reserved_names.md#limitations-on-project-and-group-names).
-
-## Create a blank project
-
-To create a blank project:
-
-1. On the top bar, select **Menu > Projects > Create new project**.
-1. Select **Create blank project**.
-1. Enter the project details:
-   - In the **Project name** field, enter the name of your project. You cannot use special characters at
-     the start or end of a project name.
-   - In the **Project slug** field, enter the path to your project. The GitLab instance uses the
-     slug as the URL path to the project. To change the slug, first enter the project name,
-     then change the slug.
-   - In the **Project description (optional)** field, enter the description of your project's dashboard.
-   - In the **Project target (optional)** field, select your project's deployment target.
-     This information helps GitLab better understand its users and their deployment requirements.
-   - To modify the project's [viewing and access rights](../public_access.md) for
-     users, change the **Visibility Level**.
-   - To create README file so that the Git repository is initialized, has a default branch, and
-     can be cloned, select **Initialize repository with a README**.
-   - To analyze the source code in the project for known security vulnerabilities,
-     select **Enable Static Application Security Testing (SAST)**.
-1. Select **Create project**.
-
-## Create a project from a built-in template
-
-A built-in project template populates a new project with files to get you started.
-Built-in templates are sourced from the following groups:
-
-- [`project-templates`](https://gitlab.com/gitlab-org/project-templates)
-- [`pages`](https://gitlab.com/pages)
-
-Anyone can [contribute a built-in template](../../development/project_templates.md).
-
-To create a project from a built-in template:
-
-1. On the top bar, select **Menu > Projects > Create new project**.
-1. Select **Create from template**.
-1. Select the **Built-in** tab.
-1. From the list of templates:
-   - To view a preview of the template, select **Preview**.
-   - To use a template for the project, select **Use template**.
-1. Enter the project details:
-   - In the **Project name** field, enter the name of your project. You cannot use special characters at
-     the start or end of a project name.
-   - In the **Project slug** field, enter the path to your project. The GitLab instance uses the
-     slug as the URL path to the project. To change the slug, first enter the project name,
-     then change the slug.
-   - In the **Project description (optional)** field, enter the description of your project's dashboard.
-   - To modify the project's [viewing and access rights](../public_access.md) for users,
-     change the **Visibility Level**.
-1. Select **Create project**.
-
-## Create a project from a custom template **(PREMIUM)**
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/6860) in GitLab 11.2.
-
-Custom project templates are available at:
-
-- The [instance-level](../../user/admin_area/custom_project_templates.md)
-- The [group-level](../../user/group/custom_project_templates.md)
-
-1. On the top bar, select **Menu > Projects > Create new project**.
-1. Select **Create from template**.
-1. Select the **Instance** or **Group** tab.
-1. From the list of templates:
-   - To view a preview of the template, select **Preview**.
-   - To use a template for the project, select **Use template**.
-1. Enter the project details:
-   - In the **Project name** field, enter the name of your project. You cannot use special characters at
-     the start or end of a project name.
-   - In the **Project slug** field, enter the path to your project. The GitLab instance uses the
-     slug as the URL path to the project. To change the slug, first enter the project name,
-     then change the slug.
-   - The description of your project's dashboard in the **Project description (optional)** field.
-   - To modify the project's [viewing and access rights](../public_access.md) for users,
-     change the **Visibility Level**.
-1. Select **Create project**.
-
-## Create a project from the HIPAA Audit Protocol template **(ULTIMATE)**
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/13756) in GitLab 12.10
-
-The HIPAA Audit Protocol template contains issues for audit inquiries in the
-HIPAA Audit Protocol published by the U.S Department of Health and Human Services.
-
-To create a project from the HIPAA Audit Protocol template:
-
-1. On the top bar, select **Menu > Projects > Create new project**.
-1. Select **Create from template**.
-1. Select the **Built-in** tab.
-1. Locate the **HIPAA Audit Protocol** template:
-   - To view a preview of the template, select **Preview**.
-   - To use the template for the project, select **Use template**.
-1. Enter the project details:
-   - In the **Project name** field, enter the name of your project. You cannot use special characters at
-     the start or end of a project name.
-   - In the **Project slug** field, enter the path to your project. The GitLab instance uses the
-     slug as the URL path to the project. To change the slug, first enter the project name,
-     then change the slug.
-   - In the **Project description (optional)** field, enter the description of your project's dashboard.
-   - To modify the project's [viewing and access rights](../public_access.md) for users,
-     change the **Visibility Level**.
-1. Select **Create project**.
-
-## Create a new project with Git push
-
-> [Introduced](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/26388) in GitLab 10.5.
-
-Use `git push` to push a local project repository to GitLab. After you push a repository,
-GitLab creates your project in your chosen namespace.
-
-You cannot use `git push` to create projects with project paths that:
-
-- Have previously been used.
-- Have been [renamed](settings/index.md#rename-a-repository).
-
-Previously used project paths have a redirect. The redirect causes push attempts to redirect requests
-to the renamed project location, instead of creating a new project. To create a new project for a previously
-used or renamed project, use the [UI](#create-a-project) or the [Projects API](../../api/projects.md#create-project).
-
-Prerequisites:
-
-- To push with SSH, you must have [an SSH key](../ssh.md) that is
-  [added to your GitLab account](../ssh.md#add-an-ssh-key-to-your-gitlab-account).
-- You must have permission to add new projects to a namespace. To check if you have permission:
-
-  1. On the top bar, select **Menu > Projects**.
-  1. Select **Groups**.
-  1. Select a group.
-  1. Confirm that **New project** is visible in the upper right
-     corner. Contact your GitLab
-     administrator if you require permission.
-
-To push your repository and create a project:
-
-1. Push with SSH or HTTPS:
-   - To push with SSH:
-
-      ```shell
-      git push --set-upstream git@gitlab.example.com:namespace/myproject.git master
-      ```
-
-   - To push with HTTPS:
-
-      ```shell
-      git push --set-upstream https://gitlab.example.com/namespace/myproject.git master
-      ```
-
-   - For `gitlab.example.com`, use the domain name of the machine that hosts your Git repository.
-   - For `namespace`, use the name of your [namespace](../namespace/index.md).
-   - For `myproject`, use the name of your project.
-   - Optional. To export existing repository tags, append the `--tags` flag to your `git push` command.
-1. Optional. To configure the remote:
-
-   ```shell
-   git remote add origin https://gitlab.example.com/namespace/myproject.git
-   ```
-
-When the push completes, GitLab displays the message:
-
-```shell
-remote: The private project namespace/myproject was created.
-```
-
-To view your new project, go to `https://gitlab.example.com/namespace/myproject`.
-Your project's visibility is set to **Private** by default. To change project visibility, adjust your
-[project's settings](../public_access.md#change-project-visibility).
 
 ## Star a project
 
@@ -258,15 +62,13 @@ You can add a star to projects you use frequently to make them easier to find.
 
 To add a star to a project:
 
-1. On the top bar, select **Menu > Projects**.
-1. Select **Your projects** or **Explore projects**.
-1. Select a project.
-1. In the upper right corner of the page, select **Star**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. In the upper-right corner of the page, select **Star**.
 
 ## View starred projects
 
-1. On the top bar, select **Menu > Projects**.
-1. Select **Starred projects**.
+1. On the top bar, select **Main menu > Projects > View all projects**.
+1. Select the **Starred projects** tab.
 1. GitLab displays information about your starred projects, including:
 
    - Project description, including name, description, and icon.
@@ -284,8 +86,8 @@ called `my-project` under your username, the project is created at `https://gitl
 
 To view your personal projects:
 
-1. On the top bar, select **Menu > Projects > Your Projects**.
-1. Under **Your projects**, select **Personal**.
+1. On the top bar, select **Main menu > Projects > View all projects**.
+1. In the **Yours** tab, select **Personal**.
 
 ## Delete a project
 
@@ -294,9 +96,7 @@ you can [enable delayed project removal](../group/manage.md#enable-delayed-proje
 
 To delete a project:
 
-1. On the top bar, select **Menu > Projects**.
-1. Select **Your projects** or **Explore projects**.
-1. Select a project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. Select **Settings > General**.
 1. Expand the **Advanced** section.
 1. Scroll down to the **Delete project** section.
@@ -315,7 +115,7 @@ projects within that group are not deleted immediately, but only after a delay.
 
 To view a list of all projects that are pending deletion:
 
-1. On the top bar, select **Menu > Projects > Explore projects**.
+1. On the top bar, select **Main menu > Projects > View all projects**.
 1. Based on your GitLab version:
    - GitLab 14.6 and later: select the **Pending deletion** tab.
    - GitLab 14.5 and earlier: select the **Deleted projects** tab.
@@ -330,9 +130,7 @@ Each project in the list shows:
 
 To view the activity of a project:
 
-1. On the top bar, select **Menu > Projects**.
-1. Select **Your projects** or **Explore projects**.
-1. Select a project.
+1. On the top bar, select **Main menu > Projects** and find your project..
 1. On the left sidebar, select **Project information > Activity**.
 1. Select a tab to view the type of project activity.
 
@@ -340,7 +138,7 @@ To view the activity of a project:
 
 You can search through your projects.
 
-1. On the top bar, select **Menu**.
+1. On the top bar, select **Main menu**.
 1. In **Search your projects**, type the project name.
 
 GitLab filters as you type.
@@ -359,16 +157,43 @@ You can sort projects by:
 
 You can also choose to hide or show archived projects.
 
+### Filter projects by language
+
+> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/385465) in GitLab 15.9 [with a flag](../../administration/feature_flags.md) named `project_language_search`. Enabled by default.
+> - [Generally available](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/110956) in GitLab 15.9. Feature flag `project_language_search` removed.
+
+You can filter projects by the programming language they use. To do this:
+
+1. On the top bar, select **Main menu > Projects > View all projects**.
+1. From the **Language** dropdown list, select the language you want to filter projects by.
+
+A list of projects that use the selected language is displayed.
+
+## Change the visibility of individual features in a project
+
+You can change the visibility of individual features in a project.
+
+Prerequisite:
+
+- You must have the Owner role for the project.
+
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > General**.
+1. Expand **Visibility, project features, permissions**.
+1. Use the toggle by each feature you want to turn on or off, or change access for.
+1. Select **Save changes**.
+
 ## Leave a project
 
-If you leave a project, you are no longer a project
-member and cannot contribute.
+When you leave a project:
+
+- You are no longer a project member and cannot contribute.
+- All the issues and merge requests that were assigned
+  to you are unassigned.
 
 To leave a project:
 
-1. On the top bar, select **Menu > Projects**.
-1. Select **Your projects** or **Explore projects**.
-1. Select a project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. Select **Leave project**. The **Leave project** option only displays
 on the project dashboard when a project is part of a group under a
 [group namespace](../namespace/index.md).
@@ -509,3 +334,97 @@ download starts, the `insteadOf` configuration sends the traffic to the secondar
 - [Fork a project](repository/forking_workflow.md#creating-a-fork).
 - [Adjust project visibility and access levels](settings/index.md#configure-project-visibility-features-and-permissions).
 - [Limitations on project and group names](../../user/reserved_names.md#limitations-on-project-and-group-names)
+
+## Troubleshooting
+
+When working with projects, you might encounter the following issues, or require alternate methods to complete specific tasks.
+
+### Find projects using an SQL query
+
+While in [a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session), you can find and store an array of projects based on a SQL query:
+
+```ruby
+# Finds projects that end with '%ject'
+projects = Project.find_by_sql("SELECT * FROM projects WHERE name LIKE '%ject'")
+=> [#<Project id:12 root/my-first-project>>, #<Project id:13 root/my-second-project>>]
+```
+
+### Clear a project's or repository's cache
+
+If a project or repository has been updated but the state is not reflected in the UI, you may need to clear the project's or repository's cache.
+You can do so through [a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session) and one of the following:
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+## Clear project cache
+ProjectCacheWorker.perform_async(project.id)
+
+## Clear repository .exists? cache
+project.repository.expire_exists_cache
+```
+
+### Find projects that are pending deletion
+
+If you need to find all projects marked for deletion but that have not yet been deleted,
+[start a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session) and run the following:
+
+```ruby
+projects = Project.where(pending_delete: true)
+projects.each do |p|
+  puts "Project ID: #{p.id}"
+  puts "Project name: #{p.name}"
+  puts "Repository path: #{p.repository.full_path}"
+end
+```
+
+### Delete a project using console
+
+If a project cannot be deleted, you can attempt to delete it through [Rails console](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+project = Project.find_by_full_path('<project_path>')
+user = User.find_by_username('<username>')
+ProjectDestroyWorker.new.perform(project.id, user.id, {})
+```
+
+If this fails, display why it doesn't work with:
+
+```ruby
+project = Project.find_by_full_path('<project_path>')
+project.delete_error
+```
+
+### Toggle a feature for all projects within a group
+
+While toggling a feature in a project can be done through the [projects API](../../api/projects.md),
+you may need to do this for a large number of projects.
+
+To toggle a specific feature, you can [start a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session)
+and run the following function:
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+```ruby
+projects = Group.find_by_name('_group_name').projects
+projects.each do |p|
+  ## replace <feature-name> with the appropriate feature name in all instances
+  state = p.<feature-name>
+
+  if state != 0
+    puts "#{p.name} has <feature-name> already enabled. Skipping..."
+  else
+    puts "#{p.name} didn't have <feature-name> enabled. Enabling..."
+    p.project_feature.update!(<feature-name>: ProjectFeature::PRIVATE)
+  end
+end
+```
+
+To find features that can be toggled, run `pp p.project_feature`.
+Available permission levels are listed in
+[concerns/featurable.rb](https://gitlab.com/gitlab-org/gitlab/blob/master/app/models/concerns/featurable.rb).

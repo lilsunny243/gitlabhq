@@ -48,10 +48,9 @@ module Gitlab
             description: 'Script that will be executed after each job.',
             reserved: true
 
-          # use_value_data will be removed with the FF ci_variables_refactoring_to_variable
           entry :variables, Entry::Variables,
             description: 'Environment variables that will be used.',
-            metadata: { use_value_data: true, allowed_value_data: %i[value description] },
+            metadata: { allowed_value_data: %i[value description expand options] },
             reserved: true
 
           entry :stages, Entry::Stages,
@@ -104,12 +103,16 @@ module Gitlab
 
           # rubocop: disable CodeReuse/ActiveRecord
           def compose_jobs!
-            factory = ::Gitlab::Config::Entry::Factory.new(Entry::Jobs)
-              .value(jobs_config)
-              .with(key: :jobs, parent: self,
-                    description: 'Jobs definition for this pipeline')
+            factory = logger.instrument(:config_root_compose_jobs_factory, once: true) do
+              ::Gitlab::Config::Entry::Factory.new(Entry::Jobs)
+                .value(jobs_config)
+                .with(key: :jobs, parent: self,
+                      description: 'Jobs definition for this pipeline')
+            end
 
-            @entries[:jobs] = factory.create!
+            @entries[:jobs] = logger.instrument(:config_root_compose_jobs_create, once: true) do
+              factory.create!
+            end
           end
           # rubocop: enable CodeReuse/ActiveRecord
 
@@ -123,6 +126,10 @@ module Gitlab
             end
 
             @config = @config.except(*@jobs_config.keys)
+          end
+
+          def logger
+            metadata[:logger]
           end
         end
       end

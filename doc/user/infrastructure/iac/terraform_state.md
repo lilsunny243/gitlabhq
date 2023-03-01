@@ -1,12 +1,16 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab-managed Terraform state **(FREE)**
 
-> [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2673) in GitLab 13.0.
+> - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2673) in GitLab 13.0.
+> - Support for state names that contain periods introduced in GitLab 15.7 [with a flag](../../../administration/feature_flags.md) named `allow_dots_on_tf_state_names`. Disabled by default. [Enabled on GitLab.com](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/106861) in GitLab 15.7.
+
+FLAG:
+On self-managed GitLab, by default support for state names that contain periods is not available. To make it available, ask an administrator to [enable the feature flag](../../../administration/feature_flags.md) named `allow_dots_on_tf_state_names`. On GitLab.com, support for state names that contain periods is available. Requests for state files might generate HTTP 404 errors after enabling this feature. For more information, see [Troubleshooting the Terraform integration with GitLab](troubleshooting.md#state-not-found-if-the-state-name-contains-a-period).
 
 Terraform uses state files to store details about your infrastructure configuration.
 With Terraform remote [backends](https://www.terraform.io/language/settings/backends/configuration),
@@ -54,12 +58,15 @@ WARNING:
 Like any other job artifact, Terraform plan data is viewable by anyone with the Guest role on the repository.
 Neither Terraform nor GitLab encrypts the plan file by default. If your Terraform plan
 includes sensitive data, like passwords, access tokens, or certificates, you should
-encrypt plan output or modify the project visibility settings.
+encrypt plan output or modify the project visibility settings. We also strongly recommend that you **disable**
+[public pipelines](../../../ci/pipelines/settings.md#change-pipeline-visibility-for-non-project-members-in-public-projects)
+by setting the artifact's public flag to false (`public: false`). This setting ensures artifacts are
+accessible only to GitLab Administrators and project members with the Reporter role and above.
 
 To configure GitLab CI/CD as a backend:
 
 1. In your Terraform project, in a `.tf` file like `backend.tf`,
-   define the [HTTP backend](https://www.terraform.io/docs/language/settings/backends/http.html):
+   define the [HTTP backend](https://developer.hashicorp.com/terraform/language/settings/backends/http):
 
    ```hcl
    terraform {
@@ -78,7 +85,9 @@ To configure GitLab CI/CD as a backend:
 
 The output from the above `terraform` commands should be viewable in the job logs.
 
-The `gitlab-terraform` CLI is a wrapper around the `terraform` CLI. You can [view the source code of `gitlab-terraform`](https://gitlab.com/gitlab-org/terraform-images/-/blob/master/src/bin/gitlab-terraform.sh) if you're interested.
+The `gitlab-terraform` CLI is a wrapper around the `terraform` CLI. For more information,
+see [GitLab Terraform helpers](gitlab_terraform_helpers.md),
+or [view the source code of `gitlab-terraform`](https://gitlab.com/gitlab-org/terraform-images/-/blob/master/src/bin/gitlab-terraform.sh).
 
 If you prefer to call the `terraform` commands explicitly, you can override
 the template, and instead, use it as reference for what you can achieve.
@@ -109,7 +118,7 @@ inconsistent. Instead, use a remote storage resource.
    [initialized for CI/CD](#initialize-a-terraform-state-as-a-backend-by-using-gitlab-cicd).
 1. Copy a pre-populated Terraform `init` command:
 
-   1. On the top bar, select **Menu > Projects** and find your project.
+   1. On the top bar, select **Main menu > Projects** and find your project.
    1. On the left sidebar, select **Infrastructure > Terraform**.
    1. Next to the environment you want to use, select **Actions**
       (**{ellipsis_v}**) and select **Copy Terraform init command**.
@@ -287,7 +296,7 @@ To read the Terraform state in the target project, you need at least the Develop
 
 To view Terraform state files:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Infrastructure > Terraform**.
 
 [An epic exists](https://gitlab.com/groups/gitlab-org/-/epics/4563) to track improvements to this UI.

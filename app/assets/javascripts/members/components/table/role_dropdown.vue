@@ -2,16 +2,19 @@
 import { GlDropdown, GlDropdownItem } from '@gitlab/ui';
 import { GlBreakpointInstance as bp } from '@gitlab/ui/dist/utils';
 import { mapActions } from 'vuex';
+import * as Sentry from '@sentry/browser';
 import { s__ } from '~/locale';
+import { guestOverageConfirmAction } from 'ee_else_ce/members/guest_overage_confirm_action';
 
 export default {
   name: 'RoleDropdown',
   components: {
     GlDropdown,
     GlDropdownItem,
-    LdapDropdownItem: () => import('ee_component/members/components/ldap/ldap_dropdown_item.vue'),
+    LdapDropdownItem: () =>
+      import('ee_component/members/components/action_dropdowns/ldap_dropdown_item.vue'),
   },
-  inject: ['namespace'],
+  inject: ['namespace', 'group'],
   props: {
     member: {
       type: Object,
@@ -30,7 +33,7 @@ export default {
   },
   computed: {
     disabled() {
-      return this.busy || (this.permissions.canOverride && !this.member.isOverridden);
+      return this.permissions.canOverride && !this.member.isOverridden;
     },
   },
   mounted() {
@@ -50,22 +53,45 @@ export default {
         return dispatch(`${this.namespace}/updateMemberRole`, payload);
       },
     }),
-    handleSelect(value, name) {
-      if (value === this.member.accessLevel.integerValue) {
+    async handleOverageConfirm(currentRoleValue, newRoleValue, newRoleName) {
+      return guestOverageConfirmAction({
+        currentRoleValue,
+        newRoleValue,
+        newRoleName,
+        group: this.group,
+        memberId: this.member.id,
+        memberType: this.namespace,
+      });
+    },
+    async handleSelect(newRoleValue, newRoleName) {
+      const currentRoleValue = this.member.accessLevel.integerValue;
+      if (newRoleValue === currentRoleValue) {
         return;
       }
 
       this.busy = true;
 
+      const confirmed = await this.handleOverageConfirm(
+        currentRoleValue,
+        newRoleValue,
+        newRoleName,
+      );
+      if (!confirmed) {
+        this.busy = false;
+        return;
+      }
+
       this.updateMemberRole({
         memberId: this.member.id,
-        accessLevel: { integerValue: value, stringValue: name },
+        accessLevel: { integerValue: newRoleValue, stringValue: newRoleName },
       })
         .then(() => {
           this.$toast.show(s__('Members|Role updated successfully.'));
-          this.busy = false;
         })
-        .catch(() => {
+        .catch((error) => {
+          Sentry.captureException(error);
+        })
+        .finally(() => {
           this.busy = false;
         });
     },
@@ -80,6 +106,7 @@ export default {
     :text="member.accessLevel.stringValue"
     :header-text="__('Change role')"
     :disabled="disabled"
+    :loading="busy"
   >
     <gl-dropdown-item
       v-for="(value, name) in member.validRoles"

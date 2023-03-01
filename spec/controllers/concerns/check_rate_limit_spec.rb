@@ -19,11 +19,9 @@ RSpec.describe CheckRateLimit do
         @current_user = current_user
       end
 
-      def redirect_back_or_default(**args)
-      end
+      def redirect_back_or_default(**args); end
 
-      def render(**args)
-      end
+      def render(**args); end
     end
   end
 
@@ -35,8 +33,8 @@ RSpec.describe CheckRateLimit do
   end
 
   describe '#check_rate_limit!' do
-    it 'calls ApplicationRateLimiter#throttled? with the right arguments' do
-      expect(::Gitlab::ApplicationRateLimiter).to receive(:throttled?).with(key, scope: scope).and_return(false)
+    it 'calls ApplicationRateLimiter#throttled_request? with the right arguments' do
+      expect(::Gitlab::ApplicationRateLimiter).to receive(:throttled_request?).with(request, user, key, scope: scope).and_return(false)
       expect(subject).not_to receive(:render)
 
       subject.check_rate_limit!(key, scope: scope)

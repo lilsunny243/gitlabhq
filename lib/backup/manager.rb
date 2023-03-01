@@ -22,7 +22,6 @@ module Backup
       :destination_optional, # `true` if the destination might not exist on a successful backup.
       :cleanup_path, # Path to remove after a successful backup. Uses `destination_path` when not specified.
       :task,
-      :task_group,
       keyword_init: true
     ) do
       def enabled?
@@ -121,20 +120,11 @@ module Backup
 
     def build_definitions # rubocop:disable Metrics/AbcSize
       {
-        'main_db' => TaskDefinition.new(
-          human_name: _('main_database'),
-          destination_path: 'db/database.sql.gz',
+        'db' => TaskDefinition.new(
+          human_name: _('database'),
+          destination_path: 'db',
           cleanup_path: 'db',
-          task: build_db_task(:main),
-          task_group: 'db'
-        ),
-        'ci_db' => TaskDefinition.new(
-          human_name: _('ci_database'),
-          destination_path: 'db/ci_database.sql.gz',
-          cleanup_path: 'db',
-          task: build_db_task(:ci),
-          enabled: Gitlab::Database.has_config?(:ci),
-          task_group: 'db'
+          task: build_db_task
         ),
         'repositories' => TaskDefinition.new(
           human_name: _('repositories'),
@@ -186,16 +176,15 @@ module Backup
       }.freeze
     end
 
-    def build_db_task(database_name)
-      return unless Gitlab::Database.has_config?(database_name) # It will be disabled for a single db setup
-
+    def build_db_task
       force = Gitlab::Utils.to_boolean(ENV['force'], default: false)
-      Database.new(database_name, progress, force: force)
+
+      Database.new(progress, force: force)
     end
 
     def build_repositories_task
-      max_concurrency = ENV['GITLAB_BACKUP_MAX_CONCURRENCY'].presence
-      max_storage_concurrency = ENV['GITLAB_BACKUP_MAX_STORAGE_CONCURRENCY'].presence
+      max_concurrency = ENV['GITLAB_BACKUP_MAX_CONCURRENCY'].presence&.to_i
+      max_storage_concurrency = ENV['GITLAB_BACKUP_MAX_STORAGE_CONCURRENCY'].presence&.to_i
       strategy = Backup::GitalyBackup.new(progress, incremental: incremental?, max_parallelism: max_concurrency, storage_parallelism: max_storage_concurrency)
 
       Repositories.new(progress,
@@ -218,7 +207,7 @@ module Backup
 
       build_backup_information
 
-      definitions.keys.each do |task_name|
+      definitions.each_key do |task_name|
         run_create_task(task_name)
       end
 
@@ -239,7 +228,7 @@ module Backup
       read_backup_information
       verify_backup_version
 
-      definitions.keys.each do |task_name|
+      definitions.each_key do |task_name|
         if !skipped?(task_name) && enabled_task?(task_name)
           run_restore_task(task_name)
         end
@@ -263,7 +252,7 @@ module Backup
 
     def write_backup_information
       # Make sure there is a connection
-      ::Gitlab::Database.database_base_models.values.each do |base_model|
+      ::Gitlab::Database.database_base_models.each_value do |base_model|
         base_model.connection.reconnect!
       end
 
@@ -277,7 +266,7 @@ module Backup
     def build_backup_information
       @backup_information ||= {
         db_version: ActiveRecord::Migrator.current_version.to_s,
-        backup_created_at: Time.now,
+        backup_created_at: Time.current,
         gitlab_version: Gitlab::VERSION,
         tar_version: tar_version,
         installation_type: Gitlab::INSTALLATION_TYPE,
@@ -291,7 +280,7 @@ module Backup
       @backup_information.merge!(
         full_backup_id: full_backup_id,
         db_version: ActiveRecord::Migrator.current_version.to_s,
-        backup_created_at: Time.zone.now,
+        backup_created_at: Time.current,
         gitlab_version: Gitlab::VERSION,
         tar_version: tar_version,
         installation_type: Gitlab::INSTALLATION_TYPE,
@@ -396,13 +385,13 @@ module Backup
 
           timestamp = matched[1].to_i
 
-          if Time.at(timestamp) < (Time.now - keep_time)
-            begin
-              FileUtils.rm(file)
-              removed += 1
-            rescue StandardError => e
-              puts_time "Deleting #{file} failed: #{e.message}".color(:red)
-            end
+          next unless Time.zone.at(timestamp) < (Time.current - keep_time)
+
+          begin
+            FileUtils.rm(file)
+            removed += 1
+          rescue StandardError => e
+            puts_time "Deleting #{file} failed: #{e.message}".color(:red)
           end
         end
       end
@@ -483,7 +472,7 @@ module Backup
     end
 
     def skipped?(item)
-      skipped.include?(item) || skipped.include?(definitions[item]&.task_group)
+      skipped.include?(item)
     end
 
     def skipped
@@ -523,9 +512,7 @@ module Backup
     end
 
     def object_storage_config
-      @object_storage_config ||= begin
-        ObjectStorage::Config.new(Gitlab.config.backup.upload)
-      end
+      @object_storage_config ||= ObjectStorage::Config.new(Gitlab.config.backup.upload)
     end
 
     def connect_to_remote_directory
@@ -613,7 +600,7 @@ module Backup
     end
 
     def puts_time(msg)
-      progress.puts "#{Time.now} -- #{msg}"
+      progress.puts "#{Time.current} -- #{msg}"
       Gitlab::BackupLogger.info(message: "#{Rainbow.uncolor(msg)}")
     end
   end

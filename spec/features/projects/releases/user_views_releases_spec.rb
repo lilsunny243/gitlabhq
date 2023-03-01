@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User views releases', :js do
+RSpec.describe 'User views releases', :js, feature_category: :continuous_delivery do
   let_it_be(:today) { Time.zone.now }
   let_it_be(:yesterday) { today - 1.day }
   let_it_be(:tomorrow) { today + 1.day }
@@ -15,7 +15,7 @@ RSpec.describe 'User views releases', :js do
   let_it_be(:guest) { create(:user) }
 
   let_it_be(:internal_link) { create(:release_link, release: release_v1, name: 'An internal link', url: "#{project.web_url}/-/jobs/1/artifacts/download", filepath: nil) }
-  let_it_be(:internal_link_with_redirect) { create(:release_link, release: release_v1, name: 'An internal link with a redirect', url: "#{project.web_url}/-/jobs/2/artifacts/download", filepath: '/binaries/linux-amd64' ) }
+  let_it_be(:internal_link_with_redirect) { create(:release_link, release: release_v1, name: 'An internal link with a redirect', url: "#{project.web_url}/-/jobs/2/artifacts/download", filepath: '/binaries/linux-amd64') }
   let_it_be(:external_link) { create(:release_link, release: release_v1, name: 'An external link', url: "https://example.com/an/external/link", filepath: nil) }
 
   before do
@@ -46,10 +46,10 @@ RSpec.describe 'User views releases', :js do
         external_link_indicator_selector = '[data-testid="external-link-indicator"]'
 
         expect(page).to have_link internal_link.name, href: internal_link.url
-        expect(find_link(internal_link.name)).not_to have_css(external_link_indicator_selector)
+        expect(find_link(internal_link.name)).to have_css(external_link_indicator_selector)
 
         expect(page).to have_link internal_link_with_redirect.name, href: Gitlab::Routing.url_helpers.project_release_url(project, release_v1) << "/downloads#{internal_link_with_redirect.filepath}"
-        expect(find_link(internal_link_with_redirect.name)).not_to have_css(external_link_indicator_selector)
+        expect(find_link(internal_link_with_redirect.name)).to have_css(external_link_indicator_selector)
 
         expect(page).to have_link external_link.name, href: external_link.url
         expect(find_link(external_link.name)).to have_css(external_link_indicator_selector)

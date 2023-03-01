@@ -62,6 +62,21 @@ RSpec.shared_examples 'group and project packages query' do
     it 'returns the count of the packages' do
       expect(packages_count).to eq(4)
     end
+
+    context '_links' do
+      let_it_be(:errored_package) { create(:maven_package, :error, project: project1) }
+
+      let(:package_web_paths) { graphql_data_at(resource_type, :packages, :nodes, :_links, :web_path) }
+
+      it 'does not contain the web path of errored package' do
+        expect(package_web_paths.compact).to contain_exactly(
+          "/#{project1.full_path}/-/packages/#{npm_package.id}",
+          "/#{project1.full_path}/-/packages/#{maven_package.id}",
+          "/#{project2.full_path}/-/packages/#{debian_package.id}",
+          "/#{project2.full_path}/-/packages/#{composer_package.id}"
+        )
+      end
+    end
   end
 
   context 'when the user does not have access to the resource' do
@@ -114,7 +129,7 @@ RSpec.shared_examples 'group and project packages query' do
     end
 
     [:CREATED_ASC, :NAME_ASC, :VERSION_ASC, :TYPE_ASC, :CREATED_DESC, :NAME_DESC, :VERSION_DESC, :TYPE_DESC].each do |order|
-      context "#{order}" do
+      context order.to_s do
         let(:sorted_packages) { packages_order_map.fetch(order) }
 
         it_behaves_like 'sorted paginated query' do
@@ -139,7 +154,7 @@ RSpec.shared_examples 'group and project packages query' do
       end
 
       it 'throws an error' do
-        expect_graphql_errors_to_include(/Argument \'sort\' on Field \'packages\' has an invalid value/)
+        expect_graphql_errors_to_include(/Argument 'sort' on Field 'packages' has an invalid value/)
       end
     end
 

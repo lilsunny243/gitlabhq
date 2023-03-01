@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Update a work item task' do
+RSpec.describe 'Update a work item task', feature_category: :team_planning do
   include GraphqlHelpers
 
   let_it_be(:project) { create(:project) }
@@ -73,22 +73,6 @@ RSpec.describe 'Update a work item task' do
 
     it_behaves_like 'has spam protection' do
       let(:mutation_class) { ::Mutations::WorkItems::UpdateTask }
-    end
-
-    context 'when the work_items feature flag is disabled' do
-      before do
-        stub_feature_flags(work_items: false)
-      end
-
-      it 'does not update the task item and returns and error' do
-        expect do
-          post_graphql_mutation(mutation, current_user: current_user)
-          work_item.reload
-          task.reload
-        end.to not_change(task, :title)
-
-        expect(mutation_response['errors']).to contain_exactly('`work_items` feature flag disabled for this project')
-      end
     end
   end
 

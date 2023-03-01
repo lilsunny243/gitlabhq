@@ -18,12 +18,12 @@ module RuboCop
       #
       # See https://gitlab.com/gitlab-org/gitlab/issues/2750 for more
       # information.
-      class SaferBooleanColumn < RuboCop::Cop::Cop
+      class SaferBooleanColumn < RuboCop::Cop::Base
         include MigrationHelpers
 
-        DEFAULT_OFFENSE = 'Boolean columns on the `%s` table should have a default. You may wish to use `add_column_with_default`.'
+        DEFAULT_OFFENSE = 'Boolean columns on the `%s` table should have a default.'
         NULL_OFFENSE = 'Boolean columns on the `%s` table should disallow nulls.'
-        DEFAULT_AND_NULL_OFFENSE = 'Boolean columns on the `%s` table should have a default and should disallow nulls. You may wish to use `add_column_with_default`.'
+        DEFAULT_AND_NULL_OFFENSE = 'Boolean columns on the `%s` table should have a default and should disallow nulls.'
 
         def_node_matcher :add_column?, <<~PATTERN
           (send nil? :add_column $...)
@@ -52,7 +52,7 @@ module RuboCop
                       NULL_OFFENSE
                     end
 
-          add_offense(node, location: :expression, message: format(offense, table)) if offense
+          add_offense(node, message: format(offense, table)) if offense
         end
 
         def no_default?(opts)

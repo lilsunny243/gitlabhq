@@ -3,7 +3,7 @@
 class Profiles::PreferencesController < Profiles::ApplicationController
   before_action :user
 
-  feature_category :users
+  feature_category :user_profile
 
   urgency :low, [:show]
   urgency :medium, [:update]
@@ -55,7 +55,10 @@ class Profiles::PreferencesController < Profiles::ApplicationController
       :sourcegraph_enabled,
       :gitpod_enabled,
       :render_whitespace_in_code,
-      :markdown_surround_selection
+      :markdown_surround_selection,
+      :markdown_automatic_lists,
+      :use_legacy_web_ide,
+      :use_new_navigation
     ]
   end
 end

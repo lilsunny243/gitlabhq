@@ -1,12 +1,12 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Pivotal Tracker service **(FREE)**
+# Pivotal Tracker **(FREE)**
 
-This service adds commit messages as comments to Pivotal Tracker stories.
+The Pivotal Tracker integration adds commit messages as comments to Pivotal Tracker stories.
 
 Once enabled, commit messages are checked for square brackets containing a hash mark followed by
 the story ID (for example, `[#555]`). Every story ID found gets the commit comment added to it.
@@ -37,7 +37,7 @@ In Pivotal Tracker, [create an API token](https://www.pivotaltracker.com/help/ar
 
 Complete these steps in GitLab:
 
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select **Pivotal Tracker**.
 1. Ensure that the **Active** toggle is enabled.

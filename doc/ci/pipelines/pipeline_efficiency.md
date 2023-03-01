@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -101,7 +101,7 @@ representation of pipeline health.
 
 Instance administrators have access to additional [performance metrics and self-monitoring](../../administration/monitoring/index.md).
 
-You can fetch specific pipeline health metrics from the [API](../../api/index.md).
+You can fetch specific pipeline health metrics from the [API](../../api/rest/index.md).
 External monitoring tools can poll the API and verify pipeline health or collect
 metrics for long term SLA analytics.
 
@@ -187,7 +187,7 @@ shouldn't run, saving pipeline resources.
 In a basic configuration, jobs always wait for all other jobs in earlier stages to complete
 before running. This is the simplest configuration, but it's also the slowest in most
 cases. [Directed Acyclic Graphs](../directed_acyclic_graph/index.md) and
-[parent/child pipelines](parent_child_pipelines.md) are more flexible and can
+[parent/child pipelines](downstream_pipelines.md#parent-child-pipelines) are more flexible and can
 be more efficient, but can also make pipelines harder to understand and analyze.
 
 ### Caching
@@ -219,13 +219,13 @@ that download and run faster.
 
 Try to use custom Docker images with the software pre-installed. It's usually much
 faster to download a larger pre-configured image than to use a common image and install
-software on it each time. Docker's [Best practices for writing Dockerfiles](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+software on it each time. The Docker [Best practices for writing Dockerfiles article](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
 has more information about building efficient Docker images.
 
 Methods to reduce Docker image size:
 
 - Use a small base image, for example `debian-slim`.
-- Do not install convenience tools like vim, curl, and so on, if they aren't strictly needed.
+- Do not install convenience tools such as vim or curl if they aren't strictly needed.
 - Create a dedicated development image.
 - Disable man pages and docs installed by packages to save space.
 - Reduce the `RUN` layers and combine software installation steps.
@@ -254,7 +254,7 @@ Document CI/CD pipeline problems and incidents in issues, including research don
 and solutions found. This helps onboarding new team members, and also helps
 identify recurring problems with CI pipeline efficiency.
 
-### Learn More
+### Related topics
 
 - [CI Monitoring Webcast Slides](https://docs.google.com/presentation/d/1ONwIIzRB7GWX-WOSziIIv8fz1ngqv77HO1yVfRooOHM/edit?usp=sharing)
 - [GitLab.com Monitoring Handbook](https://about.gitlab.com/handbook/engineering/monitoring/)

@@ -31,7 +31,8 @@ module Gitlab
 
     # Scopes used for GitLab as admin
     SUDO_SCOPE = :sudo
-    ADMIN_SCOPES = [SUDO_SCOPE].freeze
+    ADMIN_MODE_SCOPE = :admin_mode
+    ADMIN_SCOPES = [SUDO_SCOPE, ADMIN_MODE_SCOPE].freeze
 
     # Default scopes for OAuth applications that don't define their own
     DEFAULT_SCOPES = [API_SCOPE].freeze
@@ -135,15 +136,13 @@ module Gitlab
           # it is important to reset the ban counter once the client has proven
           # they are not a 'bad guy'.
           rate_limiter.reset!
-        else
+        elsif rate_limiter.register_fail!
           # Register a login failure so that Rack::Attack can block the next
           # request from this IP if needed.
           # This returns true when the failures are over the threshold and the IP
           # is banned.
-          if rate_limiter.register_fail!
-            Gitlab::AppLogger.info "IP #{rate_limiter.ip} failed to login " \
+          Gitlab::AppLogger.info "IP #{rate_limiter.ip} failed to login " \
               "as #{login} but has been temporarily banned from Git auth"
-          end
         end
       end
 
@@ -221,6 +220,8 @@ module Gitlab
         end
 
         if token.user.can_log_in_with_non_expired_password? || token.user.project_bot?
+          ::PersonalAccessTokens::LastUsedService.new(token).execute
+
           Gitlab::Auth::Result.new(token.user, nil, :personal_access_token, abilities_for_scopes(token.scopes))
         end
       end
@@ -365,7 +366,11 @@ module Gitlab
 
       def available_scopes_for(current_user)
         scopes = non_admin_available_scopes
-        scopes += ADMIN_SCOPES if current_user.admin?
+
+        if current_user.admin? # rubocop: disable Cop/UserAdmin
+          scopes += Feature.enabled?(:admin_mode_for_api) ? ADMIN_SCOPES : [SUDO_SCOPE]
+        end
+
         scopes
       end
 

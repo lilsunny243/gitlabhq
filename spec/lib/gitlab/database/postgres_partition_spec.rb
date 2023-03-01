@@ -2,7 +2,8 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Database::PostgresPartition, type: :model do
+RSpec.describe Gitlab::Database::PostgresPartition, type: :model, feature_category: :database do
+  let(:current_schema) { ActiveRecord::Base.connection.select_value("SELECT current_schema()") }
   let(:schema) { 'gitlab_partitions_dynamic' }
   let(:name) { '_test_partition_01' }
   let(:identifier) { "#{schema}.#{name}" }
@@ -56,8 +57,19 @@ RSpec.describe Gitlab::Database::PostgresPartition, type: :model do
       expect(partitions.pluck(:name)).to eq([name, second_name])
     end
 
+    it 'returns the partitions if the parent table schema is included in the table name' do
+      partitions = described_class.for_parent_table("#{current_schema}._test_partitioned_table")
+
+      expect(partitions.count).to eq(2)
+      expect(partitions.pluck(:name)).to eq([name, second_name])
+    end
+
     it 'does not return partitions for tables not in the current schema' do
       expect(described_class.for_parent_table('_test_other_table').count).to eq(0)
+    end
+
+    it 'does not return partitions for tables if the schema is not the current' do
+      expect(described_class.for_parent_table('foo_bar._test_partitioned_table').count).to eq(0)
     end
   end
 
@@ -70,6 +82,38 @@ RSpec.describe Gitlab::Database::PostgresPartition, type: :model do
   describe '#condition' do
     it 'returns the condition for the partitioned values' do
       expect(find(identifier).condition).to eq("FOR VALUES FROM ('2020-01-01 00:00:00+00') TO ('2020-02-01 00:00:00+00')")
+    end
+  end
+
+  describe '.partition_exists?' do
+    subject { described_class.partition_exists?(table_name) }
+
+    context 'when the partition exists' do
+      let(:table_name) { "ci_builds_metadata" }
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when the partition does not exist' do
+      let(:table_name) { 'partition_does_not_exist' }
+
+      it { is_expected.to be_falsey }
+    end
+  end
+
+  describe '.legacy_partition_exists?' do
+    subject { described_class.legacy_partition_exists?(table_name) }
+
+    context 'when the partition exists' do
+      let(:table_name) { "ci_builds_metadata" }
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when the partition does not exist' do
+      let(:table_name) { 'partition_does_not_exist' }
+
+      it { is_expected.to be_falsey }
     end
   end
 end

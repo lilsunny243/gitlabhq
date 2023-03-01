@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 description: "Learn how to use GitLab CI/CD, the GitLab built-in Continuous Integration, Continuous Deployment, and Continuous Delivery toolset to build, test, and deploy your application."
 type: index
@@ -35,7 +35,7 @@ read the [Introduction to CI/CD with GitLab](introduction/index.md).
   Video demonstration of continuous integration with GitLab CI/CD: <a href="https://www.youtube.com/watch?v=ljth1Q5oJoo">Continuous Integration with GitLab (overview demo)</a>.
 </div>
 <figure class="video-container">
-  <iframe src="https://www.youtube.com/embed/ljth1Q5oJoo" frameborder="0" allowfullscreen="true"> </iframe>
+  <iframe src="https://www.youtube-nocookie.com/embed/ljth1Q5oJoo" frameborder="0" allowfullscreen> </iframe>
 </figure>
 
 ## Concepts
@@ -128,8 +128,6 @@ See also:
 - [Enable or disable GitLab CI/CD in a project](enable_or_disable_ci.md).
 
 ## Related topics
-
-Learn more about GitLab CI/CD:
 
 - [Why you might choose GitLab CI/CD](https://about.gitlab.com/blog/2016/10/17/gitlab-ci-oohlala/).
 - [Reasons you might migrate from another platform](https://about.gitlab.com/blog/2016/07/22/building-our-web-app-on-gitlab-ci/).

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Projects::GoogleCloud::DeploymentsController do
+RSpec.describe Projects::GoogleCloud::DeploymentsController, feature_category: :kubernetes_management do
   let_it_be(:project) { create(:project, :public, :repository) }
   let_it_be(:repository) { project.repository }
 
@@ -29,10 +29,9 @@ RSpec.describe Projects::GoogleCloud::DeploymentsController do
 
           expect(response).to have_gitlab_http_status(:not_found)
           expect_snowplow_event(
-            category: 'Projects::GoogleCloud',
-            action: 'admin_project_google_cloud!',
-            label: 'error_access_denied',
-            property: 'invalid_user',
+            category: 'Projects::GoogleCloud::DeploymentsController',
+            action: 'error_invalid_user',
+            label: nil,
             project: project,
             user: nil
           )
@@ -48,10 +47,9 @@ RSpec.describe Projects::GoogleCloud::DeploymentsController do
 
             expect(response).to have_gitlab_http_status(:not_found)
             expect_snowplow_event(
-              category: 'Projects::GoogleCloud',
-              action: 'admin_project_google_cloud!',
-              label: 'error_access_denied',
-              property: 'invalid_user',
+              category: 'Projects::GoogleCloud::DeploymentsController',
+              action: 'error_invalid_user',
+              label: nil,
               project: project,
               user: nil
             )
@@ -75,8 +73,32 @@ RSpec.describe Projects::GoogleCloud::DeploymentsController do
     end
   end
 
+  describe 'Authorized GET project/-/google_cloud/deployments', :snowplow do
+    before do
+      sign_in(user_maintainer)
+
+      allow_next_instance_of(GoogleApi::CloudPlatform::Client) do |client|
+        allow(client).to receive(:validate_token).and_return(true)
+      end
+    end
+
+    it 'renders template' do
+      get project_google_cloud_deployments_path(project).to_s
+
+      expect(response).to render_template(:index)
+
+      expect_snowplow_event(
+        category: 'Projects::GoogleCloud::DeploymentsController',
+        action: 'render_page',
+        label: nil,
+        project: project,
+        user: user_maintainer
+      )
+    end
+  end
+
   describe 'Authorized GET project/-/google_cloud/deployments/cloud_run', :snowplow do
-    let_it_be(:url) { "#{project_google_cloud_deployments_cloud_run_path(project)}" }
+    let_it_be(:url) { project_google_cloud_deployments_cloud_run_path(project).to_s }
 
     before do
       sign_in(user_maintainer)
@@ -86,70 +108,104 @@ RSpec.describe Projects::GoogleCloud::DeploymentsController do
       end
     end
 
-    it 'redirects to google cloud deployments on enable service error' do
-      get url
-
-      expect(response).to redirect_to(project_google_cloud_deployments_path(project))
-      # since GPC_PROJECT_ID is not set, enable cloud run service should return an error
-      expect_snowplow_event(
-        category: 'Projects::GoogleCloud',
-        action: 'deployments#cloud_run',
-        label: 'error_enable_cloud_run',
-        extra: { message: 'No GCP projects found. Configure a service account or GCP_PROJECT_ID ci variable.',
-                 status: :error },
-        project: project,
-        user: user_maintainer
-      )
-    end
-
-    it 'redirects to google cloud deployments with error' do
-      mock_gcp_error = Google::Apis::ClientError.new('some_error')
-
-      allow_next_instance_of(GoogleCloud::EnableCloudRunService) do |service|
-        allow(service).to receive(:execute).and_raise(mock_gcp_error)
+    context 'when enable service fails' do
+      before do
+        allow_next_instance_of(GoogleCloud::EnableCloudRunService) do |service|
+          allow(service)
+            .to receive(:execute)
+            .and_return(
+              status: :error,
+              message: 'No GCP projects found. Configure a service account or GCP_PROJECT_ID ci variable'
+            )
+        end
       end
 
-      get url
-
-      expect(response).to redirect_to(project_google_cloud_deployments_path(project))
-      expect_snowplow_event(
-        category: 'Projects::GoogleCloud',
-        action: 'deployments#cloud_run',
-        label: 'error_gcp',
-        extra: mock_gcp_error,
-        project: project,
-        user: user_maintainer
-      )
-    end
-
-    context 'GCP_PROJECT_IDs are defined' do
-      it 'redirects to google_cloud deployments on generate pipeline error' do
-        allow_next_instance_of(GoogleCloud::EnableCloudRunService) do |enable_cloud_run_service|
-          allow(enable_cloud_run_service).to receive(:execute).and_return({ status: :success })
-        end
-
-        allow_next_instance_of(GoogleCloud::GeneratePipelineService) do |generate_pipeline_service|
-          allow(generate_pipeline_service).to receive(:execute).and_return({ status: :error })
-        end
-
+      it 'redirects to google cloud deployments and tracks event on enable service error' do
         get url
 
         expect(response).to redirect_to(project_google_cloud_deployments_path(project))
+        # since GPC_PROJECT_ID is not set, enable cloud run service should return an error
         expect_snowplow_event(
-          category: 'Projects::GoogleCloud',
-          action: 'deployments#cloud_run',
-          label: 'error_generate_pipeline',
-          extra: { status: :error },
+          category: 'Projects::GoogleCloud::DeploymentsController',
+          action: 'error_enable_services',
+          label: nil,
           project: project,
           user: user_maintainer
         )
       end
 
-      it 'redirects to create merge request form' do
+      it 'shows a flash alert' do
+        get url
+
+        expect(flash[:alert])
+          .to eq('No GCP projects found. Configure a service account or GCP_PROJECT_ID ci variable')
+      end
+    end
+
+    context 'when enable service raises an error' do
+      before do
+        mock_gcp_error = Google::Apis::ClientError.new('some_error')
+
         allow_next_instance_of(GoogleCloud::EnableCloudRunService) do |service|
-          allow(service).to receive(:execute).and_return({ status: :success })
+          allow(service).to receive(:execute).and_raise(mock_gcp_error)
+        end
+      end
+
+      it 'redirects to google cloud deployments with error' do
+        get url
+
+        expect(response).to redirect_to(project_google_cloud_deployments_path(project))
+        expect_snowplow_event(
+          category: 'Projects::GoogleCloud::DeploymentsController',
+          action: 'error_google_api',
+          label: nil,
+          project: project,
+          user: user_maintainer
+        )
+      end
+
+      it 'shows a flash warning' do
+        get url
+
+        expect(flash[:warning]).to eq(format(_('Google Cloud Error - %{error}'), error: 'some_error'))
+      end
+    end
+
+    context 'GCP_PROJECT_IDs are defined' do
+      before do
+        allow_next_instance_of(GoogleCloud::EnableCloudRunService) do |enable_cloud_run_service|
+          allow(enable_cloud_run_service).to receive(:execute).and_return({ status: :success })
+        end
+      end
+
+      context 'when generate pipeline service fails' do
+        before do
+          allow_next_instance_of(GoogleCloud::GeneratePipelineService) do |generate_pipeline_service|
+            allow(generate_pipeline_service).to receive(:execute).and_return({ status: :error })
+          end
         end
 
+        it 'redirects to google_cloud deployments and tracks event on generate pipeline error' do
+          get url
+
+          expect(response).to redirect_to(project_google_cloud_deployments_path(project))
+          expect_snowplow_event(
+            category: 'Projects::GoogleCloud::DeploymentsController',
+            action: 'error_generate_cloudrun_pipeline',
+            label: nil,
+            project: project,
+            user: user_maintainer
+          )
+        end
+
+        it 'shows a flash alert' do
+          get url
+
+          expect(flash[:alert]).to eq('Failed to generate pipeline')
+        end
+      end
+
+      it 'redirects to create merge request form' do
         allow_next_instance_of(GoogleCloud::GeneratePipelineService) do |service|
           allow(service).to receive(:execute).and_return({ status: :success })
         end
@@ -159,15 +215,9 @@ RSpec.describe Projects::GoogleCloud::DeploymentsController do
         expect(response).to have_gitlab_http_status(:found)
         expect(response.location).to include(project_new_merge_request_path(project))
         expect_snowplow_event(
-          category: 'Projects::GoogleCloud',
-          action: 'deployments#cloud_run',
-          label: 'success',
-          extra: { "title": "Enable deployments to Cloud Run",
-                   "description": "This merge request includes a Cloud Run deployment job in the pipeline definition (.gitlab-ci.yml).\n\nThe `deploy-to-cloud-run` job:\n* Requires the following environment variables\n    * `GCP_PROJECT_ID`\n    * `GCP_SERVICE_ACCOUNT_KEY`\n* Job definition can be found at: https://gitlab.com/gitlab-org/incubation-engineering/five-minute-production/library\n\nThis pipeline definition has been committed to the branch ``.\nYou may modify the pipeline definition further or accept the changes as-is if suitable.\n",
-                   "source_project_id": project.id,
-                   "target_project_id": project.id,
-                   "source_branch": nil,
-                   "target_branch": project.default_branch },
+          category: 'Projects::GoogleCloud::DeploymentsController',
+          action: 'generate_cloudrun_pipeline',
+          label: nil,
           project: project,
           user: user_maintainer
         )
@@ -176,7 +226,7 @@ RSpec.describe Projects::GoogleCloud::DeploymentsController do
   end
 
   describe 'Authorized GET project/-/google_cloud/deployments/cloud_storage', :snowplow do
-    let_it_be(:url) { "#{project_google_cloud_deployments_cloud_storage_path(project)}" }
+    let_it_be(:url) { project_google_cloud_deployments_cloud_storage_path(project).to_s }
 
     before do
       allow_next_instance_of(GoogleApi::CloudPlatform::Client) do |client|

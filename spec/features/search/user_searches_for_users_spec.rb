@@ -2,19 +2,23 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User searches for users' do
-  let(:user1) { create(:user, username: 'gob_bluth', name: 'Gob Bluth') }
-  let(:user2) { create(:user, username: 'michael_bluth', name: 'Michael Bluth') }
-  let(:user3) { create(:user, username: 'gob_2018', name: 'George Oscar Bluth') }
+RSpec.describe 'User searches for users', :js, :clean_gitlab_redis_rate_limiting, feature_category: :global_search do
+  let_it_be(:user1) { create(:user, username: 'gob_bluth', name: 'Gob Bluth') }
+  let_it_be(:user2) { create(:user, username: 'michael_bluth', name: 'Michael Bluth') }
+  let_it_be(:user3) { create(:user, username: 'gob_2018', name: 'George Oscar Bluth') }
 
   before do
     sign_in(user1)
   end
 
-  include_examples 'search timeouts', 'users'
+  include_examples 'search timeouts', 'users' do
+    before do
+      visit(search_path)
+    end
+  end
 
   context 'when on the dashboard' do
-    it 'finds the user', :js do
+    it 'finds the user' do
       visit dashboard_projects_path
 
       submit_search('gob')
@@ -28,12 +32,11 @@ RSpec.describe 'User searches for users' do
   end
 
   context 'when on the project page' do
-    let(:project) { create(:project) }
+    let_it_be_with_reload(:project) { create(:project) }
 
     before do
-      create(:project_member, :developer, user: user1, project: project)
-      create(:project_member, :developer, user: user2, project: project)
-      user3
+      project.add_developer(user1)
+      project.add_developer(user2)
     end
 
     it 'finds the user belonging to the project' do
@@ -59,9 +62,8 @@ RSpec.describe 'User searches for users' do
     let(:group) { create(:group) }
 
     before do
-      create(:group_member, :developer, user: user1, group: group)
-      create(:group_member, :developer, user: user2, group: group)
-      user3
+      group.add_developer(user1)
+      group.add_developer(user2)
     end
 
     it 'finds the user belonging to the group' do

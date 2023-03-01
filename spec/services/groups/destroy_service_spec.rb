@@ -2,14 +2,14 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::DestroyService do
+RSpec.describe Groups::DestroyService, feature_category: :subgroups do
   let!(:user)         { create(:user) }
   let!(:group)        { create(:group) }
   let!(:nested_group) { create(:group, parent: group) }
   let!(:project)      { create(:project, :repository, :legacy_storage, namespace: group) }
   let!(:notification_setting) { create(:notification_setting, source: group) }
-  let(:gitlab_shell) { Gitlab::Shell.new }
   let(:remove_path)  { group.path + "+#{group.id}+deleted" }
+  let(:removed_repo) { Gitlab::Git::Repository.new(project.repository_storage, remove_path, nil, nil) }
 
   before do
     group.add_member(user, Gitlab::Access::OWNER)
@@ -35,17 +35,18 @@ RSpec.describe Groups::DestroyService do
       it { expect(NotificationSetting.unscoped.all).not_to include(notification_setting) }
     end
 
-    context 'bot tokens', :sidekiq_might_not_need_inline do
-      it 'removes group bot', :aggregate_failures do
+    context 'bot tokens', :sidekiq_inline do
+      it 'initiates group bot removal', :aggregate_failures do
         bot = create(:user, :project_bot)
         group.add_developer(bot)
-        token = create(:personal_access_token, user: bot)
+        create(:personal_access_token, user: bot)
 
         destroy_group(group, user, async)
 
-        expect(PersonalAccessToken.find_by(id: token.id)).to be_nil
-        expect(User.find_by(id: bot.id)).to be_nil
-        expect(User.find_by(id: user.id)).not_to be_nil
+        expect(
+          Users::GhostUserMigration.where(user: bot,
+                                          initiator_user: user)
+        ).to be_exists
       end
     end
 
@@ -69,8 +70,11 @@ RSpec.describe Groups::DestroyService do
         end
 
         it 'verifies that paths have been deleted' do
-          expect(TestEnv.storage_dir_exists?(project.repository_storage, group.path)).to be_falsey
-          expect(TestEnv.storage_dir_exists?(project.repository_storage, remove_path)).to be_falsey
+          Gitlab::GitalyClient::NamespaceService.allow do
+            expect(Gitlab::GitalyClient::NamespaceService.new(project.repository_storage)
+              .exists?(group.path)).to be_falsey
+          end
+          expect(removed_repo).not_to exist
         end
       end
     end
@@ -96,15 +100,12 @@ RSpec.describe Groups::DestroyService do
         Sidekiq::Testing.fake! { destroy_group(group, user, true) }
       end
 
-      after do
-        # Clean up stale directories
-        TestEnv.rm_storage_dir(project.repository_storage, group.path)
-        TestEnv.rm_storage_dir(project.repository_storage, remove_path)
-      end
-
       it 'verifies original paths and projects still exist' do
-        expect(TestEnv.storage_dir_exists?(project.repository_storage, group.path)).to be_truthy
-        expect(TestEnv.storage_dir_exists?(project.repository_storage, remove_path)).to be_falsey
+        Gitlab::GitalyClient::NamespaceService.allow do
+          expect(Gitlab::GitalyClient::NamespaceService.new(project.repository_storage)
+            .exists?(group.path)).to be_truthy
+        end
+        expect(removed_repo).not_to exist
         expect(Project.unscoped.count).to eq(1)
         expect(Group.unscoped.count).to eq(2)
       end
@@ -131,7 +132,7 @@ RSpec.describe Groups::DestroyService do
       end
 
       expect { destroy_group(group, user, false) }
-        .to raise_error(Groups::DestroyService::DestroyError, "Project #{project.id} can't be deleted" )
+        .to raise_error(Groups::DestroyService::DestroyError, "Project #{project.id} can't be deleted")
     end
   end
 
@@ -155,7 +156,7 @@ RSpec.describe Groups::DestroyService do
       let!(:project) { create(:project, :legacy_storage, :empty_repo, namespace: group) }
 
       it 'removes repository' do
-        expect(gitlab_shell.repository_exists?(project.repository_storage, "#{project.disk_path}.git")).to be_falsey
+        expect(project.repository.raw).not_to exist
       end
     end
 
@@ -163,7 +164,7 @@ RSpec.describe Groups::DestroyService do
       let!(:project) { create(:project, :empty_repo, namespace: group) }
 
       it 'removes repository' do
-        expect(gitlab_shell.repository_exists?(project.repository_storage, "#{project.disk_path}.git")).to be_falsey
+        expect(project.repository.raw).not_to exist
       end
     end
   end

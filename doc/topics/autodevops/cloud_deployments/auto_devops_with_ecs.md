@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Use Auto DevOps to deploy to Amazon ECS
@@ -13,7 +13,7 @@ You can choose to target AWS ECS as a deployment platform instead of using Kuber
 To get started on Auto DevOps to AWS ECS, you must add a specific CI/CD variable.
 To do so, follow these steps:
 
-1. In GitLab, on the top bar, select **Menu > Projects** and find your project.
+1. In GitLab, on the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > CI/CD**.
 1. Expand **Auto DevOps**.
 1. Specify which AWS platform to target during the Auto DevOps deployment

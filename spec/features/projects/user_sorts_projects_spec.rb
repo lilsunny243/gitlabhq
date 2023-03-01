@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User sorts projects and order persists' do
+RSpec.describe 'User sorts projects and order persists', feature_category: :projects do
   include CookieHelper
 
   let_it_be(:user) { create(:user) }
@@ -40,7 +40,7 @@ RSpec.describe 'User sorts projects and order persists' do
     end
   end
 
-  context "from explore projects" do
+  context "from explore projects", :js do
     before do
       sign_in(user)
       visit(explore_projects_path)
@@ -48,10 +48,10 @@ RSpec.describe 'User sorts projects and order persists' do
       first(:link, 'Updated date').click
     end
 
-    it_behaves_like "sort order persists across all views", 'Updated date', 'Updated date'
+    it_behaves_like "sort order persists across all views", 'Updated date', 'Updated'
   end
 
-  context 'from dashboard projects' do
+  context 'from dashboard projects', :js do
     before do
       sign_in(user)
       visit(dashboard_projects_path)
@@ -68,11 +68,12 @@ RSpec.describe 'User sorts projects and order persists' do
       visit(group_canonical_path(group))
       within '[data-testid=group_sort_by_dropdown]' do
         find('button.gl-dropdown-toggle').click
-        first(:button, 'Last created').click
+        first(:button, 'Created').click
+        wait_for_requests
       end
     end
 
-    it_behaves_like "sort order persists across all views", "Created date", "Last created"
+    it_behaves_like "sort order persists across all views", "Oldest created", "Created"
   end
 
   context 'from group details', :js do
@@ -81,10 +82,11 @@ RSpec.describe 'User sorts projects and order persists' do
       visit(details_group_path(group))
       within '[data-testid=group_sort_by_dropdown]' do
         find('button.gl-dropdown-toggle').click
-        first(:button, 'Most stars').click
+        first(:button, 'Updated').click
+        wait_for_requests
       end
     end
 
-    it_behaves_like "sort order persists across all views", "Stars", "Most stars"
+    it_behaves_like "sort order persists across all views", "Oldest updated", "Updated"
   end
 end

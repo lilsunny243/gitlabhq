@@ -2,12 +2,19 @@
 
 module QA
   RSpec.describe 'Manage' do
-    describe 'User', :requires_admin do
+    describe 'User', :requires_admin, product_group: :organization do
       let(:admin_api_client) { Runtime::API::Client.as_admin }
+
+      let!(:parent_group) do
+        QA::Resource::Group.fabricate_via_api! do |group|
+          group.path = "parent-group-to-test-user-access-#{SecureRandom.hex(8)}"
+        end
+      end
 
       let!(:sub_group) do
         QA::Resource::Group.fabricate_via_api! do |group|
           group.path = "sub-group-to-test-user-access-#{SecureRandom.hex(8)}"
+          group.sandbox = parent_group
         end
       end
 
@@ -31,7 +38,7 @@ module QA
         end
 
         before do
-          sub_group.sandbox.add_member(parent_group_user)
+          parent_group.add_member(parent_group_user)
         end
 
         it(
@@ -70,7 +77,6 @@ module QA
 
         it(
           'is allowed to commit to sub-group project via the API',
-          :reliable,
           testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/363349'
         ) do
           expect do
@@ -80,25 +86,24 @@ module QA
               commit.branch = "new_branch_#{SecureRandom.hex(8)}"
               commit.start_branch = sub_group_project.default_branch
               commit.commit_message = 'Add new file'
-              commit.add_files([
-                { file_path: 'test.txt', content: 'new file' }
-              ])
+              commit.add_files([{ file_path: 'test.txt', content: 'new file' }])
             end
+          rescue StandardError => e
+            QA::Runtime::Logger.error("Full failure message: #{e.message}")
+            raise
           end.not_to raise_error
         end
 
         after do
           parent_group_user.remove_via_api!
-          sub_group_project.remove_via_api!
-          sub_group.remove_via_api!
         end
       end
 
       context 'when added to sub-group' do
         let!(:parent_group_project) do
           Resource::Project.fabricate_via_api! do |project|
-            project.group = sub_group.sandbox
-            project.name = "sub-group-project-to-test-user-access"
+            project.group = parent_group
+            project.name = "parent-group-project-to-test-user-access"
             project.initialize_with_readme = true
           end
         end
@@ -162,9 +167,7 @@ module QA
               commit.branch = "new_branch_#{SecureRandom.hex(8)}"
               commit.start_branch = parent_group_project.default_branch
               commit.commit_message = 'Add new file'
-              commit.add_files([
-                { file_path: 'test.txt', content: 'new file' }
-              ])
+              commit.add_files([{ file_path: 'test.txt', content: 'new file' }])
             end
           end.to raise_error(Resource::ApiFabricator::ResourceFabricationFailedError,
             /403 Forbidden - You are not allowed to push into this branch/)
@@ -172,8 +175,6 @@ module QA
 
         after do
           sub_group_user.remove_via_api!
-          parent_group_project.remove_via_api!
-          sub_group.remove_via_api!
         end
       end
     end

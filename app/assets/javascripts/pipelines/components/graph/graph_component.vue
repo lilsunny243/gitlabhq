@@ -2,7 +2,10 @@
 import { reportToSentry } from '../../utils';
 import LinkedGraphWrapper from '../graph_shared/linked_graph_wrapper.vue';
 import LinksLayer from '../graph_shared/links_layer.vue';
-import { generateColumnsFromLayersListMemoized } from '../parsing_utils';
+import {
+  generateColumnsFromLayersListMemoized,
+  keepLatestDownstreamPipelines,
+} from '../parsing_utils';
 import { DOWNSTREAM, MAIN, UPSTREAM, ONE_COL_WIDTH, STAGE_VIEW } from './constants';
 import LinkedPipelinesColumn from './linked_pipelines_column.vue';
 import StageColumnComponent from './stage_column_component.vue';
@@ -44,6 +47,11 @@ export default {
       required: false,
       default: () => ({}),
     },
+    skipRetryModal: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     type: {
       type: String,
       required: false,
@@ -76,7 +84,9 @@ export default {
       return `${this.$options.BASE_CONTAINER_ID}-${this.pipeline.id}`;
     },
     downstreamPipelines() {
-      return this.hasDownstreamPipelines ? this.pipeline.downstream : [];
+      return this.hasDownstreamPipelines
+        ? keepLatestDownstreamPipelines(this.pipeline.downstream)
+        : [];
     },
     layout() {
       return this.isStageView
@@ -170,7 +180,7 @@ export default {
       ref="mainPipelineContainer"
       class="gl-display-flex gl-position-relative gl-bg-gray-10 gl-white-space-nowrap"
       :class="{
-        'gl-pipeline-min-h gl-py-5 gl-overflow-auto gl-border-t-solid gl-border-t-1 gl-border-gray-100': !isLinkedPipeline,
+        'gl-pipeline-min-h gl-py-5 gl-overflow-auto': !isLinkedPipeline,
       }"
     >
       <linked-graph-wrapper>
@@ -181,9 +191,11 @@ export default {
             :linked-pipelines="upstreamPipelines"
             :column-title="__('Upstream')"
             :show-links="showJobLinks"
+            :skip-retry-modal="skipRetryModal"
             :type="$options.pipelineTypeConstants.UPSTREAM"
             :view-type="viewType"
             @error="onError"
+            @setSkipRetryModal="$emit('setSkipRetryModal')"
           />
         </template>
         <template #main>
@@ -210,11 +222,13 @@ export default {
                 :highlighted-jobs="highlightedJobs"
                 :is-stage-view="isStageView"
                 :job-hovered="hoveredJobName"
+                :skip-retry-modal="skipRetryModal"
                 :source-job-hovered="hoveredSourceJobName"
                 :pipeline-expanded="pipelineExpanded"
                 :pipeline-id="pipeline.id"
                 :user-permissions="pipeline.userPermissions"
                 @refreshPipelineGraph="$emit('refreshPipelineGraph')"
+                @setSkipRetryModal="$emit('setSkipRetryModal')"
                 @jobHover="setJob"
                 @updateMeasurements="getMeasurements"
               />
@@ -228,12 +242,15 @@ export default {
             :config-paths="configPaths"
             :linked-pipelines="downstreamPipelines"
             :column-title="__('Downstream')"
+            :skip-retry-modal="skipRetryModal"
             :show-links="showJobLinks"
             :type="$options.pipelineTypeConstants.DOWNSTREAM"
             :view-type="viewType"
+            data-testid="downstream-pipelines"
             @downstreamHovered="setSourceJob"
             @pipelineExpandToggle="togglePipelineExpanded"
             @refreshPipelineGraph="$emit('refreshPipelineGraph')"
+            @setSkipRetryModal="$emit('setSkipRetryModal')"
             @scrollContainer="slidePipelineContainer"
             @error="onError"
           />

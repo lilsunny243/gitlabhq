@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Issue Detail', :js do
+RSpec.describe 'Issue Detail', :js, feature_category: :team_planning do
   let_it_be_with_refind(:project) { create(:project, :public) }
 
   let(:user)     { create(:user) }
@@ -68,8 +68,12 @@ RSpec.describe 'Issue Detail', :js do
   end
 
   context 'when edited by a user who is later deleted' do
+    let(:user_to_be_deleted)     { create(:user) }
+
     before do
-      sign_in(user)
+      project.add_developer(user_to_be_deleted)
+
+      sign_in(user_to_be_deleted)
       visit project_issue_path(project, issue)
       wait_for_requests
 
@@ -78,8 +82,9 @@ RSpec.describe 'Issue Detail', :js do
       click_button 'Save changes'
       wait_for_requests
 
-      Users::DestroyService.new(user).execute(user)
+      Users::DestroyService.new(user_to_be_deleted).execute(user_to_be_deleted)
 
+      sign_in(user)
       visit project_issue_path(project, issue)
     end
 
@@ -125,7 +130,7 @@ RSpec.describe 'Issue Detail', :js do
           page.within('[data-testid="issuable-form"]') do
             update_type_select('Issue', 'Incident')
 
-            expect(page).to have_current_path(project_issues_incident_path(project, issue))
+            expect(page).to have_current_path(incident_project_issues_path(project, issue))
           end
         end
       end
@@ -165,7 +170,7 @@ RSpec.describe 'Issue Detail', :js do
 
   def update_type_select(from, to)
     click_button from
-    click_button to
+    find('[data-testid="issue-type-list-item"]', text: to).click
     click_button 'Save changes'
 
     wait_for_requests

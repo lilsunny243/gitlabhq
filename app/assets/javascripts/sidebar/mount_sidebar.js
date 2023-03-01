@@ -1,44 +1,50 @@
-import $ from 'jquery';
 import Vue from 'vue';
 import VueApollo from 'vue-apollo';
-import { TYPE_ISSUE, TYPE_MERGE_REQUEST } from '~/graphql_shared/constants';
-import { convertToGraphQLId } from '~/graphql_shared/utils';
+import { TYPENAME_ISSUE, TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
+import { convertToGraphQLId, getIdFromGraphQLId } from '~/graphql_shared/utils';
 import initInviteMembersModal from '~/invite_members/init_invite_members_modal';
 import initInviteMembersTrigger from '~/invite_members/init_invite_members_trigger';
-import { IssuableType } from '~/issues/constants';
+import { IssuableType, TYPE_ISSUE } from '~/issues/constants';
+import { gqlClient } from '~/issues/list/graphql';
 import {
-  isInIssuePage,
   isInDesignPage,
   isInIncidentPage,
+  isInIssuePage,
   isInMRPage,
   parseBoolean,
 } from '~/lib/utils/common_utils';
 import { __ } from '~/locale';
-import CollapsedAssigneeList from '~/sidebar/components/assignees/collapsed_assignee_list.vue';
-import SidebarAssigneesWidget from '~/sidebar/components/assignees/sidebar_assignees_widget.vue';
-import SidebarConfidentialityWidget from '~/sidebar/components/confidential/sidebar_confidentiality_widget.vue';
-import SidebarDueDateWidget from '~/sidebar/components/date/sidebar_date_widget.vue';
-import SidebarParticipantsWidget from '~/sidebar/components/participants/sidebar_participants_widget.vue';
-import SidebarReferenceWidget from '~/sidebar/components/reference/sidebar_reference_widget.vue';
-import SidebarDropdownWidget from '~/sidebar/components/sidebar_dropdown_widget.vue';
-import SidebarTodoWidget from '~/sidebar/components/todo_toggle/sidebar_todo_widget.vue';
 import { apolloProvider } from '~/graphql_shared/issuable_client';
-import trackShowInviteMemberLink from '~/sidebar/track_invite_members';
-import { DropdownVariant } from '~/vue_shared/components/sidebar/labels_select_vue/constants';
-import LabelsSelectWidget from '~/vue_shared/components/sidebar/labels_select_widget/labels_select_root.vue';
-import { LabelType } from '~/vue_shared/components/sidebar/labels_select_widget/constants';
-import Translate from '../vue_shared/translate';
+import Translate from '~/vue_shared/translate';
+import UserSelect from '~/vue_shared/components/user_select/user_select.vue';
+import CollapsedAssigneeList from './components/assignees/collapsed_assignee_list.vue';
 import SidebarAssignees from './components/assignees/sidebar_assignees.vue';
-import CopyEmailToClipboard from './components/copy_email_to_clipboard.vue';
+import SidebarAssigneesWidget from './components/assignees/sidebar_assignees_widget.vue';
+import SidebarConfidentialityWidget from './components/confidential/sidebar_confidentiality_widget.vue';
+import CopyEmailToClipboard from './components/copy/copy_email_to_clipboard.vue';
+import SidebarDueDateWidget from './components/date/sidebar_date_widget.vue';
 import SidebarEscalationStatus from './components/incidents/sidebar_escalation_status.vue';
+import { DropdownVariant } from './components/labels/labels_select_vue/constants';
+import { LabelType } from './components/labels/labels_select_widget/constants';
+import LabelsSelectWidget from './components/labels/labels_select_widget/labels_select_root.vue';
 import IssuableLockForm from './components/lock/issuable_lock_form.vue';
+import MilestoneDropdown from './components/milestone/milestone_dropdown.vue';
+import MoveIssuesButton from './components/move/move_issues_button.vue';
+import SidebarParticipantsWidget from './components/participants/sidebar_participants_widget.vue';
+import SidebarReferenceWidget from './components/copy/sidebar_reference_widget.vue';
 import SidebarReviewers from './components/reviewers/sidebar_reviewers.vue';
-import SidebarSeverity from './components/severity/sidebar_severity.vue';
+import SidebarReviewersInputs from './components/reviewers/sidebar_reviewers_inputs.vue';
+import SidebarSeverityWidget from './components/severity/sidebar_severity_widget.vue';
+import SidebarDropdownWidget from './components/sidebar_dropdown_widget.vue';
+import StatusDropdown from './components/status/status_dropdown.vue';
 import SidebarSubscriptionsWidget from './components/subscriptions/sidebar_subscriptions_widget.vue';
+import SubscriptionsDropdown from './components/subscriptions/subscriptions_dropdown.vue';
 import SidebarTimeTracking from './components/time_tracking/sidebar_time_tracking.vue';
+import SidebarTodoWidget from './components/todo_toggle/sidebar_todo_widget.vue';
 import { IssuableAttributeType } from './constants';
-import SidebarMoveIssue from './lib/sidebar_move_issue';
 import CrmContacts from './components/crm_contacts/crm_contacts.vue';
+import trackShowInviteMemberLink from './track_invite_members';
+import MoveIssueButton from './components/move/move_issue_button.vue';
 
 Vue.use(Translate);
 Vue.use(VueApollo);
@@ -47,37 +53,34 @@ function getSidebarOptions(sidebarOptEl = document.querySelector('.js-sidebar-op
   return JSON.parse(sidebarOptEl.innerHTML);
 }
 
-function mountSidebarToDoWidget() {
-  const el = document.querySelector('.js-issuable-todo');
+function mountSidebarTodoWidget() {
+  const el = document.querySelector('.js-sidebar-todo-widget-root');
 
   if (!el) {
-    return false;
+    return null;
   }
 
   const { projectPath, iid, id } = el.dataset;
 
   return new Vue({
     el,
-    name: 'SidebarTodoRoot',
+    name: 'SidebarTodoWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarTodoWidget,
-    },
     provide: {
       isClassicSidebar: true,
     },
     render: (createElement) =>
-      createElement('sidebar-todo-widget', {
+      createElement(SidebarTodoWidget, {
         props: {
           fullPath: projectPath,
           issuableId:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? convertToGraphQLId(TYPE_ISSUE, id)
-              : convertToGraphQLId(TYPE_MERGE_REQUEST, id),
+              ? convertToGraphQLId(TYPENAME_ISSUE, id)
+              : convertToGraphQLId(TYPENAME_MERGE_REQUEST, id),
           issuableIid: iid,
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
         },
       }),
@@ -97,23 +100,22 @@ function getSidebarAssigneeAvailabilityData() {
     );
 }
 
-function mountAssigneesComponentDeprecated(mediator) {
-  const el = document.getElementById('js-vue-sidebar-assignees');
+function mountSidebarAssigneesDeprecated(mediator) {
+  const el = document.querySelector('.js-sidebar-assignees-root');
 
-  if (!el) return;
+  if (!el) {
+    return null;
+  }
 
   const { id, iid, fullPath } = getSidebarOptions();
   const assigneeAvailabilityStatus = getSidebarAssigneeAvailabilityData();
-  // eslint-disable-next-line no-new
-  new Vue({
+
+  return new Vue({
     el,
     name: 'SidebarAssigneesRoot',
     apolloProvider,
-    components: {
-      SidebarAssignees,
-    },
     render: (createElement) =>
-      createElement('sidebar-assignees', {
+      createElement(SidebarAssignees, {
         props: {
           mediator,
           issuableIid: String(iid),
@@ -122,7 +124,7 @@ function mountAssigneesComponentDeprecated(mediator) {
           signedIn: Object.prototype.hasOwnProperty.call(el.dataset, 'signedIn'),
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
           issuableId: id,
           assigneeAvailabilityStatus,
@@ -131,22 +133,21 @@ function mountAssigneesComponentDeprecated(mediator) {
   });
 }
 
-function mountAssigneesComponent() {
-  const el = document.getElementById('js-vue-sidebar-assignees');
+function mountSidebarAssigneesWidget() {
+  const el = document.querySelector('.js-sidebar-assignees-root');
 
-  if (!el) return;
+  if (!el) {
+    return;
+  }
 
   const { id, iid, fullPath, editable } = getSidebarOptions();
   const isIssuablePage = isInIssuePage() || isInIncidentPage() || isInDesignPage();
-  const issuableType = isIssuablePage ? IssuableType.Issue : IssuableType.MergeRequest;
+  const issuableType = isIssuablePage ? TYPE_ISSUE : IssuableType.MergeRequest;
   // eslint-disable-next-line no-new
   new Vue({
     el,
     name: 'SidebarAssigneesRoot',
     apolloProvider,
-    components: {
-      SidebarAssigneesWidget,
-    },
     provide: {
       canUpdate: editable,
       directlyInviteMembers: Object.prototype.hasOwnProperty.call(
@@ -155,13 +156,13 @@ function mountAssigneesComponent() {
       ),
     },
     render: (createElement) =>
-      createElement('sidebar-assignees-widget', {
+      createElement(SidebarAssigneesWidget, {
         props: {
           iid: String(iid),
           fullPath,
           issuableType,
           issuableId: id,
-          allowMultipleAssignees: !el.dataset.maxAssignees,
+          allowMultipleAssignees: !el.dataset.maxAssignees || el.dataset.maxAssignees > 1,
           editable,
         },
         scopedSlots: {
@@ -183,10 +184,12 @@ function mountAssigneesComponent() {
   }
 }
 
-function mountReviewersComponent(mediator) {
-  const el = document.getElementById('js-vue-sidebar-reviewers');
+function mountSidebarReviewers(mediator) {
+  const el = document.querySelector('.js-sidebar-reviewers-root');
 
-  if (!el) return;
+  if (!el) {
+    return;
+  }
 
   const { iid, fullPath } = getSidebarOptions();
   // eslint-disable-next-line no-new
@@ -194,21 +197,30 @@ function mountReviewersComponent(mediator) {
     el,
     name: 'SidebarReviewersRoot',
     apolloProvider,
-    components: {
-      SidebarReviewers,
-    },
     render: (createElement) =>
-      createElement('sidebar-reviewers', {
+      createElement(SidebarReviewers, {
         props: {
           mediator,
           issuableIid: String(iid),
           projectPath: fullPath,
           field: el.dataset.field,
           issuableType:
-            isInIssuePage() || isInDesignPage() ? IssuableType.Issue : IssuableType.MergeRequest,
+            isInIssuePage() || isInDesignPage() ? TYPE_ISSUE : IssuableType.MergeRequest,
         },
       }),
   });
+
+  const reviewersInputEl = document.querySelector('.js-reviewers-inputs');
+
+  if (reviewersInputEl) {
+    // eslint-disable-next-line no-new
+    new Vue({
+      el: reviewersInputEl,
+      render(createElement) {
+        return createElement(SidebarReviewersInputs);
+      },
+    });
+  }
 
   const reviewerDropdown = document.querySelector('.js-sidebar-reviewer-dropdown');
 
@@ -217,22 +229,21 @@ function mountReviewersComponent(mediator) {
   }
 }
 
-function mountCrmContactsComponent() {
-  const el = document.getElementById('js-issue-crm-contacts');
+function mountSidebarCrmContacts() {
+  const el = document.querySelector('.js-sidebar-crm-contacts-root');
 
-  if (!el) return;
+  if (!el) {
+    return null;
+  }
 
   const { issueId, groupIssuesPath } = el.dataset;
-  // eslint-disable-next-line no-new
-  new Vue({
+
+  return new Vue({
     el,
     name: 'SidebarCrmContactsRoot',
     apolloProvider,
-    components: {
-      CrmContacts,
-    },
     render: (createElement) =>
-      createElement('crm-contacts', {
+      createElement(CrmContacts, {
         props: {
           issueId,
           groupIssuesPath,
@@ -241,34 +252,31 @@ function mountCrmContactsComponent() {
   });
 }
 
-function mountMilestoneSelect() {
-  const el = document.querySelector('.js-milestone-select');
+function mountSidebarMilestoneWidget() {
+  const el = document.querySelector('.js-sidebar-milestone-widget-root');
 
   if (!el) {
-    return false;
+    return null;
   }
 
   const { canEdit, projectPath, issueIid } = el.dataset;
 
   return new Vue({
     el,
-    name: 'SidebarMilestoneRoot',
+    name: 'SidebarMilestoneWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarDropdownWidget,
-    },
     provide: {
       canUpdate: parseBoolean(canEdit),
       isClassicSidebar: true,
     },
     render: (createElement) =>
-      createElement('sidebar-dropdown-widget', {
+      createElement(SidebarDropdownWidget, {
         props: {
           attrWorkspacePath: projectPath,
           workspacePath: projectPath,
           iid: issueIid,
           issuableType:
-            isInIssuePage() || isInDesignPage() ? IssuableType.Issue : IssuableType.MergeRequest,
+            isInIssuePage() || isInDesignPage() ? TYPE_ISSUE : IssuableType.MergeRequest,
           issuableAttribute: IssuableAttributeType.Milestone,
           icon: 'clock',
         },
@@ -276,21 +284,57 @@ function mountMilestoneSelect() {
   });
 }
 
-export function mountSidebarLabels() {
-  const el = document.querySelector('.js-sidebar-labels');
+export function mountMilestoneDropdown() {
+  const el = document.querySelector('.js-milestone-dropdown-root');
 
   if (!el) {
-    return false;
+    return null;
+  }
+
+  Vue.use(VueApollo);
+
+  const {
+    canAdminMilestone,
+    fullPath,
+    inputName,
+    milestoneId,
+    milestoneTitle,
+    projectMilestonesPath,
+    workspaceType,
+  } = el.dataset;
+
+  return new Vue({
+    el,
+    name: 'MilestoneDropdownRoot',
+    apolloProvider,
+    render(createElement) {
+      return createElement(MilestoneDropdown, {
+        props: {
+          attrWorkspacePath: fullPath,
+          canAdminMilestone,
+          inputName,
+          issuableType: isInIssuePage() ? TYPE_ISSUE : IssuableType.MergeRequest,
+          milestoneId,
+          milestoneTitle,
+          projectMilestonesPath,
+          workspaceType,
+        },
+      });
+    },
+  });
+}
+
+export function mountSidebarLabelsWidget() {
+  const el = document.querySelector('.js-sidebar-labels-widget-root');
+
+  if (!el) {
+    return null;
   }
 
   return new Vue({
     el,
-    name: 'SidebarLabelsRoot',
+    name: 'SidebarLabelsWidgetRoot',
     apolloProvider,
-
-    components: {
-      LabelsSelectWidget,
-    },
     provide: {
       ...el.dataset,
       canUpdate: parseBoolean(el.dataset.canEdit),
@@ -300,7 +344,7 @@ export function mountSidebarLabels() {
       isClassicSidebar: true,
     },
     render: (createElement) =>
-      createElement('labels-select-widget', {
+      createElement(LabelsSelectWidget, {
         props: {
           iid: String(el.dataset.iid),
           fullPath: el.dataset.projectPath,
@@ -313,7 +357,7 @@ export function mountSidebarLabels() {
           variant: DropdownVariant.Sidebar,
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
           workspaceType: 'project',
           attrWorkspacePath: el.dataset.projectPath,
@@ -327,118 +371,105 @@ export function mountSidebarLabels() {
   });
 }
 
-function mountConfidentialComponent() {
-  const el = document.getElementById('js-confidential-entry-point');
+function mountSidebarConfidentialityWidget() {
+  const el = document.querySelector('.js-sidebar-confidential-widget-root');
+
   if (!el) {
-    return;
+    return null;
   }
 
   const { fullPath, iid } = getSidebarOptions();
   const dataNode = document.getElementById('js-confidential-issue-data');
   const initialData = JSON.parse(dataNode.innerHTML);
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
-    name: 'SidebarConfidentialRoot',
+    name: 'SidebarConfidentialityWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarConfidentialityWidget,
-    },
     provide: {
       canUpdate: initialData.is_editable,
       isClassicSidebar: true,
     },
-
     render: (createElement) =>
-      createElement('sidebar-confidentiality-widget', {
+      createElement(SidebarConfidentialityWidget, {
         props: {
           iid: String(iid),
           fullPath,
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
         },
       }),
   });
 }
 
-function mountDueDateComponent() {
-  const el = document.getElementById('js-due-date-entry-point');
+function mountSidebarDueDateWidget() {
+  const el = document.querySelector('.js-sidebar-due-date-widget-root');
+
   if (!el) {
-    return;
+    return null;
   }
 
   const { fullPath, iid, editable } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
-    name: 'SidebarDueDateRoot',
+    name: 'SidebarDueDateWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarDueDateWidget,
-    },
     provide: {
       canUpdate: editable,
     },
-
     render: (createElement) =>
-      createElement('sidebar-due-date-widget', {
+      createElement(SidebarDueDateWidget, {
         props: {
           iid: String(iid),
           fullPath,
-          issuableType: IssuableType.Issue,
+          issuableType: TYPE_ISSUE,
         },
       }),
   });
 }
 
-function mountReferenceComponent() {
-  const el = document.getElementById('js-reference-entry-point');
+function mountSidebarReferenceWidget() {
+  const el = document.querySelector('.js-sidebar-reference-widget-root');
+
   if (!el) {
-    return;
+    return null;
   }
 
   const { fullPath, iid } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
-    name: 'SidebarReferenceRoot',
+    name: 'SidebarReferenceWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarReferenceWidget,
-    },
     provide: {
       iid: String(iid),
       fullPath,
     },
-
     render: (createElement) =>
-      createElement('sidebar-reference-widget', {
+      createElement(SidebarReferenceWidget, {
         props: {
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
         },
       }),
   });
 }
 
-function mountLockComponent(store) {
-  const el = document.getElementById('js-lock-entry-point');
+function mountIssuableLockForm(store) {
+  const el = document.querySelector('.js-sidebar-lock-root');
 
   if (!el || !store) {
-    return;
+    return null;
   }
 
   const { fullPath, editable } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
     name: 'SidebarLockRoot',
     store,
@@ -454,75 +485,80 @@ function mountLockComponent(store) {
   });
 }
 
-function mountParticipantsComponent() {
-  const el = document.querySelector('.js-sidebar-participants-entry-point');
+function mountSidebarParticipantsWidget() {
+  const el = document.querySelector('.js-sidebar-participants-widget-root');
 
-  if (!el) return;
+  if (!el) {
+    return null;
+  }
 
   const { fullPath, iid } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
-    name: 'SidebarParticipantsRoot',
+    name: 'SidebarParticipantsWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarParticipantsWidget,
-    },
     render: (createElement) =>
-      createElement('sidebar-participants-widget', {
+      createElement(SidebarParticipantsWidget, {
         props: {
           iid: String(iid),
           fullPath,
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
         },
       }),
   });
 }
 
-function mountSubscriptionsComponent() {
-  const el = document.querySelector('.js-sidebar-subscriptions-entry-point');
+function mountSidebarSubscriptionsWidget() {
+  const el = document.querySelector('.js-sidebar-subscriptions-widget-root');
 
-  if (!el) return;
+  if (!el) {
+    return null;
+  }
 
   const { fullPath, iid, editable } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
-    name: 'SidebarSubscriptionsRoot',
+    name: 'SidebarSubscriptionsWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarSubscriptionsWidget,
-    },
     provide: {
       canUpdate: editable,
     },
     render: (createElement) =>
-      createElement('sidebar-subscriptions-widget', {
+      createElement(SidebarSubscriptionsWidget, {
         props: {
           iid: String(iid),
           fullPath,
           issuableType:
             isInIssuePage() || isInIncidentPage() || isInDesignPage()
-              ? IssuableType.Issue
+              ? TYPE_ISSUE
               : IssuableType.MergeRequest,
         },
       }),
   });
 }
 
-function mountTimeTrackingComponent() {
-  const el = document.getElementById('issuable-time-tracker');
-  const { id, iid, fullPath, issuableType, timeTrackingLimitToHours } = getSidebarOptions();
+function mountSidebarTimeTracking() {
+  const el = document.querySelector('.js-sidebar-time-tracking-root');
 
-  if (!el) return;
+  const {
+    id,
+    iid,
+    fullPath,
+    issuableType,
+    timeTrackingLimitToHours,
+    canCreateTimelogs,
+  } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  if (!el) {
+    return null;
+  }
+
+  return new Vue({
     el,
     name: 'SidebarTimeTrackingRoot',
     apolloProvider,
@@ -534,32 +570,30 @@ function mountTimeTrackingComponent() {
           issuableId: id.toString(),
           issuableIid: iid.toString(),
           limitToHours: timeTrackingLimitToHours,
+          canAddTimeEntries: canCreateTimelogs,
         },
       }),
   });
 }
 
-function mountSeverityComponent() {
-  const severityContainerEl = document.querySelector('#js-severity');
+function mountSidebarSeverityWidget() {
+  const el = document.querySelector('.js-sidebar-severity-widget-root');
 
-  if (!severityContainerEl) {
-    return false;
+  if (!el) {
+    return null;
   }
 
   const { fullPath, iid, severity, editable } = getSidebarOptions();
 
   return new Vue({
-    el: severityContainerEl,
-    name: 'SidebarSeverityRoot',
+    el,
+    name: 'SidebarSeverityWidgetRoot',
     apolloProvider,
-    components: {
-      SidebarSeverity,
-    },
     provide: {
       canUpdate: editable,
     },
     render: (createElement) =>
-      createElement('sidebar-severity', {
+      createElement(SidebarSeverityWidget, {
         props: {
           projectPath: fullPath,
           iid: String(iid),
@@ -569,27 +603,25 @@ function mountSeverityComponent() {
   });
 }
 
-function mountEscalationStatusComponent() {
-  const statusContainerEl = document.querySelector('#js-escalation-status');
+function mountSidebarEscalationStatus() {
+  const el = document.querySelector('.js-sidebar-escalation-status-root');
 
-  if (!statusContainerEl) {
-    return false;
+  if (!el) {
+    return null;
   }
 
   const { issuableType } = getSidebarOptions();
-  const { canUpdate, issueIid, projectPath } = statusContainerEl.dataset;
+  const { canUpdate, issueIid, projectPath } = el.dataset;
 
   return new Vue({
-    el: statusContainerEl,
+    el,
+    name: 'SidebarEscalationStatusRoot',
     apolloProvider,
-    components: {
-      SidebarEscalationStatus,
-    },
     provide: {
       canUpdate: parseBoolean(canUpdate),
     },
     render: (createElement) =>
-      createElement('sidebar-escalation-status', {
+      createElement(SidebarEscalationStatus, {
         props: {
           iid: issueIid,
           issuableType,
@@ -599,19 +631,162 @@ function mountEscalationStatusComponent() {
   });
 }
 
-function mountCopyEmailComponent() {
-  const el = document.getElementById('issuable-copy-email');
+function mountCopyEmailToClipboard() {
+  const el = document.querySelector('.js-sidebar-copy-email-root');
 
-  if (!el) return;
+  if (!el) {
+    return null;
+  }
 
   const { createNoteEmail } = getSidebarOptions();
 
-  // eslint-disable-next-line no-new
-  new Vue({
+  return new Vue({
     el,
     name: 'SidebarCopyEmailRoot',
     render: (createElement) =>
       createElement(CopyEmailToClipboard, { props: { issueEmailAddress: createNoteEmail } }),
+  });
+}
+
+export function mountMoveIssuesButton() {
+  const el = document.querySelector('.js-move-issues');
+
+  if (!el) {
+    return null;
+  }
+
+  Vue.use(VueApollo);
+
+  return new Vue({
+    el,
+    name: 'MoveIssuesRoot',
+    apolloProvider: new VueApollo({
+      defaultClient: gqlClient,
+    }),
+    render: (createElement) =>
+      createElement(MoveIssuesButton, {
+        props: {
+          projectFullPath: el.dataset.projectFullPath,
+          projectsFetchPath: el.dataset.projectsFetchPath,
+        },
+      }),
+  });
+}
+
+export function mountStatusDropdown() {
+  const el = document.querySelector('.js-status-dropdown');
+
+  if (!el) {
+    return null;
+  }
+
+  return new Vue({
+    el,
+    name: 'StatusDropdownRoot',
+    render: (createElement) => createElement(StatusDropdown),
+  });
+}
+
+export function mountSubscriptionsDropdown() {
+  const el = document.querySelector('.js-subscriptions-dropdown');
+
+  if (!el) {
+    return null;
+  }
+
+  return new Vue({
+    el,
+    name: 'SubscriptionsDropdownRoot',
+    render: (createElement) => createElement(SubscriptionsDropdown),
+  });
+}
+
+export function mountMoveIssueButton() {
+  const el = document.querySelector('.js-sidebar-move-issue-block');
+
+  if (!el) {
+    return null;
+  }
+
+  const { projectsAutocompleteEndpoint } = getSidebarOptions();
+  const { projectFullPath, issueIid } = el.dataset;
+
+  Vue.use(VueApollo);
+
+  return new Vue({
+    el,
+    name: 'MoveIssueDropdownRoot',
+    apolloProvider,
+    provide: {
+      projectsAutocompleteEndpoint,
+      projectFullPath,
+      issueIid,
+    },
+    render: (createElement) => createElement(MoveIssueButton),
+  });
+}
+
+export function mountAssigneesDropdown() {
+  const el = document.querySelector('.js-assignee-dropdown');
+  const assigneeIdsInput = document.querySelector('.js-assignee-ids-input');
+
+  if (!el || !assigneeIdsInput) {
+    return null;
+  }
+
+  const { fullPath } = el.dataset;
+  const currentUser = {
+    id: gon?.current_user_id,
+    username: gon?.current_username,
+    name: gon?.current_user_fullname,
+    avatarUrl: gon?.current_user_avatar_url,
+  };
+
+  return new Vue({
+    el,
+    apolloProvider,
+    data() {
+      return {
+        selectedUserName: '',
+        value: [],
+      };
+    },
+    methods: {
+      onSelectedUnassigned() {
+        assigneeIdsInput.value = 0;
+        this.value = [];
+        this.selectedUserName = __('Unassigned');
+      },
+      onSelected(selected) {
+        assigneeIdsInput.value = selected.map((user) => getIdFromGraphQLId(user.id));
+        this.value = selected;
+        this.selectedUserName = selected.map((user) => user.name).join(', ');
+      },
+    },
+    render(h) {
+      const component = this;
+
+      return h(UserSelect, {
+        props: {
+          text: component.selectedUserName || __('Select assignee'),
+          headerText: __('Assign to'),
+          fullPath,
+          currentUser,
+          value: component.value,
+        },
+        on: {
+          input(selected) {
+            if (!selected.length) {
+              component.onSelectedUnassigned();
+              return;
+            }
+
+            component.onSelected(selected);
+          },
+        },
+        class: 'gl-w-full',
+      });
+    },
   });
 }
 
@@ -621,36 +796,27 @@ const isAssigneesWidgetShown =
 export function mountSidebar(mediator, store) {
   initInviteMembersModal();
   initInviteMembersTrigger();
-
-  mountSidebarToDoWidget();
+  mountSidebarTodoWidget();
   if (isAssigneesWidgetShown) {
-    mountAssigneesComponent();
+    mountSidebarAssigneesWidget();
   } else {
-    mountAssigneesComponentDeprecated(mediator);
+    mountSidebarAssigneesDeprecated(mediator);
   }
-  mountReviewersComponent(mediator);
-  mountCrmContactsComponent();
-  mountSidebarLabels();
-  mountMilestoneSelect();
-  mountConfidentialComponent(mediator);
-  mountDueDateComponent(mediator);
-  mountReferenceComponent(mediator);
-  mountLockComponent(store);
-  mountParticipantsComponent();
-  mountSubscriptionsComponent();
-  mountCopyEmailComponent();
-
-  new SidebarMoveIssue(
-    mediator,
-    $('.js-move-issue'),
-    $('.js-move-issue-confirmation-button'),
-  ).init();
-
-  mountTimeTrackingComponent();
-
-  mountSeverityComponent();
-
-  mountEscalationStatusComponent();
+  mountSidebarReviewers(mediator);
+  mountSidebarCrmContacts();
+  mountSidebarLabelsWidget();
+  mountSidebarMilestoneWidget();
+  mountSidebarConfidentialityWidget();
+  mountSidebarDueDateWidget();
+  mountSidebarReferenceWidget();
+  mountIssuableLockForm(store);
+  mountSidebarParticipantsWidget();
+  mountSidebarSubscriptionsWidget();
+  mountCopyEmailToClipboard();
+  mountSidebarTimeTracking();
+  mountSidebarSeverityWidget();
+  mountSidebarEscalationStatus();
+  mountMoveIssueButton();
 }
 
 export { getSidebarOptions };

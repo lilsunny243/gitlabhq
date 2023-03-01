@@ -1,14 +1,13 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Docker images **(FREE SELF)**
 
 The GitLab Docker images are monolithic images of GitLab running all the
-necessary services in a single container. If you instead want to install GitLab
-on Kubernetes, see [GitLab Helm Charts](https://docs.gitlab.com/charts/).
+necessary services in a single container.
 
 Find the GitLab official Docker image at:
 
@@ -23,6 +22,11 @@ the MTA after every upgrade or restart.
 In the following examples, if you want to use the latest RC image, use
 `gitlab/gitlab-ee:rc` instead.
 
+You should not deploy the GitLab Docker image in Kubernetes as it creates a
+single point of failure. If you want to deploy GitLab in Kubernetes, the
+[GitLab Helm Chart](https://docs.gitlab.com/charts/) or [GitLab Operator](https://docs.gitlab.com/operator/)
+should be used instead.
+
 WARNING:
 Docker for Windows is not officially supported. There are known issues with volume
 permissions, and potentially other unknown issues. If you are trying to run on Docker
@@ -31,7 +35,7 @@ to community resources (such as IRC or forums) to seek help from other users.
 
 ## Prerequisites
 
-Docker is required. See the [official installation documentation](https://docs.docker.com/install/).
+Docker is required. See the [official installation documentation](https://docs.docker.com/get-docker/).
 
 ## Set up the volumes location
 
@@ -122,7 +126,7 @@ After starting a container you can visit `gitlab.example.com` (or
 `http://192.168.59.103` if you used boot2docker on macOS). It might take a while
 before the Docker container starts to respond to queries.
 
-Visit the GitLab URL, and log in with username `root`
+Visit the GitLab URL, and sign in with the username `root`
 and the password from the following command:
 
 ```shell
@@ -138,7 +142,7 @@ With [Docker Compose](https://docs.docker.com/compose/) you can easily configure
 install, and upgrade your Docker-based GitLab installation:
 
 1. [Install Docker Compose](https://docs.docker.com/compose/install/).
-1. Create a `docker-compose.yml` file (or [download an example](https://gitlab.com/gitlab-org/omnibus-gitlab/raw/master/docker/docker-compose.yml)):
+1. Create a `docker-compose.yml` file:
 
    ```yaml
    version: '3.6'
@@ -211,7 +215,7 @@ and [Docker configurations](https://docs.docker.com/engine/swarm/configs/) to ef
 Secrets can be used to securely pass your initial root password without exposing it as an environment variable.
 Configurations can help you to keep your GitLab image as generic as possible.
 
-Here's an example that deploys GitLab with four runners as a [stack](https://docs.docker.com/get-started/part5/), using secrets and configurations:
+Here's an example that deploys GitLab with four runners as a [stack](https://docs.docker.com/get-started/swarm-deploy/#describe-apps-using-stack-files), using secrets and configurations:
 
 1. [Set up a Docker swarm](https://docs.docker.com/engine/swarm/swarm-tutorial/).
 1. Create a `docker-compose.yml` file:
@@ -263,7 +267,7 @@ Here's an example that deploys GitLab with four runners as a [stack](https://doc
 1. Create a `root_password.txt` file:
 
    ```plaintext
-   MySuperSecretAndSecurePass0rd!
+   MySuperSecretAndSecurePassw0rd!
    ```
 
 1. Make sure you are in the same directory as `docker-compose.yml` and run:
@@ -298,13 +302,12 @@ sudo docker exec -it gitlab editor /etc/gitlab/gitlab.rb
 Once you open `/etc/gitlab/gitlab.rb` make sure to set the `external_url` to
 point to a valid URL.
 
-To receive e-mails from GitLab you have to configure the
+To receive emails from GitLab you have to configure the
 [SMTP settings](https://docs.gitlab.com/omnibus/settings/smtp.html) because the GitLab Docker image doesn't
 have an SMTP server installed. You may also be interested in
 [enabling HTTPS](https://docs.gitlab.com/omnibus/settings/ssl.html).
 
-After you make all the changes you want, you will need to restart the container
-in order to reconfigure GitLab:
+After you make all the changes you want, you will need to restart the container to reconfigure GitLab:
 
 ```shell
 sudo docker restart gitlab
@@ -342,7 +345,7 @@ sudo docker run --detach \
   gitlab/gitlab-ee:latest
 ```
 
-Note that every time you execute a `docker run` command, you need to provide
+Every time you execute a `docker run` command, you need to provide
 the `GITLAB_OMNIBUS_CONFIG` option. The content of `GITLAB_OMNIBUS_CONFIG` is
 _not_ preserved between subsequent runs.
 
@@ -408,8 +411,8 @@ port `2289`:
    ```
 
    NOTE:
-   The format for publishing ports is `hostPort:containerPort`. Read more in
-   Docker's documentation about
+   The format for publishing ports is `hostPort:containerPort`. Read more in the
+   Docker documentation about
    [exposing incoming ports](https://docs.docker.com/engine/reference/run/#/expose-incoming-ports).
 
 1. Enter the running container:
@@ -620,7 +623,7 @@ sudo docker exec -it gitlab /bin/bash
 ```
 
 From within the container you can administer the GitLab container as you would
-normally administer an
+usually administer an
 [Omnibus installation](https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/README.md)
 
 ### 500 Internal Error
@@ -699,7 +702,7 @@ variety of statistics on the health and performance of GitLab. The files
 required for this gets written to a temporary file system (like `/run` or
 `/dev/shm`).
 
-By default, Docker allocates 64MB to the shared memory directory (mounted at
+By default, Docker allocates 64 MB to the shared memory directory (mounted at
 `/dev/shm`). This is insufficient to hold all the Prometheus metrics related
 files generated, and will generate error logs like the following:
 
@@ -714,14 +717,14 @@ writing value to /dev/shm/gitlab/sidekiq/histogram_sidekiq_0-0.db failed with un
 ```
 
 Other than disabling the Prometheus Metrics from the Admin Area, the recommended
-solution to fix this problem is to increase the size of shared memory to at least 256MB.
+solution to fix this problem is to increase the size of shared memory to at least 256 MB.
 If using `docker run`, this can be done by passing the flag `--shm-size 256m`.
 If using a `docker-compose.yml` file, the `shm_size` key can be used for this
 purpose.
 
 ### Docker containers exhausts space due to the `json-file`
 
-Docker's [default logging driver is `json-file`](https://docs.docker.com/config/containers/logging/configure/#configure-the-default-logging-driver), which performs no log rotation by default. As a result of this lack of rotation, log files stored by the `json-file` driver can consume a significant amount of disk space for containers that generate a lot of output. This can lead to disk space exhaustion. To address this, use [`journald`](https://docs.docker.com/config/containers/logging/journald/) as the logging driver when available, or [another supported driver](https://docs.docker.com/config/containers/logging/configure/#supported-logging-drivers) with native rotation support.
+Docker uses the [`json-file` default logging driver](https://docs.docker.com/config/containers/logging/configure/#configure-the-default-logging-driver), which performs no log rotation by default. As a result of this lack of rotation, log files stored by the `json-file` driver can consume a significant amount of disk space for containers that generate a lot of output. This can lead to disk space exhaustion. To address this, use [`journald`](https://docs.docker.com/config/containers/logging/journald/) as the logging driver when available, or [another supported driver](https://docs.docker.com/config/containers/logging/configure/#supported-logging-drivers) with native rotation support.
 
 ### Buffer overflow error when starting Docker
 

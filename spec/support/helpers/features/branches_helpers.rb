@@ -22,11 +22,10 @@ module Spec
           end
 
           def select_branch(branch_name)
-            find(".js-branch-select").click
+            wait_for_requests
 
-            page.within("#new-branch-form .dropdown-menu") do
-              click_link(branch_name)
-            end
+            click_button branch_name
+            send_keys branch_name
           end
         end
       end

@@ -8,9 +8,9 @@ import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
-import { DEFAULT_NONE_ANY } from '~/vue_shared/components/filtered_search_bar/constants';
+import { OPTIONS_NONE_ANY } from '~/vue_shared/components/filtered_search_bar/constants';
 import BaseToken from '~/vue_shared/components/filtered_search_bar/tokens/base_token.vue';
 import CrmOrganizationToken from '~/vue_shared/components/filtered_search_bar/tokens/crm_organization_token.vue';
 import searchCrmOrganizationsQuery from '~/vue_shared/components/filtered_search_bar/queries/search_crm_organizations.query.graphql';
@@ -93,7 +93,7 @@ describe('CrmOrganizationToken', () => {
           getBaseToken().vm.$emit('fetch-suggestions', 'foo');
           await waitForPromises();
 
-          expect(createFlash).not.toHaveBeenCalled();
+          expect(createAlert).not.toHaveBeenCalled();
           expect(searchGroupCrmOrganizationsQueryHandler).toHaveBeenCalledWith({
             fullPath: 'group',
             isProject: false,
@@ -107,7 +107,7 @@ describe('CrmOrganizationToken', () => {
           getBaseToken().vm.$emit('fetch-suggestions', '5');
           await waitForPromises();
 
-          expect(createFlash).not.toHaveBeenCalled();
+          expect(createAlert).not.toHaveBeenCalled();
           expect(searchGroupCrmOrganizationsQueryHandler).toHaveBeenCalledWith({
             fullPath: 'group',
             isProject: false,
@@ -133,7 +133,7 @@ describe('CrmOrganizationToken', () => {
           getBaseToken().vm.$emit('fetch-suggestions', 'foo');
           await waitForPromises();
 
-          expect(createFlash).not.toHaveBeenCalled();
+          expect(createAlert).not.toHaveBeenCalled();
           expect(searchProjectCrmOrganizationsQueryHandler).toHaveBeenCalledWith({
             fullPath: 'project',
             isProject: true,
@@ -147,7 +147,7 @@ describe('CrmOrganizationToken', () => {
           getBaseToken().vm.$emit('fetch-suggestions', '5');
           await waitForPromises();
 
-          expect(createFlash).not.toHaveBeenCalled();
+          expect(createAlert).not.toHaveBeenCalled();
           expect(searchProjectCrmOrganizationsQueryHandler).toHaveBeenCalledWith({
             fullPath: 'project',
             isProject: true,
@@ -158,7 +158,7 @@ describe('CrmOrganizationToken', () => {
         });
       });
 
-      it('calls `createFlash` with flash error message when request fails', async () => {
+      it('calls `createAlert` with flash error message when request fails', async () => {
         mountComponent();
 
         jest.spyOn(wrapper.vm.$apollo, 'query').mockRejectedValue({});
@@ -166,7 +166,7 @@ describe('CrmOrganizationToken', () => {
         getBaseToken().vm.$emit('fetch-suggestions');
         await waitForPromises();
 
-        expect(createFlash).toHaveBeenCalledWith({
+        expect(createAlert).toHaveBeenCalledWith({
           message: 'There was a problem fetching CRM organizations.',
         });
       });
@@ -186,7 +186,7 @@ describe('CrmOrganizationToken', () => {
   });
 
   describe('template', () => {
-    const defaultOrganizations = DEFAULT_NONE_ANY;
+    const defaultOrganizations = OPTIONS_NONE_ANY;
 
     it('renders base-token component', () => {
       mountComponent({
@@ -249,7 +249,7 @@ describe('CrmOrganizationToken', () => {
       expect(wrapper.findComponent(GlDropdownDivider).exists()).toBe(false);
     });
 
-    it('renders `DEFAULT_NONE_ANY` as default suggestions', () => {
+    it('renders `OPTIONS_NONE_ANY` as default suggestions', () => {
       mountComponent({
         active: true,
         config: { ...mockCrmOrganizationToken },
@@ -261,8 +261,8 @@ describe('CrmOrganizationToken', () => {
 
       const suggestions = wrapper.findAllComponents(GlFilteredSearchSuggestion);
 
-      expect(suggestions).toHaveLength(DEFAULT_NONE_ANY.length);
-      DEFAULT_NONE_ANY.forEach((organization, index) => {
+      expect(suggestions).toHaveLength(OPTIONS_NONE_ANY.length);
+      OPTIONS_NONE_ANY.forEach((organization, index) => {
         expect(suggestions.at(index).text()).toBe(organization.text);
       });
     });

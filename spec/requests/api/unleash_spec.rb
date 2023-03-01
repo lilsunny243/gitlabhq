@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Unleash do
+RSpec.describe API::Unleash, feature_category: :feature_flags do
   include FeatureFlagHelpers
 
   let_it_be(:project, refind: true) { create(:project) }
@@ -88,85 +88,6 @@ RSpec.describe API::Unleash do
     end
   end
 
-  shared_examples_for 'support multiple environments' do
-    let!(:client) { create(:operations_feature_flags_client, project: project) }
-    let!(:base_headers) { { "UNLEASH-INSTANCEID" => client.token } }
-    let!(:headers) { base_headers.merge({ "UNLEASH-APPNAME" => "test" }) }
-
-    let!(:feature_flag_1) do
-      create(:operations_feature_flag, name: "feature_flag_1", project: project, active: true)
-    end
-
-    let!(:feature_flag_2) do
-      create(:operations_feature_flag, name: "feature_flag_2", project: project, active: false)
-    end
-
-    before do
-      create_scope(feature_flag_1, 'production', false)
-      create_scope(feature_flag_2, 'review/*', true)
-    end
-
-    it 'does not have N+1 problem' do
-      control_count = ActiveRecord::QueryRecorder.new { get api(features_url), headers: headers }.count
-
-      create(:operations_feature_flag, name: "feature_flag_3", project: project, active: true)
-
-      expect { get api(features_url), headers: headers }.not_to exceed_query_limit(control_count)
-    end
-
-    context 'when app name is staging' do
-      let(:headers) { base_headers.merge({ "UNLEASH-APPNAME" => "staging" }) }
-
-      it 'returns correct active values' do
-        subject
-
-        feature_flag_1 = json_response['features'].find { |f| f['name'] == 'feature_flag_1' }
-        feature_flag_2 = json_response['features'].find { |f| f['name'] == 'feature_flag_2' }
-
-        expect(feature_flag_1['enabled']).to eq(true)
-        expect(feature_flag_2['enabled']).to eq(false)
-      end
-    end
-
-    context 'when app name is production' do
-      let(:headers) { base_headers.merge({ "UNLEASH-APPNAME" => "production" }) }
-
-      it 'returns correct active values' do
-        subject
-
-        feature_flag_1 = json_response['features'].find { |f| f['name'] == 'feature_flag_1' }
-        feature_flag_2 = json_response['features'].find { |f| f['name'] == 'feature_flag_2' }
-
-        expect(feature_flag_1['enabled']).to eq(false)
-        expect(feature_flag_2['enabled']).to eq(false)
-      end
-    end
-
-    context 'when app name is review/patch-1' do
-      let(:headers) { base_headers.merge({ "UNLEASH-APPNAME" => "review/patch-1" }) }
-
-      it 'returns correct active values' do
-        subject
-
-        feature_flag_1 = json_response['features'].find { |f| f['name'] == 'feature_flag_1' }
-        feature_flag_2 = json_response['features'].find { |f| f['name'] == 'feature_flag_2' }
-
-        expect(feature_flag_1['enabled']).to eq(true)
-        expect(feature_flag_2['enabled']).to eq(false)
-      end
-    end
-
-    context 'when app name is empty' do
-      let(:headers) { base_headers }
-
-      it 'returns empty list' do
-        subject
-
-        expect(json_response['features'].count).to eq(0)
-      end
-    end
-  end
-
   %w(/feature_flags/unleash/:project_id/features /feature_flags/unleash/:project_id/client/features).each do |features_endpoint|
     describe "GET #{features_endpoint}", :use_clean_rails_redis_caching do
       let(:features_url) { features_endpoint.sub(':project_id', project_id.to_s) }
@@ -201,18 +122,6 @@ RSpec.describe API::Unleash do
           ::FeatureFlags::CreateService.new(project, project.owner, name: 'feature_flag').execute
 
           3.times { get api(features_url), params: params, headers: headers }
-        end
-
-        context 'when cache_unleash_client_api is disabled' do
-          before do
-            stub_feature_flags(cache_unleash_client_api: false)
-          end
-
-          it 'serializes feature flags every time' do
-            expect(::API::Entities::UnleashFeature).to receive(:represent).exactly(5).times
-
-            5.times { get api(features_url), params: params, headers: headers }
-          end
         end
       end
 

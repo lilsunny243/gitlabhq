@@ -1,7 +1,7 @@
 /* https://gist.github.com/qguv/7936275 */
 
 @import '../common';
-@import 'highlight.js/styles/base16/solarized-dark.css';
+@import 'highlight.js/styles/base16/solarized-dark';
 
 /*
 * Solarized dark colors
@@ -107,7 +107,9 @@ $solarized-dark-il: #2aa198;
     @include hljs-override('selector-tag', $solarized-dark-nt);
     @include hljs-override('keyword', $solarized-dark-k);
     @include hljs-override('variable', $solarized-dark-nv);
-    @include hljs-override('variable.language_', $solarized-dark-k);
+    @include hljs-override('variable\\.language_', $solarized-dark-k);
+    @include hljs-override('variable\\.language', $solarized-dark-k);
+    @include hljs-override('variable\\.constant', $solarized-dark-no);
     @include hljs-override('title', $solarized-dark-nf);
     @include hljs-override('name', $solarized-dark-k);
     @include hljs-override('tag', $solarized-dark-nt);
@@ -119,7 +121,11 @@ $solarized-dark-il: #2aa198;
     @include hljs-override('bullet', $solarized-dark-n);
     @include hljs-override('subst', $solarized-dark-p);
     @include hljs-override('symbol', $solarized-dark-ni);
-    @include hljs-override('title.class_.inherited__', $solarized-dark-no);
+    @include hljs-override('title\\.class_\\.inherited__', $solarized-dark-no);
+    @include hljs-override('title\\.class', $solarized-dark-nc);
+    @include hljs-override('title\\.class\\.inherited', $solarized-dark-no);
+    @include hljs-override('title\\.function', $solarized-dark-nf);
+    @include hljs-override('params', $solarized-dark-nb);
 
   // Line numbers
   .file-line-num {
@@ -143,6 +149,11 @@ $solarized-dark-il: #2aa198;
   .diff-line-num,
   .diff-line-num a {
     color: $solarized-dark-line-color;
+  }
+
+  .diff-grid-row.line_holder.diff-tr .diff-td.commented:not(.hll) {
+    --highlight-border-color: #{$blue-600};
+    background-color: $blue-900;
   }
 
   // Code itself
@@ -171,18 +182,20 @@ $solarized-dark-il: #2aa198;
     }
 
     &.diff-grid-row {
+      --diff-expansion-background-color: #{lighten($solarized-dark-pre-bg, 10%)};
+
       @include dark-diff-expansion-line;
     }
 
-    .diff-td.diff-line-num.hll:not(.empty-cell),
-    .diff-td.line-coverage.hll:not(.empty-cell),
-    .diff-td.line-codequality.hll:not(.empty-cell),
-    .diff-td.line_content.hll:not(.empty-cell),
-    td.diff-line-num.hll:not(.empty-cell),
-    td.line-coverage.hll:not(.empty-cell),
-    td.line_content.hll:not(.empty-cell) {
-      background-color: $solarized-dark-hll-bg;
-      border-color: darken($solarized-dark-hll-bg, 15%);
+    .diff-td.diff-line-num.hll,
+    .diff-td.line-coverage.hll,
+    .diff-td.line-codequality.hll,
+    .diff-td.line_content.hll,
+    td.diff-line-num.hll,
+    td.line-coverage.hll,
+    td.line_content.hll {
+      --highlight-border-color: #{$orange-500};
+      background-color: $orange-800;
     }
 
     .line-coverage {
@@ -193,7 +206,7 @@ $solarized-dark-il: #2aa198;
     &:not(.match) .diff-grid-right:hover,
     &.code-search-line:hover {
       .diff-line-num:not(.empty-cell) {
-        @include line-number-hover;
+        @include line-number-hover-dark;
       }
     }
 
@@ -232,7 +245,7 @@ $solarized-dark-il: #2aa198;
     .diff-line-num {
       &.is-over,
       &.hll:not(.empty-cell).is-over {
-        @include line-number-hover;
+        @include line-number-hover-dark;
       }
     }
 

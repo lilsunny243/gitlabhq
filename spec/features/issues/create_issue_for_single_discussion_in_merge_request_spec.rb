@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Resolve an open thread in a merge request by creating an issue', :js do
+RSpec.describe 'Resolve an open thread in a merge request by creating an issue', :js, feature_category: :team_planning do
   let(:user) { create(:user) }
   let(:project) { create(:project, :repository, only_allow_merge_if_all_discussions_are_resolved: true) }
   let(:merge_request) { create(:merge_request, source_project: project) }
@@ -35,7 +35,7 @@ RSpec.describe 'Resolve an open thread in a merge request by creating an issue',
 
     context 'resolving the thread' do
       before do
-        find('button[data-qa-selector="resolve_discussion_button"]').click # rubocop:disable QA/SelectorUsage
+        find('button[data-testid="resolve-discussion-button"]').click
       end
 
       it 'hides the link for creating a new issue' do

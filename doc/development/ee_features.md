@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Guidelines for implementing Enterprise Edition features
@@ -72,7 +72,7 @@ To guard your licensed feature:
    ```
 
 1. Optional. If your global feature is also available to namespaces with a paid plan, combine two
-feature identifiers to allow both admins and group users. For example:
+feature identifiers to allow both administrators and group users. For example:
 
     ```ruby
     License.feature_available?(:my_feature_name) || group.licensed_feature_available?(:my_feature_name_for_namespace) # Both admins and group members can see this EE feature
@@ -93,6 +93,25 @@ You can force GitLab to act as CE by either deleting the `ee/` directory or by
 setting the [`FOSS_ONLY` environment variable](https://gitlab.com/gitlab-org/gitlab/-/blob/master/config/helpers/is_ee_env.js)
 to something that evaluates as `true`. The same works for running tests
 (for example `FOSS_ONLY=1 yarn jest`).
+
+### Simulate a CE instance with a licensed GDK
+
+To simulate a CE instance without deleting the license in a GDK:
+
+1. Create an `env.runit` file in the root of your GDK with the line:
+
+    ```shell
+    export FOSS_ONLY=1
+    ```
+
+1. Then restart the GDK:
+
+    ```shell
+    gdk restart rails && gdk restart webpack
+    ```
+
+Remove the line in `env.runit` if you want to revert back to an EE
+installation, and repeat step 2.
 
 #### Run feature specs as CE
 
@@ -120,24 +139,32 @@ To do so:
 
 ### Simulate a SaaS instance
 
-If you're developing locally and need your instance to act like the SaaS version of the product,
-you can simulate SaaS by exporting an environment variable:
+If you're developing locally and need your instance to simulate the SaaS (GitLab.com)
+version of the product:
 
-```shell
-export GITLAB_SIMULATE_SAAS=1
-```
+1. Export this environment variable:
 
-There are many ways to pass an environment variable to your local GitLab instance.
-For example, you can create a `env.runit` file in the root of your GDK with the above snippet.
+   ```shell
+   export GITLAB_SIMULATE_SAAS=1
+   ```
 
-#### Allow use of licensed EE feature
+   There are many ways to pass an environment variable to your local GitLab instance.
+   For example, you can create an `env.runit` file in the root of your GDK with the above snippet.
 
-To enable plans per namespace turn on the `Allow use of licensed EE features` option from the settings page.
-This will make licensed EE features available to projects only if the project namespace's plan includes the feature
-or if the project is public. To enable it:
+1. Enable **Allow use of licensed EE features** to make licensed EE features available to projects
+   only if the project namespace's plan includes the feature.
 
-1. If you are developing locally, follow the steps in [Simulate a SaaS instance](#simulate-a-saas-instance) to make the option available.
-1. Visit Admin > Settings > General > "Account and limit" and enable "Allow use of licensed EE features".
+    1. Visit **Admin > Settings > General**.
+    1. Expand **Account and limit**.
+    1. Select the **Allow use of licensed EE features** checkbox.
+    1. Click **Save changes**.
+
+1. Ensure that the group for which you want to test the EE feature, is actually using an EE plan:
+   1. On the top bar, select **Main menu > Admin**.
+   1. On the left sidebar, select **Overview > Groups**.
+   1. Identify the group you want to modify, and select **Edit**.
+   1. Scroll to **Permissions and group features**. For **Plan**, select `Ultimate`.
+   1. Select **Save changes**.
 
 ### Run CI pipelines in a FOSS context
 
@@ -147,7 +174,7 @@ FOSS context as well.
 
 To run pipelines in both contexts, add the `~"pipeline:run-as-if-foss"` label to the merge request.
 
-See the [As-if-FOSS jobs](pipelines.md#as-if-foss-jobs) pipelines documentation for more information.
+See the [As-if-FOSS jobs](pipelines/index.md#as-if-foss-jobs) pipelines documentation for more information.
 
 ## Separation of EE code in the backend
 
@@ -176,11 +203,21 @@ This works because for every path that is present in CE's eager-load/auto-load
 paths, we add the same `ee/`-prepended path in [`config/application.rb`](https://gitlab.com/gitlab-org/gitlab/-/blob/925d3d4ebc7a2c72964ce97623ae41b8af12538d/config/application.rb#L42-52).
 This also applies to views.
 
-#### Testing EE-only features
+#### Testing EE-only backend features
 
 To test an EE class that doesn't exist in CE, create the spec file as you normally
 would in the `ee/spec` directory, but without the second `ee/` subdirectory.
 For example, a class `ee/app/models/vulnerability.rb` would have its tests in `ee/spec/models/vulnerability_spec.rb`.
+
+By default, licensed features are disabled for specs in `specs/`.
+Specs in the `ee/spec` directory have Starter license initialized by default.
+
+To effectively test your feature
+you must explicitly enable the feature using the `stub_licensed_features` helper, for example:
+
+```ruby
+  stub_licensed_features(my_awesome_feature_name: true)
+```
 
 ### Extend CE features with EE backend code
 
@@ -685,7 +722,7 @@ module EE
 
       prepended do
         params do
-          requires :id, type: String, desc: 'The ID of a project'
+          requires :id, types: [String, Integer], desc: 'The ID or URL-encoded path of the project'
         end
         resource :projects, requirements: ::API::API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
           # ...
@@ -817,7 +854,7 @@ end
 
 Sometimes we need EE-specific behavior in some of the APIs. Normally we could
 use EE methods to override CE methods, however API routes are not methods and
-therefore can't be simply overridden. We need to extract them into a standalone
+therefore cannot be overridden. We need to extract them into a standalone
 method, or introduce some "hooks" where we could inject behavior in the CE
 route. Something like this:
 
@@ -868,8 +905,8 @@ end
 
 #### EE `route_setting`
 
-It's very hard to extend this in an EE module, and this is simply storing
-some meta-data for a particular route. Given that, we could simply leave the
+It's very hard to extend this in an EE module, and this is storing
+some meta-data for a particular route. Given that, we could leave the
 EE `route_setting` in CE as it doesn't hurt and we don't use
 those meta-data in CE.
 
@@ -1047,7 +1084,7 @@ FactoryBot.define do
 end
 ```
 
-## Separate of EE code in the frontend
+## Separation of EE code in the frontend
 
 To separate EE-specific JS-files, move the files into an `ee` folder.
 
@@ -1089,9 +1126,12 @@ ee/app/assets/javascripts/ee_only_feature/index.js
 Feature guarding `licensed_feature_available?` and `License.feature_available?` typical
 occurs in the controller, as described in the [backend guide](#ee-only-features).
 
-#### Test EE-only features
+#### Testing EE-only frontend features
 
 Add your EE tests to `ee/spec/frontend/` following the same directory structure you use for CE.
+
+Check the note under [Testing EE-only backend features](#testing-ee-only-backend-features) regarding
+enabling licensed features.
 
 ### Extend CE features with EE frontend code
 
@@ -1406,5 +1446,5 @@ to avoid conflicts during CE to EE merge.
 ### GitLab-svgs
 
 Conflicts in `app/assets/images/icons.json` or `app/assets/images/icons.svg` can
-be resolved simply by regenerating those assets with
+be resolved by regenerating those assets with
 [`yarn run svg`](https://gitlab.com/gitlab-org/gitlab-svgs).

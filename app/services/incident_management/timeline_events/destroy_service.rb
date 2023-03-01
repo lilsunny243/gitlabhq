@@ -18,7 +18,7 @@ module IncidentManagement
         if timeline_event.destroy
           add_system_note(incident, user)
 
-          track_usage_event(:incident_management_timeline_event_deleted, user.id)
+          track_timeline_event('incident_management_timeline_event_deleted', project)
           success(timeline_event)
         else
           error_in_save(timeline_event)
@@ -30,8 +30,6 @@ module IncidentManagement
       attr_reader :project, :timeline_event, :user, :incident
 
       def add_system_note(incident, user)
-        return unless Feature.enabled?(:incident_timeline, project)
-
         SystemNoteService.delete_timeline_event(incident, user)
       end
     end

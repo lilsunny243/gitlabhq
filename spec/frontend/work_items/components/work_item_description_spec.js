@@ -4,24 +4,28 @@ import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { mockTracking } from 'helpers/tracking_helper';
 import waitForPromises from 'helpers/wait_for_promises';
+import EditedAt from '~/issues/show/components/edited.vue';
 import { updateDraft } from '~/lib/utils/autosave';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
 import MarkdownField from '~/vue_shared/components/markdown/field.vue';
+import MarkdownEditor from '~/vue_shared/components/markdown/markdown_editor.vue';
 import WorkItemDescription from '~/work_items/components/work_item_description.vue';
+import WorkItemDescriptionRendered from '~/work_items/components/work_item_description_rendered.vue';
 import { TRACKING_CATEGORY_SHOW } from '~/work_items/constants';
 import workItemQuery from '~/work_items/graphql/work_item.query.graphql';
-import updateWorkItemWidgetsMutation from '~/work_items/graphql/update_work_item_widgets.mutation.graphql';
+import workItemDescriptionSubscription from '~/work_items/graphql/work_item_description.subscription.graphql';
+import updateWorkItemMutation from '~/work_items/graphql/update_work_item.mutation.graphql';
+import workItemByIidQuery from '~/work_items/graphql/work_item_by_iid.query.graphql';
+import { autocompleteDataSources, markdownPreviewPath } from '~/work_items/utils';
 import {
-  updateWorkItemWidgetsResponse,
+  updateWorkItemMutationResponse,
+  workItemDescriptionSubscriptionResponse,
   workItemResponseFactory,
   workItemQueryResponse,
+  projectWorkItemResponse,
 } from '../mock_data';
 
-jest.mock('~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal', () => {
-  return {
-    confirmAction: jest.fn(),
-  };
-});
+jest.mock('~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal');
 jest.mock('~/lib/utils/autosave');
 
 const workItemId = workItemQueryResponse.data.workItem.id;
@@ -31,12 +35,23 @@ describe('WorkItemDescription', () => {
 
   Vue.use(VueApollo);
 
-  const mutationSuccessHandler = jest.fn().mockResolvedValue(updateWorkItemWidgetsResponse);
+  const mutationSuccessHandler = jest.fn().mockResolvedValue(updateWorkItemMutationResponse);
+  const subscriptionHandler = jest.fn().mockResolvedValue(workItemDescriptionSubscriptionResponse);
+  const workItemByIidResponseHandler = jest.fn().mockResolvedValue(projectWorkItemResponse);
+  let workItemResponseHandler;
+  let workItemsMvc;
 
-  const findEditButton = () => wrapper.find('[data-testid="edit-description"]');
   const findMarkdownField = () => wrapper.findComponent(MarkdownField);
+  const findMarkdownEditor = () => wrapper.findComponent(MarkdownEditor);
+  const findRenderedDescription = () => wrapper.findComponent(WorkItemDescriptionRendered);
+  const findEditedAt = () => wrapper.findComponent(EditedAt);
 
-  const editDescription = (newText) => wrapper.find('textarea').setValue(newText);
+  const editDescription = (newText) => {
+    if (workItemsMvc) {
+      return findMarkdownEditor().vm.$emit('input', newText);
+    }
+    return wrapper.find('textarea').setValue(newText);
+  };
 
   const clickCancel = () => wrapper.find('[data-testid="cancel"]').vm.$emit('click');
   const clickSave = () => wrapper.find('[data-testid="save-description"]').vm.$emit('click', {});
@@ -44,20 +59,31 @@ describe('WorkItemDescription', () => {
   const createComponent = async ({
     mutationHandler = mutationSuccessHandler,
     canUpdate = true,
+    workItemResponse = workItemResponseFactory({ canUpdate }),
     isEditing = false,
+    queryVariables = { id: workItemId },
+    fetchByIid = false,
   } = {}) => {
-    const workItemResponse = workItemResponseFactory({ canUpdate });
-    const workItemResponseHandler = jest.fn().mockResolvedValue(workItemResponse);
+    workItemResponseHandler = jest.fn().mockResolvedValue(workItemResponse);
 
     const { id } = workItemQueryResponse.data.workItem;
     wrapper = shallowMount(WorkItemDescription, {
       apolloProvider: createMockApollo([
         [workItemQuery, workItemResponseHandler],
-        [updateWorkItemWidgetsMutation, mutationHandler],
+        [updateWorkItemMutation, mutationHandler],
+        [workItemDescriptionSubscription, subscriptionHandler],
+        [workItemByIidQuery, workItemByIidResponseHandler],
       ]),
       propsData: {
         workItemId: id,
         fullPath: 'test-project-path',
+        queryVariables,
+        fetchByIid,
+      },
+      provide: {
+        glFeatures: {
+          workItemsMvc,
+        },
       },
       stubs: {
         MarkdownField,
@@ -67,7 +93,7 @@ describe('WorkItemDescription', () => {
     await waitForPromises();
 
     if (isEditing) {
-      findEditButton().vm.$emit('click');
+      findRenderedDescription().vm.$emit('startEditing');
 
       await nextTick();
     }
@@ -77,144 +103,241 @@ describe('WorkItemDescription', () => {
     wrapper.destroy();
   });
 
-  describe('Edit button', () => {
-    it('is not visible when canUpdate = false', async () => {
-      await createComponent({
-        canUpdate: false,
-      });
-
-      expect(findEditButton().exists()).toBe(false);
+  describe('editing description with workItemsMvc FF enabled', () => {
+    beforeEach(() => {
+      workItemsMvc = true;
     });
 
-    it('toggles edit mode', async () => {
-      await createComponent({
-        canUpdate: true,
+    it('passes correct autocompletion data and preview markdown sources and enables quick actions', async () => {
+      const {
+        iid,
+        project: { fullPath },
+      } = workItemQueryResponse.data.workItem;
+
+      await createComponent({ isEditing: true });
+
+      expect(findMarkdownEditor().props()).toMatchObject({
+        supportsQuickActions: true,
+        renderMarkdownPath: markdownPreviewPath(fullPath, iid),
       });
 
-      findEditButton().vm.$emit('click');
-
-      await nextTick();
-
-      expect(findMarkdownField().exists()).toBe(true);
+      expect(findMarkdownEditor().vm.$attrs).toMatchObject({
+        'autocomplete-data-sources': autocompleteDataSources(fullPath, iid),
+        'quick-actions-docs-path': wrapper.vm.$options.quickActionsDocsPath,
+      });
     });
   });
 
-  describe('editing description', () => {
-    it('cancels when clicking cancel', async () => {
-      await createComponent({
-        isEditing: true,
-      });
-
-      clickCancel();
-
-      await nextTick();
-
-      expect(confirmAction).not.toHaveBeenCalled();
-      expect(findMarkdownField().exists()).toBe(false);
+  describe('editing description with workItemsMvc FF disabled', () => {
+    beforeEach(() => {
+      workItemsMvc = false;
     });
 
-    it('prompts for confirmation when clicking cancel after changes', async () => {
-      await createComponent({
-        isEditing: true,
-      });
+    it('passes correct autocompletion data and preview markdown sources', async () => {
+      const {
+        iid,
+        project: { fullPath },
+      } = workItemQueryResponse.data.workItem;
 
-      editDescription('updated desc');
+      await createComponent({ isEditing: true });
 
-      clickCancel();
-
-      await nextTick();
-
-      expect(confirmAction).toHaveBeenCalled();
-    });
-
-    it('calls update widgets mutation', async () => {
-      await createComponent({
-        isEditing: true,
-      });
-
-      editDescription('updated desc');
-
-      clickSave();
-
-      await waitForPromises();
-
-      expect(mutationSuccessHandler).toHaveBeenCalledWith({
-        input: {
-          id: workItemId,
-          descriptionWidget: {
-            description: 'updated desc',
-          },
-        },
+      expect(findMarkdownField().props()).toMatchObject({
+        autocompleteDataSources: autocompleteDataSources(fullPath, iid),
+        markdownPreviewPath: markdownPreviewPath(fullPath, iid),
+        quickActionsDocsPath: wrapper.vm.$options.quickActionsDocsPath,
       });
     });
+  });
 
-    it('tracks editing description', async () => {
-      await createComponent({
-        isEditing: true,
-        markdownPreviewPath: '/preview',
+  describe.each([true, false])(
+    'editing description with workItemsMvc %workItemsMvcEnabled',
+    (workItemsMvcEnabled) => {
+      beforeEach(() => {
+        beforeEach(() => {
+          workItemsMvc = workItemsMvcEnabled;
+        });
       });
-      const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
 
-      clickSave();
+      it('has a subscription', async () => {
+        createComponent();
 
-      await waitForPromises();
+        await waitForPromises();
 
-      expect(trackingSpy).toHaveBeenCalledWith(TRACKING_CATEGORY_SHOW, 'updated_description', {
-        category: TRACKING_CATEGORY_SHOW,
-        label: 'item_description',
-        property: 'type_Task',
+        expect(subscriptionHandler).toHaveBeenCalledWith({
+          issuableId: workItemQueryResponse.data.workItem.id,
+        });
       });
-    });
 
-    it('emits error when mutation returns error', async () => {
-      const error = 'eror';
+      describe('editing description', () => {
+        it('shows edited by text', async () => {
+          const lastEditedAt = '2022-09-21T06:18:42Z';
+          const lastEditedBy = {
+            name: 'Administrator',
+            webPath: '/root',
+          };
 
-      await createComponent({
-        isEditing: true,
-        mutationHandler: jest.fn().mockResolvedValue({
-          data: {
-            workItemUpdateWidgets: {
-              workItem: {},
-              errors: [error],
+          await createComponent({
+            workItemResponse: workItemResponseFactory({
+              lastEditedAt,
+              lastEditedBy,
+            }),
+          });
+
+          expect(findEditedAt().props()).toEqual({
+            updatedAt: lastEditedAt,
+            updatedByName: lastEditedBy.name,
+            updatedByPath: lastEditedBy.webPath,
+          });
+        });
+
+        it('does not show edited by text', async () => {
+          await createComponent();
+
+          expect(findEditedAt().exists()).toBe(false);
+        });
+
+        it('cancels when clicking cancel', async () => {
+          await createComponent({
+            isEditing: true,
+          });
+
+          clickCancel();
+
+          await nextTick();
+
+          expect(confirmAction).not.toHaveBeenCalled();
+          expect(findMarkdownField().exists()).toBe(false);
+        });
+
+        it('prompts for confirmation when clicking cancel after changes', async () => {
+          await createComponent({
+            isEditing: true,
+          });
+
+          editDescription('updated desc');
+
+          clickCancel();
+
+          await nextTick();
+
+          expect(confirmAction).toHaveBeenCalled();
+        });
+
+        it('calls update widgets mutation', async () => {
+          const updatedDesc = 'updated desc';
+
+          await createComponent({
+            isEditing: true,
+          });
+
+          editDescription(updatedDesc);
+
+          clickSave();
+
+          await waitForPromises();
+
+          expect(mutationSuccessHandler).toHaveBeenCalledWith({
+            input: {
+              id: workItemId,
+              descriptionWidget: {
+                description: updatedDesc,
+              },
             },
-          },
-        }),
+          });
+        });
+
+        it('tracks editing description', async () => {
+          await createComponent({
+            isEditing: true,
+            markdownPreviewPath: '/preview',
+          });
+          const trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
+
+          clickSave();
+
+          await waitForPromises();
+
+          expect(trackingSpy).toHaveBeenCalledWith(TRACKING_CATEGORY_SHOW, 'updated_description', {
+            category: TRACKING_CATEGORY_SHOW,
+            label: 'item_description',
+            property: 'type_Task',
+          });
+        });
+
+        it('emits error when mutation returns error', async () => {
+          const error = 'eror';
+
+          await createComponent({
+            isEditing: true,
+            mutationHandler: jest.fn().mockResolvedValue({
+              data: {
+                workItemUpdate: {
+                  workItem: {},
+                  errors: [error],
+                },
+              },
+            }),
+          });
+
+          editDescription('updated desc');
+
+          clickSave();
+
+          await waitForPromises();
+
+          expect(wrapper.emitted('error')).toEqual([[error]]);
+        });
+
+        it('emits error when mutation fails', async () => {
+          const error = 'eror';
+
+          await createComponent({
+            isEditing: true,
+            mutationHandler: jest.fn().mockRejectedValue(new Error(error)),
+          });
+
+          editDescription('updated desc');
+
+          clickSave();
+
+          await waitForPromises();
+
+          expect(wrapper.emitted('error')).toEqual([[error]]);
+        });
+
+        it('autosaves description', async () => {
+          await createComponent({
+            isEditing: true,
+          });
+
+          editDescription('updated desc');
+
+          expect(updateDraft).toHaveBeenCalled();
+        });
       });
 
-      editDescription('updated desc');
+      it('calls the global ID work item query when `fetchByIid` prop is false', async () => {
+        createComponent({ fetchByIid: false });
+        await waitForPromises();
 
-      clickSave();
-
-      await waitForPromises();
-
-      expect(wrapper.emitted('error')).toEqual([[error]]);
-    });
-
-    it('emits error when mutation fails', async () => {
-      const error = 'eror';
-
-      await createComponent({
-        isEditing: true,
-        mutationHandler: jest.fn().mockRejectedValue(new Error(error)),
+        expect(workItemResponseHandler).toHaveBeenCalled();
+        expect(workItemByIidResponseHandler).not.toHaveBeenCalled();
       });
 
-      editDescription('updated desc');
+      it('calls the IID work item query when when `fetchByIid` prop is true', async () => {
+        createComponent({ fetchByIid: true });
+        await waitForPromises();
 
-      clickSave();
-
-      await waitForPromises();
-
-      expect(wrapper.emitted('error')).toEqual([[error]]);
-    });
-
-    it('autosaves description', async () => {
-      await createComponent({
-        isEditing: true,
+        expect(workItemResponseHandler).not.toHaveBeenCalled();
+        expect(workItemByIidResponseHandler).toHaveBeenCalled();
       });
 
-      editDescription('updated desc');
+      it('skips calling the handlers when missing the needed queryVariables', async () => {
+        createComponent({ queryVariables: {}, fetchByIid: false });
+        await waitForPromises();
 
-      expect(updateDraft).toHaveBeenCalled();
-    });
-  });
+        expect(workItemResponseHandler).not.toHaveBeenCalled();
+      });
+    },
+  );
 });

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe MergeRequests::CreateService, :clean_gitlab_redis_shared_state do
+RSpec.describe MergeRequests::CreateService, :clean_gitlab_redis_shared_state, feature_category: :code_review_workflow do
   include ProjectForksHelper
 
   let(:project) { create(:project, :repository) }
@@ -102,7 +102,7 @@ RSpec.describe MergeRequests::CreateService, :clean_gitlab_redis_shared_state do
             description: 'please fix',
             source_branch: 'feature',
             target_branch: 'master',
-            assignees: [user2]
+            assignee_ids: [user2.id]
           }
         end
 
@@ -336,6 +336,12 @@ RSpec.describe MergeRequests::CreateService, :clean_gitlab_redis_shared_state do
       it_behaves_like 'reviewer_ids filter' do
         let(:execute) { service.execute }
       end
+
+      context 'when called in a transaction' do
+        it 'does not raise an error' do
+          expect { MergeRequest.transaction { described_class.new(project: project, current_user: user, params: opts).execute } }.not_to raise_error
+        end
+      end
     end
 
     it_behaves_like 'issuable record that supports quick actions' do
@@ -495,15 +501,12 @@ RSpec.describe MergeRequests::CreateService, :clean_gitlab_redis_shared_state do
           project.add_developer(user)
         end
 
-        it 'creates the merge request', :sidekiq_might_not_need_inline do
-          expect_next_instance_of(MergeRequest) do |instance|
-            expect(instance).to receive(:eager_fetch_ref!).and_call_original
-          end
-
+        it 'creates the merge request', :sidekiq_inline do
           merge_request = described_class.new(project: project, current_user: user, params: opts).execute
 
           expect(merge_request).to be_persisted
           expect(merge_request.iid).to be > 0
+          expect(merge_request.merge_request_diff).not_to be_empty
         end
 
         it 'does not create the merge request when the target project is archived' do

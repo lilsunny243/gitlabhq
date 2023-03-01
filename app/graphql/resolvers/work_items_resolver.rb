@@ -7,6 +7,10 @@ module Resolvers
 
     type Types::WorkItemType.connection_type, null: true
 
+    argument :author_username, GraphQL::Types::String,
+             required: false,
+             description: 'Filter work items by author username.',
+             alpha: { milestone: '15.9' }
     argument :iid, GraphQL::Types::String,
              required: false,
              description: 'IID of the issue. For example, "1".'
@@ -26,7 +30,7 @@ module Resolvers
              required: false
 
     def resolve_with_lookahead(**args)
-      return WorkItem.none if resource_parent.nil? || !resource_parent.work_items_feature_flag_enabled?
+      return WorkItem.none if resource_parent.nil?
 
       finder = ::WorkItems::WorkItemsFinder.new(current_user, prepare_finder_params(args))
 
@@ -35,15 +39,35 @@ module Resolvers
 
     private
 
-    # Allows to apply lookahead for fields
-    # selected from  WidgetInterface
-    override :node_selection
-    def node_selection
-      selected_fields = super
+    def preloads
+      {
+        work_item_type: :work_item_type,
+        web_url: { project: { namespace: :route } },
+        widgets: { work_item_type: :enabled_widget_definitions }
+      }
+    end
 
-      return unless selected_fields
+    def nested_preloads
+      {
+        widgets: widget_preloads,
+        user_permissions: { update_work_item: :assignees },
+        project: { jira_import_status: { project: :jira_imports } },
+        author: {
+          location: { author: :user_detail },
+          gitpod_enabled: { author: :user_preference }
+        }
+      }
+    end
 
-      selected_fields.selection(:widgets)
+    def widget_preloads
+      {
+        last_edited_by: :last_edited_by,
+        assignees: :assignees,
+        parent: :work_item_parent,
+        children: { work_item_children_by_relative_position: [:author, { project: :project_feature }] },
+        labels: :labels,
+        milestone: { milestone: [:project, :group] }
+      }
     end
 
     def unconditional_includes

@@ -1,13 +1,13 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Polling interval multiplier **(FREE SELF)**
 
-The GitLab UI polls for updates for different resources (issue notes, issue titles, pipeline
-statuses, and so on) on a schedule appropriate to the resource.
+The GitLab UI polls for updates for different resources (such as issue notes, issue titles, and pipeline
+statuses) on a schedule appropriate to the resource.
 
 Adjust the multiplier on these schedules to adjust how frequently the GitLab UI polls for updates. If
 you set the multiplier to:
@@ -26,7 +26,7 @@ The default value (`1`) is recommended for the majority of GitLab installations.
 
 To adjust the polling interval multiplier:
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Preferences**.
 1. Expand **Polling interval multiplier**.
 1. Set a value for the polling interval multiplier. This multiplier is applied to all resources at

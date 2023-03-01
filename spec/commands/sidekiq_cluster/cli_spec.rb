@@ -1,19 +1,18 @@
 # frozen_string_literal: true
 
-require 'fast_spec_helper'
-require 'rspec-parameterized'
+require 'spec_helper'
 
 require_relative '../../support/stub_settings_source'
 require_relative '../../../sidekiq_cluster/cli'
 require_relative '../../support/helpers/next_instance_of'
 
-RSpec.describe Gitlab::SidekiqCluster::CLI, stub_settings_source: true do # rubocop:disable RSpec/FilePath
+RSpec.describe Gitlab::SidekiqCluster::CLI, feature_category: :gitlab_cli, stub_settings_source: true do # rubocop:disable RSpec/FilePath
   include NextInstanceOf
 
   let(:cli) { described_class.new('/dev/null') }
   let(:timeout) { Gitlab::SidekiqCluster::DEFAULT_SOFT_TIMEOUT_SECONDS }
   let(:default_options) do
-    { env: 'test', directory: Dir.pwd, max_concurrency: 50, min_concurrency: 0, dryrun: false, timeout: timeout }
+    { env: 'test', directory: Dir.pwd, max_concurrency: 20, min_concurrency: 0, dryrun: false, timeout: timeout }
   end
 
   let(:sidekiq_exporter_enabled) { false }
@@ -245,9 +244,15 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, stub_settings_source: true do # rubo
         it 'expands multiple queue groups correctly' do
           expected_workers =
             if Gitlab.ee?
-              [%w[chat_notification], %w[project_export projects_import_export_relation_export project_template_export]]
+              [
+                %w[cronjob:clusters_integrations_check_prometheus_health incident_management_close_incident status_page_publish],
+                %w[project_export projects_import_export_parallel_project_export projects_import_export_relation_export project_template_export]
+              ]
             else
-              [%w[chat_notification], %w[project_export projects_import_export_relation_export]]
+              [
+                %w[cronjob:clusters_integrations_check_prometheus_health incident_management_close_incident],
+                %w[project_export projects_import_export_parallel_project_export projects_import_export_relation_export]
+              ]
             end
 
           expect(Gitlab::SidekiqCluster)
@@ -255,7 +260,7 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, stub_settings_source: true do # rubo
             .with(expected_workers, default_options)
             .and_return([])
 
-          cli.run(%w(--queue-selector feature_category=chatops&has_external_dependencies=true resource_boundary=memory&feature_category=importers))
+          cli.run(%w(--queue-selector feature_category=incident_management&has_external_dependencies=true resource_boundary=memory&feature_category=importers))
         end
 
         it 'allows the special * selector' do
@@ -299,11 +304,11 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, stub_settings_source: true do # rubo
       end
 
       context 'starting the server' do
-        context 'without --dryrun' do
-          before do
-            allow(Gitlab::SidekiqCluster).to receive(:start).and_return([])
-          end
+        before do
+          allow(Gitlab::SidekiqCluster).to receive(:start).and_return([])
+        end
 
+        context 'without --dryrun' do
           it 'wipes the metrics directory before starting workers' do
             expect(metrics_cleanup_service).to receive(:execute).ordered
             expect(Gitlab::SidekiqCluster).to receive(:start).ordered.and_return([])
@@ -403,9 +408,42 @@ RSpec.describe Gitlab::SidekiqCluster::CLI, stub_settings_source: true do # rubo
       let(:sidekiq_exporter_enabled) { true }
       let(:metrics_server_pid) { 99 }
       let(:sidekiq_worker_pids) { [2, 42] }
+      let(:waiter_threads) { [instance_double('Process::Waiter'), instance_double('Process::Waiter')] }
+      let(:process_status) { instance_double('Process::Status') }
 
       before do
-        allow(Gitlab::SidekiqCluster).to receive(:start).and_return(sidekiq_worker_pids)
+        allow(Gitlab::SidekiqCluster).to receive(:start).and_return(waiter_threads)
+        allow(process_status).to receive(:success?).and_return(true)
+        allow(cli).to receive(:exit)
+
+        waiter_threads.each.with_index do |thread, i|
+          allow(thread).to receive(:join)
+          allow(thread).to receive(:pid).and_return(sidekiq_worker_pids[i])
+          allow(thread).to receive(:value).and_return(process_status)
+        end
+      end
+
+      context 'when one of the workers has been terminated gracefully' do
+        it 'stops the entire process cluster' do
+          expect(MetricsServer).to receive(:start_for_sidekiq).once.and_return(metrics_server_pid)
+          expect(supervisor).to receive(:supervise).and_yield([2, 99])
+          expect(supervisor).to receive(:shutdown)
+          expect(cli).not_to receive(:exit).with(1)
+
+          cli.run(%w(foo))
+        end
+      end
+
+      context 'when one of the workers has failed' do
+        it 'stops the entire process cluster and exits with a non-zero code' do
+          expect(MetricsServer).to receive(:start_for_sidekiq).once.and_return(metrics_server_pid)
+          expect(supervisor).to receive(:supervise).and_yield([2, 99])
+          expect(supervisor).to receive(:shutdown)
+          expect(process_status).to receive(:success?).and_return(false)
+          expect(cli).to receive(:exit).with(1)
+
+          cli.run(%w(foo))
+        end
       end
 
       it 'stops the entire process cluster if one of the workers has been terminated' do

@@ -7,18 +7,11 @@ module QA
         class CiVariables < Page::Base
           include QA::Page::Settings::Common
 
-          view 'app/assets/javascripts/ci_variable_list/components/ci_variable_modal.vue' do
+          view 'app/assets/javascripts/ci/ci_variable_list/components/ci_variable_modal.vue' do
             element :ci_variable_key_field
             element :ci_variable_value_field
             element :ci_variable_save_button
             element :ci_variable_delete_button
-          end
-
-          view 'app/assets/javascripts/ci_variable_list/components/legacy_ci_variable_table.vue' do
-            element :ci_variable_table_content
-            element :add_ci_variable_button
-            element :edit_ci_variable_button
-            element :reveal_ci_variable_value_button
           end
 
           def fill_variable(key, value, masked = false)

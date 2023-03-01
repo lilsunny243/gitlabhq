@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 comments: false
 type: index
 ---
@@ -9,7 +9,7 @@ type: index
 # Services **(FREE)**
 
 When you configure CI/CD, you specify an image, which is used to create the container
-where your jobs will run. To specify this image, you use the `image` keyword.
+where your jobs run. To specify this image, you use the `image` keyword.
 
 You can specify an additional image by using the `services` keyword. This additional
 image is used to create another container, which is available to the first container.
@@ -37,7 +37,7 @@ the CI container itself.
 ## How services are linked to the job
 
 To better understand how container linking works, read
-[Linking containers together](https://docs.docker.com/engine/userguide/networking/default_network/dockerlinks/).
+[Linking containers together](https://docs.docker.com/network/links/).
 
 If you add `mysql` as service to your application, the image is
 used to create a container that's linked to the job container.
@@ -76,6 +76,12 @@ still succeeds even if that warning was printed. For example:
   something with the job's directory (all services have the job directory mounted
   as a volume under `/builds`). In that case, the service does its job, and
   because the job is not trying to connect to it, it does not fail.
+
+If the services start successfully, they start before the
+[`before_script`](../../ci/yaml/index.md#before_script) runs. This means you can
+write a `before_script` that queries the service.
+
+Services stop at the end of the job, even if the job fails.
 
 ## What services are not for
 
@@ -221,7 +227,7 @@ For this solution to work, you must use
 
 You can also pass custom CI/CD [variables](../variables/index.md)
 to fine tune your Docker `images` and `services` directly in the `.gitlab-ci.yml` file.
-For more information, read about [`.gitlab-ci.yml` defined variables](../variables/index.md#create-a-custom-cicd-variable-in-the-gitlab-ciyml-file).
+For more information, read about [`.gitlab-ci.yml` defined variables](../variables/index.md#define-a-cicd-variable-in-the-gitlab-ciyml-file).
 
 ```yaml
 # The following variables are automatically passed down to the Postgres container
@@ -260,10 +266,10 @@ test:
 | Setting    | Required | GitLab version | Description |
 |------------|----------|----------------| ----------- |
 | `name`       | yes, when used with any other option  | 9.4 | Full name of the image to use. If the full image name includes a registry hostname, use the `alias` option to define a shorter service access name. For more information, see [Accessing the services](#accessing-the-services). |
-| `entrypoint` | no     | 9.4 |Command or script to execute as the container's entrypoint. It's translated to Docker's `--entrypoint` option while creating the container. The syntax is similar to [`Dockerfile`'s `ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) directive, where each shell token is a separate string in the array. |
+| `entrypoint` | no     | 9.4 |Command or script to execute as the container's entrypoint. It's translated to the Docker `--entrypoint` option while creating the container. The syntax is similar to [`Dockerfile`'s `ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) directive, where each shell token is a separate string in the array. |
 | `command`    | no       | 9.4 |Command or script that should be used as the container's command. It's translated to arguments passed to Docker after the image's name. The syntax is similar to [`Dockerfile`'s `CMD`](https://docs.docker.com/engine/reference/builder/#cmd) directive, where each shell token is a separate string in the array. |
 | `alias` (1)     | no       | 9.4 | Additional alias that can be used to access the service from the job's container. Read [Accessing the services](#accessing-the-services) for more information. |
-| `variables` (2)     | no       | 14.5 | Additional environment variables that are passed exclusively to the service. The syntax is the same as [Job Variables](../variables/index.md). |
+| `variables` (2)     | no       | 14.5 | Additional environment variables that are passed exclusively to the service. The syntax is the same as [Job Variables](../variables/index.md). Service variables cannot reference themselves. |
 
 (1) Alias support for the Kubernetes executor was [introduced](https://gitlab.com/gitlab-org/gitlab-runner/-/issues/2229) in GitLab Runner 12.8, and is only available for Kubernetes version 1.7 or later.
 
@@ -343,7 +349,7 @@ services:
     command: ["/usr/bin/super-sql", "run"]
 ```
 
-The syntax of `command` is similar to [Dockerfile's `CMD`](https://docs.docker.com/engine/reference/builder/#cmd).
+The syntax of `command` is similar to [Dockerfile `CMD`](https://docs.docker.com/engine/reference/builder/#cmd).
 
 ## Using `services` with `docker run` (Docker-in-Docker) side-by-side
 
@@ -370,8 +376,11 @@ access-service:
       curlimages/curl:7.74.0 curl "http://tutum-wordpress"
 ```
 
-For this solution to work, you must use
-[the networking mode that creates a new network for each job](https://docs.gitlab.com/runner/executors/docker.html#create-a-network-for-each-job).
+For this solution to work, you must:
+
+- Use [the networking mode that creates a new network for each job](https://docs.gitlab.com/runner/executors/docker.html#create-a-network-for-each-job).
+- [Not use the Docker executor with Docker socket binding](../docker/using_docker_build.md#use-the-docker-executor-with-docker-socket-binding).
+  If you must, then in the above example, instead of `host`, use the dynamic network name created for this job.
 
 ## How Docker integration works
 
@@ -388,6 +397,48 @@ time.
 1. Run any step defined in `.gitlab-ci.yml`.
 1. Check the exit status of build script.
 1. Remove the build container and all created service containers.
+
+## Capturing service container logs
+
+> [Introduced](https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/3680) in GitLab Runner 15.6.
+
+Logs generated by applications running in service containers can be captured for subsequent examination and debugging.
+You might want to look at service container's logs when the service container has started successfully, but is not
+behaving as expected, leading to job failures. The logs can indicate missing or incorrect configuration of the service
+within the container.
+
+`CI_DEBUG_SERVICES` should only be enabled when service containers are being actively debugged as there are both storage
+and performance consequences to capturing service container logs.
+
+To enable service logging, add the `CI_DEBUG_SERVICES` variable to the project's
+`.gitlab-ci.yml` file:
+
+```yaml
+variables:
+    CI_DEBUG_SERVICES: "true"
+```
+
+Accepted values are:
+
+- Enabled: `TRUE`, `true`, `True`
+- Disabled: `FALSE`, `false`, `False`
+
+Any other values result in an error message and effectively disable the feature.
+
+When enabled, logs for _all_ service containers are captured and streamed into the jobs trace log concurrently with
+other logs. Logs from each container are prefixed with the container's aliases, and displayed in a different color.
+
+NOTE:
+You may want to adjust the logging level in the service container for which you want to capture logs since the default
+logging level may not provide sufficient details to diagnose job failures.
+
+WARNING:
+Enabling `CI_DEBUG_SERVICES` _may_ result in masked variables being revealed. When `CI_DEBUG_SERVICES` is enabled,
+service container logs and the CI job's logs are streamed to the job's trace log _concurrently_, which makes it possible
+for a service container log to be inserted _inside_ a job's masked log. This would thwart the variable masking mechanism
+and result in the masked variable being revealed.
+
+See [Mask a CI/CD Variable](../variables/index.md#mask-a-cicd-variable)
 
 ## Debug a job locally
 
@@ -445,3 +496,8 @@ creation.
 ## Security when using services containers
 
 Docker privileged mode applies to services. This means that the service image container can access the host system. You should use container images from trusted sources only.
+
+## Shared /builds directory
+
+Services can access files from the build because all services have the job
+directory mounted as a volume under `/builds`.

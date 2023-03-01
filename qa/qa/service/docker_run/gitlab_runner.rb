@@ -16,7 +16,7 @@ module QA
         MSG
 
         def initialize(name)
-          @image = 'gitlab/gitlab-runner:alpine'
+          @image = 'registry.gitlab.com/gitlab-org/gitlab-runner:alpine'
           @name = name || "qa-runner-#{SecureRandom.hex(4)}"
           @run_untagged = true
           @executor = :shell
@@ -36,6 +36,8 @@ module QA
         end
 
         def register!
+          raise("Missing runner token value!") unless token
+
           cmd = <<~CMD.tr("\n", ' ')
             docker run -d --rm --network #{runner_network} --name #{@name}
             #{'-v /var/run/docker.sock:/var/run/docker.sock' if @executor == :docker}
@@ -54,6 +56,12 @@ module QA
         def tags=(tags)
           @tags = tags
           @run_untagged = false
+        end
+
+        def restart
+          super
+
+          wait_until_shell_command_matches("docker logs #{@name}", /Configuration loaded/)
         end
 
         private

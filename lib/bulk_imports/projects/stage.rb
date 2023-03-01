@@ -21,7 +21,7 @@ module BulkImports
       # instance version is 15.2.0, 15.2.1, 16.0.0, etc.
 
       def config
-        @config ||= {
+        {
           project: {
             pipeline: BulkImports::Projects::Pipelines::ProjectPipeline,
             stage: 0
@@ -104,6 +104,11 @@ module BulkImports
             pipeline: BulkImports::Projects::Pipelines::CiPipelinesPipeline,
             stage: 5
           },
+          commit_notes: {
+            pipeline: BulkImports::Projects::Pipelines::CommitNotesPipeline,
+            minimum_source_version: '15.10.0',
+            stage: 5
+          },
           wiki: {
             pipeline: BulkImports::Common::Pipelines::WikiPipeline,
             stage: 5
@@ -127,6 +132,10 @@ module BulkImports
           },
           pipeline_schedules: {
             pipeline: BulkImports::Projects::Pipelines::PipelineSchedulesPipeline,
+            stage: 5
+          },
+          references: {
+            pipeline: BulkImports::Projects::Pipelines::ReferencesPipeline,
             stage: 5
           },
           finisher: {

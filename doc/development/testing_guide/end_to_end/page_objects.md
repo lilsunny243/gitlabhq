@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Page objects in GitLab QA
@@ -10,7 +10,7 @@ In GitLab QA we are using a known pattern, called _Page Objects_.
 
 This means that we have built an abstraction for all pages in GitLab that we use
 to drive GitLab QA scenarios. Whenever we do something on a page, like filling
-in a form or clicking a button, we do that only through a page object
+in a form or selecting a button, we do that only through a page object
 associated with this area of GitLab.
 
 For example, when GitLab QA test harness signs in into GitLab, it needs to fill
@@ -155,7 +155,7 @@ In our case, `data-qa-selector="login_field"`, `data-qa-selector="password_field
 
 Things to note:
 
-- The name of the element and the `qa_selector` must match and be snake_cased
+- The name of the element and the `qa_selector` must match and be snake cased
 - If the element appears on the page unconditionally, add `required: true` to the element. See
   [Dynamic element validation](dynamic_element_validation.md)
 - You may see `.qa-selector` classes in existing Page Objects. We should prefer the [`data-qa-selector`](#data-qa-selector-vs-qa-selector)

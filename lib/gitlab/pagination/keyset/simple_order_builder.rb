@@ -11,8 +11,6 @@ module Gitlab
       # [transformed_scope, true] # true indicates that the new scope was successfully built
       # [orginal_scope, false] # false indicates that the order values are not supported in this class
       class SimpleOrderBuilder
-        NULLS_ORDER_REGEX = /(?<column_name>.*) (?<direction>\bASC\b|\bDESC\b) (?<nullable>\bNULLS LAST\b|\bNULLS FIRST\b)/.freeze
-
         def self.build(scope)
           new(scope: scope).build
         end
@@ -90,32 +88,6 @@ module Gitlab
           end
         end
 
-        # This method converts the first order value to a corresponding arel expression
-        # if the order value uses either NULLS LAST or NULLS FIRST ordering in raw SQL.
-        #
-        # TODO: https://gitlab.com/gitlab-org/gitlab/-/issues/356644
-        # We should stop matching raw literals once we switch to using the Arel methods.
-        def convert_raw_nulls_order!
-          order_value = order_values.first
-
-          return unless order_value.is_a?(Arel::Nodes::SqlLiteral)
-
-          # Detect NULLS LAST or NULLS FIRST ordering by looking at the raw SQL string.
-          if matches = order_value.match(NULLS_ORDER_REGEX)
-            return unless table_column?(matches[:column_name])
-
-            column_attribute = arel_table[matches[:column_name]]
-            direction = matches[:direction].downcase.to_sym
-            nullable = matches[:nullable].downcase.parameterize(separator: '_').to_sym
-
-            # Build an arel order expression for NULLS ordering.
-            order = direction == :desc ? column_attribute.desc : column_attribute.asc
-            arel_order_expression = nullable == :nulls_first ? order.nulls_first : order.nulls_last
-
-            order_values[0] = arel_order_expression
-          end
-        end
-
         def nullability(order_value, attribute_name)
           nullable = model_class.columns.find { |column| column.name == attribute_name }.null
 
@@ -129,28 +101,31 @@ module Gitlab
         end
 
         def primary_key_descending_order
-          Gitlab::Pagination::Keyset::Order.build([
-            Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-              attribute_name: model_class.primary_key,
-              order_expression: arel_table[primary_key].desc
-            )
-          ])
+          Gitlab::Pagination::Keyset::Order.build(
+            [
+              Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+                attribute_name: model_class.primary_key,
+                order_expression: arel_table[primary_key].desc
+              )
+            ])
         end
 
         def primary_key_order
-          Gitlab::Pagination::Keyset::Order.build([
-            Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
-              attribute_name: model_class.primary_key,
-              order_expression: order_values.first
-            )
-          ])
+          Gitlab::Pagination::Keyset::Order.build(
+            [
+              Gitlab::Pagination::Keyset::ColumnOrderDefinition.new(
+                attribute_name: model_class.primary_key,
+                order_expression: order_values.first
+              )
+            ])
         end
 
         def column_with_tie_breaker_order(tie_breaker_column_order = default_tie_breaker_column_order)
-          Gitlab::Pagination::Keyset::Order.build([
-            column(order_values.first),
-            tie_breaker_column_order
-          ])
+          Gitlab::Pagination::Keyset::Order.build(
+            [
+              column(order_values.first),
+              tie_breaker_column_order
+            ])
         end
 
         def column(order_value)
@@ -203,15 +178,11 @@ module Gitlab
         def ordered_by_other_column?
           return unless order_values.one?
 
-          convert_raw_nulls_order!
-
           supported_column?(order_values.first)
         end
 
         def ordered_by_other_column_with_tie_breaker?
           return unless order_values.size == 2
-
-          convert_raw_nulls_order!
 
           return unless supported_column?(order_values.first)
 

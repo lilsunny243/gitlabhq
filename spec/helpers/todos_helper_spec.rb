@@ -14,6 +14,8 @@ RSpec.describe TodosHelper do
            note: 'I am note, hear me roar')
   end
 
+  let_it_be(:group) { create(:group, :public, name: 'Group 1') }
+
   let_it_be(:design_todo) do
     create(:todo, :mentioned,
            user: user,
@@ -37,6 +39,14 @@ RSpec.describe TodosHelper do
     create(:todo, target: issue)
   end
 
+  let_it_be(:group_todo) do
+    create(:todo, target: group, group: group, project: nil, user: user)
+  end
+
+  let_it_be(:project_access_request_todo) do
+    create(:todo, target: project, action: Todo::MEMBER_ACCESS_REQUESTED)
+  end
+
   describe '#todos_count_format' do
     it 'shows fuzzy count for 100 or more items' do
       expect(helper.todos_count_format(100)).to eq '99+'
@@ -50,16 +60,14 @@ RSpec.describe TodosHelper do
     end
   end
 
-  describe '#todo_target_link' do
+  describe '#todo_target_name' do
     context 'when given a design' do
       let(:todo) { design_todo }
 
-      it 'produces a good link' do
-        path = helper.todo_target_path(todo)
-        link = helper.todo_target_link(todo)
-        expected = "<a href=\"#{path}\">design #{design.to_reference}</a>"
+      it 'references the filename of the design' do
+        name = helper.todo_target_name(todo)
 
-        expect(link).to eq(expected)
+        expect(name).to eq(design.to_reference.to_s)
       end
     end
   end
@@ -94,7 +102,7 @@ RSpec.describe TodosHelper do
 
       it 'returns the title' do
         title = helper.todo_target_title(todo)
-        expect(title).to eq("\"Issue 1\"")
+        expect(title).to eq("Issue 1")
       end
     end
   end
@@ -127,10 +135,22 @@ RSpec.describe TodosHelper do
     context 'when given a task' do
       let(:todo) { task_todo }
 
-      it 'responds with an appropriate path' do
+      context 'when the use_iid_in_work_items_path feature flag is disabled' do
+        before do
+          stub_feature_flags(use_iid_in_work_items_path: false)
+        end
+
+        it 'responds with an appropriate path' do
+          path = helper.todo_target_path(todo)
+
+          expect(path).to eq("/#{todo.project.full_path}/-/work_items/#{todo.target.id}")
+        end
+      end
+
+      it 'responds with an appropriate path using iid' do
         path = helper.todo_target_path(todo)
 
-        expect(path).to eq("/#{todo.project.full_path}/-/work_items/#{todo.target.id}")
+        expect(path).to eq("/#{todo.project.full_path}/-/work_items/#{todo.target.iid}?iid_path=true")
       end
     end
 
@@ -143,33 +163,61 @@ RSpec.describe TodosHelper do
         expect(path).to eq("/#{issue.project.full_path}/-/issues/#{issue.iid}##{dom_id(note)}")
       end
     end
+
+    context 'when a user requests access to group' do
+      let_it_be(:group_access_request_todo) do
+        create(:todo,
+               target_id: group.id,
+               target_type: group.class.polymorphic_name,
+               group: group,
+               action: Todo::MEMBER_ACCESS_REQUESTED)
+      end
+
+      it 'responds with access requests tab' do
+        path = helper.todo_target_path(group_access_request_todo)
+
+        access_request_path = Gitlab::Routing.url_helpers.group_group_members_path(group, tab: 'access_requests')
+
+        expect(path).to eq(access_request_path)
+      end
+    end
+
+    context 'when a user requests access to project' do
+      it 'responds with access requests tab' do
+        path = helper.todo_target_path(project_access_request_todo)
+
+        access_request_path = Gitlab::Routing.url_helpers.project_project_members_path(project, tab: 'access_requests')
+
+        expect(path).to eq(access_request_path)
+      end
+    end
   end
 
-  describe '#todo_target_type_name' do
-    subject { helper.todo_target_type_name(todo) }
+  describe '#todo_target_aria_label' do
+    subject { helper.todo_target_aria_label(todo) }
 
     context 'when given a design todo' do
       let(:todo) { design_todo }
 
-      it { is_expected.to eq('design') }
+      it { is_expected.to eq("Design ##{todo.target.iid}[#{todo.target.title}]") }
     end
 
     context 'when given an alert todo' do
       let(:todo) { alert_todo }
 
-      it { is_expected.to eq('alert') }
+      it { is_expected.to eq("Alert ^alert##{todo.target.iid}") }
     end
 
     context 'when given a task todo' do
       let(:todo) { task_todo }
 
-      it { is_expected.to eq('task') }
+      it { is_expected.to eq("Task ##{todo.target.iid}") }
     end
 
     context 'when given an issue todo' do
       let(:todo) { issue_todo }
 
-      it { is_expected.to eq('issue') }
+      it { is_expected.to eq("Issue ##{todo.target.iid}") }
     end
 
     context 'when given a merge request todo' do
@@ -178,7 +226,7 @@ RSpec.describe TodosHelper do
         create(:todo, target: merge_request)
       end
 
-      it { is_expected.to eq('merge request') }
+      it { is_expected.to eq("Merge Request !#{todo.target.iid}") }
     end
   end
 
@@ -217,7 +265,7 @@ RSpec.describe TodosHelper do
           todo.target.update!(state: 'closed')
         end
 
-        it_behaves_like 'a rendered state pill', css: '.gl-bg-red-500', state: 'closed'
+        it_behaves_like 'a rendered state pill', css: '.badge-danger', state: 'closed'
       end
 
       context 'merged MR' do
@@ -225,7 +273,7 @@ RSpec.describe TodosHelper do
           todo.target.update!(state: 'merged')
         end
 
-        it_behaves_like 'a rendered state pill', css: '.gl-bg-blue-500', state: 'merged'
+        it_behaves_like 'a rendered state pill', css: '.badge-info', state: 'merged'
       end
     end
 
@@ -239,7 +287,7 @@ RSpec.describe TodosHelper do
           todo.target.update!(state: 'closed')
         end
 
-        it_behaves_like 'a rendered state pill', css: '.gl-bg-blue-500', state: 'closed'
+        it_behaves_like 'a rendered state pill', css: '.badge-info', state: 'closed'
       end
     end
 
@@ -253,7 +301,22 @@ RSpec.describe TodosHelper do
           todo.target.resolve!
         end
 
-        it_behaves_like 'a rendered state pill', css: '.gl-bg-blue-500', state: 'resolved'
+        it_behaves_like 'a rendered state pill', css: '.badge-info', state: 'resolved'
+      end
+    end
+  end
+
+  describe '#no_todos_messages' do
+    context 'when getting todos messsages' do
+      it 'return these sentences' do
+        expected_sentences = [
+          s_('Todos|Good job! Looks like you don\'t have anything left on your To-Do List'),
+          s_('Todos|Isn\'t an empty To-Do List beautiful?'),
+          s_('Todos|Give yourself a pat on the back!'),
+          s_('Todos|Nothing left to do. High five!'),
+          s_('Todos|Henceforth, you shall be known as "To-Do Destroyer"')
+        ]
+        expect(helper.no_todos_messages).to eq(expected_sentences)
       end
     end
   end
@@ -275,6 +338,118 @@ RSpec.describe TodosHelper do
       end
 
       it { is_expected.to eq(result) }
+    end
+  end
+
+  describe '#todos_filter_params' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:state, :result) do
+      'done'    | 'done'
+      'pending' | 'pending'
+      ''        | nil
+    end
+
+    with_them do
+      before do
+        allow(helper).to receive(:params).and_return({ state: state })
+      end
+
+      it { expect(helper.todos_filter_params[:state]).to eq(result) }
+    end
+  end
+
+  describe '#todo_action_name' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:action, :self_added?, :expected_action_name) do
+      Todo::ASSIGNED            | false | s_('Todos|assigned you')
+      Todo::ASSIGNED            | true  | s_('Todos|assigned')
+      Todo::REVIEW_REQUESTED    | true  | s_('Todos|requested a review')
+      Todo::MENTIONED           | true  | format(s_("Todos|mentioned %{who}"), who: s_('Todos|yourself'))
+      Todo::MENTIONED           | false | format(s_("Todos|mentioned %{who}"), who: _('you'))
+      Todo::DIRECTLY_ADDRESSED  | true  | format(s_("Todos|mentioned %{who}"), who: s_('Todos|yourself'))
+      Todo::DIRECTLY_ADDRESSED  | false | format(s_("Todos|mentioned %{who}"), who: _('you'))
+      Todo::BUILD_FAILED        | true  | s_('Todos|The pipeline failed')
+      Todo::MARKED              | true  | s_('Todos|added a to-do item')
+      Todo::APPROVAL_REQUIRED   | true  | format(s_("Todos|set %{who} as an approver"), who: s_('Todos|yourself'))
+      Todo::APPROVAL_REQUIRED   | false | format(s_("Todos|set %{who} as an approver"), who: _('you'))
+      Todo::UNMERGEABLE         | true  | s_('Todos|Could not merge')
+      Todo::MERGE_TRAIN_REMOVED | true  | s_("Todos|Removed from Merge Train")
+    end
+
+    with_them do
+      before do
+        alert_todo.action = action
+        alert_todo.user = self_added? ? alert_todo.author : user
+      end
+
+      it { expect(helper.todo_action_name(alert_todo)).to eq(expected_action_name) }
+    end
+
+    context 'member access requested' do
+      context 'when target is group' do
+        it 'returns group access message' do
+          group_todo.action = Todo::MEMBER_ACCESS_REQUESTED
+
+          expect(helper.todo_action_name(group_todo)).to eq(
+            format(s_("Todos|has requested access to group %{which}"), which: _(group.name))
+          )
+        end
+      end
+
+      context 'when target is project' do
+        it 'returns project access message' do
+          expect(helper.todo_action_name(project_access_request_todo)).to eq(
+            format(s_("Todos|has requested access to project %{which}"), which: _(project.name))
+          )
+        end
+      end
+    end
+  end
+
+  describe '#todo_due_date' do
+    subject(:result) { helper.todo_due_date(todo) }
+
+    context 'due date is today' do
+      let_it_be(:issue_with_today_due_date) do
+        create(:issue, title: 'Issue 1', project: project, due_date: Date.current)
+      end
+
+      let(:todo) do
+        create(:todo, project: issue_with_today_due_date.project, target: issue_with_today_due_date, note: note)
+      end
+
+      it { expect(result).to match('Due today') }
+    end
+
+    context 'due date is not today' do
+      let_it_be(:issue_with_tomorrow_due_date) do
+        create(:issue, title: 'Issue 1', project: project, due_date: Date.tomorrow)
+      end
+
+      let(:todo) do
+        create(:todo, project: issue_with_tomorrow_due_date.project, target: issue_with_tomorrow_due_date, note: note)
+      end
+
+      it { expect(result).to match("Due #{l(Date.tomorrow, format: Date::DATE_FORMATS[:medium])}") }
+    end
+  end
+
+  describe '#todo_parent_path' do
+    context 'when todo resource parent is a group' do
+      subject(:result) { helper.todo_parent_path(group_todo) }
+
+      it { expect(result).to eq(group_todo.group.name) }
+    end
+
+    context 'when todo resource parent is not a group' do
+      it 'returns project title with namespace' do
+        result = helper.todo_parent_path(project_access_request_todo)
+
+        expect(result).to include(project_access_request_todo.project.name)
+        expect(result).to include(project_access_request_todo.project.namespace.human_name)
+      end
     end
   end
 end

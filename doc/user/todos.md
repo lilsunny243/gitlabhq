@@ -2,7 +2,7 @@
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/todos.html'
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # To-Do List **(FREE)**
@@ -21,7 +21,7 @@ You can use the To-Do List to track [actions](#actions-that-create-to-do-items) 
 
 To access your To-Do List:
 
-On the top bar, in the top right, select To-Do List (**{task-done}**).
+On the top bar, in the upper-right corner, select the To-Do List (**{task-done}**).
 
 ## Search the To-Do List
 
@@ -50,6 +50,8 @@ A to-do item is added to your To-Do List when:
   merge request is removed from a
   [merge train](../ci/pipelines/merge_trains.md),
   and you're the user that added it.
+- [In GitLab 15.8](https://gitlab.com/gitlab-org/gitlab/-/issues/374725) and later,
+  a member access request is raised for a group or project you're an owner of.
 
 When several actions occur for the same user on the same object,
 GitLab displays the first action as a single to-do item.
@@ -87,6 +89,7 @@ You can manually add an item to your To-Do List.
    - [Merge request](project/merge_requests/index.md)
    - [Epic](group/epics/index.md)
    - [Design](project/issues/design_management.md)
+   - [Incident](../operations/incident_management/incidents.md)
 
 1. On the right sidebar, at the top, select **Add a to do**.
 
@@ -114,17 +117,28 @@ Hi, please message @frank :incoming_envelope:
 
 ## Actions that mark a to-do item as done
 
-Any action to an issue, merge request, or epic marks its
+Various actions on the to-do item object (like issue, merge request, or epic) mark its
 corresponding to-do item as done.
 
-Actions that dismiss to-do items include:
+To-do items are marked as done if you:
 
-- Changing the assignee
-- Changing the milestone
-- Closing the issue or merge request
-- Adding or removing a label
-- Commenting on the issue
-- Resolving a [design discussion thread](project/issues/design_management.md#resolve-a-discussion-thread-on-a-design)
+- Add an award emoji to the description or comment.
+- Add or remove a label.
+- Change the assignee.
+- Change the milestone.
+- Close the to-do item's object.
+- Create a comment.
+- Edit the description.
+- Resolve a [design discussion thread](project/issues/design_management.md#resolve-a-discussion-thread-on-a-design).
+- Accept or deny a project or group membership request.
+
+To-do items are **not** marked as done if you:
+
+- Add a linked item (like a [linked issue](project/issues/related_issues.md)).
+- Add a child item (like [child epic](group/epics/manage_epics.md#multi-level-child-epics) or [task](tasks.md)).
+- Add a [time entry](project/time_tracking.md).
+- Assign yourself.
+- Change the [health status](project/issues/managing_issues.md#health-status).
 
 If someone else closes, merges, or takes action on an issue, merge request, or
 epic, your to-do item remains pending.
@@ -135,7 +149,7 @@ You can manually mark a to-do item as done.
 
 There are two ways to do this:
 
-- In the To-Do List, to the right of the to-do item, select **Done**.
+- In the To-Do List, to the right of the to-do item, select **Mark as done** (**{check}**).
 - In the sidebar of an issue, merge request, or epic, select **Mark as done**.
 
   ![Mark as done from the sidebar](img/todos_mark_done_sidebar_v14_1.png)
@@ -144,7 +158,7 @@ There are two ways to do this:
 
 You can mark all your to-do items as done at the same time.
 
-In the To-Do List, in the top right, select **Mark all as done**.
+In the To-Do List, in the upper-right corner, select **Mark all as done**.
 
 ## How a user's To-Do List is affected when their access changes
 

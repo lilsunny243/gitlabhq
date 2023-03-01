@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Gitaly reference **(FREE SELF)**
@@ -26,7 +26,7 @@ At the top level, `config.toml` defines the items described on the table below.
 | `socket_path` | string | yes (if  `listen_addr` is not set) | A path which Gitaly should open a Unix socket. |
 | `listen_addr` | string | yes (if `socket_path` is not set) | TCP address for Gitaly to listen on. |
 | `tls_listen_addr` | string | no | TCP over TLS address for Gitaly to listen on. |
-| `bin_dir`    | string | yes    | Directory containing Gitaly's executables. |
+| `bin_dir`    | string | yes    | Directory containing Gitaly executables. |
 | `prometheus_listen_addr` | string | no | TCP listen address for Prometheus metrics. If not set, no Prometheus listener is started. |
 
 For example:
@@ -57,7 +57,7 @@ an empty string.
 It is possible to temporarily disable authentication with the `transitioning`
 setting. This allows you to monitor if all clients are
 authenticating correctly without causing a service outage for clients
-that are not configured correctly yet:
+that are still to be configured correctly:
 
 ```toml
 [auth]
@@ -100,7 +100,7 @@ by GitLab with names, such as `default`.
 
 These names and paths are also defined in the `gitlab.yml` configuration file of
 GitLab. When you run Gitaly on the same machine as GitLab (the default
-and recommended configuration) storage paths defined in Gitaly's `config.toml`
+and recommended configuration) storage paths defined in the Gitaly `config.toml`
 must match those in `gitlab.yml`.
 
 | Name | Type | Required | Description |
@@ -129,6 +129,7 @@ The following values can be set in the `[git]` section of the configuration file
 | ---- | ---- | -------- | ----------- |
 | `bin_path` | string | no | Path to Git binary. If not set, is resolved using `PATH`. |
 | `catfile_cache_size` | integer | no | Maximum number of cached [cat-file processes](#cat-file-cache). Default is `100`. |
+| `signing_key` | string | no | Path to [GPG signing key](configure_gitaly.md#configure-commit-signing-for-gitlab-ui-commits). If not set, Gitaly doesn't sign commits made using the UI. [Introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/19185) in GitLab 15.4. |
 
 #### `cat-file` cache
 
@@ -145,7 +146,7 @@ The default limit is 100 `cat-file`s, which constitute a pair of
 you are seeing errors complaining about "too many open files", or an
 inability to create new processes, you may want to lower this limit.
 
-Ideally, the number should be large enough to handle normal
+Ideally, the number should be large enough to handle standard
 traffic. If you raise the limit, you should measure the cache hit ratio
 before and after. If the hit ratio does not improve, the higher limit is
 probably not making a meaningful difference. Here is an example
@@ -158,7 +159,7 @@ sum(rate(gitaly_catfile_cache_total{type="hit"}[5m])) / sum(rate(gitaly_catfile_
 ### `gitaly-ruby`
 
 A Gitaly process uses one or more `gitaly-ruby` helper processes to
-execute RPC's implemented in Ruby instead of Go. The `[gitaly-ruby]`
+execute RPCs implemented in Ruby instead of Go. The `[gitaly-ruby]`
 section of the configuration file contains settings for these helper processes.
 
 These processes are known to occasionally suffer from memory leaks.
@@ -168,7 +169,7 @@ Gitaly restarts its `gitaly-ruby` helpers when their memory exceeds the
 | Name | Type | Required | Description |
 | ---- | ---- | -------- | ----------- |
 | `dir` | string | yes | Path to where `gitaly-ruby` is installed (needed to boot the process).|
-| `max_rss` | integer | no | Resident set size limit that triggers a `gitaly-ruby` restart, in bytes. Default is `200000000` (200MB). |
+| `max_rss` | integer | no | Resident set size limit that triggers a `gitaly-ruby` restart, in bytes. Default is `200000000` (200 MB). |
 | `graceful_restart_timeout` | string | no | Grace period before a `gitaly-ruby` process is forcibly terminated after exceeding `max_rss`. Default is `10m` (10 minutes).|
 | `restart_delay` | string | no |Time that `gitaly-ruby` memory must remain high before a restart. Default is `5m` (5 minutes).|
 | `num_workers` | integer | no |Number of `gitaly-ruby` worker processes. Try increasing this number in case of `ResourceExhausted` errors. Default is `2`, minimum is `2`.|
@@ -191,8 +192,7 @@ For historical reasons
 [GitLab Shell](https://gitlab.com/gitlab-org/gitlab-shell) contains
 the Git hooks that allow GitLab to validate and react to Git pushes.
 Because Gitaly "owns" Git pushes, GitLab Shell must therefore be
-installed alongside Gitaly. We plan to
-[simplify this](https://gitlab.com/gitlab-org/gitaly/-/issues/1226).
+installed alongside Gitaly.
 
 | Name | Type | Required | Description |
 | ---- | ---- | -------- | ----------- |

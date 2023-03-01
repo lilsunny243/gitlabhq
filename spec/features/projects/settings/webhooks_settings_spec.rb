@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > Webhook Settings' do
+RSpec.describe 'Projects > Settings > Webhook Settings', feature_category: :projects do
   let(:project) { create(:project) }
   let(:user) { create(:user) }
   let(:webhooks_path) { project_hooks_path(project) }
@@ -41,19 +41,18 @@ RSpec.describe 'Projects > Settings > Webhook Settings' do
         expect(page).to have_content('Tag push events')
         expect(page).to have_content('Issues events')
         expect(page).to have_content('Confidential issues events')
-        expect(page).to have_content('Note events')
-        expect(page).to have_content('Merge requests events')
+        expect(page).to have_content('Comment')
+        expect(page).to have_content('Merge request events')
         expect(page).to have_content('Pipeline events')
         expect(page).to have_content('Wiki page events')
         expect(page).to have_content('Releases events')
       end
 
-      it 'create webhook' do
+      it 'create webhook', :js do
         visit webhooks_path
 
-        fill_in 'hook_url', with: url
+        fill_in 'URL', with: url
         check 'Tag push events'
-        fill_in 'hook_push_events_branch_filter', with: 'master'
         check 'Enable SSL verification'
         check 'Job events'
 
@@ -61,30 +60,30 @@ RSpec.describe 'Projects > Settings > Webhook Settings' do
 
         expect(page).to have_content(url)
         expect(page).to have_content('SSL Verification: enabled')
-        expect(page).to have_content('Push events')
         expect(page).to have_content('Tag push events')
         expect(page).to have_content('Job events')
+        expect(page).to have_content('Push events')
       end
 
-      it 'edit existing webhook' do
+      it 'edit existing webhook', :js do
         hook
         visit webhooks_path
 
         click_link 'Edit'
-        fill_in 'hook_url', with: url
+        fill_in 'URL', with: url
         check 'Enable SSL verification'
         click_button 'Save changes'
 
-        expect(page).to have_content 'SSL Verification: enabled'
-        expect(page).to have_content(url)
+        expect(page).to have_content('Enable SSL verification')
+        expect(page).to have_current_path(edit_project_hook_path(project, hook), ignore_query: true)
       end
 
       it 'test existing webhook', :js do
         WebMock.stub_request(:post, hook.url)
         visit webhooks_path
 
-        find('.hook-test-button.dropdown').click
-        click_link 'Push events'
+        click_button 'Test'
+        click_button 'Push events'
 
         expect(page).to have_current_path(webhooks_path, ignore_query: true)
       end
@@ -138,6 +137,12 @@ RSpec.describe 'Projects > Settings > Webhook Settings' do
         click_link 'Resend Request'
 
         expect(page).to have_current_path(edit_project_hook_path(project, hook), ignore_query: true)
+      end
+
+      it 'does not show search settings on the hook log details' do
+        visit project_hook_hook_log_path(project, hook, hook_log)
+
+        expect(page).not_to have_field(placeholder: 'Search settings', disabled: true)
       end
     end
   end

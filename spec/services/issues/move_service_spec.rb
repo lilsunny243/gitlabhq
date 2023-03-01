@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Issues::MoveService do
+RSpec.describe Issues::MoveService, feature_category: :team_planning do
   include DesignManagementTestHelpers
 
   let_it_be(:user) { create(:user) }
@@ -20,7 +20,7 @@ RSpec.describe Issues::MoveService do
   end
 
   subject(:move_service) do
-    described_class.new(project: old_project, current_user: user)
+    described_class.new(container: old_project, current_user: user)
   end
 
   shared_context 'user can move issue' do
@@ -33,6 +33,23 @@ RSpec.describe Issues::MoveService do
   describe '#execute' do
     shared_context 'issue move executed' do
       let!(:new_issue) { move_service.execute(old_issue, new_project) }
+    end
+
+    context 'when issue creation fails' do
+      include_context 'user can move issue'
+
+      before do
+        allow_next_instance_of(Issues::CreateService) do |create_service|
+          allow(create_service).to receive(:execute).and_return(ServiceResponse.error(message: 'some error'))
+        end
+      end
+
+      it 'raises a move error' do
+        expect { move_service.execute(old_issue, new_project) }.to raise_error(
+          Issues::MoveService::MoveError,
+          'some error'
+        )
+      end
     end
 
     context 'issue movable' do
@@ -211,18 +228,48 @@ RSpec.describe Issues::MoveService do
       end
 
       context 'project issue hooks' do
-        let!(:hook) { create(:project_hook, project: old_project, issues_events: true) }
+        let_it_be(:old_project_hook) { create(:project_hook, project: old_project, issues_events: true) }
+        let_it_be(:new_project_hook) { create(:project_hook, project: new_project, issues_events: true) }
 
-        it 'executes project issue hooks' do
-          allow_next_instance_of(WebHookService) do |instance|
-            allow(instance).to receive(:execute)
+        let(:expected_new_project_hook_payload) do
+          hash_including(
+            event_type: 'issue',
+            object_kind: 'issue',
+            object_attributes: include(
+              project_id: new_project.id,
+              state: 'opened',
+              action: 'open'
+            )
+          )
+        end
+
+        let(:expected_old_project_hook_payload) do
+          hash_including(
+            event_type: 'issue',
+            object_kind: 'issue',
+            changes: {
+              state_id: { current: 2, previous: 1 },
+              closed_at: { current: kind_of(Time), previous: nil },
+              updated_at: { current: kind_of(Time), previous: kind_of(Time) }
+            },
+            object_attributes: include(
+              id: old_issue.id,
+              closed_at: kind_of(Time),
+              state: 'closed',
+              action: 'close'
+            )
+          )
+        end
+
+        it 'executes project issue hooks for both projects' do
+          expect_next_instance_of(WebHookService, new_project_hook, expected_new_project_hook_payload, 'issue_hooks') do |service|
+            expect(service).to receive(:async_execute).once
+          end
+          expect_next_instance_of(WebHookService, old_project_hook, expected_old_project_hook_payload, 'issue_hooks') do |service|
+            expect(service).to receive(:async_execute).once
           end
 
-          # Ideally, we'd test that `WebHookWorker.jobs.size` increased by 1,
-          # but since the entire spec run takes place in a transaction, we never
-          # actually get to the `after_commit` hook that queues these jobs.
-          expect { move_service.execute(old_issue, new_project) }
-            .not_to raise_error # Sidekiq::Worker::EnqueueFromTransactionError
+          move_service.execute(old_issue, new_project)
         end
       end
 
@@ -459,6 +506,27 @@ RSpec.describe Issues::MoveService do
         expect(old_issue_notification_2.project_id).to eq(old_issue.project_id)
         expect(old_issue_notification_2.noteable_id).to eq(old_issue.id)
       end
+    end
+  end
+
+  context 'copying email participants' do
+    let!(:participant1) { create(:issue_email_participant, email: 'user1@example.com', issue: old_issue) }
+    let!(:participant2) { create(:issue_email_participant, email: 'user2@example.com', issue: old_issue) }
+    let!(:participant3) { create(:issue_email_participant, email: 'other_project_customer@example.com') }
+
+    include_context 'user can move issue'
+
+    subject(:new_issue) do
+      move_service.execute(old_issue, new_project)
+    end
+
+    it 'copies moved issue email participants' do
+      new_issue
+
+      expect(participant1.reload.issue).to eq(old_issue)
+      expect(participant2.reload.issue).to eq(old_issue)
+      expect(new_issue.issue_email_participants.pluck(:email))
+       .to match_array([participant1.email, participant2.email])
     end
   end
 end

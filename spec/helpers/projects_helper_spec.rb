@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe ProjectsHelper do
+RSpec.describe ProjectsHelper, feature_category: :source_code_management do
   include ProjectForksHelper
   include AfterNextHelpers
 
@@ -206,7 +206,7 @@ RSpec.describe ProjectsHelper do
     it 'loads the pipeline status in batch' do
       helper.load_pipeline_status([project])
       # Skip lazy loading of the `pipeline_status` attribute
-      pipeline_status = project.instance_variable_get('@pipeline_status')
+      pipeline_status = project.instance_variable_get(:@pipeline_status)
 
       expect(pipeline_status).to be_a(Gitlab::Cache::Ci::ProjectPipelineStatus)
     end
@@ -404,10 +404,6 @@ RSpec.describe ProjectsHelper do
       Project.all
     end
 
-    before do
-      stub_feature_flags(project_list_filter_bar: false)
-    end
-
     it 'returns true when there are projects' do
       expect(helper.show_projects?(projects, {})).to eq(true)
     end
@@ -586,46 +582,24 @@ RSpec.describe ProjectsHelper do
     end
   end
 
-  describe '#show_merge_request_count' do
+  describe '#show_count?' do
     context 'enabled flag' do
       it 'returns true if compact mode is disabled' do
-        expect(helper.show_merge_request_count?).to be_truthy
+        expect(helper.show_count?).to be_truthy
       end
 
       it 'returns false if compact mode is enabled' do
-        expect(helper.show_merge_request_count?(compact_mode: true)).to be_falsey
+        expect(helper.show_count?(compact_mode: true)).to be_falsey
       end
     end
 
     context 'disabled flag' do
       it 'returns false if disabled flag is true' do
-        expect(helper.show_merge_request_count?(disabled: true)).to be_falsey
+        expect(helper.show_count?(disabled: true)).to be_falsey
       end
 
       it 'returns true if disabled flag is false' do
-        expect(helper.show_merge_request_count?).to be_truthy
-      end
-    end
-  end
-
-  describe '#show_issue_count?' do
-    context 'enabled flag' do
-      it 'returns true if compact mode is disabled' do
-        expect(helper.show_issue_count?).to be_truthy
-      end
-
-      it 'returns false if compact mode is enabled' do
-        expect(helper.show_issue_count?(compact_mode: true)).to be_falsey
-      end
-    end
-
-    context 'disabled flag' do
-      it 'returns false if disabled flag is true' do
-        expect(helper.show_issue_count?(disabled: true)).to be_falsey
-      end
-
-      it 'returns true if disabled flag is false' do
-        expect(helper.show_issue_count?).to be_truthy
+        expect(helper).to be_show_count
       end
     end
   end
@@ -825,7 +799,7 @@ RSpec.describe ProjectsHelper do
     end
 
     context 'gitaly is working appropriately' do
-      let(:license) { Licensee::License.new('mit') }
+      let(:license) { ::Gitlab::Git::DeclaredLicense.new(key: 'mit', name: 'MIT License') }
 
       before do
         expect(repository).to receive(:license).and_return(license)
@@ -963,13 +937,13 @@ RSpec.describe ProjectsHelper do
         lfsEnabled: !!project.lfs_enabled,
         emailsDisabled: project.emails_disabled?,
         metricsDashboardAccessLevel: project.project_feature.metrics_dashboard_access_level,
-        operationsAccessLevel: project.project_feature.operations_access_level,
         showDefaultAwardEmojis: project.show_default_award_emojis?,
         securityAndComplianceAccessLevel: project.security_and_compliance_access_level,
         containerRegistryAccessLevel: project.project_feature.container_registry_access_level,
         environmentsAccessLevel: project.project_feature.environments_access_level,
         featureFlagsAccessLevel: project.project_feature.feature_flags_access_level,
-        releasesAccessLevel: project.project_feature.releases_access_level
+        releasesAccessLevel: project.project_feature.releases_access_level,
+        infrastructureAccessLevel: project.project_feature.infrastructure_access_level
       )
     end
 
@@ -1054,6 +1028,28 @@ RSpec.describe ProjectsHelper do
         end
       end
     end
+
+    describe '#able_to_see_forks_count?' do
+      subject { helper.able_to_see_forks_count?(project, user) }
+
+      where(:can_read_code, :forking_enabled, :expected) do
+        false | false | false
+        true  | false | false
+        false | true  | false
+        true  | true  | true
+      end
+
+      with_them do
+        before do
+          allow(project).to receive(:forking_enabled?).and_return(forking_enabled)
+          allow(helper).to receive(:can?).with(user, :read_code, project).and_return(can_read_code)
+        end
+
+        it 'returns the correct response' do
+          expect(subject).to eq(expected)
+        end
+      end
+    end
   end
 
   describe '#fork_button_disabled_tooltip' do
@@ -1090,7 +1086,7 @@ RSpec.describe ProjectsHelper do
 
     context 'as a user' do
       it 'returns a link to contact an administrator' do
-        allow(user).to receive(:admin?).and_return(false)
+        allow(user).to receive(:can_admin_all_resources?).and_return(false)
 
         expect(subject).to have_text("To enable importing projects from #{import_method}, ask your GitLab administrator to configure OAuth integration")
       end
@@ -1098,7 +1094,7 @@ RSpec.describe ProjectsHelper do
 
     context 'as an administrator' do
       it 'returns a link to configure bitbucket' do
-        allow(user).to receive(:admin?).and_return(true)
+        allow(user).to receive(:can_admin_all_resources?).and_return(true)
 
         expect(subject).to have_text("To enable importing projects from #{import_method}, as administrator you need to configure OAuth integration")
       end
@@ -1147,37 +1143,23 @@ RSpec.describe ProjectsHelper do
     context 'with the setting enabled' do
       before do
         stub_application_setting(delete_inactive_projects: true)
+        stub_application_setting(inactive_projects_min_size_mb: 0)
+        stub_application_setting(inactive_projects_send_warning_email_after_months: 1)
       end
 
-      context 'with the feature flag disabled' do
-        before do
-          stub_feature_flags(inactive_projects_deletion: false)
-        end
-
+      context 'with an active project' do
         it_behaves_like 'does not show the banner'
       end
 
-      context 'with the feature flag enabled' do
+      context 'with an inactive project' do
         before do
-          stub_feature_flags(inactive_projects_deletion: true)
-          stub_application_setting(inactive_projects_min_size_mb: 0)
-          stub_application_setting(inactive_projects_send_warning_email_after_months: 1)
+          project.statistics.storage_size = 1.megabyte
+          project.last_activity_at = 1.year.ago
+          project.save!
         end
 
-        context 'with an active project' do
-          it_behaves_like 'does not show the banner'
-        end
-
-        context 'with an inactive project' do
-          before do
-            project.statistics.storage_size = 1.megabyte
-            project.last_activity_at = 1.year.ago
-            project.save!
-          end
-
-          it 'shows the banner' do
-            expect(helper.show_inactive_project_deletion_banner?(project)).to be(true)
-          end
+        it 'shows the banner' do
+          expect(helper.show_inactive_project_deletion_banner?(project)).to be(true)
         end
       end
     end
@@ -1304,7 +1286,7 @@ RSpec.describe ProjectsHelper do
       let_it_be(:has_active_license) { true }
 
       it 'displays the correct messagee' do
-        expect(subject).to eq(s_('Clusters|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of November 2022. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd} or reach out to GitLab support.'))
+        expect(subject).to eq(s_('Clusters|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd} or reach out to GitLab support.'))
       end
     end
 
@@ -1312,7 +1294,7 @@ RSpec.describe ProjectsHelper do
       let_it_be(:has_active_license) { false }
 
       it 'displays the correct message' do
-        expect(subject).to eq(s_('Clusters|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of November 2022. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}.'))
+        expect(subject).to eq(s_('Clusters|The certificate-based Kubernetes integration has been deprecated and will be turned off at the end of February 2023. Please %{linkStart}migrate to the GitLab agent for Kubernetes%{linkEnd}.'))
       end
     end
   end
@@ -1348,6 +1330,58 @@ RSpec.describe ProjectsHelper do
         graph_ref: ref,
         graph_csv_path: start_with(daily_coverage_options.fetch(:download_path))
       )
+    end
+  end
+
+  describe '#localized_project_human_access' do
+    using RSpec::Parameterized::TableSyntax
+
+    where(:key, :localized_project_human_access) do
+      Gitlab::Access::NO_ACCESS           | _('No access')
+      Gitlab::Access::MINIMAL_ACCESS      | _("Minimal Access")
+      Gitlab::Access::GUEST               | _('Guest')
+      Gitlab::Access::REPORTER            | _('Reporter')
+      Gitlab::Access::DEVELOPER           | _('Developer')
+      Gitlab::Access::MAINTAINER          | _('Maintainer')
+      Gitlab::Access::OWNER               | _('Owner')
+    end
+
+    with_them do
+      it 'with correct key' do
+        expect(helper.localized_project_human_access(key)).to eq(localized_project_human_access)
+      end
+    end
+  end
+
+  describe '#vue_fork_divergence_data' do
+    it 'returns empty hash when fork source is not available' do
+      expect(helper.vue_fork_divergence_data(project, 'ref')).to eq({})
+    end
+
+    context 'when fork source is available' do
+      it 'returns the data related to fork divergence' do
+        source_project = project_with_repo
+
+        allow(helper).to receive(:visible_fork_source).with(project).and_return(source_project)
+
+        ahead_path =
+          "/#{project.full_path}/-/compare/#{source_project.default_branch}...ref?from_project_id=#{source_project.id}"
+        behind_path =
+          "/#{source_project.full_path}/-/compare/ref...#{source_project.default_branch}?from_project_id=#{project.id}"
+
+        expect(helper.vue_fork_divergence_data(project, 'ref')).to eq({
+          source_name: source_project.full_name,
+          source_path: project_path(source_project),
+          ahead_compare_path: ahead_path,
+          behind_compare_path: behind_path
+        })
+      end
+    end
+  end
+
+  describe '#remote_mirror_setting_enabled?' do
+    it 'returns false' do
+      expect(helper.remote_mirror_setting_enabled?).to be_falsy
     end
   end
 end

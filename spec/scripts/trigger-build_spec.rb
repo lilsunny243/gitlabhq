@@ -6,7 +6,7 @@ require 'rspec-parameterized'
 
 require_relative '../../scripts/trigger-build'
 
-RSpec.describe Trigger do
+RSpec.describe Trigger, feature_category: :tooling do
   let(:env) do
     {
       'CI_JOB_URL' => 'ci_job_url',
@@ -16,19 +16,17 @@ RSpec.describe Trigger do
       'CI_COMMIT_SHA' => 'ci_commit_sha',
       'CI_MERGE_REQUEST_PROJECT_ID' => 'ci_merge_request_project_id',
       'CI_MERGE_REQUEST_IID' => 'ci_merge_request_iid',
-      'GITLAB_BOT_MULTI_PROJECT_PIPELINE_POLLING_TOKEN' => 'bot-token',
+      'PROJECT_TOKEN_FOR_CI_SCRIPTS_API_USAGE' => 'bot-token',
       'CI_JOB_TOKEN' => 'job-token',
       'GITLAB_USER_NAME' => 'gitlab_user_name',
       'GITLAB_USER_LOGIN' => 'gitlab_user_login',
       'QA_IMAGE' => 'qa_image',
-      'OMNIBUS_GITLAB_CACHE_UPDATE' => 'omnibus_gitlab_cache_update',
-      'OMNIBUS_GITLAB_PROJECT_ACCESS_TOKEN' => nil,
       'DOCS_PROJECT_API_TOKEN' => nil
     }
   end
 
   let(:com_api_endpoint) { 'https://gitlab.com/api/v4' }
-  let(:com_api_token) { env['GITLAB_BOT_MULTI_PROJECT_PIPELINE_POLLING_TOKEN'] }
+  let(:com_api_token) { env['PROJECT_TOKEN_FOR_CI_SCRIPTS_API_USAGE'] }
   let(:com_gitlab_client) { double('com_gitlab_client') }
 
   let(:downstream_gitlab_client_endpoint) { com_api_endpoint }
@@ -115,25 +113,6 @@ RSpec.describe Trigger do
             .with(downstream_project_path, stubbed_pipeline.id, downstream_gitlab_client)
 
           subject.invoke!
-        end
-
-        context 'with downstream_job_name: "foo"' do
-          let(:downstream_job) { Struct.new(:id, :name).new(42, 'foo') }
-          let(:paginated_resources) { Struct.new(:auto_paginate).new([downstream_job]) }
-
-          before do
-            stub_env('CI_COMMIT_REF_NAME', "#{ref}-ee")
-          end
-
-          it 'fetches the downstream job' do
-            expect_run_trigger_with_params
-            expect(downstream_gitlab_client).to receive(:pipeline_jobs)
-              .with(downstream_project_path, stubbed_pipeline.id).and_return(paginated_resources)
-            expect(Trigger::Job).to receive(:new)
-              .with(downstream_project_path, downstream_job.id, downstream_gitlab_client)
-
-            subject.invoke!(downstream_job_name: 'foo')
-          end
         end
       end
     end
@@ -244,156 +223,6 @@ RSpec.describe Trigger do
     end
   end
 
-  describe Trigger::Omnibus do
-    describe '#variables' do
-      it 'invokes the trigger with expected variables' do
-        expect(subject.variables).to include(
-          'SKIP_QA_TEST' => 'true',
-          'SKIP_QA_DOCKER' => 'true',
-          'ALTERNATIVE_SOURCES' => 'true',
-          'CACHE_UPDATE' => env['OMNIBUS_GITLAB_CACHE_UPDATE']
-        )
-      end
-
-      context 'when CI_COMMIT_SHA is set' do
-        before do
-          stub_env('CI_COMMIT_SHA', 'ci_commit_sha')
-        end
-
-        it 'sets GITLAB_VERSION & IMAGE_TAG to ci_commit_sha' do
-          expect(subject.variables).to include(
-            'GITLAB_VERSION' => 'ci_commit_sha',
-            'IMAGE_TAG' => 'ci_commit_sha'
-          )
-        end
-      end
-
-      context 'when Trigger.security? is true' do
-        before do
-          allow(Trigger).to receive(:security?).and_return(true)
-        end
-
-        it 'sets SECURITY_SOURCES to true' do
-          expect(subject.variables['SECURITY_SOURCES']).to eq('true')
-        end
-      end
-
-      context 'when Trigger.security? is false' do
-        before do
-          allow(Trigger).to receive(:security?).and_return(false)
-        end
-
-        it 'sets SECURITY_SOURCES to false' do
-          expect(subject.variables['SECURITY_SOURCES']).to eq('false')
-        end
-      end
-
-      context 'when Trigger.ee? is true' do
-        before do
-          allow(Trigger).to receive(:ee?).and_return(true)
-        end
-
-        it 'sets ee to true' do
-          expect(subject.variables['ee']).to eq('true')
-        end
-      end
-
-      context 'when Trigger.ee? is false' do
-        before do
-          allow(Trigger).to receive(:ee?).and_return(false)
-        end
-
-        it 'sets ee to false' do
-          expect(subject.variables['ee']).to eq('false')
-        end
-      end
-    end
-
-    describe '.access_token' do
-      context 'when OMNIBUS_GITLAB_PROJECT_ACCESS_TOKEN is set' do
-        let(:omnibus_gitlab_project_access_token) { 'omnibus_gitlab_project_access_token' }
-
-        before do
-          stub_env('OMNIBUS_GITLAB_PROJECT_ACCESS_TOKEN', omnibus_gitlab_project_access_token)
-        end
-
-        it 'returns the omnibus-specific access token' do
-          expect(described_class.access_token).to eq(omnibus_gitlab_project_access_token)
-        end
-      end
-
-      context 'when OMNIBUS_GITLAB_PROJECT_ACCESS_TOKEN is not set' do
-        before do
-          stub_env('OMNIBUS_GITLAB_PROJECT_ACCESS_TOKEN', nil)
-        end
-
-        it 'returns the default access token' do
-          expect(described_class.access_token).to eq(Trigger::Base.access_token)
-        end
-      end
-    end
-
-    describe '#invoke!' do
-      let(:downstream_project_path) { 'gitlab-org/build/omnibus-gitlab-mirror' }
-      let(:ref) { 'master' }
-
-      let(:env) do
-        super().merge(
-          'QA_IMAGE' => 'qa_image',
-          'GITLAB_QA_OPTIONS' => 'gitlab_qa_options',
-          'QA_TESTS' => 'qa_tests',
-          'ALLURE_JOB_NAME' => 'allure_job_name'
-        )
-      end
-
-      describe '#downstream_project_path' do
-        context 'when OMNIBUS_PROJECT_PATH is set' do
-          let(:downstream_project_path) { 'omnibus_project_path' }
-
-          before do
-            stub_env('OMNIBUS_PROJECT_PATH', downstream_project_path)
-          end
-
-          it 'triggers the pipeline on the correct project' do
-            expect_run_trigger_with_params
-
-            subject.invoke!
-          end
-        end
-      end
-
-      describe '#ref' do
-        context 'when OMNIBUS_BRANCH is set' do
-          let(:ref) { 'omnibus_branch' }
-
-          before do
-            stub_env('OMNIBUS_BRANCH', ref)
-          end
-
-          it 'triggers the pipeline on the correct ref' do
-            expect_run_trigger_with_params
-
-            subject.invoke!
-          end
-        end
-      end
-
-      context 'when CI_COMMIT_REF_NAME is a stable branch' do
-        let(:ref) { '14-10-stable' }
-
-        before do
-          stub_env('CI_COMMIT_REF_NAME', "#{ref}-ee")
-        end
-
-        it 'triggers the pipeline on the correct ref' do
-          expect_run_trigger_with_params
-
-          subject.invoke!
-        end
-      end
-    end
-  end
-
   describe Trigger::CNG do
     describe '#variables' do
       it 'does not include redundant variables' do
@@ -470,28 +299,6 @@ RSpec.describe Trigger do
         end
       end
 
-      describe "GITLAB_ASSETS_TAG" do
-        context 'when CI_COMMIT_TAG is set' do
-          before do
-            stub_env('CI_COMMIT_TAG', 'v1.0')
-          end
-
-          it 'sets GITLAB_ASSETS_TAG to CI_COMMIT_REF_NAME' do
-            expect(subject.variables['GITLAB_ASSETS_TAG']).to eq(env['CI_COMMIT_REF_NAME'])
-          end
-        end
-
-        context 'when CI_COMMIT_TAG is nil' do
-          before do
-            stub_env('CI_COMMIT_TAG', nil)
-          end
-
-          it 'sets GITLAB_ASSETS_TAG to CI_COMMIT_SHA' do
-            expect(subject.variables['GITLAB_ASSETS_TAG']).to eq(env['CI_COMMIT_SHA'])
-          end
-        end
-      end
-
       describe "CE_PIPELINE" do
         context 'when Trigger.ee? is true' do
           before do
@@ -532,6 +339,28 @@ RSpec.describe Trigger do
 
           it 'sets EE_PIPELINE to nil' do
             expect(subject.variables['EE_PIPELINE']).to eq(nil)
+          end
+        end
+      end
+
+      describe "GITLAB_REF_SLUG" do
+        context 'when CI_COMMIT_TAG is set' do
+          before do
+            stub_env('CI_COMMIT_TAG', 'true')
+          end
+
+          it 'sets GITLAB_REF_SLUG to CI_COMMIT_REF_NAME' do
+            expect(subject.variables['GITLAB_REF_SLUG']).to eq(env['CI_COMMIT_REF_NAME'])
+          end
+        end
+
+        context 'when CI_COMMIT_TAG is nil' do
+          before do
+            stub_env('CI_COMMIT_TAG', nil)
+          end
+
+          it 'sets GITLAB_REF_SLUG to CI_COMMIT_SHA' do
+            expect(subject.variables['GITLAB_REF_SLUG']).to eq(env['CI_COMMIT_SHA'])
           end
         end
       end
@@ -761,15 +590,33 @@ RSpec.describe Trigger do
         expect(subject.variables).to include('TRIGGERED_USER_LOGIN' => env['GITLAB_USER_LOGIN'])
       end
 
-      describe "GITLAB_COMMIT_SHA" do
-        context 'when CI_COMMIT_SHA is set' do
-          before do
-            stub_env('CI_COMMIT_SHA', 'ci_commit_sha')
-          end
+      context 'when CI_MERGE_REQUEST_SOURCE_BRANCH_SHA is set' do
+        before do
+          stub_env('CI_MERGE_REQUEST_SOURCE_BRANCH_SHA', 'ci_merge_request_source_branch_sha')
+        end
 
-          it 'sets GITLAB_COMMIT_SHA to ci_commit_sha' do
-            expect(subject.variables['GITLAB_COMMIT_SHA']).to eq('ci_commit_sha')
-          end
+        it 'sets TOP_UPSTREAM_SOURCE_SHA to ci_merge_request_source_branch_sha' do
+          expect(subject.variables['TOP_UPSTREAM_SOURCE_SHA']).to eq('ci_merge_request_source_branch_sha')
+        end
+      end
+
+      context 'when CI_MERGE_REQUEST_SOURCE_BRANCH_SHA is set as empty' do
+        before do
+          stub_env('CI_MERGE_REQUEST_SOURCE_BRANCH_SHA', '')
+        end
+
+        it 'sets TOP_UPSTREAM_SOURCE_SHA to CI_COMMIT_SHA' do
+          expect(subject.variables['TOP_UPSTREAM_SOURCE_SHA']).to eq(env['CI_COMMIT_SHA'])
+        end
+      end
+
+      context 'when CI_MERGE_REQUEST_SOURCE_BRANCH_SHA is not set' do
+        before do
+          stub_env('CI_MERGE_REQUEST_SOURCE_BRANCH_SHA', nil)
+        end
+
+        it 'sets TOP_UPSTREAM_SOURCE_SHA to CI_COMMIT_SHA' do
+          expect(subject.variables['TOP_UPSTREAM_SOURCE_SHA']).to eq(env['CI_COMMIT_SHA'])
         end
       end
     end

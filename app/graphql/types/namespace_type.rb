@@ -63,6 +63,15 @@ module Types
           description: "Timelog categories for the namespace.",
           alpha: { milestone: '15.3' }
 
+    field :achievements,
+          Types::Achievements::AchievementType.connection_type,
+          null: true,
+          alpha: { milestone: '15.8' },
+          description: "Achievements for the namespace. " \
+                       "Returns `null` if the `achievements` feature flag is disabled.",
+          extras: [:lookahead],
+          resolver: ::Resolvers::Achievements::AchievementsResolver
+
     markdown_field :description_html, null: true
 
     def timelog_categories

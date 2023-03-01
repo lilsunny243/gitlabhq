@@ -1,16 +1,10 @@
 <script>
-import {
-  GlTooltipDirective,
-  GlButton,
-  GlSafeHtmlDirective,
-  GlAvatarLink,
-  GlAvatarLabeled,
-  GlTooltip,
-} from '@gitlab/ui';
+import { GlTooltipDirective, GlButton, GlAvatarLink, GlAvatarLabeled, GlTooltip } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { isGid, getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { glEmojiTag } from '~/emoji';
 import { __, sprintf } from '~/locale';
-import CiIconBadge from './ci_badge_link.vue';
+import CiBadgeLink from './ci_badge_link.vue';
 import TimeagoTooltip from './time_ago_tooltip.vue';
 
 /**
@@ -22,7 +16,7 @@ import TimeagoTooltip from './time_ago_tooltip.vue';
  */
 export default {
   components: {
-    CiIconBadge,
+    CiBadgeLink,
     TimeagoTooltip,
     GlButton,
     GlAvatarLink,
@@ -31,7 +25,7 @@ export default {
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   EMOJI_REF: 'EMOJI_REF',
   props: {
@@ -81,6 +75,10 @@ export default {
       // GraphQL returns `avatarUrl` and Rest `avatar_url`
       return this.user?.avatarUrl || this.user?.avatar_url;
     },
+    webUrl() {
+      // GraphQL returns `webUrl` and Rest `web_url`
+      return this.user?.webUrl || this.user?.web_url;
+    },
     statusTooltipHTML() {
       // Rest `status_tooltip_html` which is a ready to work
       // html for the emoji and the status text inside a tooltip.
@@ -122,7 +120,7 @@ export default {
     data-testid="ci-header-content"
   >
     <section class="header-main-content gl-mr-3">
-      <ci-icon-badge :status="status" />
+      <ci-badge-link class="gl-mr-3" :status="status" />
 
       <strong data-testid="ci-header-item-text">{{ item }}</strong>
 
@@ -138,7 +136,7 @@ export default {
           :data-user-id="userId"
           :data-username="user.username"
           :data-name="user.name"
-          :href="user.webUrl"
+          :href="webUrl"
           target="_blank"
           class="js-user-link gl-vertical-align-middle gl-mx-2 gl-align-items-center"
         >

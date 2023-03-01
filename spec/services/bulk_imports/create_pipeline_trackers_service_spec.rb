@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BulkImports::CreatePipelineTrackersService do
+RSpec.describe BulkImports::CreatePipelineTrackersService, feature_category: :importers do
   describe '#execute!' do
     context 'when entity is group' do
       it 'creates trackers for group entity' do
@@ -75,7 +75,11 @@ RSpec.describe BulkImports::CreatePipelineTrackersService do
           expect_next_instance_of(Gitlab::Import::Logger) do |logger|
             expect(logger).to receive(:info).with({
               message: 'Pipeline skipped as source instance version not compatible with pipeline',
-              entity_id: entity.id,
+              bulk_import_entity_id: entity.id,
+              bulk_import_id: entity.bulk_import_id,
+              bulk_import_entity_type: entity.source_type,
+              source_full_path: entity.source_full_path,
+              importer: 'gitlab_migration',
               pipeline_name: 'PipelineClass4',
               minimum_source_version: '15.1.0',
               maximum_source_version: nil,
@@ -84,7 +88,11 @@ RSpec.describe BulkImports::CreatePipelineTrackersService do
 
             expect(logger).to receive(:info).with({
               message: 'Pipeline skipped as source instance version not compatible with pipeline',
-              entity_id: entity.id,
+              bulk_import_entity_id: entity.id,
+              bulk_import_id: entity.bulk_import_id,
+              bulk_import_entity_type: entity.source_type,
+              source_full_path: entity.source_full_path,
+              importer: 'gitlab_migration',
               pipeline_name: 'PipelineClass5',
               minimum_source_version: '16.0.0',
               maximum_source_version: nil,

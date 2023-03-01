@@ -12,7 +12,7 @@ RSpec.describe Issues::ReopenService do
         guest = create(:user)
         project.add_guest(guest)
 
-        described_class.new(project: project, current_user: guest).execute(issue)
+        described_class.new(container: project, current_user: guest).execute(issue)
 
         expect(issue).to be_closed
       end
@@ -21,7 +21,7 @@ RSpec.describe Issues::ReopenService do
         it 'does close the issue even if user is not authorized' do
           non_authorized_user = create(:user)
 
-          service = described_class.new(project: project, current_user: non_authorized_user)
+          service = described_class.new(container: project, current_user: non_authorized_user)
 
           expect do
             service.execute(issue, skip_authorization: true)
@@ -33,7 +33,7 @@ RSpec.describe Issues::ReopenService do
     context 'when user is authorized to reopen issue' do
       let(:user) { create(:user) }
 
-      subject(:execute) { described_class.new(project: project, current_user: user).execute(issue) }
+      subject(:execute) { described_class.new(container: project, current_user: user).execute(issue) }
 
       before do
         project.add_maintainer(user)
@@ -74,6 +74,13 @@ RSpec.describe Issues::ReopenService do
 
         it_behaves_like 'an incident management tracked event', :incident_management_incident_reopened
 
+        it_behaves_like 'Snowplow event tracking with RedisHLL context' do
+          let(:namespace) { issue.namespace }
+          let(:category) { described_class.to_s }
+          let(:action) { 'incident_management_incident_reopened' }
+          let(:label) { 'redis_hll_counters.incident_management.incident_management_total_unique_counts_monthly' }
+        end
+
         it 'creates a timeline event' do
           expect(IncidentManagement::TimelineEvents::CreateService)
             .to receive(:reopen_incident)
@@ -85,9 +92,25 @@ RSpec.describe Issues::ReopenService do
       end
 
       context 'when issue is not confidential' do
+        let(:expected_payload) do
+          include(
+            event_type: 'issue',
+            object_kind: 'issue',
+            changes: {
+              closed_at: { current: nil, previous: kind_of(Time) },
+              state_id: { current: 1, previous: 2 },
+              updated_at: { current: kind_of(Time), previous: kind_of(Time) }
+            },
+            object_attributes: include(
+              state: 'opened',
+              action: 'reopen'
+            )
+          )
+        end
+
         it 'executes issue hooks' do
-          expect(project).to receive(:execute_hooks).with(an_instance_of(Hash), :issue_hooks)
-          expect(project).to receive(:execute_integrations).with(an_instance_of(Hash), :issue_hooks)
+          expect(project).to receive(:execute_hooks).with(expected_payload, :issue_hooks)
+          expect(project).to receive(:execute_integrations).with(expected_payload, :issue_hooks)
 
           execute
         end

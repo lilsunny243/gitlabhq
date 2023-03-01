@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Members > Manage members', :js do
+RSpec.describe 'Projects > Members > Manage members', :js, feature_category: :onboarding do
   include Spec::Support::Helpers::Features::MembersHelpers
   include Spec::Support::Helpers::Features::InviteMembersModalHelper
   include Spec::Support::Helpers::ModalHelpers
@@ -104,7 +104,6 @@ RSpec.describe 'Projects > Members > Manage members', :js do
 
       click_on 'Invite members'
 
-      click_on 'Guest'
       wait_for_requests
     end
 
@@ -112,13 +111,7 @@ RSpec.describe 'Projects > Members > Manage members', :js do
       let(:current_user) { project_owner }
 
       it 'shows Owner in the dropdown' do
-        page.within '.dropdown-menu' do
-          expect(page).to have_button('Guest')
-          expect(page).to have_button('Reporter')
-          expect(page).to have_button('Developer')
-          expect(page).to have_button('Maintainer')
-          expect(page).to have_button('Owner')
-        end
+        expect(page).to have_select('Select a role', options: %w[Guest Reporter Developer Maintainer Owner])
       end
     end
 
@@ -126,13 +119,8 @@ RSpec.describe 'Projects > Members > Manage members', :js do
       let(:current_user) { project_maintainer }
 
       it 'does not show the Owner option' do
-        page.within '.dropdown-menu' do
-          expect(page).to have_button('Guest')
-          expect(page).to have_button('Reporter')
-          expect(page).to have_button('Developer')
-          expect(page).to have_button('Maintainer')
-          expect(page).not_to have_button('Owner')
-        end
+        expect(page).to have_select('Select a role', options: %w[Guest Reporter Developer Maintainer])
+        expect(page).not_to have_select('Select a role', options: %w[Owner])
       end
     end
   end
@@ -151,17 +139,15 @@ RSpec.describe 'Projects > Members > Manage members', :js do
 
       it 'can only remove non-Owner members' do
         page.within find_member_row(project_owner) do
-          expect(page).not_to have_button('Remove member')
+          expect(page).not_to have_selector user_action_dropdown
         end
 
-        # Open modal
-        page.within find_member_row(project_developer) do
-          click_button 'Remove member'
-        end
+        show_actions_for_username(project_developer)
+        click_button _('Remove member')
 
         within_modal do
           expect(page).to have_unchecked_field 'Also unassign this user from related issues and merge requests'
-          click_button('Remove member')
+          click_button _('Remove member')
         end
 
         wait_for_requests
@@ -175,18 +161,12 @@ RSpec.describe 'Projects > Members > Manage members', :js do
       let(:current_user) { group_owner }
 
       it 'can remove any direct member' do
-        page.within find_member_row(project_owner) do
-          expect(page).to have_button('Remove member')
-        end
-
-        # Open modal
-        page.within find_member_row(project_owner) do
-          click_button 'Remove member'
-        end
+        show_actions_for_username(project_owner)
+        click_button _('Remove member')
 
         within_modal do
           expect(page).to have_unchecked_field 'Also unassign this user from related issues and merge requests'
-          click_button('Remove member')
+          click_button _('Remove member')
         end
 
         wait_for_requests

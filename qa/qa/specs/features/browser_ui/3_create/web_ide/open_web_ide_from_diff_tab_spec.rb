@@ -1,21 +1,24 @@
 # frozen_string_literal: true
 
 module QA
-  RSpec.describe 'Create' do
+  RSpec.describe 'Create', feature_flag: { name: 'vscode_web_ide', scope: :global }, product_group: :editor, quarantine: {
+    issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/387031',
+    type: :stale
+  } do
     describe 'Open Web IDE from Diff Tab' do
       files = [
-          {
-              file_path: 'file1',
-              content: 'test1'
-          },
-          {
-              file_path: 'file2',
-              content: 'test2'
-          },
-          {
-              file_path: 'file3',
-              content: 'test3'
-          }
+        {
+            file_path: 'file1',
+            content: 'test1'
+        },
+        {
+            file_path: 'file2',
+            content: 'test2'
+        },
+        {
+            file_path: 'file3',
+            content: 'test3'
+        }
       ]
 
       let(:project) do
@@ -44,9 +47,13 @@ module QA
       end
 
       before do
+        Runtime::Feature.disable(:vscode_web_ide)
         Flow::Login.sign_in
-
         merge_request.visit!
+      end
+
+      after do
+        Runtime::Feature.enable(:vscode_web_ide)
       end
 
       it 'opens and edits a multi-file merge request in Web IDE from Diff Tab', testcase: 'https://gitlab.com/gitlab-org/gitlab/-/quality/test_cases/347724' do
@@ -56,6 +63,7 @@ module QA
         end
 
         Page::Project::WebIDE::Edit.perform do |ide|
+          ide.wait_until_ide_loads
           files.each do |files|
             expect(ide).to have_file(files[:file_path])
             expect(ide).to have_file_content(files[:file_path], files[:content])

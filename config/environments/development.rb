@@ -22,12 +22,6 @@ Rails.application.configure do
   # Show a warning when a large data set is loaded into memory
   config.active_record.warn_on_records_fetched_greater_than = 1000
 
-  # Print deprecation notices to the Rails logger
-  config.active_support.deprecation = :log
-
-  # Raise exceptions for disallowed deprecations.
-  config.active_support.disallowed_deprecation = :raise
-
   # Raise an error on page load if there are pending migrations
   config.active_record.migration_error = :page_load
 
@@ -50,6 +44,12 @@ Rails.application.configure do
   # Push preview path now to prevent FrozenError during view_component's initialzer
   config.autoload_paths.push("#{config.root}/spec/components/previews")
 
+  config.lookbook.page_paths = ["#{config.root}/spec/components/docs"]
+  config.lookbook.preview_params_options_eval = true
+  config.lookbook.preview_display_options = {
+    theme: ["light", "dark (alpha)"]
+  }
+
   # Adds additional error checking when serving assets at runtime.
   # Checks for improperly declared sprockets dependencies.
   # Raises helpful error messages.
@@ -61,12 +61,16 @@ Rails.application.configure do
   config.action_mailer.raise_delivery_errors = true
   # Don't make a mess when bootstrapping a development environment
   config.action_mailer.perform_deliveries = (ENV['BOOTSTRAP'] != '1')
-  config.action_mailer.preview_path = "#{Rails.root}{/ee,}/app/mailers/previews"
+  config.action_mailer.preview_path = GitlabEdition.path_glob('app/mailers/previews')
 
   config.eager_load = false
 
   # Do not log asset requests
   config.assets.quiet = true
+
+  # Use 'listen' gem to watch for file changes and improve performance
+  # See: https://guides.rubyonrails.org/configuring.html#config-file-watcher
+  config.file_watcher = ActiveSupport::EventedFileUpdateChecker
 
   # BetterErrors live shell (REPL) on every stack frame
   BetterErrors::Middleware.allow_ip!("127.0.0.1/0")

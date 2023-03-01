@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::ProjectSnippets do
+RSpec.describe API::ProjectSnippets, feature_category: :source_code_management do
   include SnippetHelpers
 
   let_it_be(:project) { create(:project, :public) }
@@ -89,7 +89,7 @@ RSpec.describe API::ProjectSnippets do
         expect(json_response['title']).to eq(snippet.title)
         expect(json_response['description']).to eq(snippet.description)
         expect(json_response['file_name']).to eq(snippet.file_name_on_repo)
-        expect(json_response['files']).to eq(snippet.blobs.map { |blob| snippet_blob_file(blob) } )
+        expect(json_response['files']).to eq(snippet.blobs.map { |blob| snippet_blob_file(blob) })
         expect(json_response['ssh_url_to_repo']).to eq(snippet.ssh_url_to_repo)
         expect(json_response['http_url_to_repo']).to eq(snippet.http_url_to_repo)
       end
@@ -256,7 +256,6 @@ RSpec.describe API::ProjectSnippets do
         allow_next_instance_of(Spam::AkismetService) do |instance|
           allow(instance).to receive(:spam?).and_return(true)
         end
-        stub_feature_flags(allow_possible_spam: false)
 
         project.add_developer(user)
       end
@@ -312,8 +311,6 @@ RSpec.describe API::ProjectSnippets do
         allow_next_instance_of(Spam::AkismetService) do |instance|
           allow(instance).to receive(:spam?).and_return(true)
         end
-
-        stub_feature_flags(allow_possible_spam: false)
       end
 
       context 'when the snippet is private' do

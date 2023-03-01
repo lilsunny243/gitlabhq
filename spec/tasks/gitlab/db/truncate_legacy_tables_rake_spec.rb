@@ -3,7 +3,7 @@
 require 'rake_helper'
 
 RSpec.describe 'gitlab:db:truncate_legacy_tables', :silence_stdout, :reestablished_active_record_base,
-               :suppress_gitlab_schemas_validate_connection do
+               :suppress_gitlab_schemas_validate_connection, feature_category: :pods do
   let(:main_connection) { ApplicationRecord.connection }
   let(:ci_connection) { Ci::ApplicationRecord.connection }
   let(:test_gitlab_main_table) { '_test_gitlab_main_table' }
@@ -20,7 +20,7 @@ RSpec.describe 'gitlab:db:truncate_legacy_tables', :silence_stdout, :reestablish
   end
 
   before do
-    skip_if_multiple_databases_not_setup
+    skip_if_multiple_databases_not_setup(:ci)
 
     # Filling the table on both databases main and ci
     Gitlab::Database.database_base_models.each_value do |base_model|
@@ -43,10 +43,6 @@ RSpec.describe 'gitlab:db:truncate_legacy_tables', :silence_stdout, :reestablish
   end
 
   shared_examples 'truncating legacy tables' do
-    before do
-      allow(ENV).to receive(:[]).and_return(nil)
-    end
-
     context 'when tables are not locked for writes' do
       it 'raises an error when trying to truncate the tables' do
         error_message = /is not locked for writes. Run the rake task gitlab:db:lock_writes first/
@@ -60,14 +56,16 @@ RSpec.describe 'gitlab:db:truncate_legacy_tables', :silence_stdout, :reestablish
         Gitlab::Database::LockWritesManager.new(
           table_name: test_gitlab_ci_table,
           connection: main_connection,
-          database_name: "main"
+          database_name: "main",
+          with_retries: false
         ).lock_writes
 
         # Locking main table on the ci database
         Gitlab::Database::LockWritesManager.new(
           table_name: test_gitlab_main_table,
           connection: ci_connection,
-          database_name: "ci"
+          database_name: "ci",
+          with_retries: false
         ).lock_writes
       end
 
@@ -97,7 +95,7 @@ RSpec.describe 'gitlab:db:truncate_legacy_tables', :silence_stdout, :reestablish
 
       context 'when running in dry_run mode' do
         before do
-          allow(ENV).to receive(:[]).with("DRY_RUN").and_return("true")
+          stub_env('DRY_RUN', 'true')
         end
 
         it 'does not truncate any tables' do
@@ -115,7 +113,7 @@ RSpec.describe 'gitlab:db:truncate_legacy_tables', :silence_stdout, :reestablish
 
       context 'when passing until_table parameter via environment variable' do
         before do
-          allow(ENV).to receive(:[]).with("UNTIL_TABLE").and_return(legacy_table)
+          stub_env('UNTIL_TABLE', legacy_table)
         end
 
         it 'sends the table name to TablesTruncate' do

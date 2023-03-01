@@ -14,7 +14,7 @@ RSpec.describe BulkImports::Projects::Pipelines::IssuesPipeline do
       project: project,
       bulk_import: bulk_import,
       source_full_path: 'source/full/path',
-      destination_name: 'My Destination Project',
+      destination_slug: 'My-Destination-Project',
       destination_namespace: group.full_path
     )
   end
@@ -89,6 +89,7 @@ RSpec.describe BulkImports::Projects::Pipelines::IssuesPipeline do
         expect(award_emoji.user).to eq(user)
       end
     end
+
     context 'issue state' do
       let(:issue_attributes) { { 'state' => 'closed' } }
 

@@ -2,7 +2,7 @@
 type: reference, howto
 stage: Secure
 group: Composition Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Dependency list **(ULTIMATE)**
@@ -13,7 +13,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 Use the dependency list to review your project's dependencies and key
 details about those dependencies, including their known vulnerabilities. It is a collection of dependencies in your project, including existing and new findings.
 
-To see the dependency list, go to your project and select **Security & Compliance > Dependency list**.
+To see the dependency list, go to your project and select **Security and Compliance > Dependency list**.
 
 This information is sometimes referred to as a Software Bill of Materials, SBOM, or BOM.
 
@@ -48,7 +48,7 @@ can also be sorted by name or by the packager that installed them.
 
 ### Vulnerabilities
 
-If a dependency has known vulnerabilities, view them by clicking the arrow next to the
+If a dependency has known vulnerabilities, view them by selecting the arrow next to the
 dependency's name or the badge that indicates how many known vulnerabilities exist. For each
 vulnerability, its severity and description appears below it. To view more details of a vulnerability,
 select the vulnerability's description. The [vulnerability's details](../vulnerabilities) page is opened.
@@ -81,7 +81,7 @@ You can download your project's full list of dependencies and their details in
 
 ### In the UI
 
-You can download your project's list of dependencies and their details in JSON format by selecting the **Export** button. Note that the dependency list only shows the results of the last successful pipeline to run on the default branch.
+You can download your project's list of dependencies and their details in JSON format by selecting the **Export** button. The dependency list only shows the results of the last successful pipeline to run on the default branch.
 
 ### Using the API
 

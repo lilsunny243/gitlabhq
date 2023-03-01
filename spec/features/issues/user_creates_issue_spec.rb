@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe "User creates issue" do
+RSpec.describe "User creates issue", feature_category: :team_planning do
   include DropzoneHelper
 
   let_it_be(:project) { create(:project_empty_repo, :public) }
@@ -157,7 +157,7 @@ RSpec.describe "User creates issue" do
       end
     end
 
-    context 'form filled by URL parameters' do
+    context 'form filled by URL parameters', :use_null_store_as_repository_cache do
       let(:project) { create(:project, :public, :repository) }
 
       before do
@@ -188,7 +188,7 @@ RSpec.describe "User creates issue" do
       end
 
       it 'does not hide the milestone select' do
-        expect(page).to have_selector('[data-testid="issuable-milestone-dropdown"]')
+        expect(page).to have_button 'Select milestone'
       end
     end
 
@@ -204,7 +204,7 @@ RSpec.describe "User creates issue" do
       end
 
       it 'shows the milestone select' do
-        expect(page).to have_selector('[data-testid="issuable-milestone-dropdown"]')
+        expect(page).to have_button 'Select milestone'
       end
 
       it 'hides the incident help text' do
@@ -265,7 +265,7 @@ RSpec.describe "User creates issue" do
       end
 
       it 'shows the milestone select' do
-        expect(page).to have_selector('[data-testid="issuable-milestone-dropdown"]')
+        expect(page).to have_button 'Select milestone'
       end
 
       it 'hides the weight input' do

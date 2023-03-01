@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > User edits reviewers sidebar', :js do
+RSpec.describe 'Merge request > User edits reviewers sidebar', :js, feature_category: :code_review_workflow do
   context 'with invite members considerations' do
     let_it_be(:merge_request) { create(:merge_request) }
     let_it_be(:project) { merge_request.project }
@@ -26,8 +26,6 @@ RSpec.describe 'Merge request > User edits reviewers sidebar', :js do
 
         page.within '.dropdown-menu-user' do
           expect(page).to have_link('Invite Members')
-          expect(page).to have_selector('[data-track-action="click_invite_members"]')
-          expect(page).to have_selector('[data-track-label="edit_reviewer"]')
         end
 
         click_link 'Invite Members'

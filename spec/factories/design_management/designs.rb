@@ -100,8 +100,9 @@ FactoryBot.define do
     trait :with_file do
       transient do
         deleted { false }
-        versions_count { 1 }
         file { File.join(Rails.root, 'spec/fixtures/dk.png') }
+        versions_count { 1 }
+        versions_sha { nil }
       end
 
       after :create do |design, evaluator|
@@ -109,7 +110,9 @@ FactoryBot.define do
         repository = project.design_repository
 
         commit_version = ->(action) do
-          repository.multi_action(
+          return evaluator.versions_sha if evaluator.versions_sha
+
+          repository.commit_files(
             evaluator.author,
             branch_name: 'master',
             message: "#{action.action} for #{design.filename}",

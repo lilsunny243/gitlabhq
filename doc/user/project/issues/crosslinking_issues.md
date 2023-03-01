@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Crosslinking issues **(FREE)**
@@ -22,6 +22,13 @@ add `#xxx` to the commit message, where `xxx` is the issue number.
 
 ```shell
 git commit -m "this is my commit message. Ref #xxx"
+```
+
+Since commit messages cannot usually begin with a `#` character, you may use
+the alternative `GL-xxx` notation as well:
+
+```shell
+git commit -m "GL-xxx: this is my commit message"
 ```
 
 If they are in different projects, but in the same group,

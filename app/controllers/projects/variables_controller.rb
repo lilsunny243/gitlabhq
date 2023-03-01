@@ -3,7 +3,7 @@
 class Projects::VariablesController < Projects::ApplicationController
   before_action :authorize_admin_build!
 
-  feature_category :pipeline_authoring
+  feature_category :pipeline_composition
 
   urgency :low, [:show, :update]
 
@@ -47,6 +47,6 @@ class Projects::VariablesController < Projects::ApplicationController
   end
 
   def variable_params_attributes
-    %i[id variable_type key secret_value protected masked environment_scope _destroy]
+    %i[id variable_type key secret_value protected masked raw environment_scope _destroy]
   end
 end

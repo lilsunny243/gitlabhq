@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # File Storage in GitLab
@@ -36,7 +36,7 @@ There are many places where file uploading is used, according to contexts:
 GitLab started saving everything on local disk. While directory location changed from previous versions,
 they are still not 100% standardized. You can see them below:
 
-| Description                           | In DB? | Relative path (from CarrierWave.root)                       | Uploader class         | model_type |
+| Description                           | In DB? | Relative path (from CarrierWave.root)                       | Uploader class         | Model type |
 | ------------------------------------- | ------ | ----------------------------------------------------------- | ---------------------- | ---------- |
 | Instance logo                         | yes    | `uploads/-/system/appearance/logo/:id/:filename`              | `AttachmentUploader`   | Appearance |
 | Header logo                           | yes    | `uploads/-/system/appearance/header_logo/:id/:filename`       | `AttachmentUploader`   | Appearance |

@@ -9,7 +9,7 @@ module QA
         def self.included(base)
           super
 
-          base.view "app/assets/javascripts/vue_shared/components/namespace_select/namespace_select.vue" do
+          base.view "app/assets/javascripts/groups_projects/components/transfer_locations.vue" do
             element :namespaces_list
             element :namespaces_list_groups
             element :namespaces_list_item
@@ -21,11 +21,14 @@ module QA
           click_element :namespaces_list
 
           within_element(:namespaces_list) do
-            find_element(:namespaces_list_search).fill_in(with: item)
+            fill_element(:namespaces_list_search, item)
 
             wait_for_requests
 
-            find_element(:namespaces_list_item, text: item).click
+            # Click element by JS in case dropdown changes position mid-click
+            # Workaround for issue https://gitlab.com/gitlab-org/gitlab/-/issues/381376
+            namespace = find_element(:namespaces_list_item, text: item, visible: false)
+            click_by_javascript(namespace)
           end
         end
       end

@@ -54,7 +54,8 @@ module BulkImports
         skip!(
           'Skipping pipeline due to failed entity',
           pipeline_step: step,
-          step_class: class_name
+          step_class: class_name,
+          importer: 'gitlab_migration'
         )
       rescue BulkImports::NetworkError => e
         if e.retriable?(context.tracker)
@@ -98,7 +99,7 @@ module BulkImports
       end
 
       def log_import_failure(exception, step)
-        attributes = {
+        failure_attributes = {
           bulk_import_entity_id: context.entity.id,
           pipeline_class: pipeline,
           pipeline_step: step,
@@ -107,13 +108,18 @@ module BulkImports
           correlation_id_value: Labkit::Correlation::CorrelationId.current_or_new_id
         }
 
-        error(
-          pipeline_step: step,
-          exception_class: exception.class.to_s,
-          exception_message: exception.message
+        log_exception(
+          exception,
+          log_params(
+            {
+              bulk_import_id: context.bulk_import_id,
+              pipeline_step: step,
+              message: 'Pipeline failed'
+            }
+          )
         )
 
-        BulkImports::Failure.create(attributes)
+        BulkImports::Failure.create(failure_attributes)
       end
 
       def info(extra = {})
@@ -124,17 +130,16 @@ module BulkImports
         logger.warn(log_params(extra))
       end
 
-      def error(extra = {})
-        logger.error(log_params(extra))
-      end
-
       def log_params(extra)
         defaults = {
-          bulk_import_id: context.bulk_import.id,
+          bulk_import_id: context.bulk_import_id,
           bulk_import_entity_id: context.entity.id,
           bulk_import_entity_type: context.entity.source_type,
+          source_full_path: context.entity.source_full_path,
           pipeline_class: pipeline,
-          context_extra: context.extra
+          context_extra: context.extra,
+          source_version: context.entity.bulk_import.source_version_info.to_s,
+          importer: 'gitlab_migration'
         }
 
         defaults
@@ -144,6 +149,19 @@ module BulkImports
 
       def logger
         @logger ||= Gitlab::Import::Logger.build
+      end
+
+      def log_exception(exception, payload)
+        Gitlab::ExceptionLogFormatter.format!(exception, payload)
+        logger.error(structured_payload(payload))
+      end
+
+      def structured_payload(payload = {})
+        context = Gitlab::ApplicationContext.current.merge(
+          'class' => self.class.name
+        )
+
+        payload.stringify_keys.merge(context)
       end
     end
   end

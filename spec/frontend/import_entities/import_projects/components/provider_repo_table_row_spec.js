@@ -1,4 +1,4 @@
-import { GlBadge, GlButton, GlDropdown } from '@gitlab/ui';
+import { GlBadge, GlButton } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
@@ -10,13 +10,13 @@ import ProviderRepoTableRow from '~/import_entities/import_projects/components/p
 describe('ProviderRepoTableRow', () => {
   let wrapper;
   const fetchImport = jest.fn();
+  const cancelImport = jest.fn();
   const setImportTarget = jest.fn();
   const fakeImportTarget = {
     targetNamespace: 'target',
     newName: 'newName',
   };
 
-  const availableNamespaces = ['test'];
   const userNamespace = 'root';
 
   function initStore(initialState) {
@@ -25,14 +25,26 @@ describe('ProviderRepoTableRow', () => {
       getters: {
         getImportTarget: () => () => fakeImportTarget,
       },
-      actions: { fetchImport, setImportTarget },
+      actions: { fetchImport, cancelImport, setImportTarget },
     });
 
     return store;
   }
 
-  const findImportButton = () => {
-    const buttons = wrapper.findAllComponents(GlButton).filter((node) => node.text() === 'Import');
+  const findButton = (text) => {
+    const buttons = wrapper.findAllComponents(GlButton).filter((node) => node.text() === text);
+
+    return buttons.length ? buttons.at(0) : buttons;
+  };
+
+  const findImportButton = () => findButton('Import');
+  const findReimportButton = () => findButton('Re-import');
+  const findGroupDropdown = () => wrapper.findComponent(ImportGroupDropdown);
+
+  const findCancelButton = () => {
+    const buttons = wrapper
+      .findAllComponents(GlButton)
+      .filter((node) => node.attributes('aria-label') === 'Cancel');
 
     return buttons.length ? buttons.at(0) : buttons;
   };
@@ -44,7 +56,7 @@ describe('ProviderRepoTableRow', () => {
 
     wrapper = shallowMount(ProviderRepoTableRow, {
       store,
-      propsData: { availableNamespaces, userNamespace, ...props },
+      propsData: { userNamespace, optionalStages: {}, ...props },
     });
   }
 
@@ -74,11 +86,11 @@ describe('ProviderRepoTableRow', () => {
     });
 
     it('renders empty import status', () => {
-      expect(wrapper.find(ImportStatus).props().status).toBe(STATUSES.NONE);
+      expect(wrapper.findComponent(ImportStatus).props().status).toBe(STATUSES.NONE);
     });
 
     it('renders a group namespace select', () => {
-      expect(wrapper.find(ImportGroupDropdown).props().namespaces).toBe(availableNamespaces);
+      expect(wrapper.findComponent(ImportGroupDropdown).exists()).toBe(true);
     });
 
     it('renders import button', () => {
@@ -90,10 +102,74 @@ describe('ProviderRepoTableRow', () => {
 
       await nextTick();
 
-      const { calls } = fetchImport.mock;
+      expect(fetchImport).toHaveBeenCalledWith(expect.anything(), {
+        repoId: repo.importSource.id,
+        optionalStages: {},
+      });
+    });
 
-      expect(calls).toHaveLength(1);
-      expect(calls[0][1]).toBe(repo.importSource.id);
+    it('includes optionalStages to import', async () => {
+      const OPTIONAL_STAGES = { stage1: true, stage2: false };
+      await wrapper.setProps({ optionalStages: OPTIONAL_STAGES });
+
+      findImportButton().vm.$emit('click');
+
+      await nextTick();
+
+      expect(fetchImport).toHaveBeenCalledWith(expect.anything(), {
+        repoId: repo.importSource.id,
+        optionalStages: OPTIONAL_STAGES,
+      });
+    });
+
+    it('does not render re-import button', () => {
+      expect(findReimportButton().exists()).toBe(false);
+    });
+  });
+
+  describe('when rendering importing project', () => {
+    const repo = {
+      importSource: {
+        id: 'remote-1',
+        fullName: 'fullName',
+        providerLink: 'providerLink',
+      },
+      importedProject: {
+        id: 1,
+        fullPath: 'fullPath',
+        importSource: 'importSource',
+        importStatus: STATUSES.STARTED,
+      },
+    };
+
+    describe('when cancelable is true', () => {
+      beforeEach(() => {
+        mountComponent({ repo, cancelable: true });
+      });
+
+      it('shows cancel button', () => {
+        expect(findCancelButton().isVisible()).toBe(true);
+      });
+
+      it('cancels import when clicking cancel button', async () => {
+        findCancelButton().vm.$emit('click');
+
+        await nextTick();
+
+        expect(cancelImport).toHaveBeenCalledWith(expect.anything(), {
+          repoId: repo.importSource.id,
+        });
+      });
+    });
+
+    describe('when cancelable is false', () => {
+      beforeEach(() => {
+        mountComponent({ repo, cancelable: false });
+      });
+
+      it('hides cancel button', () => {
+        expect(findCancelButton().isVisible()).toBe(false);
+      });
     });
   });
 
@@ -127,19 +203,70 @@ describe('ProviderRepoTableRow', () => {
     });
 
     it('renders proper import status', () => {
-      expect(wrapper.find(ImportStatus).props().status).toBe(repo.importedProject.importStatus);
+      expect(wrapper.findComponent(ImportStatus).props().status).toBe(
+        repo.importedProject.importStatus,
+      );
     });
 
-    it('does not renders a namespace select', () => {
-      expect(wrapper.find(GlDropdown).exists()).toBe(false);
+    it('does not render a namespace select', () => {
+      expect(findGroupDropdown().exists()).toBe(false);
     });
 
     it('does not render import button', () => {
       expect(findImportButton().exists()).toBe(false);
     });
 
+    it('renders re-import button', () => {
+      expect(findReimportButton().exists()).toBe(true);
+    });
+
+    it('renders namespace select after clicking re-import', async () => {
+      findReimportButton().vm.$emit('click');
+
+      await nextTick();
+
+      expect(findGroupDropdown().exists()).toBe(true);
+    });
+
+    it('imports repo when clicking re-import button', async () => {
+      findReimportButton().vm.$emit('click');
+
+      await nextTick();
+
+      findReimportButton().vm.$emit('click');
+
+      expect(fetchImport).toHaveBeenCalledWith(expect.anything(), {
+        repoId: repo.importSource.id,
+        optionalStages: {},
+      });
+    });
+
     it('passes stats to import status component', () => {
-      expect(wrapper.find(ImportStatus).props().stats).toBe(FAKE_STATS);
+      expect(wrapper.findComponent(ImportStatus).props().stats).toBe(FAKE_STATS);
+    });
+  });
+
+  describe('when rendering failed project', () => {
+    const repo = {
+      importSource: {
+        id: 'remote-1',
+        fullName: 'fullName',
+        providerLink: 'providerLink',
+      },
+      importedProject: {
+        id: 1,
+        fullPath: 'fullPath',
+        importSource: 'importSource',
+        importStatus: STATUSES.FAILED,
+      },
+    };
+
+    beforeEach(() => {
+      mountComponent({ repo });
+    });
+
+    it('render import button', () => {
+      expect(findImportButton().exists()).toBe(true);
     });
   });
 
@@ -165,7 +292,7 @@ describe('ProviderRepoTableRow', () => {
     });
 
     it('renders badge with error', () => {
-      expect(wrapper.find(GlBadge).text()).toBe('Incompatible project');
+      expect(wrapper.findComponent(GlBadge).text()).toBe('Incompatible project');
     });
   });
 });

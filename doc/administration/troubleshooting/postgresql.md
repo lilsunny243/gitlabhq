@@ -1,7 +1,7 @@
 ---
 stage: Data Stores
 group: Database
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # PostgreSQL **(FREE SELF)**
@@ -44,10 +44,6 @@ This section is for links to information elsewhere in the GitLab documentation.
 
 - Consuming PostgreSQL from [within CI runners](../../ci/services/postgres.md).
 
-- [Using Slony to update PostgreSQL](../../update/upgrading_postgresql_using_slony.md).
-  - Uses replication to handle PostgreSQL upgrades if the schemas are the same.
-  - Reduces downtime to a short window for switching to the newer version.
-
 - Managing Omnibus PostgreSQL versions [from the development docs](https://docs.gitlab.com/omnibus/development/managing-postgresql-versions.html).
 
 - [PostgreSQL scaling](../postgresql/replication_and_failover.md)
@@ -57,59 +53,6 @@ This section is for links to information elsewhere in the GitLab documentation.
 - [Developer database documentation](../../development/feature_development.md#database-guides),
   some of which is absolutely not for production use. Including:
   - Understanding EXPLAIN plans.
-
-### Troubleshooting/Fixes
-
-- [GitLab database requirements](../../install/requirements.md#database),
-  including
-  - Support for MySQL was removed in GitLab 12.1; [migrate to PostgreSQL](../../update/mysql_to_postgresql.md).
-  - Required extension: `pg_trgm`
-  - Required extension: `btree_gist`
-
-- Errors like this in the `production/sidekiq` log; see:
-  [Set `default_transaction_isolation` into read committed](https://docs.gitlab.com/omnibus/settings/database.html#set-default_transaction_isolation-into-read-committed):
-
-  ```plaintext
-  ActiveRecord::StatementInvalid PG::TRSerializationFailure: ERROR:  could not serialize access due to concurrent update
-  ```
-
-- PostgreSQL HA [replication slot errors](https://docs.gitlab.com/omnibus/settings/database.html#troubleshooting-upgrades-in-an-ha-cluster):
-
-  ```plaintext
-  pg_basebackup: could not create temporary replication slot "pg_basebackup_12345": ERROR:  all replication slots are in use
-  HINT:  Free one or increase max_replication_slots.
-  ```
-
-- Geo [replication errors](../geo/replication/troubleshooting.md#fixing-replication-errors) including:
-
-  ```plaintext
-  ERROR: replication slots can only be used if max_replication_slots > 0
-
-  FATAL: could not start WAL streaming: ERROR: replication slot "geo_secondary_my_domain_com" does not exist
-
-  Command exceeded allowed execution time
-
-  PANIC: could not write to file 'pg_xlog/xlogtemp.123': No space left on device
-  ```
-
-- [Checking Geo configuration](../geo/replication/troubleshooting.md), including:
-  - Reconfiguring hosts/ports.
-  - Checking and fixing user/password mappings.
-
-- [Common Geo errors](../geo/replication/troubleshooting.md#fixing-common-errors).
-
-- Mismatch in `pg_dump` and `psql` versions:
-
-  ```plaintext
-  Dumping PostgreSQL database gitlabhq_production ... pg_dump: error: server version: 13.3; pg_dump version: 14.2
-  pg_dump: error: aborting because of server version mismatch
-  ```
-
-  To fix this, see [Backup and restore a non-packaged PostgreSQL database](https://docs.gitlab.com/omnibus/settings/database.html#backup-and-restore-a-non-packaged-postgresql-database).
-
-- Deploying PostgreSQL on Azure Database for PostgreSQL - Flexible Server may result in an error stating `extension "btree_gist" is not allow-listed for "azure_pg_admin" users in Azure Database for PostgreSQL`
-
-  To resolve the above error, [allow-list the extension](https://docs.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-extensions#how-to-use-postgresql-extensions) prior to install.
 
 ## Support topics
 
@@ -157,14 +100,14 @@ or `statement_timeout`, but to leave the third setting at 60 seconds. Setting
 `idle_in_transaction` protects the database from sessions potentially hanging for
 days. There's more discussion in [the issue relating to introducing this timeout on GitLab.com](https://gitlab.com/gitlab-com/gl-infra/production/-/issues/1053).
 
-PostgresSQL defaults:
+PostgreSQL defaults:
 
 - `statement_timeout = 0` (never)
 - `idle_in_transaction_session_timeout = 0` (never)
 
 Comments in issue [#30528](https://gitlab.com/gitlab-org/gitlab/-/issues/30528)
 indicate that these should both be set to at least a number of minutes for all
-Omnibus GitLab installations (so they don't hang indefinitely). However, 15s
+Omnibus GitLab installations (so they don't hang indefinitely). However, 15 s
 for `statement_timeout` is very short, and is only effective if the
 underlying infrastructure is very performant.
 
@@ -236,3 +179,96 @@ To temporarily change the statement timeout:
 1. Perform the action for which you need a different timeout
    (for example the backup or the Rails command).
 1. Revert the edit in `/var/opt/gitlab/gitlab-rails/etc/database.yml`.
+
+## Troubleshooting
+
+### Database is not accepting commands to avoid wraparound data loss
+
+This error likely means that `autovacuum` is failing to complete its run:
+
+```plaintext
+ERROR:  database is not accepting commands to avoid wraparound data loss in database "gitlabhq_production"
+```
+
+To resolve the error, run `VACUUM` manually:
+
+1. Stop GitLab with the command `gitlab-ctl stop`.
+1. Place the database in single-user mode with the command:
+
+   ```shell
+   /opt/gitlab/embedded/bin/postgres --single -D /var/opt/gitlab/postgresql/data gitlabhq_production
+   ```
+
+1. In the `backend>` prompt, run `VACUUM;`. This command can take several minutes to complete.
+1. Wait for the command to complete, then press <kbd>Control</kbd> + <kbd>D</kbd> to exit.
+1. Start GitLab with the command `gitlab-ctl start`.
+
+### GitLab database requirements
+
+The [database requirements](../../install/requirements.md#database) for GitLab include:
+
+- Support for MySQL was removed in [GitLab 12.1](../../update/index.md#1210).
+- Review and install the [required extension list](../../install/postgresql_extensions.md).
+
+### Serialization errors in the `production/sidekiq` log
+
+If you receive errors like this example in your `production/sidekiq` log, read
+about [setting `default_transaction_isolation` into read committed](https://docs.gitlab.com/omnibus/settings/database.html#set-default_transaction_isolation-into-read-committed) to fix the problem:
+
+```plaintext
+ActiveRecord::StatementInvalid PG::TRSerializationFailure: ERROR:  could not serialize access due to concurrent update
+```
+
+### PostgreSQL replication slot errors
+
+If you receive errors like this example, read about how to resolve PostgreSQL HA
+[replication slot errors](https://docs.gitlab.com/omnibus/settings/database.html#troubleshooting-upgrades-in-an-ha-cluster):
+
+```plaintext
+pg_basebackup: could not create temporary replication slot "pg_basebackup_12345": ERROR:  all replication slots are in use
+HINT:  Free one or increase max_replication_slots.
+```
+
+### Geo replication errors
+
+If you receive errors like this example, read about how to resolve
+[Geo replication errors](../geo/replication/troubleshooting.md#fixing-postgresql-database-replication-errors):
+
+```plaintext
+ERROR: replication slots can only be used if max_replication_slots > 0
+
+FATAL: could not start WAL streaming: ERROR: replication slot "geo_secondary_my_domain_com" does not exist
+
+Command exceeded allowed execution time
+
+PANIC: could not write to file 'pg_xlog/xlogtemp.123': No space left on device
+```
+
+### Review Geo configuration and common errors
+
+When troubleshooting problems with Geo, you should:
+
+- Review [common Geo errors](../geo/replication/troubleshooting.md#fixing-common-errors).
+- [Review your Geo configuration](../geo/replication/troubleshooting.md), including:
+  - Reconfiguring hosts and ports.
+  - Reviewing and fixing the user and password mappings.
+
+### Mismatch in `pg_dump` and `psql` versions
+
+If you receive errors like this example, read about how to
+[back up and restore a non-packaged PostgreSQL database](https://docs.gitlab.com/omnibus/settings/database.html#backup-and-restore-a-non-packaged-postgresql-database):
+
+```plaintext
+Dumping PostgreSQL database gitlabhq_production ... pg_dump: error: server version: 13.3; pg_dump version: 14.2
+pg_dump: error: aborting because of server version mismatch
+```
+
+### Extension `btree_gist` is not allow-listed
+
+Deploying PostgreSQL on an Azure Database for PostgreSQL - Flexible Server may result in this error:
+
+```plaintext
+extension "btree_gist" is not allow-listed for "azure_pg_admin" users in Azure Database for PostgreSQL
+```
+
+To resolve this error, [allow-list the extension](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-extensions#how-to-use-postgresql-extensions) prior to install.

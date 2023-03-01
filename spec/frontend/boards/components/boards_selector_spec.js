@@ -5,12 +5,11 @@ import Vuex from 'vuex';
 import waitForPromises from 'helpers/wait_for_promises';
 import { TEST_HOST } from 'spec/test_constants';
 import BoardsSelector from '~/boards/components/boards_selector.vue';
-import { BoardType } from '~/boards/constants';
 import groupBoardsQuery from '~/boards/graphql/group_boards.query.graphql';
 import projectBoardsQuery from '~/boards/graphql/project_boards.query.graphql';
 import groupRecentBoardsQuery from '~/boards/graphql/group_recent_boards.query.graphql';
 import projectRecentBoardsQuery from '~/boards/graphql/project_recent_boards.query.graphql';
-import defaultStore from '~/boards/stores';
+import { WORKSPACE_GROUP, WORKSPACE_PROJECT } from '~/issues/constants';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import {
@@ -28,25 +27,20 @@ import {
 const throttleDuration = 1;
 
 Vue.use(VueApollo);
+Vue.use(Vuex);
 
 describe('BoardsSelector', () => {
   let wrapper;
   let fakeApollo;
   let store;
 
-  const createStore = ({ isGroupBoard = false, isProjectBoard = false } = {}) => {
+  const createStore = () => {
     store = new Vuex.Store({
-      ...defaultStore,
       actions: {
         setError: jest.fn(),
         setBoardConfig: jest.fn(),
       },
-      getters: {
-        isGroupBoard: () => isGroupBoard,
-        isProjectBoard: () => isProjectBoard,
-      },
       state: {
-        boardType: isGroupBoard ? 'group' : 'project',
         board: mockBoard,
       },
     });
@@ -86,6 +80,9 @@ describe('BoardsSelector', () => {
   const createComponent = ({
     projectBoardsQueryHandler = projectBoardsQueryHandlerSuccess,
     projectRecentBoardsQueryHandler = projectRecentBoardsQueryHandlerSuccess,
+    isGroupBoard = false,
+    isProjectBoard = false,
+    provide = {},
   } = {}) => {
     fakeApollo = createMockApollo([
       [projectBoardsQuery, projectBoardsQueryHandler],
@@ -109,6 +106,11 @@ describe('BoardsSelector', () => {
         multipleIssueBoardsAvailable: true,
         scopedIssueBoardFeatureEnabled: true,
         weights: [],
+        boardType: isGroupBoard ? 'group' : 'project',
+        isGroupBoard,
+        isProjectBoard,
+        isApolloBoard: false,
+        ...provide,
       },
     });
   };
@@ -120,8 +122,8 @@ describe('BoardsSelector', () => {
 
   describe('template', () => {
     beforeEach(() => {
-      createStore({ isProjectBoard: true });
-      createComponent();
+      createStore();
+      createComponent({ isProjectBoard: true });
     });
 
     describe('loading', () => {
@@ -226,14 +228,14 @@ describe('BoardsSelector', () => {
   describe('fetching all boards', () => {
     it.each`
       boardType            | queryHandler                        | notCalledHandler
-      ${BoardType.group}   | ${groupBoardsQueryHandlerSuccess}   | ${projectBoardsQueryHandlerSuccess}
-      ${BoardType.project} | ${projectBoardsQueryHandlerSuccess} | ${groupBoardsQueryHandlerSuccess}
+      ${WORKSPACE_GROUP}   | ${groupBoardsQueryHandlerSuccess}   | ${projectBoardsQueryHandlerSuccess}
+      ${WORKSPACE_PROJECT} | ${projectBoardsQueryHandlerSuccess} | ${groupBoardsQueryHandlerSuccess}
     `('fetches $boardType boards', async ({ boardType, queryHandler, notCalledHandler }) => {
-      createStore({
-        isProjectBoard: boardType === BoardType.project,
-        isGroupBoard: boardType === BoardType.group,
+      createStore();
+      createComponent({
+        isGroupBoard: boardType === WORKSPACE_GROUP,
+        isProjectBoard: boardType === WORKSPACE_PROJECT,
       });
-      createComponent();
 
       await nextTick();
 
@@ -244,6 +246,36 @@ describe('BoardsSelector', () => {
 
       expect(queryHandler).toHaveBeenCalled();
       expect(notCalledHandler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dropdown visibility', () => {
+    describe('when multipleIssueBoardsAvailable is enabled', () => {
+      it('show dropdown', async () => {
+        createStore();
+        createComponent({ provide: { multipleIssueBoardsAvailable: true } });
+        expect(findDropdown().exists()).toBe(true);
+      });
+    });
+
+    describe('when multipleIssueBoardsAvailable is disabled but it hasMissingBoards', () => {
+      it('show dropdown', async () => {
+        createStore();
+        createComponent({
+          provide: { multipleIssueBoardsAvailable: false, hasMissingBoards: true },
+        });
+        expect(findDropdown().exists()).toBe(true);
+      });
+    });
+
+    describe("when multipleIssueBoardsAvailable is disabled and it dosn't hasMissingBoards", () => {
+      it('hide dropdown', async () => {
+        createStore();
+        createComponent({
+          provide: { multipleIssueBoardsAvailable: false, hasMissingBoards: false },
+        });
+        expect(findDropdown().exists()).toBe(false);
+      });
     });
   });
 });

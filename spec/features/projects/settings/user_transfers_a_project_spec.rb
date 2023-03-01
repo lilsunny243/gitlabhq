@@ -2,13 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Projects > Settings > User transfers a project', :js do
+RSpec.describe 'Projects > Settings > User transfers a project', :js, feature_category: :projects do
   let(:user) { create(:user) }
   let(:project) { create(:project, :repository, namespace: user.namespace) }
   let(:group) { create(:group) }
 
   before do
-    stub_const('Gitlab::QueryLimiting::Transaction::THRESHOLD', 120)
+    allow(Gitlab::QueryLimiting::Transaction).to receive(:threshold).and_return(120)
 
     group.add_owner(user)
     sign_in(user)

@@ -2,15 +2,17 @@
 
 require 'spec_helper'
 
-RSpec.describe Groups::RunnersController do
+RSpec.describe Groups::RunnersController, feature_category: :runner_fleet do
   let_it_be(:user)   { create(:user) }
   let_it_be(:group)  { create(:group) }
   let_it_be(:project) { create(:project, group: group) }
 
   let!(:runner) { create(:ci_runner, :group, groups: [group]) }
-  let!(:runner_project) { create(:ci_runner, :project, projects: [project]) }
+  let!(:project_runner) { create(:ci_runner, :project, projects: [project]) }
+  let!(:instance_runner) { create(:ci_runner, :instance) }
 
-  let(:params_runner_project) { { group_id: group, id: runner_project } }
+  let(:params_runner_project) { { group_id: group, id: project_runner } }
+  let(:params_runner_instance) { { group_id: group, id: instance_runner } }
   let(:params) { { group_id: group, id: runner } }
 
   before do
@@ -28,7 +30,6 @@ RSpec.describe Groups::RunnersController do
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template(:index)
-        expect(assigns(:group_runners_limited_count)).to be(2)
       end
 
       it 'tracks the event' do
@@ -70,8 +71,15 @@ RSpec.describe Groups::RunnersController do
         expect(response).to render_template(:show)
       end
 
+      it 'renders show with 200 status code instance runner' do
+        get :show, params: { group_id: group, id: instance_runner }
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(response).to render_template(:show)
+      end
+
       it 'renders show with 200 status code project runner' do
-        get :show, params: { group_id: group, id: runner_project }
+        get :show, params: { group_id: group, id: project_runner }
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template(:show)
@@ -89,8 +97,14 @@ RSpec.describe Groups::RunnersController do
         expect(response).to have_gitlab_http_status(:not_found)
       end
 
+      it 'renders a 404 instance runner' do
+        get :show, params: { group_id: group, id: instance_runner }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+
       it 'renders a 404 project runner' do
-        get :show, params: { group_id: group, id: runner_project }
+        get :show, params: { group_id: group, id: project_runner }
 
         expect(response).to have_gitlab_http_status(:not_found)
       end
@@ -103,15 +117,21 @@ RSpec.describe Groups::RunnersController do
         group.add_owner(user)
       end
 
-      it 'renders show with 200 status code' do
+      it 'renders edit with 200 status code' do
         get :edit, params: { group_id: group, id: runner }
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template(:edit)
       end
 
-      it 'renders show with 200 status code project runner' do
-        get :edit, params: { group_id: group, id: runner_project }
+      it 'renders a 404 instance runner' do
+        get :edit, params: { group_id: group, id: instance_runner }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+
+      it 'renders edit with 200 status code project runner' do
+        get :edit, params: { group_id: group, id: project_runner }
 
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template(:edit)
@@ -130,7 +150,7 @@ RSpec.describe Groups::RunnersController do
       end
 
       it 'renders a 404 project runner' do
-        get :edit, params: { group_id: group, id: runner_project }
+        get :edit, params: { group_id: group, id: project_runner }
 
         expect(response).to have_gitlab_http_status(:not_found)
       end
@@ -147,22 +167,33 @@ RSpec.describe Groups::RunnersController do
         new_desc = runner.description.swapcase
 
         expect do
-          post :update, params: params.merge(runner: { description: new_desc } )
+          post :update, params: params.merge(runner: { description: new_desc })
         end.to change { runner.ensure_runner_queue_value }
 
         expect(response).to have_gitlab_http_status(:found)
         expect(runner.reload.description).to eq(new_desc)
       end
 
-      it 'updates the project runner, ticks the queue, and redirects project runner' do
-        new_desc = runner_project.description.swapcase
+      it 'does not update the instance runner' do
+        new_desc = instance_runner.description.swapcase
 
         expect do
-          post :update, params: params_runner_project.merge(runner: { description: new_desc } )
-        end.to change { runner_project.ensure_runner_queue_value }
+          post :update, params: params_runner_instance.merge(runner: { description: new_desc })
+        end.to not_change { instance_runner.ensure_runner_queue_value }
+           .and not_change { instance_runner.description }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+
+      it 'updates the project runner, ticks the queue, and redirects project runner' do
+        new_desc = project_runner.description.swapcase
+
+        expect do
+          post :update, params: params_runner_project.merge(runner: { description: new_desc })
+        end.to change { project_runner.ensure_runner_queue_value }
 
         expect(response).to have_gitlab_http_status(:found)
-        expect(runner_project.reload.description).to eq(new_desc)
+        expect(project_runner.reload.description).to eq(new_desc)
       end
     end
 
@@ -175,22 +206,33 @@ RSpec.describe Groups::RunnersController do
         old_desc = runner.description
 
         expect do
-          post :update, params: params.merge(runner: { description: old_desc.swapcase } )
+          post :update, params: params.merge(runner: { description: old_desc.swapcase })
         end.not_to change { runner.ensure_runner_queue_value }
 
         expect(response).to have_gitlab_http_status(:not_found)
         expect(runner.reload.description).to eq(old_desc)
       end
 
-      it 'rejects the update and responds 404 project runner' do
-        old_desc = runner_project.description
+      it 'rejects the update and responds 404 instance runner' do
+        old_desc = instance_runner.description
 
         expect do
-          post :update, params: params_runner_project.merge(runner: { description: old_desc.swapcase } )
-        end.not_to change { runner_project.ensure_runner_queue_value }
+          post :update, params: params_runner_instance.merge(runner: { description: old_desc.swapcase })
+        end.not_to change { instance_runner.ensure_runner_queue_value }
 
         expect(response).to have_gitlab_http_status(:not_found)
-        expect(runner_project.reload.description).to eq(old_desc)
+        expect(instance_runner.reload.description).to eq(old_desc)
+      end
+
+      it 'rejects the update and responds 404 project runner' do
+        old_desc = project_runner.description
+
+        expect do
+          post :update, params: params_runner_project.merge(runner: { description: old_desc.swapcase })
+        end.not_to change { project_runner.ensure_runner_queue_value }
+
+        expect(response).to have_gitlab_http_status(:not_found)
+        expect(project_runner.reload.description).to eq(old_desc)
       end
     end
   end

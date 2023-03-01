@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Sidekiq **(FREE SELF)**
@@ -9,7 +9,7 @@ info: To determine the technical writer assigned to the Stage/Group associated w
 Sidekiq is the background job processor GitLab uses to asynchronously run
 tasks. When things go wrong it can be difficult to troubleshoot. These
 situations also tend to be high-pressure because a production system job queue
-may be filling up. Users will notice when this happens because new branches
+may be filling up. Users notice when this happens because new branches
 may not show up and merge requests may not be updated. The following are some
 troubleshooting steps to help you diagnose the bottleneck.
 
@@ -55,6 +55,120 @@ gitlab_rails['env'] = {"SIDEKIQ_LOG_ARGUMENTS" => "0"}
 ```
 
 In GitLab 13.5 and earlier, set `SIDEKIQ_LOG_ARGUMENTS` to `1` to start logging arguments passed to Sidekiq.
+
+## Investigating Sidekiq queue backlogs or slow performance
+
+Symptoms of slow Sidekiq performance include problems with merge request status updates,
+and delays before CI pipelines start running.
+
+Potential causes include:
+
+- The GitLab instance may need more Sidekiq workers. By default, a single-node Omnibus GitLab
+  runs one worker, restricting the execution of Sidekiq jobs to a maximum of one CPU core.
+  [Read more about running multiple Sidekiq workers](extra_sidekiq_processes.md).
+
+- The instance is configured with more Sidekiq workers, but most of the extra workers are
+  not configured to run any job that is queued. This can result in a backlog of jobs
+  when the instance is busy, if the workload has changed in the months or years since
+  the workers were configured, or as a result of GitLab product changes.
+
+Gather data on the state of the Sidekiq workers with the following Ruby script.
+
+1. Create the script:
+
+   ```ruby
+   cat > /var/opt/gitlab/sidekiqcheck.rb <<EOF
+   require 'sidekiq/monitor'
+   Sidekiq::Monitor::Status.new.display('overview')
+   Sidekiq::Monitor::Status.new.display('processes'); nil
+   Sidekiq::Monitor::Status.new.display('queues'); nil
+   puts "----------- workers ----------- "
+   workers = Sidekiq::Workers.new
+   workers.each do |_process_id, _thread_id, work|
+     pp work
+   end
+   puts "----------- Queued Jobs ----------- "
+   Sidekiq::Queue.all.each do |queue|
+     queue.each do |job|
+       pp job
+     end
+   end ;nil
+   puts "----------- done! ----------- "
+   EOF
+   ```
+
+1. Execute and capture the output:
+
+   ```shell
+   sudo gitlab-rails runner /var/opt/gitlab/sidekiqcheck.rb > /tmp/sidekiqcheck_$(date '+%Y%m%d-%H:%M').out
+   ```
+
+   If the performance issue is intermittent:
+
+   - Run this in a cron job every five minutes. Write the files to a location with enough space: allow for 500 KB per file.
+   - Refer back to the data to see what went wrong.
+
+1. Analyze the output. The following commands assume that you have a directory of output files.
+
+   1. `grep 'Busy: ' *` shows how many jobs were being run. `grep 'Enqueued: ' *`
+      shows the backlog of work at that time.
+
+   1. Look at the number of busy threads across the workers in samples where Sidekiq is under load:
+
+      ```shell
+      ls | while read f ; do if grep -q 'Enqueued: 0' $f; then :
+        else echo $f; egrep 'Busy:|Enqueued:|---- Processes' $f
+        grep 'Threads:' $f ; fi
+      done | more
+      ```
+
+      Example output:
+
+      ```plaintext
+      sidekiqcheck_20221024-14:00.out
+             Busy: 47
+         Enqueued: 363
+      ---- Processes (13) ----
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 23 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (0 busy)
+        Threads: 30 (24 busy)
+        Threads: 30 (23 busy)
+      ```
+
+      - In this output file, 47 threads were busy, and there was a backlog of 363 jobs.
+      - Of the 13 worker processes, only two were busy.
+      - This indicates that the other workers are configured too specifically.
+      - Look at the full output to work out which workers were busy.
+        Correlate with your `sidekiq_queues` configuration in `gitlab.rb`.
+      - An overloaded single-worker environment might look like this:
+
+        ```plaintext
+        sidekiqcheck_20221024-14:00.out
+               Busy: 25
+           Enqueued: 363
+        ---- Processes (1) ----
+          Threads: 25 (25 busy)
+        ```
+
+   1. Look at the `---- Queues (xxx) ----` section of the output file to
+      determine what jobs were queued up at the time.
+
+   1. The files also include low level details about the state of Sidekiq at the time.
+      This could be useful for identifying where spikes in workload are coming from.
+
+      - The `----------- workers -----------` section details the jobs that make up the
+        `Busy` count in the summary.
+      - The `----------- Queued Jobs -----------` section provides details on
+        jobs that are `Enqueued`.
 
 ## Thread dump
 
@@ -155,7 +269,7 @@ corresponding Ruby code where this is happening.
 `gdb` can be another effective tool for debugging Sidekiq. It gives you a little
 more interactive way to look at each thread and see what's causing problems.
 
-Attaching to a process with `gdb` suspends the normal operation
+Attaching to a process with `gdb` suspends the standard operation
 of the process (Sidekiq does not process jobs while `gdb` is attached).
 
 Start by attaching to the Sidekiq PID:
@@ -306,7 +420,7 @@ end
 ### Remove Sidekiq jobs for given parameters (destructive)
 
 The general method to kill jobs conditionally is the following command, which
-removes jobs that are queued but not started. Running jobs can not be killed.
+removes jobs that are queued but not started. Running jobs cannot be killed.
 
 ```ruby
 queue = Sidekiq::Queue.new('<queue name>')
@@ -379,3 +493,60 @@ has number of drawbacks, as mentioned in [Why Ruby's Timeout is dangerous (and T
 > - in any of your code, regardless of whether it could have possibly raised an exception before
 >
 > Nobody writes code to defend against an exception being raised on literally any line. That's not even possible. So Thread.raise is basically like a sneak attack on your code that could result in almost anything. It would probably be okay if it were pure-functional code that did not modify any state. But this is Ruby, so that's unlikely :)
+
+## Omnibus GitLab 14.0 and later: remove the `sidekiq-cluster` service
+
+Omnibus GitLab instances that were configured to run `sidekiq-cluster` prior to GitLab 14.0
+might still have this service running along side `sidekiq` in later releases.
+
+The code to manage `sidekiq-cluster` was removed in GitLab 14.0.
+The configuration files remain on disk so the `sidekiq-cluster` process continues
+to be started by the GitLab systemd service .
+
+The extra service can be identified as running by:
+
+- `gitlab-ctl status` showing both services:
+
+  ```plaintext
+  run: sidekiq: (pid 1386) 445s; run: log: (pid 1385) 445s
+  run: sidekiq-cluster: (pid 1388) 445s; run: log: (pid 1381) 445s
+  ```
+
+- `ps -ef | grep 'runsv sidekiq'` showing two processes:
+
+  ```plaintext
+  root     31047 31045  0 13:54 ?        00:00:00 runsv sidekiq-cluster
+  root     31054 31045  0 13:54 ?        00:00:00 runsv sidekiq
+  ```
+
+To remove the `sidekiq-cluster` service from servers running GitLab 14.0 and later:
+
+1. Stop GitLab and the systemd service:
+
+   ```shell
+   sudo gitlab-ctl stop
+   sudo systemctl stop gitlab-runsvdir.service
+   ```
+
+1. Remove the `runsv` service definition:
+
+   ```shell
+   sudo rm -rf /opt/gitlab/sv/sidekiq-cluster
+   ```
+
+1. Restart GitLab:
+
+   ```shell
+   sudo systemctl start gitlab-runsvdir.service
+   ```
+
+1. Check that all services are up, and the `sidekiq-cluster` service is not listed:
+
+   ```shell
+   sudo gitlab-ctl status
+   ```
+
+This change might reduce the amount of work Sidekiq can do. Symptoms like delays creating pipelines
+indicate that additional Sidekiq processes would be beneficial.
+Consider [adding additional Sidekiq processes](extra_sidekiq_processes.md)
+to compensate for removing the `sidekiq-cluster` service.

@@ -15,16 +15,15 @@ class MergeRequestDiffFile < ApplicationRecord
   end
 
   def utf8_diff
-    fetched_diff = if Feature.enabled?(:externally_stored_diffs_caching_export) &&
-                      merge_request_diff&.stored_externally?
-                     diff_export
-                   else
-                     diff
-                   end
+    fetched_diff = merge_request_diff&.stored_externally? ? diff_export : diff
 
     return '' if fetched_diff.blank?
 
     encode_utf8(fetched_diff) if fetched_diff.respond_to?(:encoding)
+  rescue StandardError => e
+    log_exception('Failed fetching merge request diff', e)
+
+    ''
   end
 
   def diff
@@ -75,15 +74,19 @@ class MergeRequestDiffFile < ApplicationRecord
 
     content
   rescue StandardError => e
+    log_exception('Cached external diff export failed', e)
+
+    diff
+  end
+
+  def log_exception(message, exception)
     log_payload = {
-      message: 'Cached external diff export failed',
+      message: message,
       merge_request_diff_file_id: id,
       merge_request_diff_id: merge_request_diff&.id
     }
 
-    Gitlab::ExceptionLogFormatter.format!(e, log_payload)
+    Gitlab::ExceptionLogFormatter.format!(exception, log_payload)
     Gitlab::AppLogger.warn(log_payload)
-
-    diff
   end
 end

@@ -17,6 +17,7 @@ import { fetchPolicies } from '~/lib/graphql';
 import { joinPaths, visitUrl } from '~/lib/utils/url_utility';
 import { s__, __, n__ } from '~/locale';
 import AlertStatus from '~/vue_shared/alert_details/components/alert_status.vue';
+import { TOKEN_TYPE_ASSIGNEE } from '~/vue_shared/components/filtered_search_bar/constants';
 import {
   tdClass,
   thClass,
@@ -96,6 +97,7 @@ export default {
       sortable: true,
     },
   ],
+  filterSearchTokens: [TOKEN_TYPE_ASSIGNEE],
   severityLabels: SEVERITY_LEVELS,
   statusTabs: ALERTS_STATUS_TABS,
   components: {
@@ -216,8 +218,11 @@ export default {
       this.pagination = initialPaginationState;
       this.sort = sortObjectToString({ sortBy, sortDesc });
     },
+    showAlertLink({ iid }) {
+      return joinPaths(window.location.pathname, iid, 'details');
+    },
     navigateToAlertDetails({ iid }, index, { metaKey }) {
-      return visitUrl(joinPaths(window.location.pathname, iid, 'details'), metaKey);
+      return visitUrl(this.showAlertLink({ iid }), metaKey);
     },
     hasAssignees(assignees) {
       return Boolean(assignees.nodes?.length);
@@ -291,9 +296,7 @@ export default {
       :status-tabs="$options.statusTabs"
       :track-views-options="$options.trackAlertListViewsOptions"
       :server-error-message="serverErrorMessage"
-      :filter-search-tokens="/* eslint-disable @gitlab/vue-no-new-non-primitive-in-template */ [
-        'assignee_username',
-      ] /* eslint-enable @gitlab/vue-no-new-non-primitive-in-template */"
+      :filter-search-tokens="$options.filterSearchTokens"
       filter-search-key="alerts"
       @page-changed="pageChanged"
       @tabs-changed="statusChanged"
@@ -309,6 +312,7 @@ export default {
       <template #table>
         <gl-table
           class="alert-management-table"
+          data-qa-selector="alert_table_container"
           :items="
             alerts
               ? alerts.list
@@ -357,7 +361,7 @@ export default {
               :title="`${item.iid} - ${item.title}`"
               data-testid="idField"
             >
-              #{{ item.iid }} {{ item.title }}
+              <gl-link :href="showAlertLink(item)"> #{{ item.iid }} {{ item.title }} </gl-link>
             </div>
           </template>
 

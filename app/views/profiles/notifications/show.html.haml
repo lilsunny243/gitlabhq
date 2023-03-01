@@ -1,3 +1,4 @@
+- add_page_specific_style 'page_bundles/notifications'
 - page_title _('Notifications')
 - @content_class = "limit-container-width" unless fluid_layout
 
@@ -10,7 +11,7 @@
             %li= msg
 
   = hidden_field_tag :notification_type, 'global'
-  .row.gl-mt-3
+  .row.gl-mt-3.js-search-settings-section
     .col-lg-4.profile-settings-sidebar
       %h4.gl-mt-0
         = page_title
@@ -25,7 +26,7 @@
       = gitlab_ui_form_for @user, url: profile_notifications_path, method: :put, html: { class: 'update-notifications gl-mt-3' } do |f|
         = render_if_exists 'profiles/notifications/email_settings', form: f
 
-      = label_tag :global_notification_level, "Global notification level", class: "label-bold"
+      = label_tag :global_notification_level, _('Global notification level'), class: "label-bold"
       %br
       .clearfix
       .form-group.float-left.global-notification-setting

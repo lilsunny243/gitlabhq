@@ -2,10 +2,12 @@
 type: reference, howto
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Import your project from FogBugz to GitLab **(FREE)**
+
+> Ability to re-import projects [introduced](https://gitlab.com/gitlab-org/gitlab/-/issues/23905) in GitLab 15.9.
 
 Using the importer, you can import your FogBugz project to GitLab.com
 or to your self-managed GitLab instance.
@@ -13,6 +15,11 @@ or to your self-managed GitLab instance.
 The importer imports all of your cases and comments with the original
 case numbers and timestamps. You can also map FogBugz users to GitLab
 users.
+
+Prerequisite:
+
+- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
+  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
 
 To import your project from FogBugz:
 
@@ -28,4 +35,6 @@ To import your project from FogBugz:
    ![Import Project](img/fogbugz_import_select_project.png)
 1. After the import finishes, select the link to go to the project
    dashboard. Follow the directions to push your existing repository.
-   ![Finished](img/fogbugz_import_finished.png)
+1. To import a project:
+   - For the first time: Select **Import**.
+   - Again: Select **Re-import**. Specify a new name and select **Re-import** again. Re-importing creates a new copy of the source project.

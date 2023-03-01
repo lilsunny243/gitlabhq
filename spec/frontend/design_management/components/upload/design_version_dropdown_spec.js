@@ -1,4 +1,4 @@
-import { GlDropdown, GlDropdownItem, GlSprintf } from '@gitlab/ui';
+import { GlAvatar, GlCollapsibleListbox, GlListboxItem } from '@gitlab/ui';
 import { shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import DesignVersionDropdown from '~/design_management/components/upload/design_version_dropdown.vue';
@@ -32,7 +32,7 @@ describe('Design management design version dropdown component', () => {
       mocks: {
         $route,
       },
-      stubs: { GlSprintf },
+      stubs: { GlAvatar: true, GlCollapsibleListbox },
     });
 
     // setData usage is discouraged. See https://gitlab.com/groups/gitlab-org/-/epics/7330 for details
@@ -46,20 +46,32 @@ describe('Design management design version dropdown component', () => {
     wrapper.destroy();
   });
 
-  const findVersionLink = (index) => wrapper.findAllComponents(GlDropdownItem).at(index);
+  const findListbox = () => wrapper.findComponent(GlCollapsibleListbox);
+  const findAllListboxItems = () => wrapper.findAllComponents(GlListboxItem);
+  const findVersionLink = (index) => wrapper.findAllComponents(GlListboxItem).at(index);
 
-  it('renders design version dropdown button', async () => {
-    createComponent();
+  describe('renders the item with custom template in design version list', () => {
+    let listItem;
+    const latestVersion = mockAllVersions[0];
 
-    await nextTick();
-    expect(wrapper.element).toMatchSnapshot();
-  });
+    beforeEach(async () => {
+      createComponent();
+      await nextTick();
+      listItem = findAllListboxItems().at(0);
+    });
 
-  it('renders design version list', async () => {
-    createComponent();
+    it('should render author name and their avatar', () => {
+      expect(listItem.findComponent(GlAvatar).props('alt')).toBe(latestVersion.author.name);
+      expect(listItem.text()).toContain(latestVersion.author.name);
+    });
 
-    await nextTick();
-    expect(wrapper.element).toMatchSnapshot();
+    it('should render correct version number', () => {
+      expect(listItem.text()).toContain('Version 2 (latest)');
+    });
+
+    it('should render time ago tooltip', () => {
+      expect(listItem.findComponent(TimeAgo).props('time')).toBe(latestVersion.createdAt);
+    });
   });
 
   describe('selected version name', () => {
@@ -76,35 +88,36 @@ describe('Design management design version dropdown component', () => {
       createComponent();
 
       await nextTick();
-      expect(wrapper.findComponent(GlDropdown).attributes('text')).toBe('Showing latest version');
+
+      expect(findListbox().props('toggleText')).toBe('Showing latest version');
     });
 
     it('displays latest version text when only 1 version is present', async () => {
       createComponent({ maxVersions: 1 });
 
       await nextTick();
-      expect(wrapper.findComponent(GlDropdown).attributes('text')).toBe('Showing latest version');
+      expect(findListbox().props('toggleText')).toBe('Showing latest version');
     });
 
     it('displays version text when the current version is not the latest', async () => {
       createComponent({ $route: designRouteFactory(PREVIOUS_VERSION_ID) });
 
       await nextTick();
-      expect(wrapper.findComponent(GlDropdown).attributes('text')).toBe(`Showing version #1`);
+      expect(findListbox().props('toggleText')).toBe(`Showing version #1`);
     });
 
     it('displays latest version text when the current version is the latest', async () => {
       createComponent({ $route: designRouteFactory(LATEST_VERSION_ID) });
 
       await nextTick();
-      expect(wrapper.findComponent(GlDropdown).attributes('text')).toBe('Showing latest version');
+      expect(findListbox().props('toggleText')).toBe('Showing latest version');
     });
 
     it('should have the same length as apollo query', async () => {
       createComponent();
 
       await nextTick();
-      expect(wrapper.findAllComponents(GlDropdownItem)).toHaveLength(wrapper.vm.allVersions.length);
+      expect(findAllListboxItems()).toHaveLength(wrapper.vm.allVersions.length);
     });
 
     it('should render TimeAgo', async () => {

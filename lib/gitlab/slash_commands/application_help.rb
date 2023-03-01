@@ -10,14 +10,14 @@ module Gitlab
 
       def execute
         Gitlab::SlashCommands::Presenters::Help
-          .new(project, commands)
+          .new(project, commands, params)
           .present(trigger, params[:text])
       end
 
       private
 
       def trigger
-        "#{params[:command]} [project name or alias]"
+        params[:command].to_s
       end
 
       def commands

@@ -16,7 +16,7 @@ export const COMMENT_FORM = {
   bodyPlaceholderInternal: __('Write an internal note or drag your files here…'),
   internal: s__('Notes|Make this an internal note'),
   internalVisibility: s__(
-    'Notes|Internal notes are only visible to the author, assignees, and members with the role of Reporter or higher',
+    'Notes|Internal notes are only visible to members with the role of Reporter or higher',
   ),
   discussionThatNeedsResolution: __(
     'Discuss a specific suggestion or question that needs to be resolved.',
@@ -45,4 +45,12 @@ export const COMMENT_FORM = {
     commentHelp: __('Add a general comment to this %{noteableDisplayName}.'),
     internalCommentHelp: __('Add a confidential internal note to this %{noteableDisplayName}.'),
   },
+  attachmentMsg: s__(
+    'Notes|Attachments are sent by email. Attachments over 10 MB are sent as links to your GitLab instance, and only accessible to project members.',
+  ),
+};
+
+export const EDITED_TEXT = {
+  actionWithAuthor: __('%{actionText} by %{author} %{actionDetail}'),
+  actionWithoutAuthor: __('%{actionText} %{actionDetail}'),
 };

@@ -10,6 +10,10 @@ RSpec.describe Sidebars::Projects::Menus::SettingsMenu do
 
   subject { described_class.new(context) }
 
+  before do
+    stub_feature_flags(show_pages_in_deployments_menu: false)
+  end
+
   describe '#render?' do
     it 'returns false when menu does not have any menu items' do
       allow(subject).to receive(:has_renderable_items?).and_return(false)
@@ -133,7 +137,13 @@ RSpec.describe Sidebars::Projects::Menus::SettingsMenu do
       end
     end
 
-    describe 'Packages & Registries' do
+    describe 'Merge requests' do
+      let(:item_id) { :merge_requests }
+
+      it_behaves_like 'access rights checks'
+    end
+
+    describe 'Packages and registries' do
       let(:item_id) { :packages_and_registries }
       let(:packages_enabled) { false }
 

@@ -12,12 +12,14 @@ module API
 
     %w[group project].each do |source_type|
       params do
-        requires :id, type: String, desc: "The #{source_type} ID"
+        requires :id, type: String,
+                      desc: "The ID or URL-encoded path of the #{source_type} owned by the authenticated user"
       end
       resource source_type.pluralize, requirements: API::NAMESPACE_OR_PROJECT_REQUIREMENTS do
         desc "Gets a list of access requests for a #{source_type}." do
           detail 'This feature was introduced in GitLab 8.11.'
           success Entities::AccessRequester
+          tags %w[access_requests]
         end
         params do
           use :pagination
@@ -36,6 +38,24 @@ module API
         desc "Requests access for the authenticated user to a #{source_type}." do
           detail 'This feature was introduced in GitLab 8.11.'
           success Entities::AccessRequester
+          success [
+            {
+              code: 200,
+              model: Entities::AccessRequester,
+              message: 'successful operation',
+              examples: {
+                successfull_response: {
+                  "id" => 1,
+                  "username" => "raymond_smith",
+                  "name" => "Raymond Smith",
+                  "state" => "active",
+                  "created_at" => "2012-10-22T14:13:35Z",
+                  "access_level" => 20
+                }
+              }
+            }
+          ]
+          tags %w[access_requests]
         end
         post ":id/access_requests" do
           source = find_source(source_type, params[:id])
@@ -50,11 +70,29 @@ module API
 
         desc 'Approves an access request for the given user.' do
           detail 'This feature was introduced in GitLab 8.11.'
-          success Entities::Member
+          success [
+            {
+              code: 200,
+              model: Entities::AccessRequester,
+              message: 'successful operation',
+              examples: {
+                successfull_response: {
+                  "id" => 1,
+                  "username" => "raymond_smith",
+                  "name" => "Raymond Smith",
+                  "state" => "active",
+                  "created_at" => "2012-10-22T14:13:35Z",
+                  "access_level" => 20
+                }
+              }
+            }
+          ]
+          tags %w[access_requests]
         end
         params do
           requires :user_id, type: Integer, desc: 'The user ID of the access requester'
-          optional :access_level, type: Integer, desc: 'A valid access level (defaults: `30`, developer access level)'
+          optional :access_level, type: Integer, desc: 'A valid access level (defaults: `30`, the Developer role)',
+                                  default: 30
         end
         # rubocop: disable CodeReuse/ActiveRecord
         put ':id/access_requests/:user_id/approve' do
@@ -72,6 +110,7 @@ module API
 
         desc 'Denies an access request for the given user.' do
           detail 'This feature was introduced in GitLab 8.11.'
+          tags %w[access_requests]
         end
         params do
           requires :user_id, type: Integer, desc: 'The user ID of the access requester'

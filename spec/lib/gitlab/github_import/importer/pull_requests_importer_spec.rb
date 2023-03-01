@@ -2,39 +2,36 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
+RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter, feature_category: :importers do
   let(:url) { 'https://github.com/foo/bar.git' }
   let(:project) { create(:project, import_source: 'foo/bar', import_url: url) }
   let(:client) { double(:client) }
 
   let(:pull_request) do
-    double(
-      :response,
+    {
       number: 42,
       title: 'My Pull Request',
       body: 'This is my pull request',
       state: 'closed',
-      head: double(
-        :head,
+      head: {
         sha: '123abc',
         ref: 'my-feature',
-        repo: double(:repo, id: 400),
-        user: double(:user, id: 4, login: 'alice')
-      ),
-      base: double(
-        :base,
+        repo: { id: 400 },
+        user: { id: 4, login: 'alice' }
+      },
+      base: {
         sha: '456def',
         ref: 'master',
-        repo: double(:repo, id: 200)
-      ),
-      milestone: double(:milestone, number: 4),
-      user: double(:user, id: 4, login: 'alice'),
-      assignee: double(:user, id: 4, login: 'alice'),
-      merged_by: double(:user, id: 4, login: 'alice'),
+        repo: { id: 200 }
+      },
+      milestone: { number: 4 },
+      user: { id: 4, login: 'alice' },
+      assignee: { id: 4, login: 'alice' },
+      merged_by: { id: 4, login: 'alice' },
       created_at: 1.second.ago,
       updated_at: 1.second.ago,
       merged_at: 1.second.ago
-    )
+    }
   end
 
   describe '#parallel?' do
@@ -95,7 +92,7 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
     end
   end
 
-  describe '#parallel_import' do
+  describe '#parallel_import', :clean_gitlab_redis_cache do
     it 'imports each note in parallel' do
       importer = described_class.new(project, client)
 
@@ -104,13 +101,8 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
         .and_yield(pull_request)
 
       expect(Gitlab::GithubImport::ImportPullRequestWorker)
-        .to receive(:bulk_perform_in)
-        .with(
-          1.second,
-          [[project.id, an_instance_of(Hash), an_instance_of(String)]],
-          batch_delay: 1.minute,
-          batch_size: 200
-        )
+        .to receive(:perform_in)
+        .with(1.second, project.id, an_instance_of(Hash), an_instance_of(String))
 
       waiter = importer.parallel_import
 
@@ -184,12 +176,11 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
 
     context 'when the pull request was updated after the last update' do
       let(:pr) do
-        double(
-          :pr,
+        {
           updated_at: Time.zone.now,
-          head: double(:head, sha: '123'),
-          base: double(:base, sha: '456')
-        )
+          head: { sha: '123' },
+          base: { sha: '456' }
+        }
       end
 
       before do
@@ -201,7 +192,7 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
       it 'returns true when the head SHA is not present' do
         expect(importer)
           .to receive(:commit_exists?)
-          .with(pr.head.sha)
+          .with('123')
           .and_return(false)
 
         expect(importer.update_repository?(pr)).to eq(true)
@@ -210,12 +201,12 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
       it 'returns true when the base SHA is not present' do
         expect(importer)
           .to receive(:commit_exists?)
-          .with(pr.head.sha)
+          .with('123')
           .and_return(true)
 
         expect(importer)
           .to receive(:commit_exists?)
-          .with(pr.base.sha)
+          .with('456')
           .and_return(false)
 
         expect(importer.update_repository?(pr)).to eq(true)
@@ -224,12 +215,12 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
       it 'returns false if both the head and base SHAs are present' do
         expect(importer)
           .to receive(:commit_exists?)
-          .with(pr.head.sha)
+          .with('123')
           .and_return(true)
 
         expect(importer)
           .to receive(:commit_exists?)
-          .with(pr.base.sha)
+          .with('456')
           .and_return(true)
 
         expect(importer.update_repository?(pr)).to eq(false)
@@ -238,7 +229,7 @@ RSpec.describe Gitlab::GithubImport::Importer::PullRequestsImporter do
 
     context 'when the pull request was updated before the last update' do
       it 'returns false' do
-        pr = double(:pr, updated_at: 1.year.ago)
+        pr = { updated_at: 1.year.ago }
 
         allow(project)
           .to receive(:last_repository_updated_at)

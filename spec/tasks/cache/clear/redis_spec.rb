@@ -2,13 +2,16 @@
 
 require 'rake_helper'
 
-RSpec.describe 'clearing redis cache', :clean_gitlab_redis_cache, :silence_stdout do
+RSpec.describe 'clearing redis cache', :clean_gitlab_redis_repository_cache, :clean_gitlab_redis_cache,
+               :silence_stdout, :use_null_store_as_repository_cache, feature_category: :redis do
   before do
     Rake.application.rake_require 'tasks/cache'
   end
 
+  let(:keys_size_changed) { -1 }
+
   shared_examples 'clears the cache' do
-    it { expect { run_rake_task('cache:clear:redis') }.to change { redis_keys.size }.by(-1) }
+    it { expect { run_rake_task('cache:clear:redis') }.to change { redis_keys.size }.by(keys_size_changed) }
   end
 
   describe 'clearing pipeline status cache' do
@@ -19,10 +22,6 @@ RSpec.describe 'clearing redis cache', :clean_gitlab_redis_cache, :silence_stdou
 
     before do
       allow(pipeline_status).to receive(:loaded).and_return(nil)
-    end
-
-    it 'clears pipeline status cache' do
-      expect { run_rake_task('cache:clear:redis') }.to change { pipeline_status.has_cache? }
     end
 
     it_behaves_like 'clears the cache'

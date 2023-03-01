@@ -45,9 +45,7 @@ module SortingPreference
 
     return sort_param if Gitlab::Database.read_only?
 
-    if user_preference[field] != sort_param
-      user_preference.update(field => sort_param)
-    end
+    user_preference.update(field => sort_param) if user_preference[field] != sort_param
 
     sort_param
   end
@@ -91,6 +89,10 @@ module SortingPreference
   def valid_sort_order?(sort_order)
     return false unless sort_order
     return can_sort_by_issue_weight?(action_name == 'issues') if sort_order.include?('weight')
+
+    if sort_order.include?('merged_at')
+      return can_sort_by_merged_date?(controller_name == 'merge_requests' || action_name == 'merge_requests')
+    end
 
     true
   end

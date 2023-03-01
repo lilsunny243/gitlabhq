@@ -1,13 +1,13 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
-# Jira integration issue management **(FREE)**
+# Jira issue management **(FREE)**
 
-Integrating issue management with Jira requires you to [configure Jira](index.md#jira-integration)
-and [enable the Jira integration](configure.md) in GitLab.
+To integrate issue management with Jira, [configure Jira](index.md#jira-integration)
+and [enable the integration](configure.md) in GitLab.
 After you configure and enable the integration, you can reference and close Jira
 issues by mentioning the Jira ID in GitLab commits and merge requests.
 
@@ -54,10 +54,9 @@ You can [disable comments](#disable-comments-on-jira-issues) on issues.
 You can prevent merge requests from being merged if they do not refer to a Jira issue.
 To enforce this:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
-1. Expand **Merge requests**.
-1. Under **Merge checks**, select the **Require an associated issue from Jira** checkbox.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Merge requests**.
+1. In the **Merge checks** section, select **Require an associated issue from Jira**.
 1. Select **Save**.
 
 After you enable this feature, a merge request that doesn't reference an associated

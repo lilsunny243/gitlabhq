@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 module SortingTitlesValuesHelper
+  SORT_NAME = 'name_asc'
+  SORT_UPDATED_OLDEST = 'updated_asc'
+  SORT_UPDATED_RECENT = 'updated_desc'
+
   # Titles.
   def sort_title_created_date
     s_('SortOptions|Created date')
@@ -84,6 +88,14 @@ module SortingTitlesValuesHelper
 
   def sort_title_name_desc
     s_('SortOptions|Name, descending')
+  end
+
+  def sort_title_version_desc
+    s_('SortOptions|Latest version')
+  end
+
+  def sort_title_version_asc
+    s_('SortOptions|Oldest version')
   end
 
   def sort_title_oldest_activity
@@ -273,6 +285,14 @@ module SortingTitlesValuesHelper
 
   def sort_value_oldest_updated
     'updated_asc'
+  end
+
+  def sort_value_version_asc
+    'version_asc'
+  end
+
+  def sort_value_version_desc
+    'version_desc'
   end
 
   def sort_value_popularity

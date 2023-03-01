@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require_relative '../../qa'
+require 'active_support/testing/time_helpers'
 
-require_relative 'qa_deprecation_toolkit_env'
-QaDeprecationToolkitEnv.configure!
+QA::Specs::QaDeprecationToolkitEnv.configure!
 
 Knapsack::Adapters::RSpecAdapter.bind if QA::Runtime::Env.knapsack?
 
@@ -11,31 +11,23 @@ QA::Support::GitlabAddress.define_gitlab_address_attribute!
 QA::Runtime::Browser.configure! unless QA::Runtime::Env.dry_run
 QA::Runtime::AllureReport.configure!
 QA::Runtime::Scenario.from_env(QA::Runtime::Env.runtime_scenario_attributes)
+QA::Support::KnapsackReport.configure!
 
 # Enable zero monkey patching mode before loading any other RSpec code.
 RSpec.configure(&:disable_monkey_patching!)
-
-Dir[::File.join(__dir__, "features/shared_examples/*.rb")].sort.each { |f| require f }
-Dir[::File.join(__dir__, "features/shared_contexts/*.rb")].sort.each { |f| require f }
 
 # For JH additionally process when `jh/` exists
 require_relative('../../../jh/qa/qa/specs/spec_helper') if GitlabEdition.jh?
 
 RSpec.configure do |config|
+  config.include ActiveSupport::Testing::TimeHelpers
   config.include QA::Support::Matchers::EventuallyMatcher
   config.include QA::Support::Matchers::HaveMatcher
 
   config.add_formatter QA::Support::Formatters::ContextFormatter
   config.add_formatter QA::Support::Formatters::QuarantineFormatter
   config.add_formatter QA::Support::Formatters::FeatureFlagFormatter
-  config.add_formatter QA::Support::Formatters::TestStatsFormatter if QA::Runtime::Env.export_metrics?
-
-  config.before(:suite) do |suite|
-    QA::Resource::ReusableCollection.register_resource_classes do |collection|
-      QA::Resource::ReusableProject.register(collection)
-      QA::Resource::ReusableGroup.register(collection)
-    end
-  end
+  config.add_formatter QA::Support::Formatters::TestMetricsFormatter if QA::Runtime::Env.running_in_ci?
 
   config.prepend_before do |example|
     QA::Runtime::Logger.info("Starting test: #{Rainbow(example.full_description).bright}")
@@ -54,12 +46,10 @@ RSpec.configure do |config|
   end
 
   config.prepend_after do |example|
-    if example.exception
-      page = Capybara.page
+    page = Capybara.page
+    QA::Support::PageErrorChecker.log_request_errors(page)
 
-      QA::Support::PageErrorChecker.log_request_errors(page)
-      QA::Support::PageErrorChecker.check_page_for_error_code(page)
-    end
+    QA::Support::PageErrorChecker.check_page_for_error_code(page) if example.exception
   end
 
   # Add fabrication time to spec metadata
@@ -89,24 +79,6 @@ RSpec.configure do |config|
   config.after(:suite) do |suite|
     # Write all test created resources to JSON file
     QA::Tools::TestResourceDataProcessor.write_to_file(suite.reporter.failed_examples.any?)
-
-    # If requested, confirm that resources were used appropriately (e.g., not left with changes that interfere with
-    # further reuse)
-    QA::Resource::ReusableCollection.validate_resource_reuse if QA::Runtime::Env.validate_resource_reuse?
-
-    # If any tests failed, leave the resources behind to help troubleshoot, otherwise remove them.
-    # Do not remove the shared resource on live environments
-    begin
-      next if suite.reporter.failed_examples.present?
-      next unless QA::Runtime::Scenario.attributes.include?(:gitlab_address)
-      next if QA::Runtime::Env.running_on_dot_com?
-
-      QA::Resource::ReusableCollection.remove_all_via_api!
-    rescue QA::Resource::Errors::InternalServerError => e
-      # Temporarily prevent this error from failing jobs while the cause is investigated
-      # See https://gitlab.com/gitlab-org/gitlab/-/issues/354387
-      QA::Runtime::Logger.debug(e.message)
-    end
   end
 
   config.append_after(:suite) do
@@ -150,3 +122,6 @@ RSpec.configure do |config|
     end
   end
 end
+
+Dir[::File.join(__dir__, "features/shared_examples/**/*.rb")].sort.each { |f| require f }
+Dir[::File.join(__dir__, "features/shared_contexts/**/*.rb")].sort.each { |f| require f }

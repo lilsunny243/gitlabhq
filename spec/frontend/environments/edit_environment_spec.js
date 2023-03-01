@@ -3,8 +3,9 @@ import MockAdapter from 'axios-mock-adapter';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import EditEnvironment from '~/environments/components/edit_environment.vue';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { visitUrl } from '~/lib/utils/url_utility';
 
 jest.mock('~/lib/utils/url_utility');
@@ -14,6 +15,7 @@ const DEFAULT_OPTS = {
   provide: {
     projectEnvironmentsPath: '/projects/environments',
     updateEnvironmentPath: '/proejcts/environments/1',
+    protectedEnvironmentSettingsPath: '/projects/1/settings/ci_cd',
   },
   propsData: { environment: { id: '0', name: 'foo', external_url: 'https://foo.example.com' } },
 };
@@ -67,7 +69,7 @@ describe('~/environments/components/edit.vue', () => {
 
     expect(showsLoading()).toBe(false);
 
-    await submitForm(expected, [200, { path: '/test' }]);
+    await submitForm(expected, [HTTP_STATUS_OK, { path: '/test' }]);
 
     expect(showsLoading()).toBe(true);
   });
@@ -75,7 +77,7 @@ describe('~/environments/components/edit.vue', () => {
   it('submits the updated environment on submit', async () => {
     const expected = { url: 'https://google.ca' };
 
-    await submitForm(expected, [200, { path: '/test' }]);
+    await submitForm(expected, [HTTP_STATUS_OK, { path: '/test' }]);
 
     expect(visitUrl).toHaveBeenCalledWith('/test');
   });
@@ -83,9 +85,9 @@ describe('~/environments/components/edit.vue', () => {
   it('shows errors on error', async () => {
     const expected = { url: 'https://google.ca' };
 
-    await submitForm(expected, [400, { message: ['uh oh!'] }]);
+    await submitForm(expected, [HTTP_STATUS_BAD_REQUEST, { message: ['uh oh!'] }]);
 
-    expect(createFlash).toHaveBeenCalledWith({ message: 'uh oh!' });
+    expect(createAlert).toHaveBeenCalledWith({ message: 'uh oh!' });
     expect(showsLoading()).toBe(false);
   });
 

@@ -11,10 +11,6 @@ module Projects
       before_action :authorize_admin_pipeline!
       before_action :check_builds_available!
       before_action :define_variables
-      before_action do
-        push_frontend_feature_flag(:ajax_new_deploy_token, @project)
-        push_frontend_feature_flag(:ci_variable_settings_graphql, @project)
-      end
 
       helper_method :highlight_badge
 
@@ -22,11 +18,14 @@ module Projects
       urgency :low
 
       def show
-        if Feature.enabled?(:ci_pipeline_triggers_settings_vue_ui, @project)
-          @triggers_json = ::Ci::TriggerSerializer.new.represent(
-            @project.triggers, current_user: current_user, project: @project
-          ).to_json
-        end
+        @entity = :project
+        @variable_limit = ::Plan.default.actual_limits.project_ci_variables
+
+        triggers = ::Ci::TriggerSerializer.new.represent(
+          @project.triggers, current_user: current_user, project: @project
+        )
+
+        @triggers_json = Gitlab::Json.dump(triggers)
 
         render
       end
@@ -124,11 +123,13 @@ module Projects
           .page(params[:specific_page]).per(NUMBER_OF_RUNNERS_PER_PAGE)
           .with_tags
 
-        @shared_runners = ::Ci::Runner.instance_type.active.with_tags
+        active_shared_runners = ::Ci::Runner.instance_type.active
+        @shared_runners_count = active_shared_runners.count
+        @shared_runners = active_shared_runners.page(params[:shared_runners_page]).per(NUMBER_OF_RUNNERS_PER_PAGE).with_tags
 
-        @shared_runners_count = @shared_runners.count(:all)
-
-        @group_runners = ::Ci::Runner.belonging_to_parent_group_of_project(@project.id).with_tags
+        parent_group_runners = ::Ci::Runner.belonging_to_parent_group_of_project(@project.id)
+        @group_runners_count = parent_group_runners.count
+        @group_runners = parent_group_runners.page(params[:group_runners_page]).per(NUMBER_OF_RUNNERS_PER_PAGE).with_tags
       end
 
       def define_ci_variables

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe PersonalAccessToken do
+RSpec.describe PersonalAccessToken, feature_category: :system_access do
   subject { described_class }
 
   describe '.build' do
@@ -106,6 +106,31 @@ RSpec.describe PersonalAccessToken do
     end
 
     describe '.last_used_before' do
+      context 'last_used_*' do
+        let_it_be(:date) { DateTime.new(2022, 01, 01) }
+        let_it_be(:token) { create(:personal_access_token, last_used_at: date) }
+        # This token should never occur in the following tests and indicates that filtering was done correctly with it
+        let_it_be(:never_used_token) { create(:personal_access_token) }
+
+        describe '.last_used_before' do
+          it 'returns personal access tokens used before the specified date only' do
+            expect(described_class.last_used_before(date + 1)).to contain_exactly(token)
+          end
+        end
+
+        it 'does not return token that is last_used_at after given date' do
+          expect(described_class.last_used_before(date + 1)).not_to contain_exactly(never_used_token)
+        end
+
+        describe '.last_used_after' do
+          it 'returns personal access tokens used after the specified date only' do
+            expect(described_class.last_used_after(date - 1)).to contain_exactly(token)
+          end
+        end
+      end
+    end
+
+    describe '.last_used_before_or_unused' do
       let(:last_used_at) { 1.month.ago.beginning_of_hour }
       let!(:unused_token)  { create(:personal_access_token) }
       let!(:used_token) do
@@ -135,7 +160,7 @@ RSpec.describe PersonalAccessToken do
         )
       end
 
-      subject { described_class.last_used_before(last_used_at) }
+      subject { described_class.last_used_before_or_unused(last_used_at) }
 
       it { is_expected.to contain_exactly(old_unused_token, old_formerly_used_token) }
     end
@@ -169,47 +194,6 @@ RSpec.describe PersonalAccessToken do
     end
   end
 
-  describe 'Redis storage' do
-    let(:user_id) { 123 }
-    let(:token) { 'KS3wegQYXBLYhQsciwsj' }
-
-    context 'reading encrypted data' do
-      before do
-        subject.redis_store!(user_id, token)
-      end
-
-      it 'returns stored data' do
-        expect(subject.redis_getdel(user_id)).to eq(token)
-      end
-    end
-
-    context 'reading unencrypted data' do
-      before do
-        Gitlab::Redis::SharedState.with do |redis|
-          redis.set(described_class.redis_shared_state_key(user_id),
-                    token,
-                    ex: PersonalAccessToken::REDIS_EXPIRY_TIME)
-        end
-      end
-
-      it 'returns stored data unmodified' do
-        expect(subject.redis_getdel(user_id)).to eq(token)
-      end
-    end
-
-    context 'after deletion' do
-      before do
-        subject.redis_store!(user_id, token)
-
-        expect(subject.redis_getdel(user_id)).to eq(token)
-      end
-
-      it 'token is removed' do
-        expect(subject.redis_getdel(user_id)).to be_nil
-      end
-    end
-  end
-
   context "validations" do
     let(:personal_access_token) { build(:personal_access_token) }
 
@@ -224,6 +208,24 @@ RSpec.describe PersonalAccessToken do
       personal_access_token.scopes = [:api, :read_user]
 
       expect(personal_access_token).to be_valid
+    end
+
+    it "allows creating a token with `admin_mode` scope" do
+      personal_access_token.scopes = [:api, :admin_mode]
+
+      expect(personal_access_token).to be_valid
+    end
+
+    context 'with feature flag disabled' do
+      before do
+        stub_feature_flags(admin_mode_for_api: false)
+      end
+
+      it "allows creating a token with `admin_mode` scope" do
+        personal_access_token.scopes = [:api, :admin_mode]
+
+        expect(personal_access_token).to be_valid
+      end
     end
 
     context 'when registry is disabled' do
@@ -340,7 +342,7 @@ RSpec.describe PersonalAccessToken do
 
   describe '.simple_sorts' do
     it 'includes overridden keys' do
-      expect(described_class.simple_sorts.keys).to include(*%w(expires_at_asc expires_at_desc expires_at_asc_id_desc))
+      expect(described_class.simple_sorts.keys).to include(*%w(expires_at_asc_id_desc))
     end
   end
 
@@ -348,23 +350,58 @@ RSpec.describe PersonalAccessToken do
     let_it_be(:earlier_token) { create(:personal_access_token, expires_at: 2.days.ago) }
     let_it_be(:later_token) { create(:personal_access_token, expires_at: 1.day.ago) }
 
-    describe '.order_expires_at_asc' do
-      it 'returns ordered list in asc order of expiry date' do
-        expect(described_class.order_expires_at_asc).to match [earlier_token, later_token]
-      end
-    end
-
-    describe '.order_expires_at_desc' do
-      it 'returns ordered list in desc order of expiry date' do
-        expect(described_class.order_expires_at_desc).to match [later_token, earlier_token]
-      end
-    end
-
     describe '.order_expires_at_asc_id_desc' do
       let_it_be(:earlier_token_2) { create(:personal_access_token, expires_at: 2.days.ago) }
 
       it 'returns ordered list in combination of expires_at ascending and id descending' do
         expect(described_class.order_expires_at_asc_id_desc).to eq [earlier_token_2, earlier_token, later_token]
+      end
+    end
+  end
+
+  # During the implementation of Admin Mode for API, tokens of
+  # administrators should automatically get the `admin_mode` scope as well
+  # See https://gitlab.com/gitlab-org/gitlab/-/issues/42692
+  describe '`admin_mode scope' do
+    subject { create(:personal_access_token, user: user, scopes: ['api']) }
+
+    context 'with feature flag enabled' do
+      context 'with administrator user' do
+        let_it_be(:user) { create(:user, :admin) }
+
+        it 'does not add `admin_mode` scope before created' do
+          expect(subject.scopes).to contain_exactly('api')
+        end
+      end
+
+      context 'with normal user' do
+        let_it_be(:user) { create(:user) }
+
+        it 'does not add `admin_mode` scope before created' do
+          expect(subject.scopes).to contain_exactly('api')
+        end
+      end
+    end
+
+    context 'with feature flag disabled' do
+      before do
+        stub_feature_flags(admin_mode_for_api: false)
+      end
+
+      context 'with administrator user' do
+        let_it_be(:user) { create(:user, :admin) }
+
+        it 'adds `admin_mode` scope before created' do
+          expect(subject.scopes).to contain_exactly('api', 'admin_mode')
+        end
+      end
+
+      context 'with normal user' do
+        let_it_be(:user) { create(:user) }
+
+        it 'does not add `admin_mode` scope before created' do
+          expect(subject.scopes).to contain_exactly('api')
+        end
       end
     end
   end

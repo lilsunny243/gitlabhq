@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting do
+RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting, feature_category: :system_access do
   include EmailHelpers
 
   let_it_be(:user) { create(:user) }
@@ -11,6 +11,7 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
 
   before do
     stub_feature_flags(require_email_verification: require_email_verification_enabled)
+    stub_feature_flags(skip_require_email_verification: false)
   end
 
   shared_examples 'email verification required' do
@@ -118,7 +119,7 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
           # Expect an error message
           expect_log_message('Failed Attempt', reason: 'rate_limited')
           expect(page).to have_content("You've reached the maximum amount of tries. "\
-                                       'Wait 10 minutes or resend a new code and try again.')
+                                       'Wait 10 minutes or send a new code and try again.')
 
           # Wait for 10 minutes
           travel 10.minutes
@@ -138,7 +139,7 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
 
         # Expect an error message
         expect_log_message('Failed Attempt', reason: 'invalid')
-        expect(page).to have_content('The code is incorrect. Enter it again, or resend a new code.')
+        expect(page).to have_content('The code is incorrect. Enter it again, or send a new code.')
       end
 
       it 'verifies expired codes' do
@@ -155,7 +156,7 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
 
           # Expect an error message
           expect_log_message('Failed Attempt', reason: 'expired')
-          expect(page).to have_content('The code has expired. Resend a new code and try again.')
+          expect(page).to have_content('The code has expired. Send a new code and try again.')
         end
       end
     end
@@ -223,6 +224,14 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
 
     it_behaves_like 'email verification required'
     it_behaves_like 'no email verification required when 2fa enabled or ff disabled'
+
+    context 'when the check_ip_address_for_email_verification feature flag is disabled' do
+      before do
+        stub_feature_flags(check_ip_address_for_email_verification: false)
+      end
+
+      it_behaves_like 'no email verification required'
+    end
   end
 
   describe 'when a previous authentication event exists for the same ip address' do
@@ -255,7 +264,7 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
         perform_enqueued_jobs do
           # The user is prompted for a verification code
           gitlab_sign_in(user)
-          expect(page).to have_content('Help us protect your account')
+          expect(page).to have_content(s_('IdentityVerification|Help us protect your account'))
           code = expect_instructions_email_and_extract_code
 
           # We toggle the feature flag off
@@ -266,12 +275,13 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
           new_code = expect_instructions_email_and_extract_code
 
           verify_code(code)
-          expect(page).to have_content('The code is incorrect. Enter it again, or resend a new code.')
+          expect(page)
+            .to have_content(s_('IdentityVerification|The code is incorrect. Enter it again, or send a new code.'))
 
           travel Users::EmailVerification::ValidateTokenService::TOKEN_VALID_FOR_MINUTES.minutes + 1.second
 
           verify_code(new_code)
-          expect(page).to have_content('The code has expired. Resend a new code and try again.')
+          expect(page).to have_content(s_('IdentityVerification|The code has expired. Send a new code and try again.'))
 
           click_link 'Resend code'
           another_code = expect_instructions_email_and_extract_code
@@ -296,7 +306,7 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
 
       it 'the unlock link still works' do
         # The user is locked and unlock instructions are sent
-        expect(page).to have_content('Invalid login or password.')
+        expect(page).to have_content(_('Invalid login or password.'))
         user.reload
         expect(user.locked_at).not_to be_nil
         expect(user.unlock_token).not_to be_nil
@@ -334,15 +344,15 @@ RSpec.describe 'Email Verification On Login', :clean_gitlab_redis_rate_limiting 
   def expect_instructions_email_and_extract_code
     mail = find_email_for(user)
     expect(mail.to).to match_array([user.email])
-    expect(mail.subject).to eq('Verify your identity')
+    expect(mail.subject).to eq(s_('IdentityVerification|Verify your identity'))
     code = mail.body.parts.first.to_s[/\d{#{Users::EmailVerification::GenerateTokenService::TOKEN_LENGTH}}/o]
     reset_delivered_emails!
     code
   end
 
   def verify_code(code)
-    fill_in 'Verification code', with: code
-    click_button 'Verify code'
+    fill_in s_('IdentityVerification|Verification code'), with: code
+    click_button s_('IdentityVerification|Verify code')
   end
 
   def expect_log_message(event = nil, times = 1, reason: '', message: nil)

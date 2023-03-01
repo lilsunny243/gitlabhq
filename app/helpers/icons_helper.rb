@@ -26,7 +26,7 @@ module IconsHelper
     # SVG Sprites currently don't work across domains, so in the case of a CDN
     # we have to set the current path deliberately to prevent addition of asset_host
     sprite_base_url = Gitlab.config.gitlab.url if ActionController::Base.asset_host
-    ActionController::Base.helpers.image_path('file_icons.svg', host: sprite_base_url)
+    ActionController::Base.helpers.image_path('file_icons/file_icons.svg', host: sprite_base_url)
   end
 
   def sprite_icon(icon_name, size: DEFAULT_ICON_SIZE, css_class: nil)
@@ -38,11 +38,11 @@ module IconsHelper
 
       css_classes = []
       css_classes << "s#{size}" if size
-      css_classes << "#{css_class}" unless css_class.blank?
+      css_classes << css_class.to_s unless css_class.blank?
 
       content_tag(
         :svg,
-        content_tag(:use, '', { 'href' => "#{sprite_icon_path}##{icon_name}" } ),
+        content_tag(:use, '', { 'href' => "#{sprite_icon_path}##{icon_name}" }),
         class: css_classes.empty? ? nil : css_classes.join(' '),
         data: { testid: "#{icon_name}-icon" }
       )
@@ -70,18 +70,14 @@ module IconsHelper
   #   gl_loading_icon(css_class: "foo-bar")
   #
   # See also https://gitlab-org.gitlab.io/gitlab-ui/?path=/story/base-loading-icon--default
-  def gl_loading_icon(inline: false, color: 'dark', size: 'sm', css_class: nil)
-    spinner = content_tag(:span, "", {
-      class: %[gl-spinner gl-spinner-#{color} gl-spinner-#{size} gl-vertical-align-text-bottom!],
-      aria: { label: _('Loading') }
-    })
-
-    container_classes = ['gl-spinner-container']
-    container_classes << css_class unless css_class.blank?
-    content_tag(inline ? :span : :div, spinner, {
-      class: container_classes,
-      role: 'status'
-    })
+  def gl_loading_icon(inline: false, color: 'dark', size: 'sm', css_class: nil, data: nil)
+    render Pajamas::SpinnerComponent.new(
+      inline: inline,
+      color: color,
+      size: size,
+      class: css_class,
+      data: data
+    )
   end
 
   def external_snippet_icon(name)

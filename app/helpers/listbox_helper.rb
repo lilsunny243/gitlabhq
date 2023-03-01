@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 module ListboxHelper
-  DROPDOWN_CONTAINER_CLASSES = %w[dropdown b-dropdown gl-new-dropdown btn-group js-redirect-listbox].freeze
+  DROPDOWN_CONTAINER_CLASSES = %w[dropdown b-dropdown gl-dropdown btn-group js-redirect-listbox].freeze
   DROPDOWN_BUTTON_CLASSES = %w[btn dropdown-toggle btn-default btn-md gl-button gl-dropdown-toggle].freeze
-  DROPDOWN_INNER_CLASS = 'gl-new-dropdown-button-text'
+  DROPDOWN_INNER_CLASS = 'gl-dropdown-button-text'
   DROPDOWN_ICON_CLASS = 'gl-button-icon dropdown-chevron gl-icon'
 
   # Creates a listbox component with redirect behavior.
@@ -23,7 +23,7 @@ module ListboxHelper
   #
   # The final parameter `html_options` applies arbitrary attributes to the
   # returned tag. Some of these are passed to the underlying Vue component as
-  # props, e.g., to right-align the menu of items, add `data: { right: true }`.
+  # props, e.g., to right-align the menu of items, add `data: { placement: 'right' }`.
   #
   # Examples:
   #   # Create a listbox with two items, with the first item selected
@@ -32,7 +32,7 @@ module ListboxHelper
   #   = gl_redirect_listbox_tag items, 'foo'
   #
   #   # Create the same listbox, right-align the menu and add margin styling
-  #   = gl_redirect_listbox_tag items, 'foo', class: 'gl-ml-3', data: { right: true }
+  #   = gl_redirect_listbox_tag items, 'foo', class: 'gl-ml-3', data: { placement: 'right' }
   def gl_redirect_listbox_tag(items, selected, html_options = {})
     # Add script tag for app/assets/javascripts/entrypoints/behaviors/redirect_listbox.js
     content_for :page_specific_javascripts do

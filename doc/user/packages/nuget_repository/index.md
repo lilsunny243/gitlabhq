@@ -1,7 +1,7 @@
 ---
 stage: Package
-group: Package
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+group: Package Registry
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # NuGet packages in the Package Registry **(FREE)**
@@ -15,54 +15,14 @@ packages whenever you need to use them as a dependency.
 
 The Package Registry works with:
 
-- [NuGet CLI](https://docs.microsoft.com/en-us/nuget/reference/nuget-exe-cli-reference)
-- [.NET Core CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/)
+- [NuGet CLI](https://learn.microsoft.com/en-us/nuget/reference/nuget-exe-cli-reference)
+- [.NET Core CLI](https://learn.microsoft.com/en-us/dotnet/core/tools/)
 - [Visual Studio](https://visualstudio.microsoft.com/vs/)
 
 For documentation of the specific API endpoints that these
 clients use, see the [NuGet API documentation](../../../api/packages/nuget.md).
 
-## Install NuGet
-
-The required minimum versions are:
-
-- [NuGet CLI 5.1 or later](https://www.nuget.org/downloads). If you have
-  [Visual Studio](https://visualstudio.microsoft.com/vs/), the NuGet CLI is
-  probably already installed.
-- Alternatively, you can use [.NET SDK 3.0 or later](https://dotnet.microsoft.com/download/dotnet/3.0),
-  which installs the NuGet CLI.
-- NuGet protocol version 3 or later.
-
-Verify that the [NuGet CLI](https://www.nuget.org/) is installed by running:
-
-```shell
-nuget help
-```
-
-The output should be similar to:
-
-```plaintext
-NuGet Version: 5.1.0.6013
-usage: NuGet <command> [args] [options]
-Type 'NuGet help <command>' for help on a specific command.
-
-Available commands:
-
-[output truncated]
-```
-
-### Install NuGet on macOS
-
-For macOS, you can use [Mono](https://www.mono-project.com/) to run the
-NuGet CLI.
-
-1. If you use Homebrew, to install Mono, run `brew install mono`.
-1. Download the Windows C# binary `nuget.exe` from the [NuGet CLI page](https://www.nuget.org/downloads).
-1. Run this command:
-
-   ```shell
-   mono nuget.exe
-   ```
+Learn how to [install NuGet](../workflows/build_packages.md#nuget).
 
 ## Use the GitLab endpoint for NuGet Packages
 
@@ -158,26 +118,25 @@ A project-level endpoint is also required to install NuGet packages from a proje
 To use the [project-level](#use-the-gitlab-endpoint-for-nuget-packages) NuGet endpoint, add the Package Registry as a source with Visual Studio:
 
 1. Open [Visual Studio](https://visualstudio.microsoft.com/vs/).
-1. In Windows, select **File > Options**. On macOS, select **Visual Studio > Preferences**.
+1. In Windows, select **Tools > Options**. On macOS, select **Visual Studio > Preferences**.
 1. In the **NuGet** section, select **Sources** to view a list of all your NuGet sources.
 1. Select **Add**.
 1. Complete the following fields:
+
    - **Name**: Name for the source.
-   - **Location**: `https://gitlab.example.com/api/v4/projects/<your_project_id>/packages/nuget/index.json`,
+   - **Source**: `https://gitlab.example.com/api/v4/projects/<your_project_id>/packages/nuget/index.json`,
      where `<your_project_id>` is your project ID, and `gitlab.example.com` is
      your domain name.
+
+1. Select **Save**.
+1. When you access the package, you must enter your **Username** and **Password**:
+
    - **Username**: Your GitLab username or deploy token username.
    - **Password**: Your personal access token or deploy token.
 
-   ![Visual Studio Adding a NuGet source](img/visual_studio_adding_nuget_source.png)
-
-1. Select **Save**.
-
 The source is displayed in your list.
 
-![Visual Studio NuGet source added](img/visual_studio_nuget_source_added.png)
-
-If you get a warning, ensure that the **Location**, **Username**, and
+If you get a warning, ensure that the **Source**, **Username**, and
 **Password** are correct.
 
 #### Group-level endpoint
@@ -187,26 +146,25 @@ To install a package from a group, use a group-level endpoint.
 To use the [group-level](#use-the-gitlab-endpoint-for-nuget-packages) NuGet endpoint, add the Package Registry as a source with Visual Studio:
 
 1. Open [Visual Studio](https://visualstudio.microsoft.com/vs/).
-1. In Windows, select **File > Options**. On macOS, select **Visual Studio > Preferences**.
+1. In Windows, select **Tools > Options**. On macOS, select **Visual Studio > Preferences**.
 1. In the **NuGet** section, select **Sources** to view a list of all your NuGet sources.
 1. Select **Add**.
 1. Complete the following fields:
+
    - **Name**: Name for the source.
-   - **Location**: `https://gitlab.example.com/api/v4/groups/<your_group_id>/-/packages/nuget/index.json`,
+   - **Source**: `https://gitlab.example.com/api/v4/groups/<your_group_id>/-/packages/nuget/index.json`,
      where `<your_group_id>` is your group ID, and `gitlab.example.com` is
      your domain name.
+
+1. Select **Save**.
+1. When you access the package, you must enter your **Username** and **Password**.
+
    - **Username**: Your GitLab username or deploy token username.
    - **Password**: Your personal access token or deploy token.
 
-   ![Visual Studio Adding a NuGet source](img/visual_studio_adding_nuget_source.png)
-
-1. Select **Save**.
-
 The source is displayed in your list.
 
-![Visual Studio NuGet source added](img/visual_studio_nuget_source_added.png)
-
-If you get a warning, ensure that the **Location**, **Username**, and
+If you get a warning, ensure that the **Source**, **Username**, and
 **Password** are correct.
 
 ### Add a source with the .NET CLI
@@ -325,7 +283,7 @@ To use the [group-level](#use-the-gitlab-endpoint-for-nuget-packages) Package Re
 
 Prerequisite:
 
-- Set up the [source](#https://docs.gitlab.com/ee/user/packages/nuget_repository/#add-the-package-registry-as-a-source-for-nuget-packages) with a [project-level endpoint](#use-the-gitlab-endpoint-for-nuget-packages).
+- Set up the [source](#add-the-package-registry-as-a-source-for-nuget-packages) with a [project-level endpoint](#use-the-gitlab-endpoint-for-nuget-packages).
 
 When publishing packages:
 
@@ -342,7 +300,7 @@ When publishing packages:
 
 Prerequisites:
 
-- [A NuGet package created with NuGet CLI](https://docs.microsoft.com/en-us/nuget/create-packages/creating-a-package).
+- [A NuGet package created with NuGet CLI](https://learn.microsoft.com/en-us/nuget/create-packages/creating-a-package).
 - Set a [project-level endpoint](#use-the-gitlab-endpoint-for-nuget-packages).
 
 Publish a package by running this command:
@@ -358,7 +316,7 @@ nuget push <package_file> -Source <source_name>
 
 Prerequisites:
 
-- [A NuGet package created with .NET CLI](https://docs.microsoft.com/en-us/nuget/create-packages/creating-a-package-dotnet-cli).
+- [A NuGet package created with .NET CLI](https://learn.microsoft.com/en-us/nuget/create-packages/creating-a-package-dotnet-cli).
 - Set a [project-level endpoint](#use-the-gitlab-endpoint-for-nuget-packages).
 
 Publish a package by running this command:
@@ -403,6 +361,7 @@ updated:
        - dotnet nuget push "bin/Release/*.nupkg" --source gitlab
      only:
        - main
+     environment: production
    ```
 
 1. Commit the changes and push it to your GitLab repository to trigger a new CI/CD build.
@@ -502,9 +461,15 @@ for more details on what other GitLab CI patterns are demonstrated.
 
 ## Troubleshooting
 
+### Clear NuGet cache
+
 To improve performance, NuGet caches files related to a package. If you encounter issues, clear the
 cache with this command:
 
 ```shell
 nuget locals all -clear
 ```
+
+### `Error publishing` or `Invalid Package: Failed metadata extraction error` messages when trying to publish NuGet packages in a Docker-based GitLab installation
+
+Webhook requests to local network addresses are blocked to prevent the exploitation of internal web services. If you get `Error publishing` or `Invalid Package` messages when you try to publish NuGet packages, change your network settings to [allow webhook and service requests to the local network](../../../security/webhooks.md#allow-webhook-and-service-requests-to-local-network).

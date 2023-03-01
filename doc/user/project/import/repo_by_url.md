@@ -2,14 +2,20 @@
 type: howto
 stage: Manage
 group: Import
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Import project from repository by URL **(FREE)**
 
+Prerequisite:
+
+- At least the Maintainer role on the destination group to import to. Using the Developer role for this purpose was
+  [deprecated](https://gitlab.com/gitlab-org/gitlab/-/issues/387891) in GitLab 15.8 and will be removed in GitLab 16.0.
+
 You can import your existing repositories by providing the Git URL:
 
-1. On the top bar, select **Menu > Create new project**.
+1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+1. On the right of the page, select **New project**.
 1. Select the **Import project** tab.
 1. Select **Repository by URL**.
 1. Enter a **Git repository URL**.

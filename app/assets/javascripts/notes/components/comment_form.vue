@@ -5,9 +5,9 @@ import $ from 'jquery';
 import { mapActions, mapGetters, mapState } from 'vuex';
 import Autosave from '~/autosave';
 import { refreshUserMergeRequestCounts } from '~/commons/nav/user_merge_requests';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { badgeState } from '~/issuable/components/status_box.vue';
-import httpStatusCodes from '~/lib/utils/http_status';
+import { HTTP_STATUS_UNPROCESSABLE_ENTITY } from '~/lib/utils/http_status';
 import {
   capitalizeFirstCharacter,
   convertToCamelCase,
@@ -28,8 +28,7 @@ import CommentTypeDropdown from './comment_type_dropdown.vue';
 import DiscussionLockedWidget from './discussion_locked_widget.vue';
 import NoteSignedOutWidget from './note_signed_out_widget.vue';
 
-const { UNPROCESSABLE_ENTITY } = httpStatusCodes;
-
+const ATTACHMENT_REGEXP = /!?\[.*?\]\(\/uploads\/[0-9a-f]{32}\/.*?\)/;
 export default {
   name: 'CommentForm',
   i18n: COMMENT_FORM,
@@ -111,7 +110,10 @@ export default {
       return this.getNoteableData.current_user.can_create_note;
     },
     canSetInternalNote() {
-      return this.getNoteableData.current_user.can_update && (this.isIssue || this.isEpic);
+      return (
+        this.getNoteableData.current_user.can_create_confidential_note &&
+        (this.isIssue || this.isEpic)
+      );
     },
     issueActionButtonTitle() {
       const openOrClose = this.isOpen ? 'close' : 'reopen';
@@ -175,6 +177,9 @@ export default {
     disableSubmitButton() {
       return this.note.length === 0 || this.isSubmitting;
     },
+    containsLink() {
+      return ATTACHMENT_REGEXP.test(this.note);
+    },
   },
   mounted() {
     // jQuery is needed here because it is a custom event being dispatched with jQuery.
@@ -195,7 +200,7 @@ export default {
       'toggleIssueLocalState',
     ]),
     handleSaveError({ data, status }) {
-      if (status === UNPROCESSABLE_ENTITY && data.errors?.commands_only?.length) {
+      if (status === HTTP_STATUS_UNPROCESSABLE_ENTITY && data.errors?.commands_only?.length) {
         this.errors = data.errors.commands_only;
       } else {
         this.errors = [this.$options.i18n.GENERIC_UNSUBMITTABLE_NETWORK];
@@ -276,7 +281,7 @@ export default {
         .then(() => badgeState.updateStatus && badgeState.updateStatus())
         .then(refreshUserMergeRequestCounts)
         .catch(() =>
-          createFlash({
+          createAlert({
             message: constants.toggleStateErrorMessage[this.noteableType][this.openState],
           }),
         );
@@ -311,7 +316,7 @@ export default {
       if (this.isLoggedIn) {
         const noteableType = capitalizeFirstCharacter(convertToCamelCase(this.noteableType));
 
-        this.autosave = new Autosave($(this.$refs.textarea), [
+        this.autosave = new Autosave(this.$refs.textarea, [
           this.$options.i18n.note,
           noteableType,
           this.getNoteableData.id,
@@ -355,6 +360,7 @@ export default {
               :noteable-data="getNoteableData"
               :is-internal-note="noteIsInternal"
               :noteable-type="noteableType"
+              :contains-link="containsLink"
             >
               <markdown-field
                 ref="markdownField"

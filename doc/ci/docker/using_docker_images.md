@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: concepts, howto
 ---
 
@@ -64,7 +64,7 @@ For example, you can set the [Docker pull policy](https://docs.gitlab.com/runner
 to use local images.
 
 For more information about images and Docker Hub, see
-the [Docker Fundamentals](https://docs.docker.com/engine/understanding-docker/) documentation.
+the [Docker overview](https://docs.docker.com/get-started/overview/).
 
 ## Define `image` in the `.gitlab-ci.yml` file
 
@@ -158,7 +158,7 @@ a useless shell layer. However, that does not work for all Docker versions.
 - For Docker 17.03 and earlier, the `entrypoint` can be set to
   `/bin/sh -c`, `/bin/bash -c`, or an equivalent shell available in the image.
 
-The syntax of `image:entrypoint` is similar to [Dockerfile's `ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint).
+The syntax of `image:entrypoint` is similar to [Dockerfile `ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint).
 
 Let's assume you have a `super/sql:experimental` image with a SQL database
 in it. You want to use it as a base image for your job because you
@@ -282,8 +282,8 @@ Use one of the following methods to determine the value for `DOCKER_AUTH_CONFIG`
   configuration JSON manually. Open a terminal and execute the following command:
 
   ```shell
-  # The use of "-n" - prevents encoding a newline in the password.
-  echo -n "my_username:my_password" | base64
+  # The use of printf (as opposed to echo) prevents encoding a newline in the password.
+  printf "my_username:my_password" | openssl base64 -A
 
   # Example output to copy
   bXlfdXNlcm5hbWU6bXlfcGFzc3dvcmQ=
@@ -402,7 +402,7 @@ pulling from Docker Hub fails. Docker daemon tries to use the same credentials f
 > Introduced in GitLab Runner 12.0.
 
 As an example, let's assume that you want to use the `<aws_account_id>.dkr.ecr.<region>.amazonaws.com/private/image:latest`
-image. This image is private and requires you to log in into a private container registry.
+image. This image is private and requires you to sign in to a private container registry.
 
 To configure access for `<aws_account_id>.dkr.ecr.<region>.amazonaws.com`, follow these steps:
 
@@ -453,7 +453,7 @@ registries to the `"credHelpers"` hash.
 
 ### Use checksum to keep your image secure
 
-We recommend using the image checksum in your job definition in your `.gitlab-ci.yml` file to verify the integrity of the image. A failed image integrity verification will prevent you from using a modified container.
+We recommend using the image checksum in your job definition in your `.gitlab-ci.yml` file to verify the integrity of the image. A failed image integrity verification prevents you from using a modified container.
 
 To use the image checksum you have to append the checksum at the end:
 

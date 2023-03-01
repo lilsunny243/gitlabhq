@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Multiple issue updating from issues#index', :js do
+RSpec.describe 'Multiple issue updating from issues#index', :js, feature_category: :team_planning do
   let!(:project)   { create(:project) }
   let!(:issue)     { create(:issue, project: project) }
   let!(:user)      { create(:user) }
@@ -46,7 +46,7 @@ RSpec.describe 'Multiple issue updating from issues#index', :js do
       click_button 'Edit issues'
       check 'Select all'
       click_update_assignee_button
-      click_link user.username
+      click_button user.username
 
       click_update_issues_button
 
@@ -64,7 +64,7 @@ RSpec.describe 'Multiple issue updating from issues#index', :js do
       click_button 'Edit issues'
       check 'Select all'
       click_update_assignee_button
-      click_link 'Unassigned'
+      click_button 'Unassigned'
       click_update_issues_button
 
       expect(find('.issue:first-of-type')).not_to have_link "Assigned to #{user.name}"
@@ -80,7 +80,7 @@ RSpec.describe 'Multiple issue updating from issues#index', :js do
       click_button 'Edit issues'
       check 'Select all'
       click_button 'Select milestone'
-      click_link milestone.title
+      click_button milestone.title
       click_update_issues_button
 
       expect(page.find('.issue')).to have_content milestone.title
@@ -97,7 +97,7 @@ RSpec.describe 'Multiple issue updating from issues#index', :js do
       click_button 'Edit issues'
       check 'Select all'
       click_button 'Select milestone'
-      click_link 'No milestone'
+      click_button 'No milestone'
       click_update_issues_button
 
       expect(find('.issue:first-of-type')).not_to have_text milestone.title

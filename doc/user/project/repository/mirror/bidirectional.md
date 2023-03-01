@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Source Code
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 disqus_identifier: 'https://docs.gitlab.com/ee/workflow/repository_mirroring.html'
 ---
 
@@ -45,7 +45,7 @@ and [pull](pull.md#pull-from-a-remote-repository) mirrors in the upstream GitLab
 To create the webhook in the downstream instance:
 
 1. Create a [personal access token](../../../profile/personal_access_tokens.md) with `API` scope.
-1. On the top bar, select **Menu > Projects** and find your project.
+1. On the top bar, select **Main menu > Projects** and find your project.
 1. On the left sidebar, select **Settings > Webhooks**.
 1. Add the webhook **URL**, which (in this case) uses the
    [Pull Mirror API](../../../../api/projects.md#start-the-pull-mirroring-process-for-a-project)

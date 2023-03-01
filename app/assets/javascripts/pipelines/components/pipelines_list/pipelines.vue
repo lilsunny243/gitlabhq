@@ -1,9 +1,10 @@
 <script>
-import { GlDropdown, GlDropdownItem, GlEmptyState, GlIcon, GlLoadingIcon } from '@gitlab/ui';
+import { GlEmptyState, GlIcon, GlLoadingIcon, GlCollapsibleListbox } from '@gitlab/ui';
 import { isEqual } from 'lodash';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_INFO, VARIANT_WARNING } from '~/flash';
 import { getParameterByName } from '~/lib/utils/url_utility';
 import { __, s__ } from '~/locale';
+import Tracking from '~/tracking';
 import NavigationTabs from '~/vue_shared/components/navigation_tabs.vue';
 import TablePagination from '~/vue_shared/components/pagination/table_pagination.vue';
 import {
@@ -11,6 +12,7 @@ import {
   RAW_TEXT_WARNING,
   FILTER_TAG_IDENTIFIER,
   PipelineKeyOptions,
+  TRACKING_CATEGORIES,
 } from '../../constants';
 import PipelinesMixin from '../../mixins/pipelines_mixin';
 import PipelinesService from '../../services/pipelines_service';
@@ -24,8 +26,7 @@ export default {
   PipelineKeyOptions,
   components: {
     EmptyState,
-    GlDropdown,
-    GlDropdownItem,
+    GlCollapsibleListbox,
     GlEmptyState,
     GlIcon,
     GlLoadingIcon,
@@ -35,7 +36,7 @@ export default {
     PipelinesTableComponent,
     TablePagination,
   },
-  mixins: [PipelinesMixin],
+  mixins: [PipelinesMixin, Tracking.mixin()],
   props: {
     store: {
       type: Object,
@@ -246,6 +247,8 @@ export default {
       params = this.onChangeWithFilter(params);
 
       this.updateContent(params);
+
+      this.track('click_filter_tabs', { label: TRACKING_CATEGORIES.tabs, property: scope });
     },
     successCallback(resp) {
       // Because we are polling & the user is interacting verify if the response received
@@ -263,14 +266,14 @@ export default {
         .postAction(endpoint)
         .then(() => {
           this.isResetCacheButtonLoading = false;
-          createFlash({
+          createAlert({
             message: s__('Pipelines|Project cache successfully reset.'),
-            type: 'notice',
+            variant: VARIANT_INFO,
           });
         })
         .catch(() => {
           this.isResetCacheButtonLoading = false;
-          createFlash({
+          createAlert({
             message: s__('Pipelines|Something went wrong while cleaning runners cache.'),
           });
         });
@@ -297,9 +300,9 @@ export default {
         }
 
         if (!filter.type) {
-          createFlash({
+          createAlert({
             message: RAW_TEXT_WARNING,
-            type: 'warning',
+            variant: VARIANT_WARNING,
           });
         }
       });
@@ -308,10 +311,10 @@ export default {
         this.resetRequestData();
       }
 
-      this.updateContent(this.requestData);
+      this.updateContent({ ...this.requestData, page: '1' });
     },
     changeVisibilityPipelineID(val) {
-      this.selectedPipelineKeyOption = val;
+      this.selectedPipelineKeyOption = PipelineKeyOptions.find((e) => val === e.value);
     },
   },
 };
@@ -351,21 +354,12 @@ export default {
           :params="validatedParams"
           @filterPipelines="filterPipelines"
         />
-        <gl-dropdown
-          class="gl-display-flex"
-          :text="selectedPipelineKeyOption.text"
-          data-testid="pipeline-key-dropdown"
-        >
-          <gl-dropdown-item
-            v-for="(val, index) in $options.PipelineKeyOptions"
-            :key="index"
-            :is-checked="selectedPipelineKeyOption.key === val.key"
-            is-check-item
-            @click="changeVisibilityPipelineID(val)"
-          >
-            {{ val.text }}
-          </gl-dropdown-item>
-        </gl-dropdown>
+        <gl-collapsible-listbox
+          data-testid="pipeline-key-collapsible-box"
+          :toggle-text="selectedPipelineKeyOption.text"
+          :items="$options.PipelineKeyOptions"
+          @select="changeVisibilityPipelineID"
+        />
       </div>
     </div>
 

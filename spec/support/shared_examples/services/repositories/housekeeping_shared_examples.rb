@@ -12,7 +12,7 @@ RSpec.shared_examples 'housekeeps repository' do
         expect(resource.git_garbage_collect_worker_klass).to receive(:perform_async).with(resource.id, :incremental_repack, :the_lease_key, :the_uuid).and_call_original
 
         Sidekiq::Testing.fake! do
-          expect { subject.execute }.to change(resource.git_garbage_collect_worker_klass.jobs, :size).by(1)
+          expect { subject.execute }.to change { resource.git_garbage_collect_worker_klass.jobs.size }.by(1)
         end
       end
 
@@ -65,15 +65,9 @@ RSpec.shared_examples 'housekeeps repository' do
           # At push 200
           expect(resource.git_garbage_collect_worker_klass).to receive(:perform_async).with(resource.id, :gc, :the_lease_key, :the_uuid)
             .once
-          # At push 50, 100, 150
-          expect(resource.git_garbage_collect_worker_klass).to receive(:perform_async).with(resource.id, :full_repack, :the_lease_key, :the_uuid)
-            .exactly(3).times
-          # At push 10, 20, ... (except those above)
+          # At push 10, 20, ... (except the gc call)
           expect(resource.git_garbage_collect_worker_klass).to receive(:perform_async).with(resource.id, :incremental_repack, :the_lease_key, :the_uuid)
-            .exactly(16).times
-          # At push 6, 12, 18, ... (except those above)
-          expect(resource.git_garbage_collect_worker_klass).to receive(:perform_async).with(resource.id, :pack_refs, :the_lease_key, :the_uuid)
-            .exactly(27).times
+            .exactly(19).times
 
           201.times do
             subject.increment!
@@ -105,6 +99,13 @@ RSpec.shared_examples 'housekeeps repository' do
 
       it 'when the count is high enough' do
         allow(resource).to receive(:pushes_since_gc).and_return(10)
+        expect(subject.needed?).to eq(true)
+      end
+
+      it 'when incremental repack period is not multiple of gc period' do
+        allow(Gitlab::CurrentSettings).to receive(:housekeeping_incremental_repack_period).and_return(12)
+        allow(resource).to receive(:pushes_since_gc).and_return(200)
+
         expect(subject.needed?).to eq(true)
       end
     end

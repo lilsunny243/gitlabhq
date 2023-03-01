@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Rails console **(FREE SELF)**
@@ -31,6 +31,12 @@ Rails experience is useful but not required.
 sudo gitlab-rails console
 ```
 
+**For Docker installations**
+
+```shell
+docker exec -it <container-id> gitlab-rails console
+```
+
 **For installations from source**
 
 ```shell
@@ -57,6 +63,40 @@ you may run in the console. To turn off logging again, run:
 
 ```ruby
 ActiveRecord::Base.logger = nil
+```
+
+## Attributes
+
+View available attributes, formatted using pretty print (`pp`).
+
+For example, determine what attributes contain users' names and email addresses:
+
+```ruby
+u = User.find_by_username('someuser')
+pp u.attributes
+```
+
+Partial output:
+
+```plaintext
+{"id"=>1234,
+ "email"=>"someuser@example.com",
+ "sign_in_count"=>99,
+ "name"=>"S User",
+ "username"=>"someuser",
+ "first_name"=>nil,
+ "last_name"=>nil,
+ "bot_type"=>nil}
+```
+
+Then make use of the attributes, [testing SMTP, for example](https://docs.gitlab.com/omnibus/settings/smtp.html#testing-the-smtp-configuration):
+
+```ruby
+e = u.email
+n = u.name
+Notify.test_email(e, "Test email for #{n}", 'Test email').deliver_now
+#
+Notify.test_email(u.email, "Test email for #{u.name}", 'Test email').deliver_now
 ```
 
 ## Disable database statement timeout
@@ -118,7 +158,7 @@ sudo -u git -H bundle exec rails runner -e production /path/to/script.rb
 
 Rails Runner does not produce the same output as the console.
 
-If you set a variable on the console, the console will generate useful debug output
+If you set a variable on the console, the console generates useful debug output
 such as the variable contents or properties of referenced entity:
 
 ```ruby
@@ -136,7 +176,7 @@ root
 1
 ```
 
-Some basic knowledge of Ruby will be very useful. Try
+Some basic knowledge of Ruby is very useful. Try
 [this 30-minute tutorial](https://try.ruby-lang.org/) for a quick introduction.
 Rails experience is helpful but not essential.
 
@@ -239,6 +279,24 @@ project = _
 project.id
 # => 2537
 ```
+
+## Time an operation
+
+If you'd like to time one or more operations, use the following format, replacing
+the placeholder `<operation>` with your Ruby or Rails commands of choice:
+
+```ruby
+# A single operation
+Benchmark.measure { <operation> }
+
+# A breakdown of multiple operations
+Benchmark.bm do |x|
+  x.report(:label1) { <operation_1> }
+  x.report(:label2) { <operation_2> }
+end
+```
+
+For more information, review [our developer documentation about benchmarks](../../development/performance.md#benchmarks).
 
 ## Active Record objects
 
@@ -367,7 +425,7 @@ D, [2020-03-05T17:18:30.406047 #910] DEBUG -- :   User Load (2.6ms)  SELECT "use
 ```
 
 For more on different ways to retrieve data from the database using Active
-Record, please see the [Active Record Query Interface documentation](https://guides.rubyonrails.org/active_record_querying.html).
+Record, see the [Active Record Query Interface documentation](https://guides.rubyonrails.org/active_record_querying.html).
 
 ## Query the database using an Active Record model
 
@@ -489,7 +547,7 @@ be the fastest way to get to the root of the problem.
 
 ### Interacting with Active Record objects
 
-At the end of the day, Active Record objects are just normal Ruby objects. As
+At the end of the day, Active Record objects are just standard Ruby objects. As
 such, we can define methods on them which perform arbitrary actions.
 
 For example, GitLab developers have added some methods which help with
@@ -679,4 +737,22 @@ unlike with issues or merge requests.
 
 ```ruby
 ApplicationSetting.current
+```
+
+### Open object in `irb`
+
+WARNING:
+Commands that change data can cause damage if not run correctly or under the right conditions. Always run commands in a test environment first and have a backup instance ready to restore.
+
+Sometimes it is easier to go through a method if you are in the context of the object. You can shim into the namespace of `Object` to let you open `irb` in the context of any object:
+
+```ruby
+Object.define_method(:irb) { binding.irb }
+
+project = Project.last
+# => #<Project id:2537 root/discard>>
+project.irb
+# Notice new context
+irb(#<Project>)> web_url
+# => "https://gitlab-example/root/discard"
 ```

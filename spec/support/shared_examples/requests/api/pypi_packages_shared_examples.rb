@@ -14,17 +14,13 @@ RSpec.shared_examples 'PyPI package creation' do |user_type, status, add_member 
       expect(package.name).to eq params[:name]
       expect(package.version).to eq params[:version]
       expect(package.pypi_metadatum.required_python).to eq params[:requires_python]
+      expect(package.package_files.first.file_sha256).to eq params[:sha256_digest]
 
       if md5_digest
-        expect(package.package_files.first.file_md5).not_to be_nil
+        expect(package.package_files.first.file_md5).to be_present
       else
         expect(package.package_files.first.file_md5).to be_nil
       end
-    end
-
-    context 'with FIPS mode', :fips_mode do
-      it_behaves_like 'returning response status', :unprocessable_entity if md5_digest
-      it_behaves_like 'returning response status', status unless md5_digest
     end
   end
 
@@ -95,25 +91,13 @@ RSpec.shared_examples 'PyPI package creation' do |user_type, status, add_member 
       end
 
       context 'and direct upload disabled' do
-        context 'and background upload disabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: false)
-          end
-
-          it_behaves_like 'creating pypi package files'
+        let(:fog_connection) do
+          stub_package_file_object_storage(direct_upload: false)
         end
 
-        context 'and background upload enabled' do
-          let(:fog_connection) do
-            stub_package_file_object_storage(direct_upload: false, background_upload: true)
-          end
-
-          it_behaves_like 'creating pypi package files'
-        end
+        it_behaves_like 'creating pypi package files'
       end
     end
-
-    it_behaves_like 'background upload schedules a file migration'
   end
 end
 
@@ -167,6 +151,7 @@ RSpec.shared_examples 'PyPI package download' do |user_type, status, add_member 
 
     it_behaves_like 'returning response status', status
     it_behaves_like 'a package tracking event', described_class.name, 'pull_package'
+    it_behaves_like 'bumping the package last downloaded at field'
   end
 end
 
@@ -220,6 +205,27 @@ RSpec.shared_examples 'rejects PyPI access with unknown group id' do
   end
 end
 
+RSpec.shared_examples 'allow access for everyone with public package_registry_access_level' do
+  context 'with private project but public access to package registry' do
+    before do
+      project.update_column(:visibility_level, Gitlab::VisibilityLevel::PRIVATE)
+      project.project_feature.update!(package_registry_access_level: ProjectFeature::PUBLIC)
+    end
+
+    context 'as non-member user' do
+      let(:headers) { basic_auth_header(user.username, personal_access_token.token) }
+
+      it_behaves_like 'returning response status', :success
+    end
+
+    context 'as anonymous' do
+      let(:headers) { {} }
+
+      it_behaves_like 'returning response status', :success
+    end
+  end
+end
+
 RSpec.shared_examples 'pypi simple API endpoint' do
   using RSpec::Parameterized::TableSyntax
 
@@ -263,7 +269,7 @@ RSpec.shared_examples 'pypi simple API endpoint' do
 
     let(:url) { "/projects/#{project.id}/packages/pypi/simple/my-package" }
     let(:headers) { basic_auth_header(user.username, personal_access_token.token) }
-    let(:snowplow_gitlab_standard_context) { { project: project, namespace: project.namespace } }
+    let(:snowplow_gitlab_standard_context) { { project: project, namespace: group, property: 'i_package_pypi_user' } }
 
     it_behaves_like 'PyPI package versions', :developer, :success
   end
@@ -290,7 +296,7 @@ RSpec.shared_examples 'pypi simple API endpoint' do
       end
 
       before do
-        allow_fetch_application_setting(attribute: "pypi_package_requests_forwarding", return_value: forward)
+        allow_fetch_cascade_application_setting(attribute: "pypi_package_requests_forwarding", return_value: forward)
       end
 
       it_behaves_like params[:shared_examples_name], :reporter, params[:expected_status]

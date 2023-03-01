@@ -1,26 +1,26 @@
 # frozen_string_literal: true
 
 class JiraConnect::SubscriptionsController < JiraConnect::ApplicationController
+  ALLOWED_IFRAME_ANCESTORS = [:self, 'https://*.atlassian.net', 'https://*.jira.com'].freeze
   layout 'jira_connect'
 
   content_security_policy do |p|
     next if p.directives.blank?
 
     # rubocop: disable Lint/PercentStringArray
-    script_src_values = Array.wrap(p.directives['script-src']) | %w('self' https://connect-cdn.atl-paas.net)
-    style_src_values = Array.wrap(p.directives['style-src']) | %w('self' 'unsafe-inline')
+    script_src_values = Array.wrap(p.directives['script-src']) | %w['self' https://connect-cdn.atl-paas.net]
+    style_src_values = Array.wrap(p.directives['style-src']) | %w['self' 'unsafe-inline']
     # rubocop: enable Lint/PercentStringArray
 
     # *.jira.com is needed for some legacy Jira Cloud instances, new ones will use *.atlassian.net
     # https://support.atlassian.com/organization-administration/docs/ip-addresses-and-domains-for-atlassian-cloud-products/
-    p.frame_ancestors :self, 'https://*.atlassian.net', 'https://*.jira.com'
+    p.frame_ancestors(*(ALLOWED_IFRAME_ANCESTORS + Gitlab.config.jira_connect.additional_iframe_ancestors))
     p.script_src(*script_src_values)
     p.style_src(*style_src_values)
   end
 
   before_action do
     push_frontend_feature_flag(:jira_connect_oauth, @user)
-    push_frontend_feature_flag(:jira_connect_oauth_self_managed, @user)
   end
 
   before_action :allow_rendering_in_iframe, only: :index
@@ -67,7 +67,7 @@ class JiraConnect::SubscriptionsController < JiraConnect::ApplicationController
     return unless current_jira_installation.instance_url?
 
     request.content_security_policy.directives['connect-src'] ||= []
-    request.content_security_policy.directives['connect-src'] << Gitlab::Utils.append_path(current_jira_installation.instance_url, '/-/jira_connect/oauth_application_id')
+    request.content_security_policy.directives['connect-src'].concat(allowed_instance_connect_src)
   end
 
   def create_service
@@ -76,5 +76,13 @@ class JiraConnect::SubscriptionsController < JiraConnect::ApplicationController
 
   def allow_rendering_in_iframe
     response.headers.delete('X-Frame-Options')
+  end
+
+  def allowed_instance_connect_src
+    [
+      Gitlab::Utils.append_path(current_jira_installation.instance_url, '/-/jira_connect/'),
+      Gitlab::Utils.append_path(current_jira_installation.instance_url, '/api/'),
+      Gitlab::Utils.append_path(current_jira_installation.instance_url, '/oauth/token')
+    ]
   end
 end

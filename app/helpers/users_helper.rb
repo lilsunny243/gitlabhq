@@ -93,7 +93,8 @@ module UsersHelper
   def user_badges_in_admin_section(user)
     [].tap do |badges|
       badges << blocked_user_badge(user) if user.blocked?
-      badges << { text: s_('AdminUsers|Admin'), variant: 'success' } if user.admin?
+      badges << { text: s_('AdminUsers|Admin'), variant: 'success' } if user.admin? # rubocop:disable Cop/UserAdmin
+      badges << { text: s_('AdminUsers|Bot'), variant: 'muted' } if user.bot?
       badges << { text: s_('AdminUsers|External'), variant: 'secondary' } if user.external?
       badges << { text: s_("AdminUsers|It's you!"), variant: 'muted' } if current_user == user
       badges << { text: s_("AdminUsers|Locked"), variant: 'warning' } if user.access_locked?
@@ -117,10 +118,6 @@ module UsersHelper
 
   def can_force_email_confirmation?(user)
     !user.confirmed?
-  end
-
-  def ban_feature_available?
-    Feature.enabled?(:ban_user_feature_flag)
   end
 
   def confirm_user_data(user)
@@ -171,6 +168,10 @@ module UsersHelper
     user.public_email.present?
   end
 
+  def trials_link_url
+    'https://about.gitlab.com/free-trial/'
+  end
+
   private
 
   def admin_users_paths
@@ -212,10 +213,6 @@ module UsersHelper
     end
 
     tabs
-  end
-
-  def trials_link_url
-    'https://about.gitlab.com/free-trial/'
   end
 
   def trials_allowed?(user)
@@ -261,9 +258,11 @@ module UsersHelper
     if with_schema_markup
       job_title = '<span itemprop="jobTitle">'.html_safe + job_title + "</span>".html_safe
       organization = '<span itemprop="worksFor">'.html_safe + organization + "</span>".html_safe
-    end
 
-    html_escape(s_('Profile|%{job_title} at %{organization}')) % { job_title: job_title, organization: organization }
+      html_escape(s_('Profile|%{job_title} at %{organization}')) % { job_title: job_title, organization: organization }
+    else
+      s_('Profile|%{job_title} at %{organization}') % { job_title: job_title, organization: organization }
+    end
   end
 
   def user_table_headers
@@ -285,6 +284,25 @@ module UsersHelper
         header_text: _('Last activity')
       }
     ]
+  end
+
+  # the keys should match the user model defined roles in app/models/user.rb
+  def localized_user_roles
+    {
+      software_developer: s_('User|Software Developer'),
+      development_team_lead: s_('User|Development Team Lead'),
+      devops_engineer: s_('User|Devops Engineer'),
+      systems_administrator: s_('User|Systems Administrator'),
+      security_analyst: s_('User|Security Analyst'),
+      data_analyst: s_('User|Data Analyst'),
+      product_manager: s_('User|Product Manager'),
+      product_designer: s_('User|Product Designer'),
+      other: s_('User|Other')
+    }.with_indifferent_access.freeze
+  end
+
+  def saved_replies_enabled?
+    Feature.enabled?(:saved_replies, current_user)
   end
 end
 

@@ -4,9 +4,9 @@ import { isNull } from 'lodash';
 import Mousetrap from 'mousetrap';
 import { ApolloMutation } from 'vue-apollo';
 import { keysFor, ISSUE_CLOSE_DESIGN } from '~/behaviors/shortcuts/keybindings';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { fetchPolicies } from '~/lib/graphql';
-import { updateGlobalTodoCount } from '~/vue_shared/components/sidebar/todo_toggle/utils';
+import { updateGlobalTodoCount } from '~/sidebar/utils';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import DesignDestroyer from '../../components/design_destroyer.vue';
 import DesignReplyForm from '../../components/design_notes/design_reply_form.vue';
@@ -41,6 +41,7 @@ import {
   DESIGN_VERSION_NOT_EXIST_ERROR,
   UPDATE_NOTE_ERROR,
   TOGGLE_TODO_ERROR,
+  DELETE_NOTE_ERROR,
   designDeletionError,
 } from '../../utils/error_messages';
 import { trackDesignDetailView, servicePingDesignDetailView } from '../../utils/tracking';
@@ -250,7 +251,7 @@ export default {
     onQueryError(message) {
       // because we redirect user to /designs (the issue page),
       // we want to create these flashes on the issue page
-      createFlash({ message });
+      createAlert({ message });
       this.$router.push({ name: this.$options.DESIGNS_ROUTE_NAME });
     },
     onError(message, e) {
@@ -262,6 +263,9 @@ export default {
     },
     onUpdateNoteError(e) {
       this.onError(UPDATE_NOTE_ERROR, e);
+    },
+    onDeleteNoteError(e) {
+      this.onError(DELETE_NOTE_ERROR, e);
     },
     onDesignDiscussionError(e) {
       this.onError(ADD_DISCUSSION_COMMENT_ERROR, e);
@@ -324,8 +328,8 @@ export default {
       const diffNoteGid = noteId ? toDiffNoteGid(noteId) : undefined;
       return this.updateActiveDiscussion(diffNoteGid, ACTIVE_DISCUSSION_SOURCE_TYPES.url);
     },
-    toggleResolvedComments() {
-      this.resolvedDiscussionsExpanded = !this.resolvedDiscussionsExpanded;
+    toggleResolvedComments(newValue) {
+      this.resolvedDiscussionsExpanded = newValue;
     },
     setMaxScale(event) {
       this.maxScale = 1 / event;
@@ -397,6 +401,7 @@ export default {
       @onDesignDiscussionError="onDesignDiscussionError"
       @onCreateImageDiffNoteError="onCreateImageDiffNoteError"
       @updateNoteError="onUpdateNoteError"
+      @deleteNoteError="onDeleteNoteError"
       @resolveDiscussionError="onResolveDiscussionError"
       @toggleResolvedComments="toggleResolvedComments"
       @todoError="onTodoError"
@@ -418,6 +423,7 @@ export default {
             v-model="comment"
             :is-saving="loading"
             :markdown-preview-path="markdownPreviewPath"
+            :noteable-id="design.id"
             @submit-form="mutate"
             @cancel-form="closeCommentForm"
           /> </apollo-mutation

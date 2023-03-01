@@ -32,10 +32,16 @@ module Gitlab
             end
           end
 
+          def root_variables
+            @context.root_variables
+          end
+
           private
 
+          delegate :logger, to: :@context
+
           def stage_seeds
-            strong_memoize(:stage_seeds) do
+            logger.instrument(:pipeline_seed_stage_seeds) do
               seeds = @stages_attributes.inject([]) do |previous_stages, attributes|
                 seed = Gitlab::Ci::Pipeline::Seed::Stage.new(@context, attributes, previous_stages)
                 previous_stages + [seed]
@@ -44,6 +50,7 @@ module Gitlab
               seeds.select(&:included?)
             end
           end
+          strong_memoize_attr :stage_seeds
         end
       end
     end

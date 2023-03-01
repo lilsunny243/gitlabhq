@@ -18,7 +18,7 @@ class Deployment < ApplicationRecord
   belongs_to :environment, optional: false
   belongs_to :cluster, class_name: 'Clusters::Cluster', optional: true
   belongs_to :user
-  belongs_to :deployable, polymorphic: true, optional: true # rubocop:disable Cop/PolymorphicAssociations
+  belongs_to :deployable, polymorphic: true, optional: true, inverse_of: :deployment # rubocop:disable Cop/PolymorphicAssociations
   has_many :deployment_merge_requests
 
   has_many :merge_requests,
@@ -59,6 +59,7 @@ class Deployment < ApplicationRecord
   scope :finished_before, ->(date) { where('finished_at < ?', date) }
 
   scope :ordered, -> { order(finished_at: :desc) }
+  scope :ordered_as_upcoming, -> { order(id: :desc) }
 
   VISIBLE_STATUSES = %i[running success failed canceled blocked].freeze
   FINISHED_STATUSES = %i[success failed canceled].freeze
@@ -102,17 +103,13 @@ class Deployment < ApplicationRecord
       deployment.finished_at = Time.current
     end
 
-    after_transition any => :running do |deployment|
-      next unless deployment.project.ci_forward_deployment_enabled?
-
-      deployment.run_after_commit do
-        Deployments::DropOlderDeploymentsWorker.perform_async(id)
-      end
-    end
-
     after_transition any => :running do |deployment, transition|
       deployment.run_after_commit do
-        Deployments::HooksWorker.perform_async(deployment_id: id, status: transition.to, status_changed_at: Time.current)
+        perform_params = { deployment_id: id, status: transition.to, status_changed_at: Time.current }
+
+        serialize_params_for_sidekiq!(perform_params)
+
+        Deployments::HooksWorker.perform_async(perform_params)
       end
     end
 
@@ -126,7 +123,11 @@ class Deployment < ApplicationRecord
 
     after_transition any => FINISHED_STATUSES do |deployment, transition|
       deployment.run_after_commit do
-        Deployments::HooksWorker.perform_async(deployment_id: id, status: transition.to, status_changed_at: Time.current)
+        perform_params = { deployment_id: id, status: transition.to, status_changed_at: Time.current }
+
+        serialize_params_for_sidekiq!(perform_params)
+
+        Deployments::HooksWorker.perform_async(perform_params)
       end
     end
 
@@ -281,27 +282,11 @@ class Deployment < ApplicationRecord
   end
 
   def manual_actions
-    environment_manual_actions
-  end
-
-  def other_manual_actions
-    @other_manual_actions ||= deployable.try(:other_manual_actions)
-  end
-
-  def environment_manual_actions
-    @environment_manual_actions ||= deployable.try(:environment_manual_actions)
+    @manual_actions ||= deployable.try(:other_manual_actions)
   end
 
   def scheduled_actions
-    environment_scheduled_actions
-  end
-
-  def environment_scheduled_actions
-    @environment_scheduled_actions ||= deployable.try(:environment_scheduled_actions)
-  end
-
-  def other_scheduled_actions
-    @other_scheduled_actions ||= deployable.try(:other_scheduled_actions)
+    @scheduled_actions ||= deployable.try(:other_scheduled_actions)
   end
 
   def playable_build
@@ -314,6 +299,16 @@ class Deployment < ApplicationRecord
     return false unless sha
 
     project.repository.ancestor?(ancestor_sha, sha)
+  end
+
+  def older_than_last_successful_deployment?
+    last_deployment_id = environment&.last_deployment&.id
+
+    return false unless last_deployment_id.present?
+    return false if self.id == last_deployment_id
+    return false if self.sha == environment.last_deployment&.sha
+
+    self.id < last_deployment_id
   end
 
   def update_merge_request_metrics!
@@ -365,6 +360,10 @@ class Deployment < ApplicationRecord
     # TODO: use deployment's user once https://gitlab.com/gitlab-org/gitlab-foss/issues/66442
     # is completed.
     deployable&.user || user
+  end
+
+  def triggered_by?(user)
+    deployed_by == user
   end
 
   def link_merge_requests(relation)
@@ -442,6 +441,14 @@ class Deployment < ApplicationRecord
     deployable.environment_tier_from_options
   end
 
+  # default tag limit is 100, 0 means no limit
+  # when refs_by_oid is passed an SHA, returns refs for that commit
+  def tags(limit: 100)
+    strong_memoize_with(:tag, limit) do
+      project.repository.refs_by_oid(oid: sha, limit: limit, ref_patterns: [Gitlab::Git::TAG_REF_PREFIX]) || []
+    end
+  end
+
   private
 
   def update_status!(status)
@@ -463,6 +470,11 @@ class Deployment < ApplicationRecord
     else
       raise ArgumentError, "The status #{status.inspect} is invalid"
     end
+  end
+
+  def serialize_params_for_sidekiq!(perform_params)
+    perform_params[:status_changed_at] = perform_params[:status_changed_at].to_s
+    perform_params.stringify_keys!
   end
 
   def self.last_deployment_group_associations

@@ -62,7 +62,7 @@ module Gitlab
       end
 
       def clear
-        Gitlab::Redis::Cache.with do |redis|
+        with_redis do |redis|
           redis.del(key)
         end
       end
@@ -81,16 +81,6 @@ module Gitlab
       end
 
       private
-
-      def expiration
-        return 1.day unless Feature.enabled?(:highlight_diffs_renewable_expiration, diffable.project)
-
-        if Feature.enabled?(:highlight_diffs_short_renewable_expiration, diffable.project)
-          EXPIRATION
-        else
-          8.hours
-        end
-      end
 
       def set_highlighted_diff_lines(diff_file, content)
         diff_file.highlighted_diff_lines = content.map do |line|
@@ -134,7 +124,7 @@ module Gitlab
       #   ...it will write/update a Gitlab::Redis hash (HSET)
       #
       def write_to_redis_hash(hash)
-        Gitlab::Redis::Cache.with do |redis|
+        with_redis do |redis|
           redis.pipelined do |pipeline|
             hash.each do |diff_file_id, highlighted_diff_lines_hash|
               pipeline.hset(
@@ -142,12 +132,12 @@ module Gitlab
                 diff_file_id,
                 gzip_compress(highlighted_diff_lines_hash.to_json)
               )
-            rescue Encoding::UndefinedConversionError
+            rescue Encoding::UndefinedConversionError, EncodingError, JSON::GeneratorError
               nil
             end
 
             # HSETs have to have their expiration date manually updated
-            pipeline.expire(key, expiration)
+            pipeline.expire(key, EXPIRATION)
           end
 
           record_memory_usage(fetch_memory_usage(redis, key))
@@ -197,14 +187,12 @@ module Gitlab
         return {} unless file_paths.any?
 
         results = []
-        cache_key = key
-        highlight_diffs_renewable_expiration_enabled = Feature.enabled?(:highlight_diffs_renewable_expiration, diffable.project)
-        expiration_period = expiration
+        cache_key = key # Moving out redis calls for feature flags out of redis.pipelined
 
-        Gitlab::Redis::Cache.with do |redis|
+        with_redis do |redis|
           redis.pipelined do |pipeline|
             results = pipeline.hmget(cache_key, file_paths)
-            pipeline.expire(key, expiration_period) if highlight_diffs_renewable_expiration_enabled
+            pipeline.expire(key, EXPIRATION)
           end
         end
 
@@ -233,6 +221,10 @@ module Gitlab
 
       def current_transaction
         ::Gitlab::Metrics::WebTransaction.current
+      end
+
+      def with_redis(&block)
+        Gitlab::Redis::Cache.with(&block) # rubocop:disable CodeReuse/ActiveRecord
       end
 
       def record_hit_ratio(results)

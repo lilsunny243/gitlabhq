@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # VM instances and images for SaaS runners on macOS **(PREMIUM SAAS)**
@@ -20,11 +20,11 @@ Each time you run a job that requires tooling or dependencies not available in t
 GitLab SaaS provides macOS build machines on Apple servers with Intel x86-64 processors.
 The expectation is that virtual machines running on the Apple M1 chip will be available in the second half of 2022.
 
-At this time there is only one available machine type offered, `gbc-macos-large`.
+At this time there is only one available machine type offered, `shared-macos-amd64`.
 
 | Instance type | vCPUS | Memory (GB) |
 | --------- | --- | ------- |
-|  `gbc-macos-large` | 4 | 10 |
+|  `shared-macos-amd64` | 4 | 10 |
 
 ## VM images
 
@@ -57,5 +57,6 @@ Each image is running a specific version of macOS and Xcode.
 | `macos-10.14-xcode-10`      | `frozen` | <https://gitlab.com/gitlab-org/ci-cd/shared-runners/images/macstadium/orka/-/blob/main/toolchain/mojave.yml>       |
 | `macos-10.15-xcode-11`      | `frozen` | <https://gitlab.com/gitlab-org/ci-cd/shared-runners/images/macstadium/orka/-/blob/main/toolchain/catalina.yml>     |
 | `macos-11-xcode-12`         | `frozen` | <https://gitlab.com/gitlab-org/ci-cd/shared-runners/images/macstadium/orka/-/blob/main/toolchain/big-sur.yml>      |
-| `macos-12-xcode-13`         | `maintenance` | <https://gitlab.com/gitlab-org/ci-cd/shared-runners/images/macstadium/orka/-/blob/main/toolchain/monterey.yml>      |
+| `macos-12-xcode-13`         | `maintenance` | <https://gitlab.com/gitlab-org/ci-cd/shared-runners/images/macstadium/orka/-/blob/main/toolchain/monterey.yml> |
+| `macos-12-xcode-14`         | `maintenance` | <https://gitlab.com/gitlab-org/ci-cd/shared-runners/images/macstadium/orka/-/blob/main/toolchain/monterey.yml> |
 | (none, awaiting macOS 13)        | `beta` |       |

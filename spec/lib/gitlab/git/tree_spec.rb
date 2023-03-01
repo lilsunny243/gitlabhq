@@ -8,7 +8,7 @@ RSpec.describe Gitlab::Git::Tree do
   let(:project) { create(:project, :repository) }
   let(:repository) { project.repository.raw }
 
-  shared_examples :repo do
+  shared_examples 'repo' do
     subject(:tree) { Gitlab::Git::Tree.where(repository, sha, path, recursive, skip_flat_paths, pagination_params) }
 
     let(:sha) { SeedRepo::Commit::ID }
@@ -95,7 +95,7 @@ RSpec.describe Gitlab::Git::Tree do
         let(:subdir_file) { entries.first }
         # rubocop: enable Rails/FindBy
         let!(:sha) do
-          repository.multi_action(
+          repository.commit_files(
             user,
             branch_name: 'HEAD',
             message: "Create #{filename}",
@@ -151,7 +151,7 @@ RSpec.describe Gitlab::Git::Tree do
   end
 
   describe '.where with Gitaly enabled' do
-    it_behaves_like :repo do
+    it_behaves_like 'repo' do
       context 'with pagination parameters' do
         let(:pagination_params) { { limit: 3, page_token: nil } }
 
@@ -172,7 +172,7 @@ RSpec.describe Gitlab::Git::Tree do
       described_class.where(repository, SeedRepo::Commit::ID, 'files', false, false)
     end
 
-    it_behaves_like :repo do
+    it_behaves_like 'repo' do
       describe 'Pagination' do
         context 'with restrictive limit' do
           let(:pagination_params) { { limit: 3, page_token: nil } }
@@ -239,7 +239,7 @@ RSpec.describe Gitlab::Git::Tree do
           let(:pagination_params) { { limit: 5, page_token: 'aabbccdd' } }
 
           it 'raises a command error' do
-            expect { entries }.to raise_error(Gitlab::Git::CommandError, 'could not find starting OID: aabbccdd')
+            expect { entries }.to raise_error(Gitlab::Git::CommandError, /could not find starting OID: aabbccdd/)
           end
         end
 

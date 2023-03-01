@@ -57,7 +57,7 @@ describe('WorkItemsHierarchy Hierarchy', () => {
     });
 
     it('does not render badges', () => {
-      expect(wrapper.find(GlBadge).exists()).toBe(false);
+      expect(wrapper.findComponent(GlBadge).exists()).toBe(false);
     });
   });
 
@@ -74,7 +74,7 @@ describe('WorkItemsHierarchy Hierarchy', () => {
     });
 
     it('renders license badges for all work items', () => {
-      expect(wrapper.findAll(GlBadge)).toHaveLength(items.length);
+      expect(wrapper.findAllComponents(GlBadge)).toHaveLength(items.length);
     });
 
     it('does not render svg icon for linking', () => {

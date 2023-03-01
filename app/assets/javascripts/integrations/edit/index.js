@@ -36,6 +36,7 @@ function parseDatasetToProps(data) {
     jiraIssueTransitionAutomatic,
     jiraIssueTransitionId,
     redirectTo,
+    upgradeSlackUrl,
     ...booleanAttributes
   } = data;
   const {
@@ -51,6 +52,7 @@ function parseDatasetToProps(data) {
     showJiraVulnerabilitiesIntegration,
     enableJiraIssues,
     enableJiraVulnerabilities,
+    shouldUpgradeSlack,
   } = parseBooleanInData(booleanAttributes);
 
   return {
@@ -89,6 +91,8 @@ function parseDatasetToProps(data) {
     integrationLevel,
     id: parseInt(id, 10),
     redirectTo,
+    shouldUpgradeSlack,
+    upgradeSlackUrl,
   };
 }
 
@@ -104,6 +108,7 @@ export default function initIntegrationSettingsForm() {
   const initialState = {
     defaultState: null,
     customState: customSettingsProps,
+    editable: customSettingsProps.editable && !customSettingsProps.shouldUpgradeSlack,
   };
   if (defaultSettingsEl) {
     initialState.defaultState = Object.freeze(parseDatasetToProps(defaultSettingsEl.dataset));

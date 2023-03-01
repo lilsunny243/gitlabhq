@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import Vuex from 'vuex';
+import { mountExtended } from 'helpers/vue_test_utils_helper';
 import frequentItemsListComponent from '~/frequent_items/components/frequent_items_list.vue';
 import frequentItemsListItemComponent from '~/frequent_items/components/frequent_items_list_item.vue';
 import { createStore } from '~/frequent_items/store';
@@ -12,12 +12,13 @@ describe('FrequentItemsListComponent', () => {
   let wrapper;
 
   const createComponent = (props = {}) => {
-    wrapper = mount(frequentItemsListComponent, {
+    wrapper = mountExtended(frequentItemsListComponent, {
       store: createStore(),
       propsData: {
         namespace: 'projects',
         items: mockFrequentProjects,
         isFetchFailed: false,
+        isItemRemovalFailed: false,
         hasSearchQuery: false,
         matcher: 'lab',
         ...props,
@@ -51,22 +52,34 @@ describe('FrequentItemsListComponent', () => {
     });
 
     describe('fetched item messages', () => {
-      it('should return appropriate empty list message based on value of `localStorageFailed` prop with projects', async () => {
+      it('should show default empty list message', async () => {
         createComponent({
-          isFetchFailed: true,
+          items: [],
         });
 
-        expect(wrapper.vm.listEmptyMessage).toBe(
-          'This feature requires browser localStorage support',
+        expect(wrapper.findByTestId('frequent-items-list-empty').text()).toContain(
+          'Projects you visit often will appear here',
         );
-
-        wrapper.setProps({
-          isFetchFailed: false,
-        });
-        await nextTick();
-
-        expect(wrapper.vm.listEmptyMessage).toBe('Projects you visit often will appear here');
       });
+
+      it.each`
+        isFetchFailed | isItemRemovalFailed
+        ${true}       | ${false}
+        ${false}      | ${true}
+      `(
+        'should show failure message when `isFetchFailed` is $isFetchFailed or `isItemRemovalFailed` is $isItemRemovalFailed',
+        ({ isFetchFailed, isItemRemovalFailed }) => {
+          createComponent({
+            items: [],
+            isFetchFailed,
+            isItemRemovalFailed,
+          });
+
+          expect(wrapper.findByTestId('frequent-items-list-empty').text()).toContain(
+            'This feature requires browser localStorage support',
+          );
+        },
+      );
     });
 
     describe('searched item messages', () => {
@@ -94,8 +107,8 @@ describe('FrequentItemsListComponent', () => {
 
       await nextTick();
       expect(wrapper.classes('frequent-items-list-container')).toBe(true);
-      expect(wrapper.findAll({ ref: 'frequentItemsList' })).toHaveLength(1);
-      expect(wrapper.findAll(frequentItemsListItemComponent)).toHaveLength(5);
+      expect(wrapper.findAllByTestId('frequent-items-list')).toHaveLength(1);
+      expect(wrapper.findAllComponents(frequentItemsListItemComponent)).toHaveLength(5);
     });
 
     it('should render component element with empty message', async () => {
@@ -105,7 +118,7 @@ describe('FrequentItemsListComponent', () => {
 
       await nextTick();
       expect(wrapper.vm.$el.querySelectorAll('li.section-empty')).toHaveLength(1);
-      expect(wrapper.findAll(frequentItemsListItemComponent)).toHaveLength(0);
+      expect(wrapper.findAllComponents(frequentItemsListItemComponent)).toHaveLength(0);
     });
   });
 });

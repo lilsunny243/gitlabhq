@@ -1,8 +1,8 @@
 <script>
-import { GlIcon, GlLink, GlLoadingIcon, GlSafeHtmlDirective as SafeHtml } from '@gitlab/ui';
-import $ from 'jquery';
-import '~/behaviors/markdown/render_gfm';
+import { GlIcon, GlLink, GlLoadingIcon } from '@gitlab/ui';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { handleLocationHash } from '~/lib/utils/common_utils';
+import { renderGFM } from '~/behaviors/markdown/render_gfm';
 import readmeQuery from '../../queries/readme.query.graphql';
 
 export default {
@@ -14,7 +14,6 @@ export default {
           url: this.blob.webPath,
         };
       },
-      loadingKey: 'loading',
     },
   },
   components: {
@@ -34,15 +33,19 @@ export default {
   data() {
     return {
       readme: null,
-      loading: 0,
     };
+  },
+  computed: {
+    isLoading() {
+      return this.$apollo.queries.readme.loading;
+    },
   },
   watch: {
     readme(newVal) {
       if (newVal) {
         this.$nextTick(() => {
           handleLocationHash();
-          $(this.$refs.readme).renderGFM();
+          renderGFM(this.$refs.readme);
         });
       }
     },
@@ -64,7 +67,7 @@ export default {
       </div>
     </div>
     <div class="blob-viewer" data-qa-selector="blob_viewer_content" itemprop="about">
-      <gl-loading-icon v-if="loading > 0" size="lg" color="dark" class="my-4 mx-auto" />
+      <gl-loading-icon v-if="isLoading" size="lg" color="dark" class="my-4 mx-auto" />
       <div
         v-else-if="readme"
         ref="readme"

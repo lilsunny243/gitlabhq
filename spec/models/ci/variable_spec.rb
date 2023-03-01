@@ -2,10 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe Ci::Variable do
-  subject { build(:ci_variable) }
+RSpec.describe Ci::Variable, feature_category: :pipeline_composition do
+  let_it_be_with_reload(:project) { create(:project) }
+
+  subject { build(:ci_variable, project: project) }
 
   it_behaves_like "CI variable"
+  it_behaves_like 'includes Limitable concern'
 
   describe 'validations' do
     it { is_expected.to include_module(Presentable) }
@@ -47,7 +50,7 @@ RSpec.describe Ci::Variable do
 
   context 'loose foreign key on ci_variables.project_id' do
     it_behaves_like 'cleanup by a loose foreign key' do
-      let!(:parent) { create(:project) }
+      let!(:parent) { create(:project, namespace: create(:group)) }
       let!(:model) { create(:ci_variable, project: parent) }
     end
   end

@@ -16,6 +16,16 @@
 #   NotificationService.new.async.new_issue(issue, current_user)
 #
 class NotificationService
+  # These should not be called by the MailScheduler::NotificationServiceWorker -
+  # what would it even mean?
+  EXCLUDED_ACTIONS = %i[async].freeze
+
+  def self.permitted_actions
+    @permitted_actions ||= gitlab_extensions.flat_map do |klass|
+      klass.public_instance_methods(false) - EXCLUDED_ACTIONS
+    end.to_set
+  end
+
   class Async
     attr_reader :parent
 
@@ -81,10 +91,17 @@ class NotificationService
   end
 
   # Notify the user when at least one of their personal access tokens has expired today
-  def access_token_expired(user)
+  def access_token_expired(user, token_names = [])
     return unless user.can?(:receive_notifications)
 
-    mailer.access_token_expired_email(user).deliver_later
+    mailer.access_token_expired_email(user, token_names).deliver_later
+  end
+
+  # Notify the user when one of their personal access tokens is revoked
+  def access_token_revoked(user, token_name, source = nil)
+    return unless user.can?(:receive_notifications)
+
+    mailer.access_token_revoked_email(user, token_name, source).deliver_later
   end
 
   # Notify the user when at least one of their ssh key has expired today
@@ -107,6 +124,14 @@ class NotificationService
     return unless user.can?(:receive_notifications)
 
     mailer.unknown_sign_in_email(user, ip, time).deliver_later
+  end
+
+  # Notify a user when a wrong 2FA OTP has been entered to
+  # try to sign in to their account
+  def two_factor_otp_attempt_failed(user, ip)
+    return unless user.can?(:receive_notifications)
+
+    mailer.two_factor_otp_attempt_failed_email(user, ip).deliver_later
   end
 
   # Notify a user when a new email address is added to the their account
@@ -185,14 +210,6 @@ class NotificationService
   #
   def relabeled_issue(issue, added_labels, current_user)
     relabeled_resource_email(issue, added_labels, current_user, :relabeled_issue_email)
-  end
-
-  def removed_milestone_issue(issue, current_user)
-    removed_milestone_resource_email(issue, current_user, :removed_milestone_issue_email)
-  end
-
-  def changed_milestone_issue(issue, new_milestone, current_user)
-    changed_milestone_resource_email(issue, new_milestone, current_user, :changed_milestone_issue_email)
   end
 
   # When create a merge request we should send an email to:
@@ -341,14 +358,6 @@ class NotificationService
     relabeled_resource_email(merge_request, added_labels, current_user, :relabeled_merge_request_email)
   end
 
-  def removed_milestone_merge_request(merge_request, current_user)
-    removed_milestone_resource_email(merge_request, current_user, :removed_milestone_merge_request_email)
-  end
-
-  def changed_milestone_merge_request(merge_request, new_milestone, current_user)
-    changed_milestone_resource_email(merge_request, new_milestone, current_user, :changed_milestone_merge_request_email)
-  end
-
   def close_mr(merge_request, current_user)
     close_resource_email(merge_request, current_user, :closed_merge_request_email)
   end
@@ -470,13 +479,7 @@ class NotificationService
   def new_access_request(member)
     return true unless member.notifiable?(:subscription)
 
-    source = member.source
-
-    recipients = source.access_request_approvers_to_be_notified
-
-    if fallback_to_group_access_request_approvers?(recipients, source)
-      recipients = source.group.access_request_approvers_to_be_notified
-    end
+    recipients = member.source.access_request_approvers_to_be_notified
 
     return true if recipients.empty?
 
@@ -769,6 +772,44 @@ class NotificationService
     end
   end
 
+  def removed_milestone(target, current_user)
+    method = case target
+             when Issue
+               :removed_milestone_issue_email
+             when MergeRequest
+               :removed_milestone_merge_request_email
+             end
+
+    recipients = NotificationRecipients::BuildService.build_recipients(
+      target,
+      current_user,
+      action: 'removed_milestone'
+    )
+
+    recipients.each do |recipient|
+      mailer.send(method, recipient.user.id, target.id, current_user.id).deliver_later
+    end
+  end
+
+  def changed_milestone(target, milestone, current_user)
+    method = case target
+             when Issue
+               :changed_milestone_issue_email
+             when MergeRequest
+               :changed_milestone_merge_request_email
+             end
+
+    recipients = NotificationRecipients::BuildService.build_recipients(
+      target,
+      current_user,
+      action: 'changed_milestone'
+    )
+
+    recipients.each do |recipient|
+      mailer.send(method, recipient.user.id, target.id, milestone, current_user.id).deliver_later
+    end
+  end
+
   protected
 
   def new_resource_email(target, current_user, method)
@@ -825,30 +866,6 @@ class NotificationService
 
     recipients.each do |recipient|
       mailer.send(method, recipient.id, target.id, label_names, current_user.id).deliver_later
-    end
-  end
-
-  def removed_milestone_resource_email(target, current_user, method)
-    recipients = NotificationRecipients::BuildService.build_recipients(
-      target,
-      current_user,
-      action: 'removed_milestone'
-    )
-
-    recipients.each do |recipient|
-      mailer.send(method, recipient.user.id, target.id, current_user.id).deliver_later
-    end
-  end
-
-  def changed_milestone_resource_email(target, milestone, current_user, method)
-    recipients = NotificationRecipients::BuildService.build_recipients(
-      target,
-      current_user,
-      action: 'changed_milestone'
-    )
-
-    recipients.each do |recipient|
-      mailer.send(method, recipient.user.id, target.id, milestone, current_user.id).deliver_later
     end
   end
 
@@ -922,22 +939,16 @@ class NotificationService
     NotificationRecipients::BuildService.build_project_maintainers_recipients(target, action: action)
   end
 
-  def notifiable?(*args)
-    NotificationRecipients::BuildService.notifiable?(*args)
+  def notifiable?(...)
+    NotificationRecipients::BuildService.notifiable?(...)
   end
 
-  def notifiable_users(*args)
-    NotificationRecipients::BuildService.notifiable_users(*args)
+  def notifiable_users(...)
+    NotificationRecipients::BuildService.notifiable_users(...)
   end
 
   def deliver_access_request_email(recipient, member)
     mailer.member_access_requested_email(member.real_source_type, member.id, recipient.user.id).deliver_later
-  end
-
-  def fallback_to_group_access_request_approvers?(recipients, source)
-    return false if recipients.present?
-
-    source.respond_to?(:group) && source.group
   end
 
   def warn_skipping_notifications(user, object)

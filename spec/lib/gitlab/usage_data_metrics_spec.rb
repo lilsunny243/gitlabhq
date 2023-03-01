@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::UsageDataMetrics do
+RSpec.describe Gitlab::UsageDataMetrics, :with_license, feature_category: :service_ping do
   describe '.uncached_data' do
     subject { described_class.uncached_data }
 
@@ -31,10 +31,16 @@ RSpec.describe Gitlab::UsageDataMetrics do
       it 'includes counts keys', :aggregate_failures do
         expect(subject[:counts]).to include(:boards)
         expect(subject[:counts]).to include(:issues)
+        expect(subject[:counts]).to include(:gitlab_for_jira_app_direct_installations)
+        expect(subject[:counts]).to include(:gitlab_for_jira_app_proxy_installations)
       end
 
       it 'includes usage_activity_by_stage keys' do
         expect(subject[:usage_activity_by_stage][:plan]).to include(:issues)
+      end
+
+      it 'includes usage_activity_by_stage metrics' do
+        expect(subject[:usage_activity_by_stage][:manage]).to include(:count_user_auth)
       end
 
       it 'includes usage_activity_by_stage_monthly keys' do

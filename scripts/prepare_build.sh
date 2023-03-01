@@ -14,13 +14,21 @@ if [ "$DECOMPOSED_DB" == "true" ]; then
   echo "Using decomposed database config (config/database.yml.decomposed-postgresql)"
   cp config/database.yml.decomposed-postgresql config/database.yml
 else
+  echo "Using decomposed database config (config/database.yml.postgresql)"
   cp config/database.yml.postgresql config/database.yml
+
+  if [ "$CI_CONNECTION_DB" == "true" ]; then
+    echo "Enabling ci connection (database_tasks: false) in config/database.yml"
+    sed -i '/ci:/,/geo:/''s/^  # /  /g' config/database.yml
+  fi
 fi
 
-# Remove Geo database setting if `ee/` directory does not exist. When it does
-# not exist, it runs the GitLab test suite "as if FOSS", meaning the jobs run
-# in the context of gitlab-org/gitlab-foss where the Geo is not available.
-if [ ! -d "ee/" ] ; then
+# Set up Geo database if the job name matches `rspec-ee` or `geo`.
+# Since Geo is an EE feature, we shouldn't set it up for non-EE tests.
+if [[ "${CI_JOB_NAME}" =~ "rspec-ee" ]] || [[ "${CI_JOB_NAME}" =~ "geo" ]]; then
+  echoinfo "Geo DB will be set up."
+else
+  echoinfo "Geo DB won't be set up."
   sed -i '/geo:/,/^$/d' config/database.yml
 fi
 

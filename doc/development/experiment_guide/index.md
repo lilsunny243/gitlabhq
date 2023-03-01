@@ -1,7 +1,7 @@
 ---
 stage: Growth
 group: Acquisition
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Experiment Guide
@@ -63,3 +63,7 @@ We recommend the following workflow:
 1. **If the experiment is a success**, designers add the new icon or illustration to the Pajamas UI kit as part of the cleanup process.
    Engineers can then add it to the [SVG library](https://gitlab-org.gitlab.io/gitlab-svgs/) and modify the implementation based on the
    [Frontend Development Guidelines](../fe_guide/icons.md#usage-in-hamlrails-2).
+
+## Related topics
+
+- [Experiments API](../../api/experiments.md)

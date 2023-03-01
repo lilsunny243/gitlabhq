@@ -7,19 +7,18 @@ import {
   GlLoadingIcon,
   GlIcon,
   GlHoverLoadDirective,
-  GlSafeHtmlDirective,
   GlIntersectionObserver,
 } from '@gitlab/ui';
 import { escapeRegExp } from 'lodash';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import paginatedTreeQuery from 'shared_queries/repository/paginated_tree.query.graphql';
 import { escapeFileUrl } from '~/lib/utils/url_utility';
 import { TREE_PAGE_SIZE, ROW_APPEAR_DELAY } from '~/repository/constants';
 import FileIcon from '~/vue_shared/components/file_icon.vue';
 import TimeagoTooltip from '~/vue_shared/components/time_ago_tooltip.vue';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import blobInfoQuery from 'shared_queries/repository/blob_info.query.graphql';
 import getRefMixin from '../../mixins/get_ref';
-import blobInfoQuery from '../../queries/blob_info.query.graphql';
-import commitQuery from '../../queries/commit.query.graphql';
 
 export default {
   components: {
@@ -35,23 +34,7 @@ export default {
   directives: {
     GlTooltip: GlTooltipDirective,
     GlHoverLoad: GlHoverLoadDirective,
-    SafeHtml: GlSafeHtmlDirective,
-  },
-  apollo: {
-    commit: {
-      query: commitQuery,
-      variables() {
-        return {
-          fileName: this.name,
-          path: this.currentPath,
-          projectPath: this.projectPath,
-          maxOffset: this.totalEntries,
-        };
-      },
-      skip() {
-        return this.glFeatures.lazyLoadCommits;
-      },
-    },
+    SafeHtml,
   },
   mixins: [getRefMixin, glFeatureFlagMixin()],
   props: {
@@ -125,14 +108,13 @@ export default {
   },
   data() {
     return {
-      commit: null,
       hasRowAppeared: false,
       delayedRowAppear: null,
     };
   },
   computed: {
     commitData() {
-      return this.glFeatures.lazyLoadCommits ? this.commitInfo : this.commit;
+      return this.commitInfo;
     },
     routerLinkTo() {
       const blobRouteConfig = { path: `/-/blob/${this.escapedRef}/${escapeFileUrl(this.path)}` };
@@ -200,12 +182,10 @@ export default {
         return;
       }
 
-      if (this.glFeatures.lazyLoadCommits) {
-        this.delayedRowAppear = setTimeout(
-          () => this.$emit('row-appear', this.rowNumber),
-          ROW_APPEAR_DELAY,
-        );
-      }
+      this.delayedRowAppear = setTimeout(
+        () => this.$emit('row-appear', this.rowNumber),
+        ROW_APPEAR_DELAY,
+      );
     },
     rowDisappeared() {
       clearTimeout(this.delayedRowAppear);
@@ -223,7 +203,7 @@ export default {
         :is="linkComponent"
         ref="link"
         v-gl-hover-load="handlePreload"
-        v-gl-tooltip:tooltip-container
+        v-gl-tooltip="{ placement: 'left', boundary: 'viewport' }"
         :title="fullPath"
         :to="routerLinkTo"
         :href="url"
@@ -244,7 +224,7 @@ export default {
         /><span class="position-relative">{{ fullPath }}</span>
       </component>
       <!-- eslint-disable @gitlab/vue-require-i18n-strings -->
-      <gl-badge v-if="lfsOid" variant="muted" size="sm" class="ml-1" data-qa-selector="label-lfs"
+      <gl-badge v-if="lfsOid" variant="muted" size="sm" class="ml-1" data-testid="label-lfs"
         >LFS</gl-badge
       >
       <!-- eslint-enable @gitlab/vue-require-i18n-strings -->
@@ -260,19 +240,19 @@ export default {
         class="ml-1"
       />
     </td>
-    <td class="d-none d-sm-table-cell tree-commit cursor-default">
+    <td class="d-none d-sm-table-cell tree-commit cursor-default gl-text-secondary">
       <gl-link
         v-if="commitData"
         v-safe-html:[$options.safeHtmlConfig]="commitData.titleHtml"
         :href="commitData.commitPath"
         :title="commitData.message"
-        class="str-truncated-100 tree-commit-link"
+        class="str-truncated-100 tree-commit-link gl-text-secondary"
       />
       <gl-intersection-observer @appear="rowAppeared" @disappear="rowDisappeared">
         <gl-skeleton-loader v-if="showSkeletonLoader" :lines="1" />
       </gl-intersection-observer>
     </td>
-    <td class="tree-time-ago text-right cursor-default">
+    <td class="tree-time-ago text-right cursor-default gl-text-secondary">
       <timeago-tooltip v-if="commitData" :time="commitData.committedDate" />
       <gl-skeleton-loader v-if="showSkeletonLoader" :lines="1" />
     </td>

@@ -8,6 +8,7 @@ RSpec.describe Packages::PackageFile, type: :model do
   let_it_be(:package_file1) { create(:package_file, :xml, file_name: 'FooBar') }
   let_it_be(:package_file2) { create(:package_file, :xml, file_name: 'ThisIsATest') }
   let_it_be(:package_file3) { create(:package_file, :xml, file_name: 'formatted.zip') }
+  let_it_be(:package_file4) { create(:package_file, :nuget) }
   let_it_be(:debian_package) { create(:debian_package, project: project) }
 
   it_behaves_like 'having unique enum values'
@@ -98,21 +99,21 @@ RSpec.describe Packages::PackageFile, type: :model do
 
       it { is_expected.to contain_exactly(package_file3) }
     end
+
+    describe '.with_nuget_format' do
+      subject { described_class.with_nuget_format }
+
+      it { is_expected.to contain_exactly(package_file4) }
+    end
   end
 
   context 'updating project statistics' do
     let_it_be(:package, reload: true) { create(:package) }
 
     context 'when the package file has an explicit size' do
-      it_behaves_like 'UpdateProjectStatistics' do
-        subject { build(:package_file, :jar, package: package, size: 42) }
-      end
-    end
+      subject { build(:package_file, :jar, package: package, size: 42) }
 
-    context 'when the package file does not have a size' do
-      it_behaves_like 'UpdateProjectStatistics' do
-        subject { build(:package_file, package: package, size: nil) }
-      end
+      it_behaves_like 'UpdateProjectStatistics', :packages_size
     end
   end
 
@@ -314,7 +315,7 @@ RSpec.describe Packages::PackageFile, type: :model do
       # to `1`.
       expect(package_file)
         .to receive(:update_column)
-        .with(:file_store, ::Packages::PackageFileUploader::Store::LOCAL)
+        .with('file_store', ::Packages::PackageFileUploader::Store::LOCAL)
 
       expect { subject }.to change { package_file.size }.from(nil).to(3513)
     end

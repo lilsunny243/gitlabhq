@@ -1,7 +1,7 @@
 ---
 stage: Secure
 group: Static Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Secure Partner Integration - Onboarding Process
@@ -77,7 +77,7 @@ and complete an integration with the Secure stage.
 1. Get a test account to begin developing your integration. You can
    request a [GitLab.com Subscription Sandbox](https://about.gitlab.com/partners/technology-partners/integrate/#gitlabcom-subscription-sandbox-request)
    or an [EE Developer License](https://about.gitlab.com/partners/technology-partners/integrate/#requesting-ultimate-dev-license-for-rd).
-1. Provide a [pipeline job](../../development/pipelines.md)
+1. Provide a [pipeline job](../../development/pipelines)
    template that users could integrate into their own GitLab pipelines.
 1. Create a report artifact with your pipeline jobs.
 1. Ensure your pipeline jobs create a report artifact that GitLab can process
@@ -90,7 +90,7 @@ and complete an integration with the Secure stage.
      - Documentation for [SAST reports](../../user/application_security/sast/index.md#reports-json-format).
      - Documentation for [Dependency Scanning reports](../../user/application_security/dependency_scanning/index.md#reports-json-format).
      - Documentation for [Container Scanning reports](../../user/application_security/container_scanning/index.md#reports-json-format).
-     - See this [example secure job definition that also defines the artifact created](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Security/Container-Scanning.gitlab-ci.yml).
+     - See this [example secure job definition that also defines the artifact created](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Jobs/Container-Scanning.gitlab-ci.yml).
      - If you need a new kind of scan or report, [create an issue](https://gitlab.com/gitlab-org/gitlab/-/issues/new#)
        and add the label `devops::secure`.
    - Once the job is completed, the data can be seen:

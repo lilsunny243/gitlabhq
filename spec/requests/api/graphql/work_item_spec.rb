@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Query.work_item(id)' do
+RSpec.describe 'Query.work_item(id)', feature_category: :team_planning do
   include GraphqlHelpers
 
   let_it_be(:developer) { create(:user) }
@@ -14,7 +14,10 @@ RSpec.describe 'Query.work_item(id)' do
       project: project,
       description: '- List item',
       start_date: Date.today,
-      due_date: 1.week.from_now
+      due_date: 1.week.from_now,
+      created_at: 1.week.ago,
+      last_edited_at: 1.day.ago,
+      last_edited_by: guest
     )
   end
 
@@ -52,7 +55,12 @@ RSpec.describe 'Query.work_item(id)' do
         'title' => work_item.title,
         'confidential' => work_item.confidential,
         'workItemType' => hash_including('id' => work_item.work_item_type.to_gid.to_s),
-        'userPermissions' => { 'readWorkItem' => true, 'updateWorkItem' => true, 'deleteWorkItem' => false },
+        'userPermissions' => {
+          'readWorkItem' => true,
+          'updateWorkItem' => true,
+          'deleteWorkItem' => false,
+          'adminWorkItem' => true
+        },
         'project' => hash_including('id' => project.to_gid.to_s, 'fullPath' => project.full_path)
       )
     end
@@ -67,6 +75,12 @@ RSpec.describe 'Query.work_item(id)' do
               ... on WorkItemWidgetDescription {
                 description
                 descriptionHtml
+                edited
+                lastEditedBy {
+                  webPath
+                  username
+                }
+                lastEditedAt
               }
             }
           GRAPHQL
@@ -79,7 +93,13 @@ RSpec.describe 'Query.work_item(id)' do
               hash_including(
                 'type' => 'DESCRIPTION',
                 'description' => work_item.description,
-                'descriptionHtml' => ::MarkupHelper.markdown_field(work_item, :description, {})
+                'descriptionHtml' => ::MarkupHelper.markdown_field(work_item, :description, {}),
+                'edited' => true,
+                'lastEditedAt' => work_item.last_edited_at.iso8601,
+                'lastEditedBy' => {
+                  'webPath' => "/#{guest.full_path}",
+                  'username' => guest.username
+                }
               )
             )
           )
@@ -101,6 +121,7 @@ RSpec.describe 'Query.work_item(id)' do
                     id
                   }
                 }
+                hasChildren
               }
             }
           GRAPHQL
@@ -113,10 +134,12 @@ RSpec.describe 'Query.work_item(id)' do
               hash_including(
                 'type' => 'HIERARCHY',
                 'parent' => nil,
-                'children' => { 'nodes' => match_array([
-                  hash_including('id' => child_link1.work_item.to_gid.to_s),
-                  hash_including('id' => child_link2.work_item.to_gid.to_s)
-                ]) }
+                'children' => { 'nodes' => match_array(
+                  [
+                    hash_including('id' => child_link1.work_item.to_gid.to_s),
+                    hash_including('id' => child_link2.work_item.to_gid.to_s)
+                  ]) },
+                'hasChildren' => true
               )
             )
           )
@@ -146,9 +169,11 @@ RSpec.describe 'Query.work_item(id)' do
                 hash_including(
                   'type' => 'HIERARCHY',
                   'parent' => nil,
-                  'children' => { 'nodes' => match_array([
-                    hash_including('id' => child_link1.work_item.to_gid.to_s)
-                  ]) }
+                  'children' => { 'nodes' => match_array(
+                    [
+                      hash_including('id' => child_link1.work_item.to_gid.to_s)
+                    ]) },
+                  'hasChildren' => true
                 )
               )
             )
@@ -166,10 +191,43 @@ RSpec.describe 'Query.work_item(id)' do
                 hash_including(
                   'type' => 'HIERARCHY',
                   'parent' => hash_including('id' => parent_link.work_item_parent.to_gid.to_s),
-                  'children' => { 'nodes' => match_array([]) }
+                  'children' => { 'nodes' => match_array([]) },
+                  'hasChildren' => false
                 )
               )
             )
+          end
+        end
+
+        context 'when ordered by default by created_at' do
+          let_it_be(:newest_child) { create(:work_item, :task, project: project, created_at: 5.minutes.from_now) }
+          let_it_be(:oldest_child) { create(:work_item, :task, project: project, created_at: 5.minutes.ago) }
+          let_it_be(:newest_link) { create(:parent_link, work_item_parent: work_item, work_item: newest_child) }
+          let_it_be(:oldest_link) { create(:parent_link, work_item_parent: work_item, work_item: oldest_child) }
+
+          let(:hierarchy_widget) { work_item_data['widgets'].find { |widget| widget['type'] == 'HIERARCHY' } }
+          let(:hierarchy_children) { hierarchy_widget['children']['nodes'] }
+
+          it 'places the oldest child item to the beginning of the children list' do
+            expect(hierarchy_children.first['id']).to eq(oldest_child.to_gid.to_s)
+          end
+
+          it 'places the newest child item to the end of the children list' do
+            expect(hierarchy_children.last['id']).to eq(newest_child.to_gid.to_s)
+          end
+
+          context 'when relative position is set' do
+            let_it_be(:first_child) { create(:work_item, :task, project: project, created_at: 5.minutes.from_now) }
+
+            let_it_be(:first_link) do
+              create(:parent_link, work_item_parent: work_item, work_item: first_child, relative_position: 1)
+            end
+
+            it 'places children according to relative_position at the beginning of the children list' do
+              ordered_list = [first_child, oldest_child, child_item1, child_item2, newest_child]
+
+              expect(hierarchy_children.pluck('id')).to eq(ordered_list.map(&:to_gid).map(&:to_s))
+            end
           end
         end
       end
@@ -281,6 +339,40 @@ RSpec.describe 'Query.work_item(id)' do
           )
         end
       end
+
+      describe 'milestone widget' do
+        let_it_be(:milestone) { create(:milestone, project: project) }
+
+        let(:work_item) { create(:work_item, project: project, milestone: milestone) }
+
+        let(:work_item_fields) do
+          <<~GRAPHQL
+            id
+            widgets {
+              type
+              ... on WorkItemWidgetMilestone {
+                milestone {
+                  id
+                }
+              }
+            }
+          GRAPHQL
+        end
+
+        it 'returns widget information' do
+          expect(work_item_data).to include(
+            'id' => work_item.to_gid.to_s,
+            'widgets' => include(
+              hash_including(
+                'type' => 'MILESTONE',
+                'milestone' => {
+                  'id' => work_item.milestone.to_gid.to_s
+                }
+              )
+            )
+          )
+        end
+      end
     end
 
     context 'when an Issue Global ID is provided' do
@@ -304,18 +396,6 @@ RSpec.describe 'Query.work_item(id)' do
       expect(graphql_errors).to contain_exactly(
         hash_including('message' => ::Gitlab::Graphql::Authorize::AuthorizeResource::RESOURCE_ACCESS_ERROR)
       )
-    end
-  end
-
-  context 'when the work_items feature flag is disabled' do
-    before do
-      stub_feature_flags(work_items: false)
-    end
-
-    it 'returns nil' do
-      post_graphql(query)
-
-      expect(work_item_data).to be_nil
     end
   end
 end

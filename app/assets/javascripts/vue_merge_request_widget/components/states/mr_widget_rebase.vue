@@ -1,23 +1,50 @@
 <script>
-import { GlButton, GlSkeletonLoader } from '@gitlab/ui';
-import createFlash from '~/flash';
-import { __ } from '~/locale';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
+import { GlButton, GlLink, GlModal, GlSkeletonLoader } from '@gitlab/ui';
+import { helpPagePath } from '~/helpers/help_page_helper';
+import { createAlert } from '~/flash';
+import { __, s__ } from '~/locale';
 import toast from '~/vue_shared/plugins/global_toast';
 import simplePoll from '~/lib/utils/simple_poll';
+import BoldText from '~/vue_merge_request_widget/components/bold_text.vue';
 import eventHub from '../../event_hub';
 import mergeRequestQueryVariablesMixin from '../../mixins/merge_request_query_variables';
 import rebaseQuery from '../../queries/states/rebase.query.graphql';
 import StateContainer from '../state_container.vue';
 
+const i18n = {
+  rebaseError: s__(
+    'mrWidget|%{boldStart}Merge blocked:%{boldEnd} the source branch must be rebased onto the target branch.',
+  ),
+};
+
 export default {
   name: 'MRWidgetRebase',
+  i18n,
+  modal: {
+    id: 'rebase-security-risk-modal',
+    title: s__('mrWidget|Are you sure you want to rebase?'),
+    actionPrimary: {
+      text: s__('mrWidget|Rebase'),
+      attributes: {
+        variant: 'danger',
+      },
+    },
+    actionCancel: {
+      text: __('Cancel'),
+      attributes: {
+        variant: 'default',
+      },
+    },
+  },
+  runPipelinesInTheParentProjectHelpPath: helpPagePath(
+    '/ci/pipelines/merge_request_pipelines.html',
+    {
+      anchor: 'run-pipelines-in-the-parent-project',
+    },
+  ),
   apollo: {
     state: {
       query: rebaseQuery,
-      skip() {
-        return !this.glFeatures.mergeRequestWidgetGraphql;
-      },
       variables() {
         return this.mergeRequestQueryVariables;
       },
@@ -25,11 +52,19 @@ export default {
     },
   },
   components: {
-    GlSkeletonLoader,
+    BoldText,
     GlButton,
+    GlLink,
+    GlModal,
+    GlSkeletonLoader,
     StateContainer,
   },
-  mixins: [glFeatureFlagMixin(), mergeRequestQueryVariablesMixin],
+  mixins: [mergeRequestQueryVariablesMixin],
+  inject: {
+    canCreatePipelineInTargetProject: {
+      default: false,
+    },
+  },
   props: {
     mr: {
       type: Object,
@@ -49,28 +84,16 @@ export default {
   },
   computed: {
     isLoading() {
-      return this.glFeatures.mergeRequestWidgetGraphql && this.$apollo.queries.state.loading;
+      return this.$apollo.queries.state.loading;
     },
     rebaseInProgress() {
-      if (this.glFeatures.mergeRequestWidgetGraphql) {
-        return this.state.rebaseInProgress;
-      }
-
-      return this.mr.rebaseInProgress;
+      return this.state.rebaseInProgress;
     },
     canPushToSourceBranch() {
-      if (this.glFeatures.mergeRequestWidgetGraphql) {
-        return this.state.userPermissions.pushToSourceBranch;
-      }
-
-      return this.mr.canPushToSourceBranch;
+      return this.state.userPermissions.pushToSourceBranch;
     },
     targetBranch() {
-      if (this.glFeatures.mergeRequestWidgetGraphql) {
-        return this.state.targetBranch;
-      }
-
-      return this.mr.targetBranch;
+      return this.state.targetBranch;
     },
     status() {
       if (this.isLoading) {
@@ -85,13 +108,25 @@ export default {
       }
       return 'success';
     },
-    fastForwardMergeText() {
-      return __('Merge blocked: the source branch must be rebased onto the target branch.');
-    },
     showRebaseWithoutPipeline() {
       return (
         !this.mr.onlyAllowMergeIfPipelineSucceeds ||
         (this.mr.onlyAllowMergeIfPipelineSucceeds && this.mr.allowMergeOnSkippedPipeline)
+      );
+    },
+    isForkMergeRequest() {
+      return this.mr.sourceProjectFullPath !== this.mr.targetProjectFullPath;
+    },
+    isLatestPipelineCreatedInTargetProject() {
+      const latestPipeline = this.state.pipelines.nodes[0];
+
+      return latestPipeline?.project?.fullPath === this.mr.targetProjectFullPath;
+    },
+    shouldShowSecurityWarning() {
+      return (
+        this.canCreatePipelineInTargetProject &&
+        this.isForkMergeRequest &&
+        !this.isLatestPipelineCreatedInTargetProject
       );
     },
   },
@@ -111,7 +146,7 @@ export default {
           if (error.response && error.response.data && error.response.data.merge_error) {
             this.rebasingError = error.response.data.merge_error;
           } else {
-            createFlash({
+            createAlert({
               message: __('Something went wrong. Please try again.'),
             });
           }
@@ -119,6 +154,13 @@ export default {
     },
     rebaseWithoutCi() {
       return this.rebase({ skipCi: true });
+    },
+    tryRebase() {
+      if (this.shouldShowSecurityWarning) {
+        this.$refs.modal.show();
+      } else {
+        this.rebase();
+      }
     },
     checkRebaseStatus(continuePolling, stopPolling) {
       this.service
@@ -142,7 +184,7 @@ export default {
         })
         .catch(() => {
           this.isMakingRequest = false;
-          createFlash({
+          createAlert({
             message: __('Something went wrong. Please try again.'),
           });
           stopPolling();
@@ -152,71 +194,103 @@ export default {
 };
 </script>
 <template>
-  <state-container :mr="mr" :status="status" :is-loading="isLoading">
-    <template #loading>
-      <gl-skeleton-loader :width="334" :height="30">
-        <rect x="0" y="3" width="24" height="24" rx="4" />
-        <rect x="32" y="5" width="302" height="20" rx="4" />
-      </gl-skeleton-loader>
-    </template>
-    <template v-if="!isLoading">
-      <span
-        v-if="rebaseInProgress || isMakingRequest"
-        class="gl-ml-0! gl-text-body! gl-font-weight-bold"
-        data-testid="rebase-message"
-        >{{ __('Rebase in progress') }}</span
-      >
-      <span
-        v-if="!rebaseInProgress && !canPushToSourceBranch"
-        class="gl-text-body! gl-font-weight-bold gl-ml-0!"
-        data-testid="rebase-message"
-        >{{ fastForwardMergeText }}</span
-      >
-      <div
-        v-if="!rebaseInProgress && canPushToSourceBranch && !isMakingRequest"
-        class="accept-merge-holder clearfix js-toggle-container media gl-md-display-flex gl-flex-wrap gl-flex-grow-1"
-      >
+  <div>
+    <state-container :mr="mr" :status="status" :is-loading="isLoading">
+      <template #loading>
+        <gl-skeleton-loader :width="334" :height="30">
+          <rect x="0" y="3" width="24" height="24" rx="4" />
+          <rect x="32" y="5" width="302" height="20" rx="4" />
+        </gl-skeleton-loader>
+      </template>
+      <template v-if="!isLoading">
         <span
-          v-if="!rebasingError"
-          class="gl-font-weight-bold gl-w-100 gl-md-w-auto gl-flex-grow-1 gl-ml-0! gl-text-body! gl-md-mr-3"
+          v-if="rebaseInProgress || isMakingRequest"
+          class="gl-ml-0! gl-text-body!"
           data-testid="rebase-message"
-          data-qa-selector="no_fast_forward_message_content"
-          >{{
-            __('Merge blocked: the source branch must be rebased onto the target branch.')
-          }}</span
+          >{{ s__('mrWidget|Rebase in progress') }}</span
         >
         <span
-          v-else
-          class="gl-font-weight-bold danger gl-w-100 gl-md-w-auto gl-flex-grow-1 gl-md-mr-3"
+          v-if="!rebaseInProgress && !canPushToSourceBranch"
+          class="gl-text-body! gl-ml-0!"
           data-testid="rebase-message"
-          >{{ rebasingError }}</span
         >
-      </div>
-    </template>
-    <template v-if="!isLoading" #actions>
-      <gl-button
-        v-if="showRebaseWithoutPipeline"
-        :loading="isMakingRequest"
-        variant="confirm"
-        size="small"
-        category="secondary"
-        data-testid="rebase-without-ci-button"
-        class="gl-align-self-start gl-mr-2"
-        @click="rebaseWithoutCi"
-      >
-        {{ __('Rebase without pipeline') }}
-      </gl-button>
-      <gl-button
-        :loading="isMakingRequest"
-        variant="confirm"
-        size="small"
-        data-qa-selector="mr_rebase_button"
-        data-testid="standard-rebase-button"
-        class="gl-mb-2 gl-md-mb-0 gl-align-self-start"
-        @click="rebase"
-      >
-        {{ __('Rebase') }}
-      </gl-button>
-    </template>
-  </state-container>
+          <bold-text :message="$options.i18n.rebaseError" />
+        </span>
+        <div
+          v-if="!rebaseInProgress && canPushToSourceBranch && !isMakingRequest"
+          class="accept-merge-holder clearfix js-toggle-container media gl-md-display-flex gl-flex-wrap gl-flex-grow-1"
+        >
+          <span
+            v-if="!rebasingError"
+            class="gl-w-100 gl-md-w-auto gl-flex-grow-1 gl-ml-0! gl-text-body! gl-md-mr-3"
+            data-testid="rebase-message"
+            data-qa-selector="no_fast_forward_message_content"
+          >
+            <bold-text :message="$options.i18n.rebaseError" />
+          </span>
+          <span
+            v-else
+            class="gl-font-weight-bold danger gl-w-100 gl-md-w-auto gl-flex-grow-1 gl-md-mr-3"
+            data-testid="rebase-message"
+            >{{ rebasingError }}</span
+          >
+        </div>
+      </template>
+      <template v-if="!isLoading" #actions>
+        <gl-button
+          :loading="isMakingRequest"
+          variant="confirm"
+          size="small"
+          data-qa-selector="mr_rebase_button"
+          data-testid="standard-rebase-button"
+          class="gl-align-self-start"
+          @click="tryRebase"
+        >
+          {{ s__('mrWidget|Rebase') }}
+        </gl-button>
+        <gl-button
+          v-if="showRebaseWithoutPipeline"
+          :loading="isMakingRequest"
+          variant="confirm"
+          size="small"
+          category="secondary"
+          data-testid="rebase-without-ci-button"
+          class="gl-align-self-start gl-mr-2"
+          @click="rebaseWithoutCi"
+        >
+          {{ s__('mrWidget|Rebase without pipeline') }}
+        </gl-button>
+      </template>
+    </state-container>
+
+    <gl-modal
+      ref="modal"
+      :modal-id="$options.modal.id"
+      :title="$options.modal.title"
+      :action-primary="$options.modal.actionPrimary"
+      :action-cancel="$options.modal.actionCancel"
+      @primary="rebase"
+    >
+      <p>
+        {{
+          s__(
+            'Pipelines|Rebasing creates a pipeline that runs code originating from a forked project merge request. Consequently there are potential security implications, such as the exposure of CI variables.',
+          )
+        }}
+      </p>
+      <p>
+        {{
+          s__(
+            "Pipelines|You should review the code thoroughly before running this pipeline with the parent project's CI/CD resources.",
+          )
+        }}
+      </p>
+      <p>
+        {{ s__('Pipelines|If you are unsure, ask a project maintainer to review it for you.') }}
+      </p>
+      <gl-link :href="$options.runPipelinesInTheParentProjectHelpPath" target="_blank">
+        {{ s__('Pipelines|More Information') }}
+      </gl-link>
+    </gl-modal>
+  </div>
 </template>

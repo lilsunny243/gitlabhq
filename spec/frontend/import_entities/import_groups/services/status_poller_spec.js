@@ -1,9 +1,10 @@
 import MockAdapter from 'axios-mock-adapter';
 import Visibility from 'visibilityjs';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { STATUSES } from '~/import_entities/constants';
 import { StatusPoller } from '~/import_entities/import_groups/services/status_poller';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import Poll from '~/lib/utils/poll';
 
 jest.mock('visibilityjs');
@@ -21,7 +22,7 @@ describe('Bulk import status poller', () => {
 
   beforeEach(() => {
     mockAdapter = new MockAdapter(axios);
-    mockAdapter.onGet(FAKE_POLL_PATH).reply(200, {});
+    mockAdapter.onGet(FAKE_POLL_PATH).reply(HTTP_STATUS_OK, {});
     updateImportStatus = jest.fn();
     poller = new StatusPoller({ updateImportStatus, pollPath: FAKE_POLL_PATH });
   });
@@ -83,7 +84,7 @@ describe('Bulk import status poller', () => {
   it('when error occurs shows flash with error', () => {
     const [[pollConfig]] = Poll.mock.calls;
     pollConfig.errorCallback();
-    expect(createFlash).toHaveBeenCalled();
+    expect(createAlert).toHaveBeenCalled();
   });
 
   it('when success response arrives updates relevant group status', () => {

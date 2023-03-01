@@ -1,7 +1,7 @@
 ---
 stage: Create
 group: Code Review
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, concepts
 ---
 
@@ -59,7 +59,8 @@ in the user interface, and you can also resolve conflicts locally through the co
 
 To resolve less-complex conflicts from the GitLab user interface:
 
-1. Go to your merge request.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Merge requests** and find the merge request.
 1. Select **Overview**, and scroll to the merge request reports section.
 1. Find the merge conflicts message, and select **Resolve conflicts**.
    GitLab shows a list of files with merge conflicts. The conflicts are
@@ -75,7 +76,7 @@ To resolve less-complex conflicts from the GitLab user interface:
 Resolving conflicts merges the target branch of the merge request into the
 source branch, using the version of the text you chose. If the source branch is
 `feature` and the target branch is `main`, these actions are similar to running
-`git checkout feature; git merge main` locally.
+`git switch feature; git merge main` locally.
 
 ## Resolve conflicts in the inline editor
 
@@ -83,7 +84,8 @@ Some merge conflicts are more complex, requiring you to manually modify lines to
 resolve their conflicts. Use the merge conflict resolution editor to resolve complex
 conflicts in the GitLab interface:
 
-1. Go to your merge request.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Merge requests** and find the merge request.
 1. Select **Overview**, and scroll to the merge request reports section.
 1. Find the merge conflicts message, and select **Resolve conflicts**.
    GitLab shows a list of files with merge conflicts.
@@ -101,7 +103,7 @@ most control over each change:
 1. Open the terminal and check out your feature branch. For example, `my-feature-branch`:
 
    ```shell
-   git checkout my-feature-branch
+   git switch my-feature-branch
    ```
 
 1. [Rebase your branch](../../../topics/git/git_rebase.md#regular-rebase) against the
@@ -172,6 +174,6 @@ important to describe those, too. Think of things that may go wrong and include 
 This is important to minimize requests for support, and to avoid doc comments with
 questions that you know someone might ask.
 
-Each scenario can be a third-level heading, e.g. `### Getting error message X`.
+Each scenario can be a third-level heading, for example `### Getting error message X`.
 If you have none to add when creating a doc, leave this section in place
 but commented out to help encourage others to add to it in the future. -->

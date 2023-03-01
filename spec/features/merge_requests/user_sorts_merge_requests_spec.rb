@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User sorts merge requests', :js do
+RSpec.describe 'User sorts merge requests', :js, feature_category: :code_review_workflow do
   include CookieHelper
   include Spec::Support::Helpers::Features::SortingHelpers
 
@@ -27,15 +27,15 @@ RSpec.describe 'User sorts merge requests', :js do
 
     visit(merge_requests_dashboard_path(assignee_username: user.username))
 
-    expect(find('.filter-dropdown-container button.dropdown-toggle')).to have_content('Milestone')
+    expect(find('.filter-dropdown-container button.gl-new-dropdown-toggle')).to have_content('Milestone')
 
     visit(project_merge_requests_path(project))
 
-    expect(find('.filter-dropdown-container button.dropdown-toggle')).to have_content('Milestone')
+    expect(find('.filter-dropdown-container button.gl-new-dropdown-toggle')).to have_content('Milestone')
 
     visit(merge_requests_group_path(group))
 
-    expect(find('.filter-dropdown-container button.dropdown-toggle')).to have_content('Milestone')
+    expect(find('.filter-dropdown-container button.gl-new-dropdown-toggle')).to have_content('Milestone')
   end
 
   it 'fallbacks to issuable_sort cookie key when remembering the sorting option' do
@@ -43,7 +43,7 @@ RSpec.describe 'User sorts merge requests', :js do
 
     visit(merge_requests_dashboard_path(assignee_username: user.username))
 
-    expect(find('.filter-dropdown-container button.dropdown-toggle')).to have_content('Milestone')
+    expect(find('.filter-dropdown-container button.gl-new-dropdown-toggle')).to have_content('Milestone')
   end
 
   it 'separates remember sorting with issues', :js do

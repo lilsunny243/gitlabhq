@@ -1,11 +1,12 @@
 import Draggable from 'vuedraggable';
 import { nextTick } from 'vue';
-import { DraggableItemTypes } from 'ee_else_ce/boards/constants';
+import { DraggableItemTypes, ListType } from 'ee_else_ce/boards/constants';
 import { useFakeRequestAnimationFrame } from 'helpers/fake_request_animation_frame';
 import waitForPromises from 'helpers/wait_for_promises';
 import createComponent from 'jest/boards/board_list_helper';
 import BoardCard from '~/boards/components/board_card.vue';
 import eventHub from '~/boards/eventhub';
+import BoardCardMoveToPosition from '~/boards/components/board_card_move_to_position.vue';
 
 import { mockIssues } from './mock_data';
 
@@ -15,6 +16,7 @@ describe('Board list component', () => {
   const findByTestId = (testId) => wrapper.find(`[data-testid="${testId}"]`);
   const findIssueCountLoadingIcon = () => wrapper.find('[data-testid="count-loading-icon"]');
   const findDraggable = () => wrapper.findComponent(Draggable);
+  const findMoveToPositionComponent = () => wrapper.findComponent(BoardCardMoveToPosition);
 
   const startDrag = (
     params = {
@@ -99,6 +101,24 @@ describe('Board list component', () => {
       await nextTick();
       expect(wrapper.find('.board-list-count').attributes('data-issue-id')).toBe('-1');
     });
+
+    it('renders the move to position icon', () => {
+      expect(findMoveToPositionComponent().exists()).toBe(true);
+    });
+  });
+
+  describe('when ListType is Closed', () => {
+    beforeEach(() => {
+      wrapper = createComponent({
+        listProps: {
+          listType: ListType.closed,
+        },
+      });
+    });
+
+    it('Board card move to position is not visible', () => {
+      expect(findMoveToPositionComponent().exists()).toBe(false);
+    });
   });
 
   describe('load more issues', () => {
@@ -153,27 +173,32 @@ describe('Board list component', () => {
     });
 
     describe('when issue count exceeds max issue count', () => {
-      it('sets background to bg-danger-100', async () => {
+      it('sets background to gl-bg-red-100', async () => {
         wrapper.setProps({ list: { issuesCount: 4, maxIssueCount: 3 } });
 
         await nextTick();
-        expect(wrapper.find('.bg-danger-100').exists()).toBe(true);
+        const block = wrapper.find('.gl-bg-red-100');
+
+        expect(block.exists()).toBe(true);
+        expect(block.attributes('class')).toContain(
+          'gl-rounded-bottom-left-base gl-rounded-bottom-right-base',
+        );
       });
     });
 
     describe('when list issue count does NOT exceed list max issue count', () => {
-      it('does not sets background to bg-danger-100', () => {
+      it('does not sets background to gl-bg-red-100', () => {
         wrapper.setProps({ list: { issuesCount: 2, maxIssueCount: 3 } });
 
-        expect(wrapper.find('.bg-danger-100').exists()).toBe(false);
+        expect(wrapper.find('.gl-bg-red-100').exists()).toBe(false);
       });
     });
 
     describe('when list max issue count is 0', () => {
-      it('does not sets background to bg-danger-100', () => {
+      it('does not sets background to gl-bg-red-100', () => {
         wrapper.setProps({ list: { maxIssueCount: 0 } });
 
-        expect(wrapper.find('.bg-danger-100').exists()).toBe(false);
+        expect(wrapper.find('.gl-bg-red-100').exists()).toBe(false);
       });
     });
   });
@@ -190,6 +215,13 @@ describe('Board list component', () => {
 
       it('Draggable is used', () => {
         expect(findDraggable().exists()).toBe(true);
+      });
+
+      it('sets delay and delayOnTouchOnly attributes on board list', () => {
+        const listEl = wrapper.findComponent({ ref: 'list' });
+
+        expect(listEl.attributes('delay')).toBe('100');
+        expect(listEl.attributes('delayontouchonly')).toBe('true');
       });
 
       describe('handleDragOnStart', () => {
@@ -254,7 +286,7 @@ describe('Board list component', () => {
     describe('when dragging is not allowed', () => {
       beforeEach(() => {
         wrapper = createComponent({
-          componentProps: {
+          provide: {
             disabled: true,
           },
         });
@@ -262,6 +294,10 @@ describe('Board list component', () => {
 
       it('Draggable is not used', () => {
         expect(findDraggable().exists()).toBe(false);
+      });
+
+      it('Board card move to position is not visible', () => {
+        expect(findMoveToPositionComponent().exists()).toBe(false);
       });
     });
   });

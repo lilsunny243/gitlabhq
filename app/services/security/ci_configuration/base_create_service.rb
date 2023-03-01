@@ -3,7 +3,7 @@
 module Security
   module CiConfiguration
     class BaseCreateService
-      attr_reader :branch_name, :current_user, :project
+      attr_reader :branch_name, :current_user, :project, :name
 
       def initialize(project, current_user)
         @project = project
@@ -12,6 +12,16 @@ module Security
       end
 
       def execute
+        if project.repository.empty? && !(@params && @params[:initialize_with_sast])
+          docs_link = ActionController::Base.helpers.link_to _('add at least one file to the repository'),
+                              Rails.application.routes.url_helpers.help_page_url('user/project/repository/index.md',
+                                                                                 anchor: 'add-files-to-a-repository'),
+                              target: '_blank',
+                              rel: 'noopener noreferrer'
+          raise Gitlab::Graphql::Errors::MutationError,
+                _(format('You must %s before using Security features.', docs_link.html_safe)).html_safe
+        end
+
         project.repository.add_branch(current_user, branch_name, project.default_branch)
 
         attributes_for_commit = attributes
@@ -41,8 +51,18 @@ module Security
       end
 
       def existing_gitlab_ci_content
-        @gitlab_ci_yml ||= project.ci_config_for(project.repository.root_ref_sha)
+        root_ref = root_ref_sha(project.repository)
+        return if root_ref.nil?
+
+        @gitlab_ci_yml ||= project.ci_config_for(root_ref)
         YAML.safe_load(@gitlab_ci_yml) if @gitlab_ci_yml
+      rescue Psych::BadAlias
+        raise Gitlab::Graphql::Errors::MutationError,
+              ".gitlab-ci.yml with aliases/anchors is not supported. Please change the CI configuration manually."
+      rescue Psych::Exception => e
+        Gitlab::AppLogger.error("Failed to process existing .gitlab-ci.yml: #{e.message}")
+        raise Gitlab::Graphql::Errors::MutationError,
+              "#{name} merge request creation mutation failed"
       end
 
       def successful_change_path
@@ -60,6 +80,12 @@ module Security
         Gitlab::Tracking.event(
           self.class.to_s, action[:action], label: action[:default_values_overwritten].to_s
         )
+      end
+
+      def root_ref_sha(repository)
+        commit = repository.commit(repository.root_ref)
+
+        commit&.sha
       end
     end
   end

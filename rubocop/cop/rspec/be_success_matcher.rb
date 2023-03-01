@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rubocop-rspec'
+
 module RuboCop
   module Cop
     module RSpec
@@ -21,7 +23,9 @@ module RuboCop
       #
       #   it { is_expected.to be_successful }
       #
-      class BeSuccessMatcher < RuboCop::Cop::Cop
+      class BeSuccessMatcher < RuboCop::Cop::Base
+        extend RuboCop::Cop::AutoCorrector
+
         MESSAGE = 'Do not use deprecated `success?` method, use `successful?` instead.'
 
         def_node_search :expect_to_be_success?, <<~PATTERN
@@ -39,11 +43,7 @@ module RuboCop
         def on_send(node)
           return unless be_success_usage?(node)
 
-          add_offense(node, location: :expression, message: MESSAGE)
-        end
-
-        def autocorrect(node)
-          lambda do |corrector|
+          add_offense(node, message: MESSAGE) do |corrector|
             corrector.insert_after(node.loc.expression, 'ful')
           end
         end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Issues do
+RSpec.describe API::Issues, feature_category: :team_planning do
   let_it_be(:user) { create(:user) }
   let_it_be(:project, reload: true) do
     create(:project, :public, creator_id: user.id, namespace: user.namespace)
@@ -274,9 +274,7 @@ RSpec.describe API::Issues do
       post api("/projects/#{project.id}/issues", user),
         params: { title: 'g' * 256 }
       expect(response).to have_gitlab_http_status(:bad_request)
-      expect(json_response['message']['title']).to eq([
-        'is too long (maximum is 255 characters)'
-      ])
+      expect(json_response['message']['title']).to eq(['is too long (maximum is 255 characters)'])
     end
 
     context 'resolving discussions' do
@@ -434,11 +432,7 @@ RSpec.describe API::Issues do
       }
     end
 
-    context 'when allow_possible_spam feature flag is false' do
-      before do
-        stub_feature_flags(allow_possible_spam: false)
-      end
-
+    context 'when allow_possible_spam application setting is false' do
       it 'does not create a new project issue' do
         expect { post_issue }.not_to change(Issue, :count)
       end
@@ -456,7 +450,11 @@ RSpec.describe API::Issues do
       end
     end
 
-    context 'when allow_possible_spam feature flag is true' do
+    context 'when allow_possible_spam application setting is true' do
+      before do
+        stub_application_setting(allow_possible_spam: true)
+      end
+
       it 'does creates a new project issue' do
         expect { post_issue }.to change(Issue, :count).by(1)
       end
@@ -475,8 +473,8 @@ RSpec.describe API::Issues do
   end
 
   describe '/projects/:id/issues/:issue_iid/move' do
-    let!(:target_project) { create(:project, creator_id: user.id, namespace: user.namespace ) }
-    let!(:target_project2) { create(:project, creator_id: non_member.id, namespace: non_member.namespace ) }
+    let!(:target_project) { create(:project, creator_id: user.id, namespace: user.namespace) }
+    let!(:target_project2) { create(:project, creator_id: non_member.id, namespace: non_member.namespace) }
 
     it 'moves an issue' do
       post api("/projects/#{project.id}/issues/#{issue.iid}/move", user),

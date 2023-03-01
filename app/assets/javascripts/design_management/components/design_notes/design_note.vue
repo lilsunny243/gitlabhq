@@ -3,11 +3,13 @@ import {
   GlAvatar,
   GlAvatarLink,
   GlButton,
+  GlDropdown,
+  GlDropdownItem,
   GlLink,
-  GlSafeHtmlDirective,
   GlTooltipDirective,
 } from '@gitlab/ui';
 import { ApolloMutation } from 'vue-apollo';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { getIdFromGraphQLId } from '~/graphql_shared/utils';
 import { __ } from '~/locale';
 import TimelineEntryItem from '~/vue_shared/components/notes/timeline_entry_item.vue';
@@ -20,6 +22,8 @@ import DesignReplyForm from './design_reply_form.vue';
 export default {
   i18n: {
     editCommentLabel: __('Edit comment'),
+    moreActionsLabel: __('More actions'),
+    deleteCommentText: __('Delete comment'),
   },
   components: {
     ApolloMutation,
@@ -27,13 +31,15 @@ export default {
     GlAvatar,
     GlAvatarLink,
     GlButton,
+    GlDropdown,
+    GlDropdownItem,
     GlLink,
     TimeAgoTooltip,
     TimelineEntryItem,
   },
   directives: {
     GlTooltip: GlTooltipDirective,
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   props: {
     note: {
@@ -45,11 +51,16 @@ export default {
       required: false,
       default: '',
     },
+    noteableId: {
+      type: String,
+      required: true,
+    },
   },
   data() {
     return {
       noteText: this.note.body,
       isEditing: false,
+      isError: true,
     };
   },
   computed: {
@@ -72,7 +83,13 @@ export default {
       };
     },
     isEditButtonVisible() {
-      return !this.isEditing && this.note.userPermissions.adminNote;
+      return !this.isEditing && this.adminPermissions;
+    },
+    isMoreActionsButtonVisible() {
+      return !this.isEditing && this.adminPermissions;
+    },
+    adminPermissions() {
+      return this.note.userPermissions.adminNote;
     },
   },
   methods: {
@@ -134,6 +151,30 @@ export default {
           size="small"
           @click="isEditing = true"
         />
+        <gl-dropdown
+          v-if="isMoreActionsButtonVisible"
+          v-gl-tooltip.hover
+          class="gl-display-none gl-sm-display-inline-flex! gl-ml-3"
+          icon="ellipsis_v"
+          category="tertiary"
+          data-qa-selector="design_discussion_actions_ellipsis_dropdown"
+          data-testid="more-actions-dropdown"
+          :text="$options.i18n.moreActionsLabel"
+          text-sr-only
+          :title="$options.i18n.moreActionsLabel"
+          :aria-label="$options.i18n.moreActionsLabel"
+          no-caret
+          left
+        >
+          <gl-dropdown-item
+            variant="danger"
+            data-qa-selector="delete_design_note_button"
+            data-testid="delete-note-button"
+            @click="$emit('delete-note', note)"
+          >
+            {{ $options.i18n.deleteCommentText }}
+          </gl-dropdown-item>
+        </gl-dropdown>
       </div>
     </div>
     <template v-if="!isEditing">
@@ -160,6 +201,7 @@ export default {
         :is-saving="loading"
         :markdown-preview-path="markdownPreviewPath"
         :is-new-comment="false"
+        :noteable-id="noteableId"
         class="gl-mt-5"
         @submit-form="mutate"
         @cancel-form="hideForm"

@@ -2,23 +2,12 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Admin > Users > Impersonation Tokens', :js do
+RSpec.describe 'Admin > Users > Impersonation Tokens', :js, feature_category: :system_access do
   include Spec::Support::Helpers::ModalHelpers
+  include Spec::Support::Helpers::AccessTokenHelpers
 
   let(:admin) { create(:admin) }
   let!(:user) { create(:user) }
-
-  def active_impersonation_tokens
-    find(".table.active-tokens")
-  end
-
-  def no_personal_access_tokens_message
-    find(".settings-message")
-  end
-
-  def created_impersonation_token
-    find("#created-personal-access-token").value
-  end
 
   before do
     sign_in(admin)
@@ -43,12 +32,12 @@ RSpec.describe 'Admin > Users > Impersonation Tokens', :js do
 
       click_on "Create impersonation token"
 
-      expect(active_impersonation_tokens).to have_text(name)
-      expect(active_impersonation_tokens).to have_text('in')
-      expect(active_impersonation_tokens).to have_text('read_api')
-      expect(active_impersonation_tokens).to have_text('read_user')
+      expect(active_access_tokens).to have_text(name)
+      expect(active_access_tokens).to have_text('in')
+      expect(active_access_tokens).to have_text('read_api')
+      expect(active_access_tokens).to have_text('read_user')
       expect(PersonalAccessTokensFinder.new(impersonation: true).execute.count).to equal(1)
-      expect(created_impersonation_token).not_to be_empty
+      expect(created_access_token).to match(/[\w-]{20}/)
     end
   end
 
@@ -59,16 +48,16 @@ RSpec.describe 'Admin > Users > Impersonation Tokens', :js do
     it 'only shows impersonation tokens' do
       visit admin_user_impersonation_tokens_path(user_id: user.username)
 
-      expect(active_impersonation_tokens).to have_text(impersonation_token.name)
-      expect(active_impersonation_tokens).not_to have_text(personal_access_token.name)
-      expect(active_impersonation_tokens).to have_text('in')
+      expect(active_access_tokens).to have_text(impersonation_token.name)
+      expect(active_access_tokens).not_to have_text(personal_access_token.name)
+      expect(active_access_tokens).to have_text('in')
     end
 
     it 'shows absolute times' do
       admin.update!(time_display_relative: false)
       visit admin_user_impersonation_tokens_path(user_id: user.username)
 
-      expect(active_impersonation_tokens).to have_text(personal_access_token.expires_at.strftime('%b %-d'))
+      expect(active_access_tokens).to have_text(personal_access_token.expires_at.strftime('%b %-d'))
     end
   end
 
@@ -80,8 +69,7 @@ RSpec.describe 'Admin > Users > Impersonation Tokens', :js do
 
       accept_gl_confirm(button_text: 'Revoke') { click_on "Revoke" }
 
-      expect(page).to have_selector(".settings-message")
-      expect(no_personal_access_tokens_message).to have_text("This user has no active impersonation tokens.")
+      expect(active_access_tokens).to have_text("This user has no active impersonation tokens.")
     end
 
     it "removes expired tokens from 'active' section" do
@@ -89,8 +77,7 @@ RSpec.describe 'Admin > Users > Impersonation Tokens', :js do
 
       visit admin_user_impersonation_tokens_path(user_id: user.username)
 
-      expect(page).to have_selector(".settings-message")
-      expect(no_personal_access_tokens_message).to have_text("This user has no active impersonation tokens.")
+      expect(active_access_tokens).to have_text("This user has no active impersonation tokens.")
     end
   end
 

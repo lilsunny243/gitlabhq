@@ -12,9 +12,9 @@ RSpec.shared_context 'GroupPolicy context' do
 
   let(:public_permissions) do
     %i[
-      read_group read_counts
+      read_group read_counts read_achievement
       read_label read_issue_board_list read_milestone read_issue_board
-   ]
+    ]
   end
 
   let(:guest_permissions) do
@@ -22,32 +22,33 @@ RSpec.shared_context 'GroupPolicy context' do
       read_label read_group upload_file read_namespace read_group_activity
       read_group_issues read_group_boards read_group_labels read_group_milestones
       read_group_merge_requests
-   ]
+    ]
   end
 
   let(:reporter_permissions) do
     %i[
-        admin_label
-        admin_milestone
-        admin_issue_board
-        read_container_image
-        read_harbor_registry
-        read_metrics_dashboard_annotation
-        read_prometheus
-        read_crm_contact
-        read_crm_organization
-      ]
+      admin_label
+      admin_milestone
+      admin_issue_board
+      read_container_image
+      read_harbor_registry
+      read_metrics_dashboard_annotation
+      read_prometheus
+      read_crm_contact
+      read_crm_organization
+      read_internal_note
+    ]
   end
 
   let(:developer_permissions) do
     %i[
-        create_metrics_dashboard_annotation
-        delete_metrics_dashboard_annotation
-        update_metrics_dashboard_annotation
-        create_custom_emoji
-        create_package
-        read_cluster
-      ]
+      create_metrics_dashboard_annotation
+      delete_metrics_dashboard_annotation
+      update_metrics_dashboard_annotation
+      create_custom_emoji
+      create_package
+      read_cluster
+    ]
   end
 
   let(:maintainer_permissions) do
@@ -57,6 +58,8 @@ RSpec.shared_context 'GroupPolicy context' do
       create_projects
       create_cluster update_cluster admin_cluster add_cluster
       destroy_upload
+      admin_achievement
+      award_achievement
     ]
   end
 
@@ -74,10 +77,13 @@ RSpec.shared_context 'GroupPolicy context' do
       read_group_runners
       admin_group_runners
       register_group_runners
+      read_billing
+      edit_billing
+      admin_member_access_request
     ]
   end
 
-  let(:admin_permissions) { %i[read_confidential_issues] }
+  let(:admin_permissions) { %i[read_confidential_issues read_internal_note] }
 
   before_all do
     group.add_guest(guest)

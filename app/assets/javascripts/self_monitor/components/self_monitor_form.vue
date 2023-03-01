@@ -1,15 +1,8 @@
 <script>
-import {
-  GlFormGroup,
-  GlButton,
-  GlModal,
-  GlToast,
-  GlToggle,
-  GlLink,
-  GlSafeHtmlDirective,
-} from '@gitlab/ui';
+import { GlFormGroup, GlButton, GlModal, GlToast, GlToggle, GlLink } from '@gitlab/ui';
 import Vue from 'vue';
 import { mapState, mapActions } from 'vuex';
+import SafeHtml from '~/vue_shared/directives/safe_html';
 import { helpPagePath } from '~/helpers/help_page_helper';
 import { BV_SHOW_MODAL, BV_HIDE_MODAL } from '~/lib/utils/constants';
 import { visitUrl, getBaseURL } from '~/lib/utils/url_utility';
@@ -26,10 +19,10 @@ export default {
     GlLink,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   formLabels: {
-    createProject: __('Self monitoring'),
+    createProject: __('Self-monitoring'),
   },
   data() {
     return {
@@ -60,7 +53,7 @@ export default {
       if (this.projectCreated) {
         return sprintf(
           s__(
-            'SelfMonitoring|Self monitoring is active. Use the %{projectLinkStart}self monitoring project%{projectLinkEnd} to monitor the health of your instance.',
+            'SelfMonitoring|Self-monitoring is active. Use the %{projectLinkStart}self-monitoring project%{projectLinkEnd} to monitor the health of your instance.',
           ),
           {
             projectLinkStart: `<a href="${this.selfMonitorProjectFullUrl}">`,
@@ -71,7 +64,7 @@ export default {
       }
 
       return s__(
-        'SelfMonitoring|Activate self monitoring to create a project to use to monitor the health of your instance.',
+        'SelfMonitoring|Activate self-monitoring to create a project to use to monitor the health of your instance.',
       );
     },
     helpDocsPath() {
@@ -139,11 +132,11 @@ export default {
       <h4
         class="js-section-header settings-title js-settings-toggle js-settings-toggle-trigger-only"
       >
-        {{ s__('SelfMonitoring|Self monitoring') }}
+        {{ s__('SelfMonitoring|Self-monitoring') }}
       </h4>
       <gl-button class="js-settings-toggle">{{ __('Expand') }}</gl-button>
       <p class="js-section-sub-header">
-        {{ s__('SelfMonitoring|Activate or deactivate instance self monitoring.') }}
+        {{ s__('SelfMonitoring|Activate or deactivate instance self-monitoring.') }}
         <gl-link :href="helpDocsPath">{{ __('Learn more.') }}</gl-link>
       </p>
     </div>
@@ -160,9 +153,9 @@ export default {
       </form>
     </div>
     <gl-modal
-      :title="s__('SelfMonitoring|Deactivate self monitoring?')"
+      :title="s__('SelfMonitoring|Deactivate self-monitoring?')"
       :modal-id="modalId"
-      :ok-title="__('Delete self monitoring project')"
+      :ok-title="__('Delete self-monitoring project')"
       :cancel-title="__('Cancel')"
       ok-variant="danger"
       category="primary"
@@ -172,7 +165,7 @@ export default {
       <div>
         {{
           s__(
-            'SelfMonitoring|Deactivating self monitoring deletes the self monitoring project. Are you sure you want to deactivate self monitoring and delete the project?',
+            'SelfMonitoring|Deactivating self-monitoring deletes the self-monitoring project. Are you sure you want to deactivate self-monitoring and delete the project?',
           )
         }}
       </div>

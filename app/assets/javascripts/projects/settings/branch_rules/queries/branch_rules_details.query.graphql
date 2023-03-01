@@ -1,0 +1,30 @@
+query getBranchRulesDetails($projectPath: ID!) {
+  project(fullPath: $projectPath) {
+    id
+    branchRules {
+      nodes {
+        name
+        matchingBranchesCount
+        branchProtection {
+          allowForcePush
+          mergeAccessLevels {
+            edges {
+              node {
+                accessLevel
+                accessLevelDescription
+              }
+            }
+          }
+          pushAccessLevels {
+            edges {
+              node {
+                accessLevel
+                accessLevelDescription
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 ---
 stage: Secure
 group: Dynamic Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Coverage-guided fuzz testing **(ULTIMATE)**
@@ -53,8 +53,8 @@ You can use the following fuzzing engines to test the specified languages.
 
 To confirm the status of coverage-guided fuzz testing:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Security & Compliance > Configuration**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Security and Compliance > Configuration**.
 1. In the **Coverage Fuzzing** section the status is:
    - **Not configured**
    - **Enabled**
@@ -102,7 +102,7 @@ targets. Each fuzzing target **must** have a separate job. For example, the
 [go-fuzzing-example project](https://gitlab.com/gitlab-org/security-products/demos/go-fuzzing-example)
 contains one job that extends `.fuzz_base` for its single fuzzing target.
 
-Note that the hidden job `.fuzz_base` uses several YAML keys that you must not override in your own
+The hidden job `.fuzz_base` uses several YAML keys that you must not override in your own
 job. If you include these keys in your own job, you must copy their original content:
 
 - `before_script`
@@ -159,23 +159,16 @@ the default option of one corpus per job.
 The corpus registry uses the package registry to store the project's corpuses. Corpuses stored in
 the registry are hidden to ensure data integrity.
 
-In the GitLab UI, with corpus management you can:
-
-- View details of the corpus registry.
-- Download a corpus.
-- Delete a corpus.
-- Create a new corpus.
-
 When you download a corpus, the file is named `artifacts.zip`, regardless of the filename used when
 the corpus was initially uploaded. This file contains only the corpus, which is different to the
-artifacts files you can download from the CI/CD pipeline.
+artifacts files you can download from the CI/CD pipeline. Also, a project member with a Reporter or above privilege can download the corpus using the direct download link.
 
 ### View details of the corpus registry
 
 To view details of the corpus registry:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Security & Compliance > Configuration**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Security and Compliance > Configuration**.
 1. In the **Coverage Fuzzing** section, select **Manage corpus**.
 
 ### Create a corpus in the corpus registry
@@ -202,8 +195,8 @@ provided by the `COVFUZZ_CORPUS_NAME` variable. The corpus is updated on every p
 
 To upload an existing corpus file:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Security & Compliance > Configuration**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Security and Compliance > Configuration**.
 1. In the **Coverage Fuzzing** section, select **Manage corpus**.
 1. Select **New corpus**.
 1. Complete the fields.
@@ -277,7 +270,7 @@ For a complete example, read the [Go coverage-guided fuzzing example](https://gi
 
 It's also possible to run the coverage-guided fuzzing jobs longer and without blocking your main
 pipeline. This configuration uses the GitLab
-[parent-child pipelines](../../../ci/pipelines/parent_child_pipelines.md).
+[parent-child pipelines](../../../ci/pipelines/downstream_pipelines.md#parent-child-pipelines).
 
 The suggested workflow in this scenario is to have long-running, asynchronous fuzzing jobs on the
 main or development branch, and short synchronous fuzzing jobs on all other branches and MRs. This
@@ -337,14 +330,14 @@ To use coverage fuzzing in an offline environment:
 
 After a vulnerability is found, you can [address it](../vulnerabilities/index.md).
 The merge request widget lists the vulnerability and contains a button for downloading the fuzzing
-artifacts. By clicking one of the detected vulnerabilities, you can see its details.
+artifacts. By selecting one of the detected vulnerabilities, you can see its details.
 
 ![Coverage Fuzzing Security Report](img/coverage_fuzzing_report_v13_6.png)
 
 You can also view the vulnerability from the [Security Dashboard](../security_dashboard/index.md),
 which shows an overview of all the security vulnerabilities in your groups, projects, and pipelines.
 
-Clicking the vulnerability opens a modal that provides additional information about the
+Selecting the vulnerability opens a modal that provides additional information about the
 vulnerability:
 
 <!-- vale gitlab.Acronyms = NO -->

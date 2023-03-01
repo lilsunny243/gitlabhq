@@ -1,18 +1,18 @@
 ---
 stage: none
 group: Documentation Guidelines
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 description: Learn how to contribute to GitLab Documentation.
 ---
 
-# GitLab documentation
+# Contribute to the GitLab documentation
 
 The GitLab documentation is [intended as the single source of truth (SSOT)](https://about.gitlab.com/handbook/documentation/) for information about how to configure, use, and troubleshoot GitLab. The documentation contains use cases and usage instructions for every GitLab feature, organized by product area and subject. This includes topics and workflows that span multiple GitLab features and the use of GitLab with other applications.
 
 In addition to this page, the following resources can help you craft and contribute to documentation:
 
 - [Style Guide](styleguide/index.md) - What belongs in the docs, language guidelines, Markdown standards to follow, links, and more.
-- [Topic type template](structure.md) - Learn about the different types of topics.
+- [Topic types](topic_types/index.md) - Learn about the different types of topics.
 - [Documentation process](workflow.md).
 - [Markdown Guide](../../user/markdown.md) - A reference for all Markdown syntax supported by GitLab.
 - [Site architecture](site_architecture/index.md) - How <https://docs.gitlab.com> is built.
@@ -37,12 +37,12 @@ Documentation issues and merge requests are part of their respective repositorie
 
 ### Branch naming
 
-The [CI pipeline for the main GitLab project](../pipelines.md) is configured to automatically
+The [CI pipeline for the main GitLab project](../pipelines/index.md) is configured to automatically
 run only the jobs that match the type of contribution. If your contribution contains
 **only** documentation changes, then only documentation-related jobs run, and
 the pipeline completes much faster than a code contribution.
 
-If you are submitting documentation-only changes to Omnibus or Charts,
+If you are submitting documentation-only changes to Omnibus, Charts, or Operator,
 the fast pipeline is not determined automatically. Instead, create branches for
 docs-only merge requests using the following guide:
 
@@ -94,7 +94,7 @@ belongs to, as well as an information block as described below:
   ```plaintext
   To determine the technical writer assigned to the Stage/Group
   associated with this page, see
-  https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+  https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
   ```
 
 For example:
@@ -103,7 +103,7 @@ For example:
 ---
 stage: Example Stage
 group: Example Group
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 ```
 
@@ -145,68 +145,32 @@ pages. You can safely remove the `type` metadata parameter and its values.
 
 ### Batch updates for TW metadata
 
-NOTE:
-This task is an MVC, and requires significant manual preparation of the output.
-While the task can be time consuming, it is still faster than doing the work
-entirely manually.
+The [`CODEOWNERS`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab/CODEOWNERS)
+file contains a list of files and the associated technical writers.
 
-It's important to keep the [`CODEOWNERS`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/.gitlab/CODEOWNERS)
-file in the `gitlab` project up to date with the current Technical Writing team assignments.
-This information is used in merge requests that contain documentation:
+When a merge request contains documentation, the information in the `CODEOWNERS` file determines:
 
-- To populate the eligible approvers section.
-- By GitLab Bot to ping reviewers for community contributions.
+- The list of users in the **Approvers** section.
+- The technical writer that the GitLab Bot pings for community contributions.
 
-GitLab cannot automatically associate the stage and group metadata in our documentation
-pages with the technical writer assigned to that group, so we use a Rake task to
-generate entries for the `CODEOWNERS` file. Declaring code owners for pages reduces
-the number of times GitLab Bot pings the entire Technical Writing team.
+You can use a Rake task to update the `CODEOWNERS` file.
 
-The `tw:codeowners` Rake task, located in [`lib/tasks/gitlab/tw/codeowners.rake`](https://gitlab.com/gitlab-org/gitlab/blob/master/lib/tasks/gitlab/tw/codeowners.rake),
-contains an array of groups and their assigned technical writer. This task:
+#### Update the `CODEOWNERS` file
 
-- Outputs a line for each doc with metadata that matches a group in `lib/tasks/gitlab/tw/codeowners.rake`.
-  Files not matching a group are skipped.
-- Adds the full path to the page, and the assigned technical writer.
+To update the `CODEOWNERS` file:
 
-To prepare an update to the `CODEOWNERS` file:
-
-1. Update `lib/tasks/gitlab/tw/codeowners.rake` with the latest [TW team assignments](https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments).
-   Make this update in a standalone merge request, as it runs a long pipeline and
-   requires backend maintainer review. Make sure this is merged before you update
-   `CODEOWNERS` in another merge request.
-1. Run the task from the root directory of the `gitlab` repository, and save the output in a file:
-
-   ```ruby
-   bundle exec rake tw:codeowners > ~/Desktop/updates.md
-   ```
-
-1. Open the file you just created (`~/Desktop/updates.md` in this example), and prepare the output:
-   - Find and replace `./` with `/`.
-   - Sort the lines in alphabetical (ascending) order. If you use VS Code, you can
-     select everything, press <kbd>F1</kbd>, type `sort`, and select **Sort lines (ascending, case insensitive**.
-1. Create a new branch for your `CODEOWNERS` updates.
-1. Replace the documentation-related lines in the `^[Documentation Pages]` section
-   with the output you prepared.
-
-   WARNING:
-   The documentation section is not the last section of the `CODEOWNERS` file. Don't
-   delete data that isn't ours!
-
-1. Create a commit with the raw changes.
-1. From the command line, run `git diff master`.
-1. In the diff, look for directory-level assignments to manually restore to the
-   `CODEOWNERS` file. If all files in a single directory are assigned to the same
-   technical writer, we simplify these entries. Remove all the lines for the individual
-   files, and leave a single entry for the directory, for example: `/doc/directory/ @tech.writer`.
-1. In the diff, look for changes that don't match your expectations:
-   - New pages, or newly moved pages, show up as added lines.
-   - Deleted pages, and pages that are now redirects, show up as deleted lines.
-   - If you see an unusual number of changes to pages that all seem related,
-     check the metadata for the pages. A group might have been renamed and the Rake task
-     must be updated to match.
-1. Create another commit with your manual changes, and create a second merge request
-   with your changes to the `CODEOWNERS` file. Assign it to a technical writing manager for review.
+1. Review the [TW team assignments](https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments)
+   in the [`codeowners.rake`](https://gitlab.com/gitlab-org/gitlab/blob/master/lib/tasks/gitlab/tw/codeowners.rake)
+   file. If any assignments have changed:
+   1. Update the `codeowners.rake` file with the changes.
+   1. Assign the merge request to a technical writing manager for review and merge.
+1. After the changes to `codeowners.rake` are merged, go to the root of the `gitlab` repository.
+1. Run the Rake task with this command: `bundle exec rake tw:codeowners`
+1. Review the command output for any pages that need attention to
+   their metadata. Handle any needed changes in a separate merge request.
+1. Add the changes to the CODEOWNERS file to Git: `git add .gitlab/CODEOWNERS`
+1. Commit your changes to your branch, and push your branch up to `origin`.
+1. Create a merge request and assign it to a technical writing manager for review.
 
 ## Move, rename, or delete a page
 
@@ -240,9 +204,9 @@ Every GitLab instance includes documentation at `/help` (`https://gitlab.example
 that matches the version of the instance. For example, <https://gitlab.com/help>.
 
 The documentation available online at <https://docs.gitlab.com> is deployed every
-four hours from the default branch of [GitLab, Omnibus, Runner, and Charts](#source-files-and-rendered-web-locations).
+hour from the default branch of [GitLab, Omnibus, Runner, and Charts](#source-files-and-rendered-web-locations).
 After a merge request that updates documentation is merged, it is available online
-in 4 hours or less.
+in an hour or less.
 
 However, it's only available at `/help` on self-managed instances in the next released
 version. The date an update is merged can impact which self-managed release the update
@@ -277,7 +241,7 @@ with the following conventions:
 - It omits the `.md` extension.
 - It doesn't end with a forward slash (`/`).
 
-The help text follows the [Pajamas guidelines](https://design.gitlab.com/usability/helping-users/#formatting-help-content).
+The help text follows the [Pajamas guidelines](https://design.gitlab.com/usability/contextual-help#formatting-help-content).
 
 #### Linking to `/help` in HAML
 
@@ -465,7 +429,7 @@ RSpec.describe '<What I am taking screenshots of>', :js do
 
 #### Full page screenshots
 
-To take a full page screenshot simply `visit the page` and perform any expectation on real content (to have capybara wait till the page is ready and not take a white screenshot).
+To take a full page screenshot, `visit the page` and perform any expectation on real content (to have capybara wait till the page is ready and not take a white screenshot).
 
 #### Element screenshot
 

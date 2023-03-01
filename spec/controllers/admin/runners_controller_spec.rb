@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Admin::RunnersController do
+RSpec.describe Admin::RunnersController, feature_category: :runner_fleet do
   let_it_be(:runner) { create(:ci_runner) }
   let_it_be(:user) { create(:admin) }
 
@@ -31,6 +31,78 @@ RSpec.describe Admin::RunnersController do
 
       expect(response).to have_gitlab_http_status(:ok)
       expect(response).to render_template(:show)
+    end
+  end
+
+  describe '#new' do
+    context 'when create_runner_workflow is enabled' do
+      before do
+        stub_feature_flags(create_runner_workflow: true)
+      end
+
+      it 'renders a :new template' do
+        get :new
+
+        expect(response).to have_gitlab_http_status(:ok)
+        expect(response).to render_template(:new)
+      end
+    end
+
+    context 'when create_runner_workflow is disabled' do
+      before do
+        stub_feature_flags(create_runner_workflow: false)
+      end
+
+      it 'returns :not_found' do
+        get :new
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
+    end
+  end
+
+  describe '#register' do
+    subject(:register) { get :register, params: { id: new_runner.id } }
+
+    context 'when create_runner_workflow is enabled' do
+      before do
+        stub_feature_flags(create_runner_workflow: true)
+      end
+
+      context 'when runner can be registered after creation' do
+        let_it_be(:new_runner) { create(:ci_runner, registration_type: :authenticated_user) }
+
+        it 'renders a :register template' do
+          register
+
+          expect(response).to have_gitlab_http_status(:ok)
+          expect(response).to render_template(:register)
+        end
+      end
+
+      context 'when runner cannot be registered after creation' do
+        let_it_be(:new_runner) { runner }
+
+        it 'returns :not_found' do
+          register
+
+          expect(response).to have_gitlab_http_status(:not_found)
+        end
+      end
+    end
+
+    context 'when create_runner_workflow is disabled' do
+      let_it_be(:new_runner) { create(:ci_runner, registration_type: :authenticated_user) }
+
+      before do
+        stub_feature_flags(create_runner_workflow: false)
+      end
+
+      it 'returns :not_found' do
+        register
+
+        expect(response).to have_gitlab_http_status(:not_found)
+      end
     end
   end
 
@@ -74,7 +146,7 @@ RSpec.describe Admin::RunnersController do
     context 'with update succeeding' do
       before do
         expect_next_instance_of(Ci::Runners::UpdateRunnerService, runner) do |service|
-          expect(service).to receive(:update).with(anything).and_call_original
+          expect(service).to receive(:execute).with(anything).and_call_original
         end
       end
 
@@ -91,7 +163,7 @@ RSpec.describe Admin::RunnersController do
     context 'with update failing' do
       before do
         expect_next_instance_of(Ci::Runners::UpdateRunnerService, runner) do |service|
-          expect(service).to receive(:update).with(anything).and_return(false)
+          expect(service).to receive(:execute).with(anything).and_return(ServiceResponse.error(message: 'failure'))
         end
       end
 
@@ -102,49 +174,6 @@ RSpec.describe Admin::RunnersController do
         expect(response).to have_gitlab_http_status(:ok)
         expect(response).to render_template(:show)
       end
-    end
-  end
-
-  describe '#destroy' do
-    it 'destroys the runner' do
-      expect_next_instance_of(Ci::Runners::UnregisterRunnerService, runner, user) do |service|
-        expect(service).to receive(:execute).once.and_call_original
-      end
-
-      delete :destroy, params: { id: runner.id }
-
-      expect(response).to have_gitlab_http_status(:found)
-      expect(Ci::Runner.find_by(id: runner.id)).to be_nil
-    end
-  end
-
-  describe '#resume' do
-    it 'marks the runner as active and ticks the queue' do
-      runner.update!(active: false)
-
-      expect do
-        post :resume, params: { id: runner.id }
-      end.to change { runner.ensure_runner_queue_value }
-
-      runner.reload
-
-      expect(response).to have_gitlab_http_status(:found)
-      expect(runner.active).to eq(true)
-    end
-  end
-
-  describe '#pause' do
-    it 'marks the runner as inactive and ticks the queue' do
-      runner.update!(active: true)
-
-      expect do
-        post :pause, params: { id: runner.id }
-      end.to change { runner.ensure_runner_queue_value }
-
-      runner.reload
-
-      expect(response).to have_gitlab_http_status(:found)
-      expect(runner.active).to eq(false)
     end
   end
 

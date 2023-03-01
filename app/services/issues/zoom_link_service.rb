@@ -2,7 +2,7 @@
 
 module Issues
   class ZoomLinkService < Issues::BaseService
-    def initialize(project:, current_user:, params:)
+    def initialize(container:, current_user:, params:)
       super
 
       @issue = params.fetch(:issue)

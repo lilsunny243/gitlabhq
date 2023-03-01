@@ -11,7 +11,6 @@ class MergeRequestPollWidgetEntity < Grape::Entity
     merge_request.source_project.present? && ProtectedBranch.protected?(merge_request.source_project, merge_request.source_branch)
   end
   expose :allow_collaboration
-  expose :should_be_rebased?, as: :should_be_rebased
   expose :ff_only_enabled do |merge_request|
     merge_request.project.merge_requests_ff_only_enabled
   end
@@ -31,17 +30,8 @@ class MergeRequestPollWidgetEntity < Grape::Entity
     merge_request.default_merge_commit_message(include_description: true)
   end
 
-  # Booleans
-  expose :mergeable_discussions_state?, as: :mergeable_discussions_state do |merge_request|
-    merge_request.mergeable_discussions_state?
-  end
-
-  expose :project_archived do |merge_request|
-    merge_request.project.archived?
-  end
-
   expose :only_allow_merge_if_pipeline_succeeds do |merge_request|
-    merge_request.project.only_allow_merge_if_pipeline_succeeds?
+    merge_request.project.only_allow_merge_if_pipeline_succeeds?(inherit_group_setting: true)
   end
 
   # CI related

@@ -10,7 +10,7 @@ class Projects::BlobController < Projects::ApplicationController
   include RedirectsForMissingPathOnTree
   include SourcegraphDecorator
   include DiffHelper
-  include RedisTracking
+  include ProductAnalyticsTracking
   extend ::Gitlab::Utils::Override
 
   prepend_before_action :authenticate_user!, only: [:edit]
@@ -18,7 +18,8 @@ class Projects::BlobController < Projects::ApplicationController
   around_action :allow_gitaly_ref_name_caching, only: [:show]
 
   before_action :require_non_empty_project, except: [:new, :create]
-  before_action :authorize_download_code!
+  before_action :authorize_download_code!, except: [:show]
+  before_action :authorize_read_code!, only: [:show]
 
   # We need to assign the blob vars before `authorize_edit_tree!` so we can
   # validate access to a specific ref.
@@ -36,7 +37,11 @@ class Projects::BlobController < Projects::ApplicationController
   before_action :validate_diff_params, only: :diff
   before_action :set_last_commit_sha, only: [:edit, :update]
 
-  track_redis_hll_event :create, :update, name: 'g_edit_by_sfe'
+  track_custom_event :create, :update,
+    name: 'g_edit_by_sfe',
+    action: 'perform_sfe_action',
+    label: 'usage_activity_by_stage_monthly.create.action_monthly_active_users_sfe_edit',
+    destinations: [:redis_hll, :snowplow]
 
   feature_category :source_code_management
   urgency :low, [:create, :show, :edit, :update, :diff]
@@ -52,10 +57,13 @@ class Projects::BlobController < Projects::ApplicationController
   end
 
   def create
-    create_commit(Files::CreateService, success_notice: _("The file has been successfully created."),
-                                        success_path: -> { project_blob_path(@project, File.join(@branch_name, @file_path)) },
-                                        failure_view: :new,
-                                        failure_path: project_new_blob_path(@project, @ref))
+    create_commit(
+      Files::CreateService,
+      success_notice: _("The file has been successfully created."),
+      success_path: -> { project_blob_path(@project, File.join(@branch_name, @file_path)) },
+      failure_view: :new,
+      failure_path: project_new_blob_path(@project, @ref)
+    )
   end
 
   def show
@@ -85,9 +93,11 @@ class Projects::BlobController < Projects::ApplicationController
   def update
     @path = params[:file_path] if params[:file_path].present?
 
-    create_commit(Files::UpdateService, success_path: -> { after_edit_path },
-                                        failure_view: :edit,
-                                        failure_path: project_blob_path(@project, @id))
+    create_commit(
+      Files::UpdateService, success_path: -> { after_edit_path },
+      failure_view: :edit,
+      failure_path: project_blob_path(@project, @id)
+    )
   rescue Files::UpdateService::FileChangedError
     @conflict = true
     render :edit
@@ -105,9 +115,12 @@ class Projects::BlobController < Projects::ApplicationController
   end
 
   def destroy
-    create_commit(Files::DeleteService, success_notice: _("The file has been successfully deleted."),
-                                        success_path: -> { after_delete_path },
-                                        failure_path: project_blob_path(@project, @id))
+    create_commit(
+      Files::DeleteService,
+      success_notice: _("The file has been successfully deleted."),
+      success_path: -> { after_delete_path },
+      failure_path: project_blob_path(@project, @id)
+    )
   end
 
   def diff
@@ -238,6 +251,8 @@ class Projects::BlobController < Projects::ApplicationController
     @last_commit = @repository.last_commit_for_path(@commit.id, @blob.path, literal_pathspec: true)
     @code_navigation_path = Gitlab::CodeNavigationPath.new(@project, @blob.commit_id).full_json_path_for(@blob.path)
 
+    allow_lfs_direct_download
+
     render 'show'
   end
 
@@ -280,6 +295,36 @@ class Projects::BlobController < Projects::ApplicationController
   override :visitor_id
   def visitor_id
     current_user&.id
+  end
+
+  def allow_lfs_direct_download
+    return unless directly_downloading_lfs_object? && content_security_policy_enabled?
+    return unless (lfs_object = @project.lfs_objects.find_by_oid(@blob.lfs_oid))
+
+    request.content_security_policy.directives['connect-src'] ||= []
+    request.content_security_policy.directives['connect-src'] << lfs_src(lfs_object)
+  end
+
+  def directly_downloading_lfs_object?
+    Gitlab.config.lfs.enabled &&
+      !Gitlab.config.lfs.object_store.proxy_download &&
+      @blob&.stored_externally?
+  end
+
+  def content_security_policy_enabled?
+    Gitlab.config.gitlab.content_security_policy.enabled
+  end
+
+  def lfs_src(lfs_object)
+    file = lfs_object.file
+    file = file.cdn_enabled_url(request.remote_ip) if file.respond_to?(:cdn_enabled_url)
+    file.url
+  end
+
+  alias_method :tracking_project_source, :project
+
+  def tracking_namespace_source
+    project&.namespace
   end
 end
 

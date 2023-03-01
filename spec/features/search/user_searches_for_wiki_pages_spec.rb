@@ -2,10 +2,13 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User searches for wiki pages', :js do
-  let(:user) { create(:user) }
-  let(:project) { create(:project, :repository, :wiki_repo, namespace: user.namespace) }
-  let!(:wiki_page) { create(:wiki_page, wiki: project.wiki, title: 'directory/title', content: 'Some Wiki content') }
+RSpec.describe 'User searches for wiki pages', :js, :clean_gitlab_redis_rate_limiting,
+feature_category: :global_search do
+  let_it_be(:user) { create(:user) }
+  let_it_be(:project) { create(:project, :repository, :wiki_repo, namespace: user.namespace) }
+  let_it_be(:wiki_page) do
+    create(:wiki_page, wiki: project.wiki, title: 'directory/title', content: 'Some Wiki content')
+  end
 
   before do
     project.add_maintainer(user)
@@ -15,7 +18,9 @@ RSpec.describe 'User searches for wiki pages', :js do
   end
 
   include_examples 'top right search form'
-  include_examples 'search timeouts', 'wiki_blobs'
+  include_examples 'search timeouts', 'wiki_blobs' do
+    let(:additional_params) { { project_id: project.id } }
+  end
 
   shared_examples 'search wiki blobs' do
     it 'finds a page' do

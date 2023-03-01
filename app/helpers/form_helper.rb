@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module FormHelper
-  def form_errors(model, type: 'form', truncate: [])
+  def form_errors(model, type: 'form', truncate: [], custom_message: [])
     errors = model.errors
 
     return unless errors.any?
@@ -16,9 +16,15 @@ module FormHelper
 
     messages = errors.map do |error|
       attribute = error.attribute
-      message = error.message
 
-      message = html_escape_once(errors.full_message(attribute, message)).html_safe
+      message = errors.full_message(attribute, error.message)
+
+      # When error message is custom and does not follow the default pattern
+      # "<attribute name> <error message>" (e.g. "You have already reported this
+      # user"), use the message as-is
+      message = error.message if custom_message.include?(attribute)
+
+      message = html_escape_once(message).html_safe
       message = tag.span(message, class: 'str-truncated-100') if truncate.include?(attribute)
       message = append_help_page_link(message, error.options) if error.options[:help_page_url].present?
 
@@ -40,12 +46,10 @@ module FormHelper
   end
 
   def dropdown_max_select(data)
-    return data[:'max-select'] unless Feature.enabled?(:limit_reviewer_and_assignee_size)
-
-    if data[:'max-select'] && data[:'max-select'] < MergeRequest::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
+    if data[:'max-select'] && data[:'max-select'] < ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
       data[:'max-select']
     else
-      MergeRequest::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
+      ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
     end
   end
 
@@ -117,7 +121,13 @@ module FormHelper
       dropdown_data = multiple_reviewers_dropdown_options(dropdown_data)
     end
 
+    dropdown_data[:data].merge!(reviewers_dropdown_options_for_suggested_reviewers)
     dropdown_data
+  end
+
+  # Overwritten
+  def reviewers_dropdown_options_for_suggested_reviewers
+    {}
   end
 
   # Overwritten
@@ -156,7 +166,7 @@ module FormHelper
 
     new_options[:title] = _('Select assignee(s)')
     new_options[:data][:'dropdown-header'] = 'Assignee(s)'
-    new_options[:data].delete(:'max-select')
+    new_options[:data][:'max-select'] = ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
 
     new_options
   end
@@ -167,11 +177,7 @@ module FormHelper
     new_options[:title] = _('Select reviewer(s)')
     new_options[:data][:'dropdown-header'] = _('Reviewer(s)')
 
-    if Feature.enabled?(:limit_reviewer_and_assignee_size)
-      new_options[:data][:'max-select'] = MergeRequest::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
-    else
-      new_options[:data].delete(:'max-select')
-    end
+    new_options[:data][:'max-select'] = ::Issuable::MAX_NUMBER_OF_ASSIGNEES_OR_REVIEWERS
 
     new_options
   end

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Groups > Members > Manage members' do
+RSpec.describe 'Groups > Members > Manage members', feature_category: :subgroups do
   include Spec::Support::Helpers::Features::MembersHelpers
   include Spec::Support::Helpers::Features::InviteMembersModalHelper
   include Spec::Support::Helpers::ModalHelpers
@@ -50,12 +50,13 @@ RSpec.describe 'Groups > Members > Manage members' do
 
     # Open modal
     page.within(second_row) do
-      click_button 'Remove member'
+      show_actions
+      click_button _('Remove member')
     end
 
     within_modal do
       expect(page).to have_unchecked_field 'Also unassign this user from related issues and merge requests'
-      click_button('Remove member')
+      click_button _('Remove member')
     end
 
     wait_for_requests
@@ -72,7 +73,7 @@ RSpec.describe 'Groups > Members > Manage members' do
 
       visit group_group_members_path(group)
 
-      invite_member(user1.name, role: 'Reporter', refresh: false)
+      invite_member(user1.name, role: 'Reporter')
 
       invite_modal = page.find(invite_modal_selector)
       expect(invite_modal).to have_content("not authorized to update member")

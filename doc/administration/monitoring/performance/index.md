@@ -1,7 +1,7 @@
 ---
 stage: Monitor
 group: Respond
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # GitLab Performance Monitoring **(FREE SELF)**
@@ -41,7 +41,7 @@ Two types of metrics are collected:
 
 Transaction metrics are metrics that can be associated with a single
 transaction. This includes statistics such as the transaction duration, timings
-of any executed SQL queries, time spent rendering HAML views, and so on. These metrics
+of any executed SQL queries, and time spent rendering HAML views. These metrics
 are collected for every Rack request and Sidekiq job processed.
 
 ### Sampled Metrics

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Merge request > User creates MR' do
+RSpec.describe 'Merge request > User creates MR', feature_category: :code_review_workflow do
   include ProjectForksHelper
 
   before do
@@ -59,9 +59,9 @@ RSpec.describe 'Merge request > User creates MR' do
 
     it 'filters source project' do
       find('.js-source-project').click
-      find('.dropdown-source-project input').set('source')
+      find('.gl-listbox-search-input').set('source')
 
-      expect(find('.dropdown-source-project .dropdown-content')).not_to have_content(source_project.name)
+      expect(first('.merge-request-select .gl-new-dropdown-panel')).not_to have_content(source_project.name)
     end
   end
 end

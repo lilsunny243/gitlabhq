@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Create an Amazon EKS cluster
@@ -34,7 +34,8 @@ Start by [importing the example project by URL](../../../project/import/repo_by_
 
 To import the project:
 
-1. On the top bar, select **Menu > Create new project**.
+1. In GitLab, on the top bar, select **Main menu > Projects > View all projects**.
+1. On the right of the page, select **New project**.
 1. Select **Import project**.
 1. Select **Repository by URL**.
 1. For the **Git repository URL**, enter `https://gitlab.com/gitlab-org/configure/examples/gitlab-terraform-eks.git`.
@@ -58,6 +59,53 @@ To create a GitLab agent for Kubernetes:
 1. From the **Select an agent** dropdown list, select `eks-agent` and select **Register an agent**.
 1. GitLab generates a registration token for the agent. Securely store this secret token, as you will need it later.
 1. GitLab provides an address for the agent server (KAS), which you will also need later.
+
+## Set up AWS credentials
+
+Set up your AWS credentials when you want to authenticate AWS with GitLab.
+
+1. Create an [IAM User](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html) or [IAM Role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html).
+1. Make sure that your IAM user or role has the appropriate permissions for your project. For this example project, you must have the permissions shown below. You can expand this when you set up your own project.
+
+    ```json
+    // IAM custom Policy definition
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Sid": "VisualEditor0",
+              "Effect": "Allow",
+              "Action": [
+                  "ec2:*",
+                  "eks:*",
+                  "elasticloadbalancing:*",
+                  "autoscaling:*",
+                  "cloudwatch:*",
+                  "logs:*",
+                  "kms:DescribeKey",
+                  "iam:AddRoleToInstanceProfile",
+                  "iam:AttachRolePolicy",
+                  "iam:CreateInstanceProfile",
+                  "iam:CreateRole",
+                  "iam:CreateServiceLinkedRole",
+                  "iam:GetRole",
+                  "iam:ListAttachedRolePolicies",
+                  "iam:ListRolePolicies",
+                  "iam:ListRoles",
+                  "iam:PassRole",
+                  // required for destroy step
+                  "iam:DetachRolePolicy",
+                  "iam:ListInstanceProfilesForRole",
+                  "iam:DeleteRole"
+              ],
+              "Resource": "*"
+          }
+      ]
+    }
+    ```
+
+1. [Create an access key for the user or role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
+1. Save your access key and secret. You need these to authenticate AWS with GitLab.
 
 ## Configure your project
 
@@ -91,7 +139,7 @@ View the [AWS Terraform provider](https://registry.terraform.io/providers/hashic
 After configuring your project, manually trigger the provisioning of your cluster. In GitLab:
 
 1. On the left sidebar, go to **CI/CD > Pipelines**.
-1. Next to **Play** (**{play}**), select the dropdown icon (**{chevron-lg-down}**).
+1. Next to **Play** (**{play}**), select the dropdown list icon (**{chevron-lg-down}**).
 1. Select **Deploy** to manually trigger the deployment job.
 
 When the pipeline finishes successfully, you can view the new cluster:

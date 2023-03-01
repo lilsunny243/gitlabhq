@@ -1,20 +1,27 @@
-import { GlAlert, GlEmptyState, GlLoadingIcon } from '@gitlab/ui';
+import { GlEmptyState, GlIcon, GlLoadingIcon } from '@gitlab/ui';
 import { mount } from '@vue/test-utils';
 import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import MockAdapter from 'axios-mock-adapter';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import createFlash from '~/flash';
-import httpStatus from '~/lib/utils/http_status';
+import { createMockDirective, getBinding } from 'helpers/vue_mock_directive';
+import { createAlert } from '~/flash';
+import { HTTP_STATUS_OK, HTTP_STATUS_TOO_MANY_REQUESTS } from '~/lib/utils/http_status';
 import axios from '~/lib/utils/axios_utils';
 import { STATUSES } from '~/import_entities/constants';
 import { i18n, ROOT_NAMESPACE } from '~/import_entities/import_groups/constants';
 import ImportTable from '~/import_entities/import_groups/components/import_table.vue';
 import importGroupsMutation from '~/import_entities/import_groups/graphql/mutations/import_groups.mutation.graphql';
+import PaginationBar from '~/vue_shared/components/pagination_bar/pagination_bar.vue';
 import PaginationLinks from '~/vue_shared/components/pagination_links.vue';
+import searchNamespacesWhereUserCanCreateProjectsQuery from '~/projects/new/queries/search_namespaces_where_user_can_create_projects.query.graphql';
 
-import { availableNamespacesFixture, generateFakeEntry } from '../graphql/fixtures';
+import {
+  AVAILABLE_NAMESPACES,
+  availableNamespacesFixture,
+  generateFakeEntry,
+} from '../graphql/fixtures';
 
 jest.mock('~/flash');
 jest.mock('~/import_entities/import_groups/services/status_poller');
@@ -31,7 +38,9 @@ describe('import table', () => {
   const FAKE_GROUPS = [
     generateFakeEntry({ id: 1, status: STATUSES.NONE }),
     generateFakeEntry({ id: 2, status: STATUSES.FINISHED }),
+    generateFakeEntry({ id: 3, status: STATUSES.NONE }),
   ];
+
   const FAKE_PAGE_INFO = { page: 1, perPage: 20, total: 40, totalPages: 2 };
   const FAKE_VERSION_VALIDATION = {
     features: {
@@ -42,6 +51,8 @@ describe('import table', () => {
 
   const findImportSelectedButton = () =>
     wrapper.findAll('button').wrappers.find((w) => w.text() === 'Import selected');
+  const findImportSelectedDropdown = () =>
+    wrapper.findAll('.gl-dropdown').wrappers.find((w) => w.text().includes('Import with projects'));
   const findImportButtons = () =>
     wrapper.findAll('button').wrappers.filter((w) => w.text() === 'Import');
   const findPaginationDropdown = () => wrapper.find('[data-testid="page-size"]');
@@ -49,23 +60,38 @@ describe('import table', () => {
     rowWrapper.find('[data-testid="target-namespace-selector"]');
   const findPaginationDropdownText = () => findPaginationDropdown().find('button').text();
   const findSelectionCount = () => wrapper.find('[data-test-id="selection-count"]');
+  const findNewPathCol = () => wrapper.find('[data-test-id="new-path-col"]');
+  const findUnavailableFeaturesWarning = () =>
+    wrapper.find('[data-testid="unavailable-features-alert"]');
 
   const triggerSelectAllCheckbox = (checked = true) =>
     wrapper.find('thead input[type=checkbox]').setChecked(checked);
 
-  const selectRow = (idx) =>
-    wrapper.findAll('tbody td input[type=checkbox]').at(idx).setChecked(true);
+  const findRowCheckbox = (idx) => wrapper.findAll('tbody td input[type=checkbox]').at(idx);
+  const selectRow = (idx) => findRowCheckbox(idx).setChecked(true);
 
-  const createComponent = ({ bulkImportSourceGroups, importGroups, defaultTargetNamespace }) => {
-    apolloProvider = createMockApollo([], {
-      Query: {
-        availableNamespaces: () => availableNamespacesFixture,
-        bulkImportSourceGroups,
+  const createComponent = ({
+    bulkImportSourceGroups,
+    importGroups,
+    defaultTargetNamespace,
+    glFeatures = {},
+  }) => {
+    apolloProvider = createMockApollo(
+      [
+        [
+          searchNamespacesWhereUserCanCreateProjectsQuery,
+          () => Promise.resolve(availableNamespacesFixture),
+        ],
+      ],
+      {
+        Query: {
+          bulkImportSourceGroups,
+        },
+        Mutation: {
+          importGroups,
+        },
       },
-      Mutation: {
-        importGroups,
-      },
-    });
+    );
 
     wrapper = mount(ImportTable, {
       propsData: {
@@ -74,6 +100,12 @@ describe('import table', () => {
         sourceUrl: SOURCE_URL,
         historyPath: '/fake_history_path',
         defaultTargetNamespace,
+      },
+      directives: {
+        GlTooltip: createMockDirective('gl-tooltip'),
+      },
+      provide: {
+        glFeatures,
       },
       apolloProvider,
     });
@@ -85,7 +117,7 @@ describe('import table', () => {
 
   beforeEach(() => {
     axiosMock = new MockAdapter(axios);
-    axiosMock.onGet(/.*\/exists$/, () => []).reply(200);
+    axiosMock.onGet(/.*\/exists$/, () => []).reply(HTTP_STATUS_OK, { exists: false });
   });
 
   afterEach(() => {
@@ -99,7 +131,7 @@ describe('import table', () => {
       });
       await waitForPromises();
 
-      expect(wrapper.find(GlLoadingIcon).exists()).toBe(true);
+      expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(true);
     });
 
     it('does not renders loading icon when request is completed', async () => {
@@ -108,7 +140,7 @@ describe('import table', () => {
       });
       await waitForPromises();
 
-      expect(wrapper.find(GlLoadingIcon).exists()).toBe(false);
+      expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(false);
     });
   });
 
@@ -123,7 +155,7 @@ describe('import table', () => {
       });
       await waitForPromises();
 
-      expect(wrapper.find(GlEmptyState).props().title).toBe(i18n.NO_GROUPS_FOUND);
+      expect(wrapper.findComponent(GlEmptyState).props().title).toBe(i18n.NO_GROUPS_FOUND);
     });
   });
 
@@ -167,7 +199,7 @@ describe('import table', () => {
   });
 
   it('respects default namespace if provided', async () => {
-    const targetNamespace = availableNamespacesFixture[1];
+    const targetNamespace = AVAILABLE_NAMESPACES[1];
 
     createComponent({
       bulkImportSourceGroups: () => ({
@@ -221,7 +253,7 @@ describe('import table', () => {
           {
             newName: FAKE_GROUP.lastImportTarget.newName,
             sourceGroupId: FAKE_GROUP.id,
-            targetNamespace: availableNamespacesFixture[0].fullPath,
+            targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
           },
         ],
       },
@@ -240,17 +272,37 @@ describe('import table', () => {
       },
     });
 
-    axiosMock.onPost('/import/bulk_imports.json').reply(httpStatus.BAD_REQUEST);
+    await waitForPromises();
+    await findImportButtons()[0].trigger('click');
+    await waitForPromises();
+
+    expect(createAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: i18n.ERROR_IMPORT,
+      }),
+    );
+  });
+
+  it('displays inline error if importing group reports rate limit', async () => {
+    createComponent({
+      bulkImportSourceGroups: () => ({
+        nodes: [FAKE_GROUP],
+        pageInfo: FAKE_PAGE_INFO,
+        versionValidation: FAKE_VERSION_VALIDATION,
+      }),
+      importGroups: () => {
+        const error = new Error();
+        error.response = { status: HTTP_STATUS_TOO_MANY_REQUESTS };
+        throw error;
+      },
+    });
 
     await waitForPromises();
     await findImportButtons()[0].trigger('click');
     await waitForPromises();
 
-    expect(createFlash).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: i18n.ERROR_IMPORT,
-      }),
-    );
+    expect(createAlert).not.toHaveBeenCalled();
+    expect(wrapper.find('tbody tr').text()).toContain(i18n.ERROR_TOO_MANY_REQUESTS);
   });
 
   describe('pagination', () => {
@@ -268,7 +320,7 @@ describe('import table', () => {
     });
 
     it('correctly passes pagination info from query', () => {
-      expect(wrapper.find(PaginationLinks).props().pageInfo).toStrictEqual(FAKE_PAGE_INFO);
+      expect(wrapper.findComponent(PaginationLinks).props().pageInfo).toStrictEqual(FAKE_PAGE_INFO);
     });
 
     it('renders pagination dropdown', () => {
@@ -293,7 +345,7 @@ describe('import table', () => {
 
     it('updates page when page change is requested', async () => {
       const REQUESTED_PAGE = 2;
-      wrapper.find(PaginationLinks).props().change(REQUESTED_PAGE);
+      wrapper.findComponent(PaginationLinks).props().change(REQUESTED_PAGE);
 
       await waitForPromises();
       expect(bulkImportSourceGroupsQueryMock).toHaveBeenCalledWith(
@@ -316,7 +368,7 @@ describe('import table', () => {
         },
         versionValidation: FAKE_VERSION_VALIDATION,
       });
-      wrapper.find(PaginationLinks).props().change(REQUESTED_PAGE);
+      wrapper.findComponent(PaginationLinks).props().change(REQUESTED_PAGE);
       await waitForPromises();
 
       expect(wrapper.text()).toContain('Showing 21-21 of 38 groups that you own from');
@@ -512,19 +564,84 @@ describe('import table', () => {
         mutation: importGroupsMutation,
         variables: {
           importRequests: [
-            {
-              targetNamespace: availableNamespacesFixture[0].fullPath,
+            expect.objectContaining({
+              targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
               newName: NEW_GROUPS[0].lastImportTarget.newName,
               sourceGroupId: NEW_GROUPS[0].id,
-            },
-            {
-              targetNamespace: availableNamespacesFixture[0].fullPath,
+            }),
+            expect.objectContaining({
+              targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
               newName: NEW_GROUPS[1].lastImportTarget.newName,
               sourceGroupId: NEW_GROUPS[1].id,
-            },
+            }),
           ],
         },
       });
+    });
+  });
+
+  it('renders pagination bar with storage key', async () => {
+    createComponent({
+      bulkImportSourceGroups: () => new Promise(() => {}),
+    });
+    await waitForPromises();
+
+    expect(wrapper.getComponent(PaginationBar).props('storageKey')).toBe(
+      ImportTable.LOCAL_STORAGE_KEY,
+    );
+  });
+
+  it('displays info icon with a tooltip', async () => {
+    const NEW_GROUPS = [generateFakeEntry({ id: 1, status: STATUSES.NONE })];
+
+    createComponent({
+      bulkImportSourceGroups: () => ({
+        nodes: NEW_GROUPS,
+        pageInfo: FAKE_PAGE_INFO,
+        versionValidation: FAKE_VERSION_VALIDATION,
+      }),
+    });
+    jest.spyOn(apolloProvider.defaultClient, 'mutate');
+    await waitForPromises();
+
+    const icon = findNewPathCol().findComponent(GlIcon);
+    const tooltip = getBinding(icon.element, 'gl-tooltip');
+
+    expect(tooltip).toBeDefined();
+    expect(tooltip.value).toBe('Path of the new group.');
+  });
+
+  describe('re-import', () => {
+    it('renders finished row as disabled by default', async () => {
+      createComponent({
+        bulkImportSourceGroups: () => ({
+          nodes: [generateFakeEntry({ id: 5, status: STATUSES.FINISHED })],
+          pageInfo: FAKE_PAGE_INFO,
+          versionValidation: FAKE_VERSION_VALIDATION,
+        }),
+      });
+      await waitForPromises();
+
+      expect(findRowCheckbox(0).attributes('disabled')).toBeDefined();
+    });
+
+    it('enables row after clicking re-import', async () => {
+      createComponent({
+        bulkImportSourceGroups: () => ({
+          nodes: [generateFakeEntry({ id: 5, status: STATUSES.FINISHED })],
+          pageInfo: FAKE_PAGE_INFO,
+          versionValidation: FAKE_VERSION_VALIDATION,
+        }),
+      });
+      await waitForPromises();
+
+      const reimportButton = wrapper
+        .findAll('tbody td button')
+        .wrappers.find((w) => w.text().includes('Re-import'));
+
+      await reimportButton.trigger('click');
+
+      expect(findRowCheckbox(0).attributes('disabled')).toBeUndefined();
     });
   });
 
@@ -539,8 +656,8 @@ describe('import table', () => {
       });
       await waitForPromises();
 
-      expect(wrapper.find(GlAlert).exists()).toBe(true);
-      expect(wrapper.find(GlAlert).text()).toContain('projects (require v14.8.0)');
+      expect(findUnavailableFeaturesWarning().exists()).toBe(true);
+      expect(findUnavailableFeaturesWarning().text()).toContain('projects (require v14.8.0)');
     });
 
     it('does not renders alert when there are no unavailable features', async () => {
@@ -558,7 +675,86 @@ describe('import table', () => {
       });
       await waitForPromises();
 
-      expect(wrapper.find(GlAlert).exists()).toBe(false);
+      expect(findUnavailableFeaturesWarning().exists()).toBe(false);
+    });
+  });
+
+  describe('when import projects is enabled', () => {
+    const NEW_GROUPS = [
+      generateFakeEntry({ id: 1, status: STATUSES.NONE }),
+      generateFakeEntry({ id: 2, status: STATUSES.NONE }),
+      generateFakeEntry({ id: 3, status: STATUSES.FINISHED }),
+    ];
+
+    beforeEach(() => {
+      createComponent({
+        bulkImportSourceGroups: () => ({
+          nodes: NEW_GROUPS,
+          pageInfo: FAKE_PAGE_INFO,
+          versionValidation: FAKE_VERSION_VALIDATION,
+        }),
+        glFeatures: {
+          bulkImportProjects: true,
+        },
+      });
+      jest.spyOn(apolloProvider.defaultClient, 'mutate');
+      return waitForPromises();
+    });
+
+    it('renders import all dropdown', async () => {
+      expect(findImportSelectedDropdown().exists()).toBe(true);
+    });
+
+    it('includes migrateProjects: true when dropdown is clicked', async () => {
+      await selectRow(0);
+      await selectRow(1);
+      await nextTick();
+      await findImportSelectedDropdown().find('button').trigger('click');
+      expect(apolloProvider.defaultClient.mutate).toHaveBeenCalledWith({
+        mutation: importGroupsMutation,
+        variables: {
+          importRequests: [
+            expect.objectContaining({
+              targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
+              newName: NEW_GROUPS[0].lastImportTarget.newName,
+              sourceGroupId: NEW_GROUPS[0].id,
+              migrateProjects: true,
+            }),
+            expect.objectContaining({
+              targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
+              newName: NEW_GROUPS[1].lastImportTarget.newName,
+              sourceGroupId: NEW_GROUPS[1].id,
+              migrateProjects: true,
+            }),
+          ],
+        },
+      });
+    });
+
+    it('includes migrateProjects: false when dropdown item is clicked', async () => {
+      await selectRow(0);
+      await selectRow(1);
+      await nextTick();
+      await findImportSelectedDropdown().find('.gl-dropdown-item button').trigger('click');
+      expect(apolloProvider.defaultClient.mutate).toHaveBeenCalledWith({
+        mutation: importGroupsMutation,
+        variables: {
+          importRequests: [
+            expect.objectContaining({
+              targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
+              newName: NEW_GROUPS[0].lastImportTarget.newName,
+              sourceGroupId: NEW_GROUPS[0].id,
+              migrateProjects: false,
+            }),
+            expect.objectContaining({
+              targetNamespace: AVAILABLE_NAMESPACES[0].fullPath,
+              newName: NEW_GROUPS[1].lastImportTarget.newName,
+              sourceGroupId: NEW_GROUPS[1].id,
+              migrateProjects: false,
+            }),
+          ],
+        },
+      });
     });
   });
 });

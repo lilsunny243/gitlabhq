@@ -1,7 +1,7 @@
 ---
 stage: Secure
 group: Dynamic Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: howto
 ---
 
@@ -93,7 +93,7 @@ used in [Web API Fuzz Testing](index.md#http-archive-har).
 1. Select **Export Data > Current Workspace**.
 1. Select requests to include in the HAR file.
 1. Select **Export**.
-1. In the **Select Export Type** dropdown select **HAR -- HTTP Archive Format**.
+1. In the **Select Export Type** dropdown list select **HAR -- HTTP Archive Format**.
 1. Select **Done**.
 1. Enter a location and filename for the HAR file.
 
@@ -109,7 +109,7 @@ responses in HAR format.
 have an account, first create an account.
 1. Browse pages that call an API. Fiddler automatically captures the requests.
 1. Select one or more requests, then from the context menu, select **Export > Selected Sessions**.
-1. In the **Choose Format** dropdown select **HTTPArchive v1.2**.
+1. In the **Choose Format** dropdown list select **HTTPArchive v1.2**.
 1. Enter a filename and select **Save**.
 
 Fiddler shows a popup message confirming the export has succeeded.
@@ -211,7 +211,7 @@ Review the HAR file for any of the following:
 We strongly recommended that you [edit or remove it](#edit-or-remove-sensitive-information) any
 sensitive information.
 
-Use the following as a checklist to start with. Note that it's not an exhaustive list.
+Use the following as a checklist to start with. It's not an exhaustive list.
 
 - Look for secrets. For example: if your application requires authentication, check common locations
   or authentication information:

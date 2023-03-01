@@ -7,16 +7,18 @@ import { nextTick } from 'vue';
 import mockPipelinesResponse from 'test_fixtures/pipelines/pipelines.json';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import { TEST_HOST } from 'helpers/test_constants';
+import { mockTracking } from 'helpers/tracking_helper';
 import { extendedWrapper } from 'helpers/vue_test_utils_helper';
 import waitForPromises from 'helpers/wait_for_promises';
 import Api from '~/api';
-import createFlash from '~/flash';
+import { createAlert, VARIANT_WARNING } from '~/flash';
 import axios from '~/lib/utils/axios_utils';
+import { HTTP_STATUS_INTERNAL_SERVER_ERROR, HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import NavigationControls from '~/pipelines/components/pipelines_list/nav_controls.vue';
 import PipelinesComponent from '~/pipelines/components/pipelines_list/pipelines.vue';
 import PipelinesCiTemplates from '~/pipelines/components/pipelines_list/empty_state/pipelines_ci_templates.vue';
 import PipelinesTableComponent from '~/pipelines/components/pipelines_list/pipelines_table.vue';
-import { RAW_TEXT_WARNING } from '~/pipelines/constants';
+import { RAW_TEXT_WARNING, TRACKING_CATEGORIES } from '~/pipelines/constants';
 import Store from '~/pipelines/stores/pipelines_store';
 import NavigationTabs from '~/vue_shared/components/navigation_tabs.vue';
 import TablePagination from '~/vue_shared/components/pagination/table_pagination.vue';
@@ -37,6 +39,7 @@ const mockPipelineWithStages = mockPipelinesResponse.pipelines.find(
 describe('Pipelines', () => {
   let wrapper;
   let mock;
+  let trackingSpy;
 
   const paths = {
     emptyStateSvgPath: '/assets/illustrations/pipelines_empty.svg',
@@ -69,7 +72,7 @@ describe('Pipelines', () => {
   const findTablePagination = () => wrapper.findComponent(TablePagination);
 
   const findTab = (tab) => wrapper.findByTestId(`pipelines-tab-${tab}`);
-  const findPipelineKeyDropdown = () => wrapper.findByTestId('pipeline-key-dropdown');
+  const findPipelineKeyCollapsibleBox = () => wrapper.findByTestId('pipeline-key-collapsible-box');
   const findRunPipelineButton = () => wrapper.findByTestId('run-pipeline-button');
   const findCiLintButton = () => wrapper.findByTestId('ci-lint-button');
   const findCleanCacheButton = () => wrapper.findByTestId('clear-cache-button');
@@ -123,7 +126,7 @@ describe('Pipelines', () => {
     });
 
     it('shows loading state when the app is loading', () => {
-      expect(wrapper.find(GlLoadingIcon).exists()).toBe(true);
+      expect(wrapper.findComponent(GlLoadingIcon).exists()).toBe(true);
     });
 
     it('does not display tabs when the first request has not yet been made', () => {
@@ -139,7 +142,7 @@ describe('Pipelines', () => {
     beforeEach(() => {
       mock
         .onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '1' } })
-        .reply(200, mockPipelinesResponse);
+        .reply(HTTP_STATUS_OK, mockPipelinesResponse);
     });
 
     describe('when user has no permissions', () => {
@@ -231,10 +234,12 @@ describe('Pipelines', () => {
           beforeEach(async () => {
             mock
               .onGet(mockPipelinesEndpoint, { params: { scope: 'finished', page: '1' } })
-              .reply(200, {
+              .reply(HTTP_STATUS_OK, {
                 pipelines: [mockFinishedPipeline],
                 count: mockPipelinesResponse.count,
               });
+
+            trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
 
             goToTab('finished');
 
@@ -256,13 +261,24 @@ describe('Pipelines', () => {
               `${window.location.pathname}?scope=finished&page=1`,
             );
           });
+
+          it.each(['all', 'finished', 'branches', 'tags'])('tracks %p tab click', async (scope) => {
+            goToTab(scope);
+
+            await waitForPromises();
+
+            expect(trackingSpy).toHaveBeenCalledWith(undefined, 'click_filter_tabs', {
+              label: TRACKING_CATEGORIES.tabs,
+              property: scope,
+            });
+          });
         });
 
         describe('when the scope in the tab is empty', () => {
           beforeEach(async () => {
             mock
               .onGet(mockPipelinesEndpoint, { params: { scope: 'branches', page: '1' } })
-              .reply(200, {
+              .reply(HTTP_STATUS_OK, {
                 pipelines: [],
                 count: mockPipelinesResponse.count,
               });
@@ -305,7 +321,7 @@ describe('Pipelines', () => {
             .onGet(mockPipelinesEndpoint, {
               params: expectedParams,
             })
-            .replyOnce(200, {
+            .replyOnce(HTTP_STATUS_OK, {
               pipelines: [mockFilteredPipeline],
               count: mockPipelinesResponse.count,
             });
@@ -346,8 +362,11 @@ describe('Pipelines', () => {
         });
 
         it('displays a warning message if raw text search is used', () => {
-          expect(createFlash).toHaveBeenCalledTimes(1);
-          expect(createFlash).toHaveBeenCalledWith({ message: RAW_TEXT_WARNING, type: 'warning' });
+          expect(createAlert).toHaveBeenCalledTimes(1);
+          expect(createAlert).toHaveBeenCalledWith({
+            message: RAW_TEXT_WARNING,
+            variant: VARIANT_WARNING,
+          });
         });
 
         it('should update browser bar', () => {
@@ -375,12 +394,12 @@ describe('Pipelines', () => {
     const [firstPage, secondPage] = chunk(mockPipelinesResponse.pipelines, mockPageSize);
 
     const goToPage = (page) => {
-      findTablePagination().find(GlPagination).vm.$emit('input', page);
+      findTablePagination().findComponent(GlPagination).vm.$emit('input', page);
     };
 
     beforeEach(async () => {
       mock.onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '1' } }).reply(
-        200,
+        HTTP_STATUS_OK,
         {
           pipelines: firstPage,
           count: mockPipelinesResponse.count,
@@ -388,7 +407,7 @@ describe('Pipelines', () => {
         mockPageHeaders({ page: 1 }),
       );
       mock.onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '2' } }).reply(
-        200,
+        HTTP_STATUS_OK,
         {
           pipelines: secondPage,
           count: mockPipelinesResponse.count,
@@ -430,6 +449,26 @@ describe('Pipelines', () => {
           `${window.location.pathname}?page=2&scope=all`,
         );
       });
+
+      it('should reset page to 1 when filtering pipelines', () => {
+        expect(window.history.pushState).toHaveBeenCalledTimes(1);
+        expect(window.history.pushState).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          `${window.location.pathname}?page=2&scope=all`,
+        );
+
+        findFilteredSearch().vm.$emit('submit', [
+          { type: 'status', value: { data: 'success', operator: '=' } },
+        ]);
+
+        expect(window.history.pushState).toHaveBeenCalledTimes(2);
+        expect(window.history.pushState).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          `${window.location.pathname}?page=1&scope=all&status=success`,
+        );
+      });
     });
   });
 
@@ -443,13 +482,13 @@ describe('Pipelines', () => {
       // Mock no pipelines in the first attempt
       mock
         .onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '1' } })
-        .replyOnce(200, emptyResponse, {
+        .replyOnce(HTTP_STATUS_OK, emptyResponse, {
           'POLL-INTERVAL': 100,
         });
       // Mock pipelines in the next attempt
       mock
         .onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '1' } })
-        .reply(200, mockPipelinesResponse, {
+        .reply(HTTP_STATUS_OK, mockPipelinesResponse, {
           'POLL-INTERVAL': 100,
         });
     });
@@ -490,10 +529,12 @@ describe('Pipelines', () => {
 
   describe('when no pipelines exist', () => {
     beforeEach(() => {
-      mock.onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '1' } }).reply(200, {
-        pipelines: [],
-        count: { all: '0' },
-      });
+      mock
+        .onGet(mockPipelinesEndpoint, { params: { scope: 'all', page: '1' } })
+        .reply(HTTP_STATUS_OK, {
+          pipelines: [],
+          count: { all: '0' },
+        });
     });
 
     describe('when CI is enabled and user has permissions', () => {
@@ -527,15 +568,17 @@ describe('Pipelines', () => {
         expect(findFilteredSearch().exists()).toBe(true);
       });
 
-      it('renders the pipeline key dropdown', () => {
-        expect(findPipelineKeyDropdown().exists()).toBe(true);
+      it('renders the pipeline key collapsible box', () => {
+        expect(findPipelineKeyCollapsibleBox().exists()).toBe(true);
       });
 
       it('renders tab empty state finished scope', async () => {
-        mock.onGet(mockPipelinesEndpoint, { params: { scope: 'finished', page: '1' } }).reply(200, {
-          pipelines: [],
-          count: { all: '0' },
-        });
+        mock
+          .onGet(mockPipelinesEndpoint, { params: { scope: 'finished', page: '1' } })
+          .reply(HTTP_STATUS_OK, {
+            pipelines: [],
+            count: { all: '0' },
+          });
 
         findNavigationTabs().vm.$emit('onChangeTab', 'finished');
 
@@ -560,7 +603,7 @@ describe('Pipelines', () => {
       });
 
       it('does not render the pipeline key dropdown', () => {
-        expect(findPipelineKeyDropdown().exists()).toBe(false);
+        expect(findPipelineKeyCollapsibleBox().exists()).toBe(false);
       });
 
       it('does not render tabs nor buttons', () => {
@@ -583,7 +626,7 @@ describe('Pipelines', () => {
           'This project is not currently set up to run pipelines.',
         );
 
-        expect(findEmptyState().find(GlButton).exists()).toBe(false);
+        expect(findEmptyState().findComponent(GlButton).exists()).toBe(false);
       });
 
       it('does not render tabs or buttons', () => {
@@ -625,7 +668,7 @@ describe('Pipelines', () => {
 
       beforeEach(() => {
         mock.onGet(mockPipelinesEndpoint, { scope: 'all', page: '1' }).reply(
-          200,
+          HTTP_STATUS_OK,
           {
             pipelines: [mockPipelineWithStages],
             count: { all: '1' },
@@ -635,7 +678,9 @@ describe('Pipelines', () => {
           },
         );
 
-        mock.onGet(mockPipelineWithStages.details.stages[0].dropdown_path).reply(200, stageReply);
+        mock
+          .onGet(mockPipelineWithStages.details.stages[0].dropdown_path)
+          .reply(HTTP_STATUS_OK, stageReply);
 
         createComponent();
 
@@ -646,7 +691,7 @@ describe('Pipelines', () => {
 
       describe('when a request is being made', () => {
         beforeEach(async () => {
-          mock.onGet(mockPipelinesEndpoint).reply(200, mockPipelinesResponse);
+          mock.onGet(mockPipelinesEndpoint).reply(HTTP_STATUS_OK, mockPipelinesResponse);
 
           await waitForPromises();
         });
@@ -684,7 +729,7 @@ describe('Pipelines', () => {
 
   describe('when pipelines cannot be loaded', () => {
     beforeEach(async () => {
-      mock.onGet(mockPipelinesEndpoint).reply(500, {});
+      mock.onGet(mockPipelinesEndpoint).reply(HTTP_STATUS_INTERNAL_SERVER_ERROR, {});
     });
 
     describe('when user has no permissions', () => {

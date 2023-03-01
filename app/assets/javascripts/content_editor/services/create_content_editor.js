@@ -10,6 +10,7 @@ import BulletList from '../extensions/bullet_list';
 import Code from '../extensions/code';
 import CodeBlockHighlight from '../extensions/code_block_highlight';
 import ColorChip from '../extensions/color_chip';
+import Comment from '../extensions/comment';
 import DescriptionItem from '../extensions/description_item';
 import DescriptionList from '../extensions/description_list';
 import Details from '../extensions/details';
@@ -18,6 +19,7 @@ import Diagram from '../extensions/diagram';
 import Document from '../extensions/document';
 import Dropcursor from '../extensions/dropcursor';
 import Emoji from '../extensions/emoji';
+import ExternalKeydownHandler from '../extensions/external_keydown_handler';
 import Figure from '../extensions/figure';
 import FigureCaption from '../extensions/figure_caption';
 import FootnoteDefinition from '../extensions/footnote_definition';
@@ -28,6 +30,7 @@ import Gapcursor from '../extensions/gapcursor';
 import HardBreak from '../extensions/hard_break';
 import Heading from '../extensions/heading';
 import History from '../extensions/history';
+import Highlight from '../extensions/highlight';
 import HorizontalRule from '../extensions/horizontal_rule';
 import HTMLMarks from '../extensions/html_marks';
 import HTMLNodes from '../extensions/html_nodes';
@@ -42,10 +45,12 @@ import OrderedList from '../extensions/ordered_list';
 import Paragraph from '../extensions/paragraph';
 import PasteMarkdown from '../extensions/paste_markdown';
 import Reference from '../extensions/reference';
+import ReferenceLabel from '../extensions/reference_label';
 import ReferenceDefinition from '../extensions/reference_definition';
 import Sourcemap from '../extensions/sourcemap';
 import Strike from '../extensions/strike';
 import Subscript from '../extensions/subscript';
+import Suggestions from '../extensions/suggestions';
 import Superscript from '../extensions/superscript';
 import Table from '../extensions/table';
 import TableCell from '../extensions/table_cell';
@@ -96,6 +101,7 @@ export const createContentEditor = ({
     BulletList,
     Code,
     ColorChip,
+    Comment,
     CodeBlockHighlight,
     DescriptionItem,
     DescriptionList,
@@ -115,24 +121,28 @@ export const createContentEditor = ({
     HardBreak,
     Heading,
     History,
+    Highlight,
     HorizontalRule,
     ...HTMLMarks,
     ...HTMLNodes,
     Image,
     InlineDiff,
     Italic,
+    ExternalKeydownHandler.configure({ eventHub }),
     Link,
     ListItem,
     Loading,
     MathInline,
     OrderedList,
     Paragraph,
-    PasteMarkdown,
+    PasteMarkdown.configure({ eventHub, renderMarkdown }),
     Reference,
+    ReferenceLabel,
     ReferenceDefinition,
     Sourcemap,
     Strike,
     Subscript,
+    Suggestions,
     Superscript,
     TableCell,
     TableHeader,

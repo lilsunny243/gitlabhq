@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Ci::Pipelines do
+RSpec.describe API::Ci::Pipelines, feature_category: :continuous_integration do
   let_it_be(:user) { create(:user) }
   let_it_be(:non_member) { create(:user) }
   let_it_be(:project2) { create(:project, creator: user) }
@@ -940,7 +940,12 @@ RSpec.describe API::Ci::Pipelines do
           subject
 
           expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response).to contain_exactly({ "variable_type" => "env_var", "key" => "foo", "value" => "bar" })
+          expect(json_response).to contain_exactly({
+                                                     "variable_type" => "env_var",
+                                                     "key" => "foo",
+                                                     "value" => "bar",
+                                                     "raw" => false
+                                                   })
         end
       end
     end
@@ -961,7 +966,12 @@ RSpec.describe API::Ci::Pipelines do
           subject
 
           expect(response).to have_gitlab_http_status(:ok)
-          expect(json_response).to contain_exactly({ "variable_type" => "env_var", "key" => "foo", "value" => "bar" })
+          expect(json_response).to contain_exactly({
+                                                     "variable_type" => "env_var",
+                                                     "key" => "foo",
+                                                     "value" => "bar",
+                                                     "raw" => false
+                                                   })
         end
       end
 

@@ -1,7 +1,7 @@
 ---
 stage: Analytics
 group: Product Intelligence
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Implement Service Ping
@@ -19,7 +19,7 @@ To implement a new metric in Service Ping, follow these steps:
 1. [Name and place the metric](metrics_dictionary.md#metric-key_path)
 1. [Test counters manually using your Rails console](#test-counters-manually-using-your-rails-console)
 1. [Generate the SQL query](#generate-the-sql-query)
-1. [Optimize queries with `#database-lab`](#optimize-queries-with-database-lab)
+1. [Optimize queries with Database Lab](#optimize-queries-with-database-lab)
 1. [Add the metric definition to the Metrics Dictionary](#add-the-metric-definition)
 1. [Add the metric to the Versions Application](#add-the-metric-to-the-versions-application)
 1. [Create a merge request](#create-a-merge-request)
@@ -174,14 +174,14 @@ Errors return a value of `-1`.
 
 WARNING:
 This functionality estimates a distinct count of a specific ActiveRecord_Relation in a given column,
-which uses the [HyperLogLog](http://algo.inria.fr/flajolet/Publications/FlFuGaMe07.pdf) algorithm.
+which uses the [HyperLogLog](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf) algorithm.
 As the HyperLogLog algorithm is probabilistic, the **results always include error**.
 The highest encountered error rate is 4.9%.
 
 When correctly used, the `estimate_batch_distinct_count` method enables efficient counting over
-columns that contain non-unique values, which can not be assured by other counters.
+columns that contain non-unique values, which cannot be assured by other counters.
 
-##### estimate_batch_distinct_count method
+##### `estimate_batch_distinct_count` method
 
 Method:
 
@@ -231,13 +231,6 @@ Examples:
      estimate_batch_distinct_count(::Note.with_suggestions.where(time_period), :author_id, start: ::Note.minimum(:id), finish: ::Note.maximum(:id))
    ```
 
-1. Execution of estimated batch counter with joined relation (`joins(:cluster)`),
-   for a custom column (`'clusters.user_id'`):
-
-   ```ruby
-     estimate_batch_distinct_count(::Clusters::Applications::CertManager.where(time_period).available.joins(:cluster), 'clusters.user_id')
-   ```
-
 When instrumenting metric with usage of estimated batch counter please add
 `_estimated` suffix to its name, for example:
 
@@ -266,13 +259,13 @@ Arguments:
 
 #### Ordinary Redis counters
 
-Example of implementation: [`Gitlab::UsageDataCounters::WikiPageCounter`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data_counters/wiki_page_counter.rb), using Redis methods [`INCR`](https://redis.io/commands/incr) and [`GET`](https://redis.io/commands/get).
+Example of implementation: [`Gitlab::UsageDataCounters::WikiPageCounter`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data_counters/wiki_page_counter.rb), using Redis methods [`INCR`](https://redis.io/commands/incr/) and [`GET`](https://redis.io/commands/get/).
 
 Events are handled by counter classes in the `Gitlab::UsageDataCounters` namespace, inheriting from `BaseCounter`, that are either:
 
 1. Listed in [`Gitlab::UsageDataCounters::COUNTERS`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data_counters.rb#L5) to be then included in `Gitlab::UsageData`.
 
-1. Specified in the metric definition using the `RedisMetric` instrumentation class as a `counter_class` option to be picked up using the [metric instrumentation](metrics_instrumentation.md) framework. Refer to the [Redis metrics](metrics_instrumentation.md#redis-metrics) documentation for an example implementation.
+1. Specified in the metric definition using the `RedisMetric` instrumentation class by their `prefix` option to be picked up using the [metric instrumentation](metrics_instrumentation.md) framework. Refer to the [Redis metrics](metrics_instrumentation.md#redis-metrics) documentation for an example implementation.
 
 Inheriting classes are expected to override `KNOWN_EVENTS` and `PREFIX` constants to build event names and associated metrics. For example, for prefix `issues` and events array `%w[create, update, delete]`, three metrics will be added to the Service Ping payload: `counts.issues_create`, `counts.issues_update` and `counts.issues_delete`.
 
@@ -323,7 +316,7 @@ HyperLogLog (HLL) is a probabilistic algorithm and its **results always includes
 used HLL implementation is "approximated with a standard error of 0.81%".
 
 NOTE:
- A user's consent for usage_stats (`User.single_user&.requires_usage_stats_consent?`) is not checked during the data tracking stage due to performance reasons. Keys corresponding to those counters are present in Redis even if `usage_stats_consent` is still required. However, no metric is collected from Redis and reported back to GitLab as long as `usage_stats_consent` is required.
+ A user's consent for `usage_stats` (`User.single_user&.requires_usage_stats_consent?`) is not checked during the data tracking stage due to performance reasons. Keys corresponding to those counters are present in Redis even if `usage_stats_consent` is still required. However, no metric is collected from Redis and reported back to GitLab as long as `usage_stats_consent` is required.
 
 With `Gitlab::UsageDataCounters::HLLRedisCounter` we have available data structures used to count unique values.
 
@@ -337,10 +330,8 @@ Implemented using Redis methods [PFADD](https://redis.io/commands/pfadd/) and [P
 
    ```yaml
    - name: users_creating_epics
-     category: epics_usage
      redis_slot: users
      aggregation: weekly
-     feature_flag: track_epics_activity
    ```
 
    Keys:
@@ -351,30 +342,23 @@ Implemented using Redis methods [PFADD](https://redis.io/commands/pfadd/) and [P
 
      [See Metric name](metrics_dictionary.md#metric-name) for a complete guide on metric naming suggestion.
 
-     Consider including in the event's name the Redis slot to be able to count totals for a specific category.
-
      Example names: `users_creating_epics`, `users_triggering_security_scans`.
 
-   - `category`: event category. Used for getting total counts for events in a category, for easier
-     access to a group of events.
    - `redis_slot`: optional Redis slot. Default value: event name. Only event data that is stored in the same slot
      can be aggregated. Ensure keys are in the same slot. For example:
      `users_creating_epics` with `redis_slot: 'users'` builds Redis key
      `{users}_creating_epics-2020-34`. If `redis_slot` is not defined the Redis key will
      be `{users_creating_epics}-2020-34`.
      Recommended slots to use are: `users`, `projects`. This is the value we count.
-   - `expiry`: expiry time in days. Default: 29 days for daily aggregation and 6 weeks for weekly
-     aggregation.
    - `aggregation`: may be set to a `:daily` or `:weekly` key. Defines how counting data is stored in Redis.
      Aggregation on a `daily` basis does not pull more fine grained data.
-   - `feature_flag`: if no feature flag is set then the tracking is enabled. One feature flag can be used for multiple events. For details, see our [GitLab internal Feature flags](../feature_flags/index.md) documentation. The feature flags are owned by the group adding the event tracking.
 
 1. Use one of the following methods to track the event:
 
-   - In the controller using the `RedisTracking` module and the following format:
+   - In the controller using the `ProductAnalyticsTracking` module and the following format:
 
      ```ruby
-     track_event(*controller_actions, name:, conditions: nil, destinations: [:redis_hll], &block)
+     track_custom_event(*controller_actions, name:, action:, label:, conditions: nil, destinations: [:redis_hll], &block)
      ```
 
      Arguments:
@@ -382,7 +366,9 @@ Implemented using Redis methods [PFADD](https://redis.io/commands/pfadd/) and [P
      - `controller_actions`: the controller actions to track.
      - `name`: the event name.
      - `conditions`: optional custom conditions. Uses the same format as Rails callbacks.
-     - `destinations`: optional list of destinations. Currently supports `:redis_hll` and `:snowplow`. Default: [:redis_hll].
+     - `action`: optional action name for the triggered event. See [event schema](../snowplow/index.md#event-schema) for more details.
+     - `label`: optional label for the triggered event. See [event schema](../snowplow/index.md#event-schema) for more details.
+     - `destinations`: optional list of destinations. Currently supports `:redis_hll` and `:snowplow`. Default: `:redis_hll`.
      - `&block`: optional block that computes and returns the `custom_id` that we want to track. This overrides the `visitor_id`.
 
      Example:
@@ -390,10 +376,14 @@ Implemented using Redis methods [PFADD](https://redis.io/commands/pfadd/) and [P
      ```ruby
      # controller
      class ProjectsController < Projects::ApplicationController
-       include RedisTracking
+       include ProductAnalyticsTracking
 
        skip_before_action :authenticate_user!, only: :show
-       track_event :index, :show, name: 'users_visiting_projects'
+       track_custom_event :index, :show,
+         name: 'users_visiting_projects',
+         action: 'user_perform_visit',
+         label: 'redis_hll_counters.users_visiting_project_monthly',
+         destinations: %i[redis_hll snowplow]
 
        def index
          render html: 'index'
@@ -505,9 +495,6 @@ Next, get the unique events for the current week.
 We have the following recommendations for [adding new events](#add-new-events):
 
 - Event aggregation: weekly.
-- Key expiry time:
-  - Daily: 29 days.
-  - Weekly: 42 days.
 - When adding new metrics, use a [feature flag](../../operations/feature_flags.md) to control the impact.
 - For feature flags triggered by another service, set `default_enabled: false`,
   - Events can be triggered using the `UsageData` API, which helps when there are > 10 events per change
@@ -516,7 +503,7 @@ We have the following recommendations for [adding new events](#add-new-events):
 
 Events are tracked behind optional [feature flags](../feature_flags/index.md) due to concerns for Redis performance and scalability.
 
-For a full list of events and corresponding feature flags see, [known_events](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data_counters/known_events/) files.
+For a full list of events and corresponding feature flags, see the [`known_events/`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data_counters/known_events/) files.
 
 To enable or disable tracking for specific event in <https://gitlab.com> or <https://about.staging.gitlab.com>, run commands such as the following to
 [enable or disable the corresponding feature](../feature_flags/index.md).
@@ -540,16 +527,6 @@ For each event we add metrics for the weekly and monthly time frames, and totals
 
 - `#{event_name}_weekly`: Data for 7 days for daily [aggregation](#add-new-events) events and data for the last complete week for weekly [aggregation](#add-new-events) events.
 - `#{event_name}_monthly`: Data for 28 days for daily [aggregation](#add-new-events) events and data for the last 4 complete weeks for weekly [aggregation](#add-new-events) events.
-
-Redis HLL implementation calculates total metrics when both of these conditions are met:
-
-- The category is manually included in [CATEGORIES_FOR_TOTALS](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage_data_counters/hll_redis_counter.rb#L21).
-- There is more than one metric for the same category, aggregation, and Redis slot.
-
-We add total unique counts for the weekly and monthly time frames where applicable:
-
-- `#{category}_total_unique_counts_weekly`: Total unique counts for events in the same category for the last 7 days or the last complete week, if events are in the same Redis slot and we have more than one metric.
-- `#{category}_total_unique_counts_monthly`: Total unique counts for events in same category for the last 28 days or the last 4 complete weeks, if events are in the same Redis slot and we have more than one metric.
 
 Example of `redis_hll_counters` data:
 
@@ -575,6 +552,7 @@ Example of `redis_hll_counters` data:
      "ide_edit_total_unique_counts_weekly"=>0,
      "ide_edit_total_unique_counts_monthly"=>0}
  }
+}
 ```
 
 Example:
@@ -605,7 +583,7 @@ alt_usage_data(value = nil, fallback: -1, &block)
 
 Arguments:
 
-- `value`: a simple static value in which case the value is simply returned.
+- `value`: a static value in which case the value is returned.
 - or a `block`: which is evaluated
 - `fallback: -1`: the common value used for any metrics that are failing.
 
@@ -686,10 +664,9 @@ pry(main)> Gitlab::UsageData.count(User.active)
    (1.9ms)  SELECT COUNT("users"."id") FROM "users" WHERE ("users"."state" IN ('active')) AND ("users"."user_type" IS NULL OR "users"."user_type" IN (6, 4)) AND "users"."id" BETWEEN 1 AND 100000
 ```
 
-## Optimize queries with `#database-lab`
+## Optimize queries with Database Lab
 
-`#database-lab` is a Slack channel that uses a production-sized environment to test your queries.
-Paste the SQL query into `#database-lab` to see how the query performs at scale.
+[Database Lab](../database/database_lab.md) is a service that uses a production clone to test queries.
 
 - GitLab.com's production database has a 15 second timeout.
 - Any single query must stay below the [1 second execution time](../database/query_performance.md#timing-guidelines-for-queries) with cold caches.
@@ -705,17 +682,17 @@ to a merge request description:
 - Query generated for the index and time.
 - Migration output for up and down execution.
 
-We also use `#database-lab` and [explain.depesz.com](https://explain.depesz.com/). For more details, see the [database review guide](../database_review.md#preparation-when-adding-or-modifying-queries).
+For more details, see the [database review guide](../database_review.md#preparation-when-adding-or-modifying-queries).
 
 ### Optimization recommendations and examples
 
 - Use specialized indexes. For examples, see these merge requests:
   - [Example 1](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/26871)
   - [Example 2](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/26445)
-- Use defined `start` and `finish`, and simple queries.
-  These values can be memoized and reused, as in this [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/37155).
-- Avoid joins and write the queries as simply as possible,
-  as in this [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/36316).
+- Use defined `start` and `finish`. These values can be memoized and reused, as in this
+  [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/37155).
+- Avoid joins and unnecessary complexity in your queries. See this
+  [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/36316) as an example.
 - Set a custom `batch_size` for `distinct_count`, as in this [example merge request](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/38000).
 
 ## Add the metric definition
@@ -763,14 +740,14 @@ To set up Service Ping locally, you must:
    Make sure you run `docker-compose up` to start a PostgreSQL and Redis instance.
 1. Point GitLab to the Versions Application endpoint instead of the default endpoint:
    1. Open [service_ping/submit_service.rb](https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/services/service_ping/submit_service.rb#L5) locally and modify `STAGING_BASE_URL`.
-   1. Set it to the local Versions Application URL: `http://localhost:3000/usage_data`.
+   1. Set it to the local Versions Application URL: `http://localhost:3000`.
 
 ### Test local setup
 
 1. Using the `gitlab` Rails console, manually trigger Service Ping:
 
    ```ruby
-   ServicePing::SubmitService.new.execute
+   GitlabServicePingWorker.new.perform('triggered_from_cron' => false)
    ```
 
 1. Use the `versions` Rails console to check the Service Ping was successfully received,
@@ -811,9 +788,9 @@ and run a local container instance:
 1. In the downstream pipeline, wait for the `gitlab-docker` job to finish.
 1. Open the job logs and locate the full container name including the version. It takes the following form: `registry.gitlab.com/gitlab-org/build/omnibus-gitlab-mirror/gitlab-ee:<VERSION>`.
 1. On your local machine, make sure you are signed in to the GitLab Docker registry. You can find the instructions for this in
-   [Authenticate to the GitLab Container Registry](../../user/packages/container_registry/index.md#authenticate-with-the-container-registry).
+   [Authenticate to the GitLab Container Registry](../../user/packages/container_registry/authenticate_with_container_registry.md).
 1. Once signed in, download the new image by using `docker pull registry.gitlab.com/gitlab-org/build/omnibus-gitlab-mirror/gitlab-ee:<VERSION>`
-1. For more information about working with and running Omnibus GitLab containers in Docker, refer to [GitLab Docker images](https://docs.gitlab.com/omnibus/docker/README.html) in the Omnibus documentation.
+1. For more information about working with and running Omnibus GitLab containers in Docker, refer to [GitLab Docker images](../../install/docker.md) documentation.
 
 ### Test with GitLab development toolkits
 
@@ -839,98 +816,15 @@ However, it has the following limitations:
 WARNING:
 This feature is intended solely for internal GitLab use.
 
-To add data for aggregated metrics to the Service Ping payload, add a corresponding definition to:
+The aggregated metrics feature provides insight into the data attributes in a collection of Service Ping metrics.
+This aggregation allows you to count data attributes in events without counting each occurrence of the same data attribute in multiple events.
+For example, you can aggregate the number of users who perform several actions, such as creating a new issue and opening a new merge request.
+You can then count each user that performed any combination of these actions.
 
-- [`config/metrics/aggregates/*.yaml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/config/metrics/aggregates/) for metrics available in the Community Edition.
-- [`ee/config/metrics/aggregates/*.yaml`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/config/metrics/aggregates/) for metrics available in the Enterprise Edition.
+### Defining aggregated metric via metric YAML definition
 
-Each aggregate definition includes following parts:
-
-- `name`: Unique name under which the aggregate metric is added to the Service Ping payload.
-- `operator`: Operator that defines how the aggregated metric data is counted. Available operators are:
-  - `OR`: Removes duplicates and counts all entries that triggered any of listed events.
-  - `AND`: Removes duplicates and counts all elements that were observed triggering all of following events.
-- `time_frame`: One or more valid time frames. Use these to limit the data included in aggregated metric to events within a specific date-range. Valid time frames are:
-  - `7d`: Last seven days of data.
-  - `28d`: Last twenty eight days of data.
-  - `all`: All historical data, only available for `database` sourced aggregated metrics.
-- `source`: Data source used to collect all events data included in aggregated metric. Valid data sources are:
-  - [`database`](#database-sourced-aggregated-metrics)
-  - [`redis`](#redis-sourced-aggregated-metrics)
-- `events`: list of events names to aggregate into metric. All events in this list must
-  relay on the same data source. Additional data source requirements are described in the
-  [Database sourced aggregated metrics](#database-sourced-aggregated-metrics) and
-  [Redis sourced aggregated metrics](#redis-sourced-aggregated-metrics) sections.
-- `feature_flag`: Name of [development feature flag](../feature_flags/index.md#development-type)
-  that is checked before metrics aggregation is performed. Corresponding feature flag
-  should have `default_enabled` attribute set to `false`. The `feature_flag` attribute
-  is optional and can be omitted. When `feature_flag` is missing, no feature flag is checked.
-
-Example aggregated metric entries:
-
-```yaml
-- name: example_metrics_union
-  operator: OR
-  events:
-    - 'users_expanding_secure_security_report'
-    - 'users_expanding_testing_code_quality_report'
-    - 'users_expanding_testing_accessibility_report'
-  source: redis
-  time_frame:
-    - 7d
-    - 28d
-- name: example_metrics_intersection
-  operator: AND
-  source: database
-  time_frame:
-    - 28d
-    - all
-  events:
-    - 'dependency_scanning_pipeline_all_time'
-    - 'container_scanning_pipeline_all_time'
-  feature_flag: example_aggregated_metric
-```
-
-Aggregated metrics collected in `7d` and `28d` time frames are added into Service Ping payload under the `aggregated_metrics` sub-key in the `counts_weekly` and `counts_monthly` top level keys.
-
-```ruby
-{
-  :counts_monthly => {
-    :deployments => 1003,
-    :successful_deployments => 78,
-    :failed_deployments => 275,
-    :packages => 155,
-    :personal_snippets => 2106,
-    :project_snippets => 407,
-    :aggregated_metrics => {
-      :example_metrics_union => 7,
-      :example_metrics_intersection => 2
-    },
-    :snippets => 2513
-  }
-}
-```
-
-Aggregated metrics for `all` time frame are present in the `count` top level key, with the `aggregate_` prefix added to their name.
-
-For example:
-
-`example_metrics_intersection`
-
-Becomes:
-
-`counts.aggregate_example_metrics_intersection`
-
-```ruby
-{
-  :counts => {
-    :deployments => 11003,
-    :successful_deployments => 178,
-    :failed_deployments => 1275,
-    :aggregate_example_metrics_intersection => 12
-  }
-}
-```
+To add data for aggregated metrics to the Service Ping payload,
+create metric YAML definition file following [Aggregated metric instrumentation guide](metrics_instrumentation.md#aggregated-metrics).
 
 ### Redis sourced aggregated metrics
 
@@ -945,11 +839,11 @@ you must fulfill the following requirements:
 1. All events listed at `events` attribute must have the same `aggregation` attribute.
 1. `time_frame` does not include `all` value, which is unavailable for Redis sourced aggregated metrics.
 
+While it is possible to aggregate EE-only events together with events that occur in all GitLab editions, it's important to remember that doing so may produce high variance between data collected from EE and CE GitLab instances.
+
 ### Database sourced aggregated metrics
 
-> - [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/52784) in GitLab 13.9.
-> - It's [deployed behind a feature flag](../../user/feature_flags.md), disabled by default.
-> - It's enabled on GitLab.com.
+> [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/52784) in GitLab 13.9.
 
 To declare an aggregate of metrics based on events collected from database, follow
 these steps:
@@ -962,7 +856,7 @@ these steps:
 Only metrics calculated with [Estimated Batch Counters](#estimated-batch-counters)
 can be persisted for database sourced aggregated metrics. To persist a metric,
 inject a Ruby block into the
-[estimate_batch_distinct_count](#estimate_batch_distinct_count-method) method.
+[`estimate_batch_distinct_count`](#estimate_batch_distinct_count-method) method.
 This block should invoke the
 `Gitlab::Usage::Metrics::Aggregates::Sources::PostgresHll.save_aggregated_metrics`
 [method](https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/usage/metrics/aggregates/sources/postgres_hll.rb#L21),
@@ -1002,25 +896,9 @@ end
 
 #### Add new aggregated metric definition
 
-After all metrics are persisted, you can add an aggregated metric definition at
-[`aggregated_metrics/`](https://gitlab.com/gitlab-org/gitlab/-/blob/master/config/metrics/aggregates/).
-
+After all metrics are persisted, you can add an aggregated metric definition following [Aggregated metric instrumentation guide](metrics_instrumentation.md#aggregated-metrics).
 To declare the aggregate of metrics collected with [Estimated Batch Counters](#estimated-batch-counters),
 you must fulfill the following requirements:
 
 - Metrics names listed in the `events:` attribute, have to use the same names you passed in the `metric_name` argument while persisting metrics in previous step.
 - Every metric listed in the `events:` attribute, has to be persisted for **every** selected `time_frame:` value.
-
-Example definition:
-
-```yaml
-- name: example_metrics_intersection_database_sourced
-  operator: AND
-  source: database
-  events:
-    - 'dependency_scanning_pipeline'
-    - 'container_scanning_pipeline'
-  time_frame:
-    - 28d
-    - all
-```

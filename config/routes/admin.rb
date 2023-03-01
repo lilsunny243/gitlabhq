@@ -44,7 +44,9 @@ namespace :admin do
     end
   end
 
-  resources :applications
+  resources :applications do
+    put 'renew', on: :member
+  end
 
   resources :groups, only: [:index, :new, :create]
 
@@ -155,6 +157,7 @@ namespace :admin do
       member do
         get :preview_sign_in
         delete :logo
+        delete :pwa_icon
         delete :header_logos
         delete :favicon
       end
@@ -165,8 +168,9 @@ namespace :admin do
 
   resources :labels
 
-  resources :runners, only: [:index, :show, :edit, :update, :destroy] do
+  resources :runners, only: [:index, :new, :show, :edit, :update, :destroy] do
     member do
+      get :register
       post :resume
       post :pause
     end

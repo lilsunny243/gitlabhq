@@ -1,7 +1,7 @@
 ---
 stage: Plan
 group: Project Management
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Notes API **(FREE)**
@@ -34,7 +34,7 @@ Some system notes are not part of this API, but are recorded as separate events:
 By default, `GET` requests return 20 results at a time because the API results
 are paginated.
 
-Read more on [pagination](index.md#pagination).
+Read more on [pagination](rest/index.md#pagination).
 
 ## Rate limits
 
@@ -54,7 +54,7 @@ GET /projects/:id/issues/:issue_iid/notes?sort=asc&order_by=updated_at
 
 | Attribute           | Type             | Required   | Description                                                                                                                                         |
 | ------------------- | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)
+| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)
 | `issue_iid`         | integer          | yes        | The IID of an issue
 | `sort`              | string           | no         | Return issue notes sorted in `asc` or `desc` order. Default is `desc`
 | `order_by`          | string           | no         | Return issue notes ordered by `created_at` or `updated_at` fields. Default is `created_at`
@@ -78,6 +78,7 @@ GET /projects/:id/issues/:issue_iid/notes?sort=asc&order_by=updated_at
     "system": true,
     "noteable_id": 377,
     "noteable_type": "Issue",
+    "project_id": 5,
     "noteable_iid": 377,
     "resolvable": false,
     "confidential": false,
@@ -100,6 +101,7 @@ GET /projects/:id/issues/:issue_iid/notes?sort=asc&order_by=updated_at
     "system": true,
     "noteable_id": 121,
     "noteable_type": "Issue",
+    "project_id": 5,
     "noteable_iid": 121,
     "resolvable": false,
     "confidential": true,
@@ -124,7 +126,7 @@ Parameters:
 
 | Attribute   | Type           | Required | Description                                                                     |
 |-------------|----------------|----------|---------------------------------------------------------------------------------|
-| `id`        | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`        | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid` | integer        | yes      | The IID of a project issue                                                      |
 | `note_id`   | integer        | yes      | The ID of an issue note                                                         |
 
@@ -144,7 +146,7 @@ Parameters:
 
 | Attribute      | Type           | Required | Description                                                                                                                  |
 |----------------|----------------|----------|------------------------------------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding).                                           |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding).                                           |
 | `issue_iid`    | integer        | yes      | The IID of an issue.                                                                                                         |
 | `body`         | string         | yes      | The content of a note. Limited to 1,000,000 characters.                                                                      |
 | `confidential` | boolean        | no       | **Deprecated:** will be removed in GitLab 16.0 and renamed to `internal`. The confidential flag of a note. Default is false.                                                                           |
@@ -167,14 +169,14 @@ Parameters:
 
 | Attribute      | Type           | Required    | Description                                                                                        |
 |----------------|----------------|-------------|----------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding).                    |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding).                    |
 | `issue_iid`    | integer           | yes      | The IID of an issue.                                                                               |
 | `note_id`      | integer           | yes      | The ID of a note.                                                                                  |
 | `body`         | string            | no       | The content of a note. Limited to 1,000,000 characters.                                            |
 | `confidential` | boolean           | no       | **Deprecated:** will be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
 
 ```shell
-curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/issues/11/notes?body=note"
+curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/issues/11/notes/636?body=note"
 ```
 
 ### Delete an issue note
@@ -189,7 +191,7 @@ Parameters:
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | integer or string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id` | integer or string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `issue_iid` | integer | yes | The IID of an issue |
 | `note_id` | integer | yes | The ID of a note |
 
@@ -212,7 +214,7 @@ GET /projects/:id/snippets/:snippet_id/notes?sort=asc&order_by=updated_at
 
 | Attribute           | Type             | Required   | Description                                                                                                                                         |
 | ------------------- | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)
+| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)
 | `snippet_id`        | integer          | yes        | The ID of a project snippet
 | `sort`              | string           | no         | Return snippet notes sorted in `asc` or `desc` order. Default is `desc`
 | `order_by`          | string           | no         | Return snippet notes ordered by `created_at` or `updated_at` fields. Default is `created_at`
@@ -233,15 +235,15 @@ Parameters:
 
 | Attribute    | Type           | Required | Description                                                                     |
 |--------------|----------------|----------|---------------------------------------------------------------------------------|
-| `id`         | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`         | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id` | integer        | yes      | The ID of a project snippet                                                     |
 | `note_id`    | integer        | yes      | The ID of a snippet note                                                        |
 
 ```json
 {
-  "id": 52,
-  "title": "Snippet",
-  "file_name": "snippet.rb",
+  "id": 302,
+  "body": "closed",
+  "attachment": null,
   "author": {
     "id": 1,
     "username": "pipin",
@@ -250,9 +252,16 @@ Parameters:
     "state": "active",
     "created_at": "2013-09-30T13:46:01Z"
   },
-  "expires_at": null,
-  "updated_at": "2013-10-02T07:34:20Z",
-  "created_at": "2013-10-02T07:34:20Z"
+  "created_at": "2013-10-02T09:22:45Z",
+  "updated_at": "2013-10-02T10:22:45Z",
+  "system": true,
+  "noteable_id": 377,
+  "noteable_type": "Issue",
+  "project_id": 5,
+  "noteable_iid": 377,
+  "resolvable": false,
+  "confidential": false,
+  "internal": false
 }
 ```
 
@@ -273,7 +282,7 @@ Parameters:
 
 | Attribute    | Type           | Required | Description                                                                                                                  |
 |--------------|----------------|----------|------------------------------------------------------------------------------------------------------------------------------|
-| `id`         | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)                                              |
+| `id`         | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)                                              |
 | `snippet_id` | integer        | yes      | The ID of a snippet                                                                                                          |
 | `body`       | string         | yes      | The content of a note. Limited to 1,000,000 characters.                                                                      |
 | `created_at` | string         | no       | Date time string, ISO 8601 formatted. Example: `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
@@ -294,13 +303,13 @@ Parameters:
 
 | Attribute    | Type           | Required | Description                                                                                                                  |
 |--------------|----------------|----------|------------------------------------------------------------------------------------------------------------------------------|
-| `id`         | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)                                              |
+| `id`         | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)                                              |
 | `snippet_id` | integer        | yes      | The ID of a snippet                                                                                                          |
 | `note_id`    | integer        | yes      | The ID of a snippet note                                                        |
 | `body`       | string         | yes      | The content of a note. Limited to 1,000,000 characters.                                                                      |
 
 ```shell
-curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/snippets/11/notes?body=note"
+curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/snippets/11/notes/1659?body=note"
 ```
 
 ### Delete a snippet note
@@ -315,7 +324,7 @@ Parameters:
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | integer or string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id` | integer or string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `snippet_id` | integer | yes | The ID of a snippet |
 | `note_id` | integer | yes | The ID of a note |
 
@@ -336,7 +345,7 @@ GET /projects/:id/merge_requests/:merge_request_iid/notes?sort=asc&order_by=upda
 
 | Attribute           | Type             | Required   | Description                                                                                                                                         |
 | ------------------- | ---------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)
+| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)
 | `merge_request_iid` | integer          | yes        | The IID of a project merge request
 | `sort`              | string           | no         | Return merge request notes sorted in `asc` or `desc` order. Default is `desc`
 | `order_by`          | string           | no         | Return merge request notes ordered by `created_at` or `updated_at` fields. Default is `created_at`
@@ -357,7 +366,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description                                                                     |
 |---------------------|----------------|----------|---------------------------------------------------------------------------------|
-| `id`                | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id`                | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer        | yes      | The IID of a project merge request                                              |
 | `note_id`           | integer        | yes      | The ID of a merge request note                                                        |
 
@@ -379,6 +388,7 @@ Parameters:
   "system": false,
   "noteable_id": 2,
   "noteable_type": "MergeRequest",
+  "project_id": 5,
   "noteable_iid": 2,
   "resolvable": false,
   "confidential": false,
@@ -392,8 +402,13 @@ curl --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/a
 
 ### Create new merge request note
 
-Creates a new note for a single merge request.
-If you create a note where the body only contains an Award Emoji, GitLab returns this object.
+Creates a new note for a single merge request. Notes are not attached to specific
+lines in a merge request. For other approaches with more granular control, see
+[Post comment to commit](commits.md#post-comment-to-commit) in the Commits API,
+and [Create a new thread in the merge request diff](discussions.md#create-a-new-thread-in-the-merge-request-diff)
+in the Discussions API.
+
+If you create a note where the body only contains an award emoji, GitLab returns this object.
 
 ```plaintext
 POST /projects/:id/merge_requests/:merge_request_iid/notes
@@ -403,7 +418,7 @@ Parameters:
 
 | Attribute           | Type           | Required | Description                                                                                                                  |
 |---------------------|----------------|----------|------------------------------------------------------------------------------------------------------------------------------|
-| `id`                    | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)                                              |
+| `id`                    | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)                                              |
 | `merge_request_iid`     | integer        | yes      | The IID of a project merge request                                                                                           |
 | `body`                  | string         | yes      | The content of a note. Limited to 1,000,000 characters.                                                                      |
 | `created_at`            | string         | no       | Date time string, ISO 8601 formatted. Example: `2016-03-11T03:45:40Z` (requires administrator or project/group owner rights) |
@@ -421,14 +436,14 @@ Parameters:
 
 | Attribute           | Type              | Required | Description                                                                                        |
 |---------------------|-------------------|----------|----------------------------------------------------------------------------------------------------|
-| `id`                | integer or string | yes      | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding)                     |
+| `id`                | integer or string | yes      | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding)                     |
 | `merge_request_iid` | integer           | yes      | The IID of a project merge request                                                                 |
 | `note_id`           | integer           | no       | The ID of a note                                                                                   |
 | `body`              | string            | yes      | The content of a note. Limited to 1,000,000 characters.                                            |
 | `confidential`      | boolean           | no       | **Deprecated:** will be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
 
 ```shell
-curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/merge_requests/11/notes?body=note"
+curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/5/merge_requests/11/notes/1?body=note"
 ```
 
 ### Delete a merge request note
@@ -443,7 +458,7 @@ Parameters:
 
 | Attribute | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | integer or string | yes | The ID or [URL-encoded path of the project](index.md#namespaced-path-encoding) |
+| `id` | integer or string | yes | The ID or [URL-encoded path of the project](rest/index.md#namespaced-path-encoding) |
 | `merge_request_iid` | integer | yes | The IID of a merge request |
 | `note_id` | integer | yes | The ID of a note |
 
@@ -469,7 +484,7 @@ GET /groups/:id/epics/:epic_id/notes?sort=asc&order_by=updated_at
 
 | Attribute           | Type             | Required   | Description |
 | ------------------- | ---------------- | ---------- | ----------- |
-| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`                | integer or string   | yes        | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id`           | integer          | yes        | The ID of a group epic |
 | `sort`              | string           | no         | Return epic notes sorted in `asc` or `desc` order. Default is `desc` |
 | `order_by`          | string           | no         | Return epic notes ordered by `created_at` or `updated_at` fields. Default is `created_at` |
@@ -490,15 +505,15 @@ Parameters:
 
 | Attribute | Type           | Required | Description |
 | --------- | -------------- | -------- | ----------- |
-| `id`      | integer or string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`      | integer or string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id` | integer | yes  | The ID of an epic |
 | `note_id` | integer | yes  | The ID of a note |
 
 ```json
 {
-  "id": 52,
-  "title": "Epic",
-  "file_name": "epic.rb",
+  "id": 302,
+  "body": "Epic note",
+  "attachment": null,
   "author": {
     "id": 1,
     "username": "pipin",
@@ -507,9 +522,14 @@ Parameters:
     "state": "active",
     "created_at": "2013-09-30T13:46:01Z"
   },
-  "expires_at": null,
-  "updated_at": "2013-10-02T07:34:20Z",
-  "created_at": "2013-10-02T07:34:20Z",
+  "created_at": "2013-10-02T09:22:45Z",
+  "updated_at": "2013-10-02T10:22:45Z",
+  "system": true,
+  "noteable_id": 11,
+  "noteable_type": "Epic",
+  "project_id": 5,
+  "noteable_iid": 11,
+  "resolvable": false,
   "confidential": false,
   "internal": false
 }
@@ -534,7 +554,7 @@ Parameters:
 | ---------      | -------------- | -------- | ----------- |
 | `body`         | string  | yes  | The content of a note. Limited to 1,000,000 characters. |
 | `epic_id`      | integer | yes  | The ID of an epic |
-| `id`           | integer or string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`           | integer or string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `confidential` | boolean        | no       | **Deprecated:** will be removed in GitLab 16.0 and is renamed to `internal`. The confidential flag of a note. Default is `false`. |
 | `internal`     | boolean        | no       | The internal flag of a note. Overrides `confidential` when both parameters are submitted. Default is `false`. |
 
@@ -554,14 +574,14 @@ Parameters:
 
 | Attribute      | Type              | Required | Description                                                                                        |
 | ---------------| ----------------- | -------- | ---------------------------------------------------------------------------------------------------|
-| `id`           | integer or string | yes      | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding)                       |
+| `id`           | integer or string | yes      | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding)                       |
 | `epic_id`      | integer           | yes      | The ID of an epic                                                                                  |
 | `note_id`      | integer           | yes      | The ID of a note                                                                                   |
 | `body`         | string            | yes      | The content of a note. Limited to 1,000,000 characters.                                            |
 | `confidential` | boolean           | no       | **Deprecated:** will be removed in GitLab 16.0. The confidential flag of a note. Default is false. |
 
 ```shell
-curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/5/epics/11/notes?body=note"
+curl --request PUT --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/groups/5/epics/11/notes/1?body=note"
 ```
 
 ### Delete an epic note
@@ -576,7 +596,7 @@ Parameters:
 
 | Attribute | Type           | Required | Description |
 | --------- | -------------- | -------- | ----------- |
-| `id`      | integer or string | yes | The ID or [URL-encoded path of the group](index.md#namespaced-path-encoding) |
+| `id`      | integer or string | yes | The ID or [URL-encoded path of the group](rest/index.md#namespaced-path-encoding) |
 | `epic_id` | integer | yes  | The ID of an epic |
 | `note_id` | integer | yes  | The ID of a note |
 

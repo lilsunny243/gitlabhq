@@ -1,16 +1,15 @@
 ---
 stage: Systems
 group: Gitaly
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Project repository storage moves API **(FREE SELF)**
 
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/31285) in GitLab 13.0.
 
-Project repositories including wiki and design repositories can be moved between storages. This can be useful when
-[migrating to Gitaly Cluster](../administration/gitaly/index.md#migrate-to-gitaly-cluster),
-for example.
+Project repositories including wiki and design repositories can be moved between storages. This API can help you when
+[migrating to Gitaly Cluster](../administration/gitaly/index.md#migrate-to-gitaly-cluster), for example.
 
 As project repository storage moves are processed, they transition through different states. Values
 of `state` are:
@@ -27,7 +26,7 @@ To ensure data integrity, projects are put in a temporary read-only state for th
 duration of the move. During this time, users receive a `The repository is temporarily
 read-only. Please try again later.` message if they try to push new commits.
 
-This API requires you to [authenticate yourself](index.md#authentication) as an administrator.
+This API requires you to [authenticate yourself](rest/index.md#authentication) as an administrator.
 
 For other repository types see:
 
@@ -41,7 +40,7 @@ GET /project_repository_storage_moves
 ```
 
 By default, `GET` requests return 20 results at a time because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 Example request:
 
@@ -79,7 +78,7 @@ GET /projects/:project_id/repository_storage_moves
 ```
 
 By default, `GET` requests return 20 results at a time because the API results
-are [paginated](index.md#pagination).
+are [paginated](rest/index.md#pagination).
 
 Parameters:
 
@@ -250,6 +249,8 @@ Example response:
 > [Introduced](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/47142) in GitLab 13.7.
 
 Schedules repository storage moves for each project repository stored on the source storage shard.
+This endpoint migrates all projects at once. For more information, see
+[Move all projects](../administration/operations/moving_repositories.md#move-all-projects).
 
 ```plaintext
 POST /project_repository_storage_moves

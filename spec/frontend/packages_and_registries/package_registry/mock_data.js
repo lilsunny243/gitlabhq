@@ -97,14 +97,22 @@ export const packageProject = () => ({
   __typename: 'Project',
 });
 
+export const linksData = {
+  _links: {
+    webPath: '/gitlab-org/package-15',
+  },
+};
+
 export const packageVersions = () => [
   {
     createdAt: '2021-08-10T09:33:54Z',
     id: 'gid://gitlab/Packages::Package/243',
     name: '@gitlab-org/package-15',
     status: 'DEFAULT',
+    canDestroy: true,
     tags: { nodes: packageTags() },
     version: '1.0.1',
+    ...linksData,
     __typename: 'Package',
   },
   {
@@ -112,8 +120,10 @@ export const packageVersions = () => [
     id: 'gid://gitlab/Packages::Package/244',
     name: '@gitlab-org/package-15',
     status: 'DEFAULT',
+    canDestroy: true,
     tags: { nodes: packageTags() },
     version: '1.0.2',
+    ...linksData,
     __typename: 'Package',
   },
 ];
@@ -127,6 +137,7 @@ export const packageData = (extend) => ({
   version: '1.0.0',
   createdAt: '2020-08-17T14:23:32Z',
   updatedAt: '2020-08-17T14:23:32Z',
+  lastDownloadedAt: '2021-08-17T14:23:32Z',
   status: 'DEFAULT',
   mavenUrl: 'http://gdk.test:3000/api/v4/projects/1/packages/maven',
   npmUrl: 'http://gdk.test:3000/api/v4/projects/1/packages/npm',
@@ -231,7 +242,14 @@ export const packageDetailsQuery = (extendPackage) => ({
         __typename: 'PackageFileConnection',
       },
       versions: {
+        count: packageVersions().length,
         nodes: packageVersions(),
+        pageInfo: {
+          hasNextPage: true,
+          hasPreviousPage: false,
+          endCursor: 'endCursor',
+          startCursor: 'startCursor',
+        },
         __typename: 'PackageConnection',
       },
       dependencyLinks: {
@@ -279,17 +297,17 @@ export const packageMetadataQuery = (packageType) => {
   };
 };
 
-export const packageDestroyMutation = () => ({
+export const packagesDestroyMutation = () => ({
   data: {
-    destroyPackage: {
+    destroyPackages: {
       errors: [],
     },
   },
 });
 
-export const packageDestroyMutationError = () => ({
+export const packagesDestroyMutationError = () => ({
   data: {
-    destroyPackage: null,
+    destroyPackages: null,
   },
   errors: [
     {
@@ -301,7 +319,7 @@ export const packageDestroyMutationError = () => ({
           column: 3,
         },
       ],
-      path: ['destroyPackage'],
+      path: ['destroyPackages'],
     },
   ],
 });
@@ -313,6 +331,7 @@ export const packageDestroyFilesMutation = () => ({
     },
   },
 });
+
 export const packageDestroyFilesMutationError = () => ({
   data: {
     destroyPackageFiles: null,
@@ -341,6 +360,7 @@ export const packagesListQuery = ({ type = 'group', extend = {}, extendPaginatio
         nodes: [
           {
             ...packageData(),
+            ...linksData,
             project: packageProject(),
             tags: { nodes: packageTags() },
             pipelines: {
@@ -352,6 +372,7 @@ export const packagesListQuery = ({ type = 'group', extend = {}, extendPaginatio
             project: packageProject(),
             tags: { nodes: [] },
             pipelines: { nodes: [] },
+            ...linksData,
           },
         ],
         pageInfo: pagination(extendPagination),

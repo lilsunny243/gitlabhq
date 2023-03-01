@@ -7,6 +7,21 @@ module GitlabEdition
     Pathname.new(File.expand_path('..', __dir__))
   end
 
+  def self.path_glob(path)
+    "#{root}/#{extension_path_prefixes}#{path}"
+  end
+
+  def self.extension_path_prefixes
+    path_prefixes = extensions
+    return '' if path_prefixes.empty?
+
+    path_prefixes.map! { "#{_1}/" }
+    path_prefixes.unshift ''
+
+    # For example `{,ee/,jh/}`
+    "{#{path_prefixes.join(',')}}"
+  end
+
   def self.extensions
     if jh?
       %w[ee jh]
@@ -34,7 +49,7 @@ module GitlabEdition
       # The behavior needs to be synchronised with
       # config/helpers/is_ee_env.js
       root.join('ee/app/models/license.rb').exist? &&
-        !%w[true 1].include?(ENV['FOSS_ONLY'].to_s)
+      !%w[true 1].include?(ENV['FOSS_ONLY'].to_s) # rubocop:disable Rails/NegateInclude
   end
 
   def self.jh?
@@ -42,8 +57,8 @@ module GitlabEdition
 
     @is_jh =
       ee? &&
-        root.join('jh').exist? &&
-        !%w[true 1].include?(ENV['EE_ONLY'].to_s)
+      root.join('jh').exist? &&
+      !%w[true 1].include?(ENV['EE_ONLY'].to_s) # rubocop:disable Rails/NegateInclude
   end
 
   def self.ee

@@ -11,6 +11,17 @@ class Settings < Settingslogic
       on_standard_port?(gitlab)
     end
 
+    def build_ci_component_fqdn
+      custom_port = ":#{gitlab.port}" unless on_standard_port?(gitlab)
+
+      [
+        gitlab.host,
+        custom_port,
+        gitlab.relative_url_root,
+        '/'
+      ].join('')
+    end
+
     def host_without_www(url)
       host(url).sub('www.', '')
     end
@@ -42,12 +53,10 @@ class Settings < Settingslogic
 
       if gitlab_shell.ssh_port != 22
         "ssh://#{user_host}:#{gitlab_shell.ssh_port}/"
+      elsif gitlab_shell.ssh_host.include? ':'
+        "[#{user_host}]:"
       else
-        if gitlab_shell.ssh_host.include? ':'
-          "[#{user_host}]:"
-        else
-          "#{user_host}:"
-        end
+        "#{user_host}:"
       end
     end
 
@@ -161,6 +170,13 @@ class Settings < Settingslogic
 
     def load_dynamic_cron_schedules!
       cron_jobs['gitlab_service_ping_worker']['cron'] ||= cron_for_service_ping
+    end
+
+    # Route jobs to queue based on worker name.
+    def build_sidekiq_routing_rules(rules)
+      return rules unless rules.nil? || rules&.empty?
+
+      [[Gitlab::SidekiqConfig::WorkerMatcher::WILDCARD_MATCH, nil]]
     end
 
     private

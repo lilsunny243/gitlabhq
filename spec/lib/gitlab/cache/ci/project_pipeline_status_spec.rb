@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Gitlab::Cache::Ci::ProjectPipelineStatus, :clean_gitlab_redis_cache do
+RSpec.describe Gitlab::Cache::Ci::ProjectPipelineStatus, :clean_gitlab_redis_cache, feature_category: :continuous_integration do
   let_it_be(:project) { create(:project, :repository) }
 
   let(:pipeline_status) { described_class.new(project) }
@@ -24,7 +24,7 @@ RSpec.describe Gitlab::Cache::Ci::ProjectPipelineStatus, :clean_gitlab_redis_cac
         described_class.load_in_batch_for_projects([project])
 
         # Don't call the accessor that would lazy load the variable
-        project_pipeline_status = project.instance_variable_get('@pipeline_status')
+        project_pipeline_status = project.instance_variable_get(:@pipeline_status)
 
         expect(project_pipeline_status).to be_a(described_class)
         expect(project_pipeline_status).to be_loaded
@@ -288,7 +288,7 @@ RSpec.describe Gitlab::Cache::Ci::ProjectPipelineStatus, :clean_gitlab_redis_cac
       it 'deletes values from redis_cache' do
         pipeline_status.delete_from_cache
 
-        key_exists = Gitlab::Redis::Cache.with { |redis| redis.exists(cache_key) }
+        key_exists = Gitlab::Redis::Cache.with { |redis| redis.exists?(cache_key) }
 
         expect(key_exists).to be_falsy
       end

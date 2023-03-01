@@ -2,7 +2,7 @@
 import { GlTooltipDirective, GlIcon } from '@gitlab/ui';
 import { mapActions, mapGetters } from 'vuex';
 import DraftNote from '~/batch_comments/components/draft_note.vue';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { clearDraft, getDiscussionReplyKey } from '~/lib/utils/autosave';
 import { isLoggedIn } from '~/lib/utils/common_utils';
 import { confirmAction } from '~/lib/utils/confirm_via_gl_modal/confirm_via_gl_modal';
@@ -72,6 +72,11 @@ export default {
       type: Boolean,
       required: false,
       default: false,
+    },
+    shouldScrollToNote: {
+      type: Boolean,
+      required: false,
+      default: true,
     },
   },
   data() {
@@ -230,7 +235,7 @@ export default {
 
       this.saveNote(replyData)
         .then((res) => {
-          if (res.hasFlash !== true) {
+          if (res.hasAlert !== true) {
             this.isReplying = false;
             clearDraft(this.autosaveKey);
           }
@@ -247,7 +252,7 @@ export default {
       const msg = __(
         'Your comment could not be submitted! Please check your network connection and try again.',
       );
-      createFlash({
+      createAlert({
         message: msg,
         parent: this.$el,
       });
@@ -288,6 +293,7 @@ export default {
               :line="line"
               :should-group-replies="shouldGroupReplies"
               :is-overview-tab="isOverviewTab"
+              :should-scroll-to-note="shouldScrollToNote"
               @startReplying="showReplyForm"
               @deleteNote="deleteNoteHandler"
             >
@@ -301,7 +307,7 @@ export default {
                   :draft="draftForDiscussion(discussion.reply_id)"
                   :line="line"
                 />
-                <div
+                <li
                   v-else-if="canShowReplyActions && showReplies"
                   :class="{ 'is-replying': isReplying }"
                   class="discussion-reply-holder gl-border-t-0! clearfix"
@@ -328,7 +334,7 @@ export default {
                     @cancelForm="cancelReplyForm"
                   />
                   <note-signed-out-widget v-if="!isLoggedIn" />
-                </div>
+                </li>
               </template>
             </discussion-notes>
           </component>

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rubocop-rspec'
+
 module RuboCop
   module Cop
     module RSpec
@@ -43,7 +45,9 @@ module RuboCop
         #
         # creator_id { create(:user).id }
         #
-        class InlineAssociation < RuboCop::Cop::Cop
+        class InlineAssociation < RuboCop::Cop::Base
+          extend RuboCop::Cop::AutoCorrector
+
           MSG = 'Prefer inline `association` over `%{type}`. ' \
             'See https://docs.gitlab.com/ee/development/testing_guide/best_practices.html#factories'
 
@@ -81,11 +85,7 @@ module RuboCop
             return if chained_call?(node.parent)
             return unless inside_assocation_definition?(node)
 
-            add_offense(node, message: format(MSG, type: type))
-          end
-
-          def autocorrect(node)
-            lambda do |corrector|
+            add_offense(node, message: format(MSG, type: type)) do |corrector|
               receiver, type = create_or_build(node)
               receiver = "#{receiver.source}." if receiver
               expression = "#{receiver}#{type}"
@@ -99,7 +99,7 @@ module RuboCop
           def inside_assocation_definition?(node)
             node.each_ancestor(:block).any? do |parent|
               name = association_definition(parent)
-              name && !SKIP_NAMES.include?(name)
+              name && !SKIP_NAMES.include?(name) # rubocop:disable Rails/NegateInclude
             end
           end
         end

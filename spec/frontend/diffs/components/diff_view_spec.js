@@ -21,7 +21,7 @@ describe('DiffView', () => {
       getters: {
         shouldRenderDraftRow: () => false,
         shouldRenderParallelDraftRow: () => () => true,
-        draftForLine: () => false,
+        draftsForLine: () => false,
         draftsForFile: () => false,
         hasParallelDraftLeft: () => false,
         hasParallelDraftRight: () => false,
@@ -56,7 +56,7 @@ describe('DiffView', () => {
     expect(wrapper.findComponent(DiffLine).exists()).toBe(false);
   });
 
-  it('does render a diff-line component with the correct props when there is a finding & refactorCodeQualityInlineFindings flag is true ', async () => {
+  it('does render a diff-line component with the correct props when there is a finding & refactorCodeQualityInlineFindings flag is true', async () => {
     const wrapper = createWrapper(diffCodeQuality, {
       glFeatures: { refactorCodeQualityInlineFindings: true },
     });
@@ -65,7 +65,7 @@ describe('DiffView', () => {
     expect(wrapper.findComponent(DiffLine).props('line')).toBe(diffCodeQuality.diffLines[2]);
   });
 
-  it('does not render a diff-line component when there is a finding & refactorCodeQualityInlineFindings flag is false ', async () => {
+  it('does not render a diff-line component when there is a finding & refactorCodeQualityInlineFindings flag is false', async () => {
     const wrapper = createWrapper(diffCodeQuality, {
       glFeatures: { refactorCodeQualityInlineFindings: false },
     });
@@ -75,12 +75,12 @@ describe('DiffView', () => {
   });
 
   it.each`
-    type          | side       | container | sides                                                                                                    | total
-    ${'parallel'} | ${'left'}  | ${'.old'} | ${{ left: { lineDraft: {}, renderDiscussion: true }, right: { lineDraft: {}, renderDiscussion: true } }} | ${2}
-    ${'parallel'} | ${'right'} | ${'.new'} | ${{ left: { lineDraft: {}, renderDiscussion: true }, right: { lineDraft: {}, renderDiscussion: true } }} | ${2}
-    ${'inline'}   | ${'left'}  | ${'.old'} | ${{ left: { lineDraft: {}, renderDiscussion: true } }}                                                   | ${1}
-    ${'inline'}   | ${'left'}  | ${'.old'} | ${{ left: { lineDraft: {}, renderDiscussion: true } }}                                                   | ${1}
-    ${'inline'}   | ${'left'}  | ${'.old'} | ${{ left: { lineDraft: {}, renderDiscussion: true } }}                                                   | ${1}
+    type          | side       | container | sides                                                                                                      | total
+    ${'parallel'} | ${'left'}  | ${'.old'} | ${{ left: { lineDrafts: [], renderDiscussion: true }, right: { lineDrafts: [], renderDiscussion: true } }} | ${2}
+    ${'parallel'} | ${'right'} | ${'.new'} | ${{ left: { lineDrafts: [], renderDiscussion: true }, right: { lineDrafts: [], renderDiscussion: true } }} | ${2}
+    ${'inline'}   | ${'left'}  | ${'.old'} | ${{ left: { lineDrafts: [], renderDiscussion: true } }}                                                    | ${1}
+    ${'inline'}   | ${'left'}  | ${'.old'} | ${{ left: { lineDrafts: [], renderDiscussion: true } }}                                                    | ${1}
+    ${'inline'}   | ${'left'}  | ${'.old'} | ${{ left: { lineDrafts: [], renderDiscussion: true } }}                                                    | ${1}
   `(
     'renders a $type comment row with comment cell on $side',
     ({ type, container, sides, total }) => {
@@ -88,16 +88,16 @@ describe('DiffView', () => {
         diffLines: [{ renderCommentRow: true, ...sides }],
         inline: type === 'inline',
       });
-      expect(wrapper.findAll(DiffCommentCell).length).toBe(total);
-      expect(wrapper.find(container).find(DiffCommentCell).exists()).toBe(true);
+      expect(wrapper.findAllComponents(DiffCommentCell).length).toBe(total);
+      expect(wrapper.find(container).findComponent(DiffCommentCell).exists()).toBe(true);
     },
   );
 
   it('renders a draft row', () => {
     const wrapper = createWrapper({
-      diffLines: [{ renderCommentRow: true, left: { lineDraft: { isDraft: true } } }],
+      diffLines: [{ renderCommentRow: true, left: { lineDrafts: [{ isDraft: true }] } }],
     });
-    expect(wrapper.find(DraftNote).exists()).toBe(true);
+    expect(wrapper.findComponent(DraftNote).exists()).toBe(true);
   });
 
   describe('drag operations', () => {

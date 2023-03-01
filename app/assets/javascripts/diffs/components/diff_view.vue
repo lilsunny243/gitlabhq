@@ -1,5 +1,4 @@
 <script>
-import { GlSafeHtmlDirective as SafeHtml } from '@gitlab/ui';
 import { mapGetters, mapState, mapActions } from 'vuex';
 import { IdState } from 'vendor/vue-virtual-scroller';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
@@ -21,9 +20,6 @@ export default {
     DiffLine,
     DiffCommentCell,
     DraftNote,
-  },
-  directives: {
-    SafeHtml,
   },
   mixins: [
     draftCommentsMixin,
@@ -63,7 +59,12 @@ export default {
   },
   computed: {
     ...mapGetters('diffs', ['commitId', 'fileLineCoverage']),
-    ...mapState('diffs', ['codequalityDiff', 'highlightedRow', 'coverageLoaded']),
+    ...mapState('diffs', [
+      'codequalityDiff',
+      'highlightedRow',
+      'coverageLoaded',
+      'selectedCommentPosition',
+    ]),
     ...mapState({
       selectedCommentPosition: ({ notes }) => notes.selectedCommentPosition,
       selectedCommentPositionHover: ({ notes }) => notes.selectedCommentPositionHover,
@@ -148,6 +149,14 @@ export default {
         false,
       );
     },
+    isFirstHighlightedLine(line) {
+      const lineCode = line.left?.line_code || line.right?.line_code;
+      return lineCode && lineCode === this.selectedCommentPosition?.start.line_code;
+    },
+    isLastHighlightedLine(line) {
+      const lineCode = line.left?.line_code || line.right?.line_code;
+      return lineCode && lineCode === this.selectedCommentPosition?.end.line_code;
+    },
     handleParallelLineMouseDown(e) {
       const line = e.target.closest('.diff-td');
       if (line) {
@@ -176,6 +185,12 @@ export default {
     },
     getCodeQualityLine(line) {
       return (line.left ?? line.right)?.codequality?.[0]?.line;
+    },
+    lineDrafts(line, side) {
+      return (line[side]?.lineDrafts || []).filter((entry) => entry.isDraft);
+    },
+    lineHasDrafts(line, side) {
+      return this.lineDrafts(line, side).length > 0;
     },
   },
   userColorScheme: window.gon.user_color_scheme,
@@ -228,9 +243,14 @@ export default {
         :line="line"
         :is-bottom="index + 1 === diffLinesLength"
         :is-commented="index >= commentedLines.startLine && index <= commentedLines.endLine"
+        :is-highlighted="isHighlighted(line)"
+        :is-first-highlighted-line="
+          isFirstHighlightedLine(line) || index === commentedLines.startLine
+        "
+        :is-last-highlighted-line="isLastHighlightedLine(line) || index === commentedLines.endLine"
         :inline="inline"
         :index="index"
-        :is-highlighted="isHighlighted(line)"
+        :code-quality-expanded="codeQualityExpandedLines.includes(getCodeQualityLine(line))"
         :file-line-coverage="fileLineCoverage"
         :coverage-loaded="coverageLoaded"
         @showCommentForm="(code) => singleLineComment(code, line)"
@@ -296,19 +316,27 @@ export default {
         class="diff-grid-drafts diff-tr notes_holder"
       >
         <div
-          v-if="!inline || (line.left && line.left.lineDraft.isDraft)"
+          v-if="!inline || lineHasDrafts(line, 'left')"
           class="diff-td notes-content parallel old"
         >
-          <div v-if="line.left && line.left.lineDraft.isDraft" class="content">
-            <draft-note :draft="line.left.lineDraft" :line="line.left" />
+          <div v-for="draft in lineDrafts(line, 'left')" :key="draft.id" class="content">
+            <article class="note-wrapper">
+              <ul class="notes draft-notes">
+                <draft-note :draft="draft" :line="line.left" />
+              </ul>
+            </article>
           </div>
         </div>
         <div
-          v-if="!inline || (line.right && line.right.lineDraft.isDraft)"
+          v-if="!inline || lineHasDrafts(line, 'right')"
           class="diff-td notes-content parallel new"
         >
-          <div v-if="line.right && line.right.lineDraft.isDraft" class="content">
-            <draft-note :draft="line.right.lineDraft" :line="line.right" />
+          <div v-for="draft in lineDrafts(line, 'right')" :key="draft.id" class="content">
+            <article class="note-wrapper">
+              <ul class="notes draft-notes">
+                <draft-note :draft="draft" :line="line.right" />
+              </ul>
+            </article>
           </div>
         </div>
       </div>

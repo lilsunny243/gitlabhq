@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dashboard Merge Requests' do
+RSpec.describe 'Dashboard Merge Requests', feature_category: :code_review_workflow do
   include Spec::Support::Helpers::Features::SortingHelpers
   include FilteredSearchHelpers
   include ProjectForksHelper
@@ -19,6 +19,8 @@ RSpec.describe 'Dashboard Merge Requests' do
     sign_in(current_user)
   end
 
+  it_behaves_like 'a dashboard page with sidebar', :merge_requests_dashboard_path, :merge_requests
+
   it 'disables target branch filter' do
     visit merge_requests_dashboard_path
 
@@ -34,11 +36,16 @@ RSpec.describe 'Dashboard Merge Requests' do
     end
 
     it 'shows projects only with merge requests feature enabled', :js do
-      click_button 'Toggle project select'
+      click_button 'Select project to create merge request'
+      wait_for_requests
 
-      page.within('.select2-results') do
+      page.within('[data-testid="new-resource-dropdown"]') do
         expect(page).to have_content(project.full_name)
         expect(page).not_to have_content(project_with_disabled_merge_requests.full_name)
+
+        find_button(project.full_name).click
+
+        expect(page).to have_link("New merge request in #{project.name}")
       end
     end
   end

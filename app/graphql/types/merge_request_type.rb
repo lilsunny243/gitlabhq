@@ -20,7 +20,7 @@ module Types
                                         description: 'Timestamp of when the merge request was created.'
     field :description, GraphQL::Types::String, null: true,
                                                 description: 'Description of the merge request (Markdown rendered as HTML for caching).'
-    field :diff_head_sha, GraphQL::Types::String, null: true,
+    field :diff_head_sha, GraphQL::Types::String, null: true, calls_gitaly: true,
                                                   description: 'Diff head SHA of the merge request.'
     field :diff_refs, Types::DiffRefsType, null: true,
                                            description: 'References of the base SHA, the head SHA, and the start SHA for this merge request.'
@@ -75,8 +75,12 @@ module Types
           null: false, calls_gitaly: true,
           method: :diverged_from_target_branch?,
           description: 'Indicates if the source branch is behind the target branch.'
-    field :downvotes, GraphQL::Types::Int, null: false,
-                                           description: 'Number of downvotes for the merge request.'
+
+    field :downvotes, GraphQL::Types::Int,
+          null: false,
+          description: 'Number of downvotes for the merge request.',
+          resolver: Resolvers::DownVotesCountResolver
+
     field :force_remove_source_branch, GraphQL::Types::Boolean, method: :force_remove_source_branch?, null: true,
                                                                 description: 'Indicates if the project settings will lead to source branch deletion after merge.'
     field :in_progress_merge_commit_sha, GraphQL::Types::String, null: true,
@@ -94,9 +98,9 @@ module Types
           method: :public_merge_status, null: true,
           description: 'Merge status of the merge request.'
 
-    field :detailed_merge_status, ::Types::MergeRequests::DetailedMergeStatusEnum, method: :detailed_merge_status, null: true,
+    field :detailed_merge_status, ::Types::MergeRequests::DetailedMergeStatusEnum, null: true,
                                                                                    calls_gitaly: true,
-                                                                                   description: 'Detailed merge status of the merge request.', alpha: { milestone: '15.3' }
+                                                                                   description: 'Detailed merge status of the merge request.'
 
     field :mergeable_discussions_state, GraphQL::Types::Boolean, null: true,
                                                                  calls_gitaly: true,
@@ -117,8 +121,12 @@ module Types
           null: false, calls_gitaly: true,
           method: :target_branch_exists?,
           description: 'Indicates if the target branch of the merge request exists.'
-    field :upvotes, GraphQL::Types::Int, null: false,
-                                         description: 'Number of upvotes for the merge request.'
+
+    field :upvotes, GraphQL::Types::Int,
+          null: false,
+          description: 'Number of upvotes for the merge request.',
+          resolver: Resolvers::UpVotesCountResolver
+
     field :user_discussions_count, GraphQL::Types::Int, null: true,
                                                         description: 'Number of user discussions in the merge request.',
                                                         resolver: Resolvers::UserDiscussionsCountResolver
@@ -149,8 +157,11 @@ module Types
                                                         description: 'Human-readable time estimate of the merge request.'
     field :human_total_time_spent, GraphQL::Types::String, null: true,
                                                            description: 'Human-readable total time reported as spent on the merge request.'
-    field :labels, Types::LabelType.connection_type, null: true, complexity: 5,
-                                                     description: 'Labels of the merge request.'
+    field :labels, Types::LabelType.connection_type,
+          null: true, complexity: 5,
+          description: 'Labels of the merge request.',
+          resolver: Resolvers::BulkLabelsResolver
+
     field :milestone, Types::MilestoneType, null: true,
                                             description: 'Milestone of the merge request.'
     field :participants, Types::MergeRequests::ParticipantType.connection_type, null: true, complexity: 15,
@@ -189,10 +200,10 @@ module Types
                                                                       description: 'Array of available auto merge strategies.'
     field :commits, Types::CommitType.connection_type, null: true,
                                                        calls_gitaly: true, description: 'Merge request commits.'
-    field :committers, Types::UserType.connection_type, null: true, complexity: 5,
-                                                        calls_gitaly: true, description: 'Users who have added commits to the merge request.'
     field :commits_without_merge_commits, Types::CommitType.connection_type, null: true,
                                                                              calls_gitaly: true, description: 'Merge request commits excluding merge commits.'
+    field :committers, Types::UserType.connection_type, null: true, complexity: 5,
+                                                        calls_gitaly: true, description: 'Users who have added commits to the merge request.'
     field :has_ci, GraphQL::Types::Boolean, null: false, method: :has_ci?,
                                             description: 'Indicates if the merge request has CI.'
     field :merge_user, Types::UserType, null: true,
@@ -202,9 +213,9 @@ module Types
     field :security_auto_fix, GraphQL::Types::Boolean, null: true,
                                                        description: 'Indicates if the merge request is created by @GitLab-Security-Bot.'
     field :squash, GraphQL::Types::Boolean, null: false,
-                                            description: 'Indicates if squash on merge is enabled.'
+      description: 'Indicates if the merge request is set to be squashed when merged. [Project settings](https://docs.gitlab.com/ee/user/project/merge_requests/squash_and_merge.html#configure-squash-options-for-a-project) may override this value. Use `squash_on_merge` instead to take project squash options into account.'
     field :squash_on_merge, GraphQL::Types::Boolean, null: false, method: :squash_on_merge?,
-                                                     description: 'Indicates if squash on merge is enabled.'
+      description: 'Indicates if the merge request will be squashed when merged.'
     field :timelogs, Types::TimelogType.connection_type, null: false,
                                                          description: 'Timelogs on the merge request.'
 
@@ -279,6 +290,10 @@ module Types
 
     def merge_user
       object.metrics&.merged_by || object.merge_user
+    end
+
+    def detailed_merge_status
+      ::MergeRequests::Mergeability::DetailedMergeStatusService.new(merge_request: object).execute
     end
   end
 end

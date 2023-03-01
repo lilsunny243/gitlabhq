@@ -5,15 +5,15 @@ import Vue, { nextTick } from 'vue';
 import VueApollo from 'vue-apollo';
 import createMockApollo from 'helpers/mock_apollo_helper';
 import waitForPromises from 'helpers/wait_for_promises';
-import createFlash from '~/flash';
+import { createAlert } from '~/flash';
 import { IssuableType } from '~/issues/constants';
 import SidebarAssigneesRealtime from '~/sidebar/components/assignees/assignees_realtime.vue';
 import IssuableAssignees from '~/sidebar/components/assignees/issuable_assignees.vue';
 import SidebarAssigneesWidget from '~/sidebar/components/assignees/sidebar_assignees_widget.vue';
 import SidebarInviteMembers from '~/sidebar/components/assignees/sidebar_invite_members.vue';
 import SidebarEditableItem from '~/sidebar/components/sidebar_editable_item.vue';
-import getIssueAssigneesQuery from '~/vue_shared/components/sidebar/queries/get_issue_assignees.query.graphql';
-import updateIssueAssigneesMutation from '~/vue_shared/components/sidebar/queries/update_issue_assignees.mutation.graphql';
+import getIssueAssigneesQuery from '~/sidebar/queries/get_issue_assignees.query.graphql';
+import updateIssueAssigneesMutation from '~/sidebar/queries/update_issue_assignees.mutation.graphql';
 import UserSelect from '~/vue_shared/components/user_select/user_select.vue';
 import { issuableQueryResponse, updateIssueAssigneesMutationResponse } from '../../mock_data';
 
@@ -167,7 +167,7 @@ describe('Sidebar assignees widget', () => {
       });
       await waitForPromises();
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: 'An error occurred while fetching participants.',
       });
     });
@@ -333,7 +333,7 @@ describe('Sidebar assignees widget', () => {
 
       await waitForPromises();
 
-      expect(createFlash).toHaveBeenCalledWith({
+      expect(createAlert).toHaveBeenCalledWith({
         message: 'An error occurred while updating assignees.',
       });
     });

@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Runner
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -54,7 +54,7 @@ Not all executors are
 NOTE:
 The `docker` executor does not keep running
 after the build script is finished. At that point, the terminal automatically
-disconnects and does not wait for the user to finish. Please follow
+disconnects and does not wait for the user to finish. Follow
 [this issue](https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3605) for updates on
 improving this behavior.
 
@@ -65,8 +65,8 @@ for the current job.
 
 ![Example of job running with terminal available](img/interactive_web_terminal_running_job.png)
 
-When clicked, a new tab opens to the terminal page where you can access
-the terminal and type commands like a normal shell.
+When selected, a new tab opens to the terminal page where you can access
+the terminal and type commands like in a standard shell.
 
 ![terminal of the job](img/interactive_web_terminal_page.png)
 

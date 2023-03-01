@@ -31,14 +31,15 @@ module Ci
           pipeline: pipeline,
           file_type: :code_coverage,
           file: carrierwave_file,
-          size: carrierwave_file['tempfile'].size
+          size: carrierwave_file['tempfile'].size,
+          locked: pipeline.locked
         }
       end
 
       def carrierwave_file
         strong_memoize(:carrier_wave_file) do
           CarrierWaveStringFile.new_file(
-            file_content: report.to_json,
+            file_content: Gitlab::Json.dump(report),
             filename: Ci::PipelineArtifact::DEFAULT_FILE_NAMES.fetch(:code_coverage),
             content_type: 'application/json'
           )

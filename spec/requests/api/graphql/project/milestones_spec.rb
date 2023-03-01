@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'getting milestone listings nested in a project' do
+RSpec.describe 'getting milestone listings nested in a project', feature_category: :team_planning do
   include GraphqlHelpers
 
   let_it_be(:today) { Time.now.utc.to_date }
@@ -25,9 +25,10 @@ RSpec.describe 'getting milestone listings nested in a project' do
     graphql_query_for(
       :project,
       { full_path: project.full_path },
-      query_graphql_field(:milestones, search_params, [
-        query_graphql_field(:nodes, nil, %i[id title])
-      ])
+      query_graphql_field(:milestones, search_params,
+        [
+          query_graphql_field(:nodes, nil, %i[id title])
+        ])
     )
   end
 

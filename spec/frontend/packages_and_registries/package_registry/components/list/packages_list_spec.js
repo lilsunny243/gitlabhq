@@ -1,12 +1,19 @@
-import { GlAlert, GlKeysetPagination, GlModal, GlSprintf } from '@gitlab/ui';
+import { GlAlert, GlSprintf } from '@gitlab/ui';
 import { nextTick } from 'vue';
 import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { stubComponent } from 'helpers/stub_component';
 import PackagesListRow from '~/packages_and_registries/package_registry/components/list/package_list_row.vue';
 import PackagesListLoader from '~/packages_and_registries/shared/components/packages_list_loader.vue';
+import DeletePackageModal from '~/packages_and_registries/shared/components/delete_package_modal.vue';
+import DeleteModal from '~/packages_and_registries/package_registry/components/delete_modal.vue';
+import RegistryList from '~/packages_and_registries/shared/components/registry_list.vue';
 import {
   DELETE_PACKAGE_TRACKING_ACTION,
+  DELETE_PACKAGES_TRACKING_ACTION,
   REQUEST_DELETE_PACKAGE_TRACKING_ACTION,
+  REQUEST_DELETE_PACKAGES_TRACKING_ACTION,
   CANCEL_DELETE_PACKAGE_TRACKING_ACTION,
+  CANCEL_DELETE_PACKAGES_TRACKING_ACTION,
 } from '~/packages_and_registries/package_registry/constants';
 import PackagesList from '~/packages_and_registries/package_registry/components/list/packages_list.vue';
 import Tracking from '~/tracking';
@@ -35,18 +42,14 @@ describe('packages_list', () => {
   };
 
   const EmptySlotStub = { name: 'empty-slot-stub', template: '<div>bar</div>' };
-  const GlModalStub = {
-    name: GlModal.name,
-    template: '<div><slot></slot></div>',
-    methods: { show: jest.fn() },
-  };
 
   const findPackagesListLoader = () => wrapper.findComponent(PackagesListLoader);
-  const findPackageListPagination = () => wrapper.findComponent(GlKeysetPagination);
-  const findPackageListDeleteModal = () => wrapper.findComponent(GlModalStub);
+  const findPackageListDeleteModal = () => wrapper.findComponent(DeletePackageModal);
   const findEmptySlot = () => wrapper.findComponent(EmptySlotStub);
+  const findRegistryList = () => wrapper.findComponent(RegistryList);
   const findPackagesListRow = () => wrapper.findComponent(PackagesListRow);
   const findErrorPackageAlert = () => wrapper.findComponent(GlAlert);
+  const findDeletePackagesModal = () => wrapper.findComponent(DeleteModal);
 
   const mountComponent = (props) => {
     wrapper = shallowMountExtended(PackagesList, {
@@ -55,18 +58,20 @@ describe('packages_list', () => {
         ...props,
       },
       stubs: {
-        GlModal: GlModalStub,
+        DeletePackageModal,
+        DeleteModal: stubComponent(DeleteModal, {
+          methods: {
+            show: jest.fn(),
+          },
+        }),
         GlSprintf,
+        RegistryList,
       },
       slots: {
         'empty-state': EmptySlotStub,
       },
     });
   };
-
-  beforeEach(() => {
-    GlModalStub.methods.show.mockReset();
-  });
 
   afterEach(() => {
     wrapper.destroy();
@@ -81,12 +86,12 @@ describe('packages_list', () => {
       expect(findPackagesListLoader().exists()).toBe(true);
     });
 
-    it('does not show the rows', () => {
-      expect(findPackagesListRow().exists()).toBe(false);
+    it('does not show the registry list', () => {
+      expect(findRegistryList().exists()).toBe(false);
     });
 
-    it('does not show the pagination', () => {
-      expect(findPackageListPagination().exists()).toBe(false);
+    it('does not show the rows', () => {
+      expect(findPackagesListRow().exists()).toBe(false);
     });
   });
 
@@ -99,22 +104,29 @@ describe('packages_list', () => {
       expect(findPackagesListLoader().exists()).toBe(false);
     });
 
+    it('shows the registry list', () => {
+      expect(findRegistryList().exists()).toBe(true);
+    });
+
+    it('shows the registry list with the right props', () => {
+      expect(findRegistryList().props()).toMatchObject({
+        title: '2 packages',
+        items: defaultProps.list,
+        pagination: defaultProps.pageInfo,
+        isLoading: false,
+      });
+    });
+
     it('shows the rows', () => {
       expect(findPackagesListRow().exists()).toBe(true);
     });
   });
 
   describe('layout', () => {
-    it('contains a pagination component', () => {
-      mountComponent({ pageInfo: { hasPreviousPage: true } });
-
-      expect(findPackageListPagination().exists()).toBe(true);
-    });
-
-    it('contains a modal component', () => {
+    it("doesn't contain a visible modal component", () => {
       mountComponent();
 
-      expect(findPackageListDeleteModal().exists()).toBe(true);
+      expect(findPackageListDeleteModal().props('itemToBeDeleted')).toBeNull();
     });
 
     it('does not have an error alert displayed', () => {
@@ -124,32 +136,122 @@ describe('packages_list', () => {
     });
   });
 
-  describe('when the user can destroy the package', () => {
+  describe.each`
+    description                                                               | finderFunction         | deletePayload
+    ${'when the user can destroy the package'}                                | ${findPackagesListRow} | ${firstPackage}
+    ${'when the user can bulk destroy packages and deletes only one package'} | ${findRegistryList}    | ${[firstPackage]}
+  `('$description', ({ finderFunction, deletePayload }) => {
+    let eventSpy;
+    const category = 'UI::NpmPackages';
+
     beforeEach(() => {
+      eventSpy = jest.spyOn(Tracking, 'event');
       mountComponent();
-      findPackagesListRow().vm.$emit('packageToDelete', firstPackage);
-      return nextTick();
+      finderFunction().vm.$emit('delete', deletePayload);
     });
 
-    it('deleting a package opens the modal', () => {
-      expect(findPackageListDeleteModal().text()).toContain(firstPackage.name);
+    it('passes itemToBeDeleted to the modal', () => {
+      expect(findPackageListDeleteModal().props('itemToBeDeleted')).toStrictEqual(firstPackage);
     });
 
-    it('confirming on the modal emits package:delete', async () => {
-      findPackageListDeleteModal().vm.$emit('ok');
-
-      await nextTick();
-
-      expect(wrapper.emitted('package:delete')[0]).toEqual([firstPackage]);
+    it('requesting delete tracks the right action', () => {
+      expect(eventSpy).toHaveBeenCalledWith(
+        category,
+        REQUEST_DELETE_PACKAGE_TRACKING_ACTION,
+        expect.any(Object),
+      );
     });
 
-    it('closing the modal resets itemToBeDeleted', async () => {
-      // triggering the v-model
-      findPackageListDeleteModal().vm.$emit('input', false);
+    describe('when modal confirms', () => {
+      beforeEach(() => {
+        findPackageListDeleteModal().vm.$emit('ok');
+      });
 
-      await nextTick();
+      it('emits delete when modal confirms', () => {
+        expect(wrapper.emitted('delete')[0][0]).toEqual([firstPackage]);
+      });
 
-      expect(findPackageListDeleteModal().text()).not.toContain(firstPackage.name);
+      it('tracks the right action', () => {
+        expect(eventSpy).toHaveBeenCalledWith(
+          category,
+          DELETE_PACKAGE_TRACKING_ACTION,
+          expect.any(Object),
+        );
+      });
+    });
+
+    it.each(['ok', 'cancel'])('resets itemToBeDeleted when modal emits %s', async (event) => {
+      await findPackageListDeleteModal().vm.$emit(event);
+
+      expect(findPackageListDeleteModal().props('itemToBeDeleted')).toBeNull();
+    });
+
+    it('canceling delete tracks the right action', () => {
+      findPackageListDeleteModal().vm.$emit('cancel');
+
+      expect(eventSpy).toHaveBeenCalledWith(
+        category,
+        CANCEL_DELETE_PACKAGE_TRACKING_ACTION,
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('when the user can bulk destroy packages', () => {
+    let eventSpy;
+    const items = [firstPackage, secondPackage];
+
+    beforeEach(() => {
+      eventSpy = jest.spyOn(Tracking, 'event');
+      mountComponent();
+      findRegistryList().vm.$emit('delete', items);
+    });
+
+    it('passes itemsToBeDeleted to the modal', () => {
+      expect(findDeletePackagesModal().props('itemsToBeDeleted')).toStrictEqual(items);
+      expect(wrapper.emitted('delete')).toBeUndefined();
+    });
+
+    it('requesting delete tracks the right action', () => {
+      expect(eventSpy).toHaveBeenCalledWith(
+        undefined,
+        REQUEST_DELETE_PACKAGES_TRACKING_ACTION,
+        expect.any(Object),
+      );
+    });
+
+    describe('when modal confirms', () => {
+      beforeEach(() => {
+        findDeletePackagesModal().vm.$emit('confirm');
+      });
+
+      it('emits delete event', () => {
+        expect(wrapper.emitted('delete')[0]).toEqual([items]);
+      });
+
+      it('tracks the right action', () => {
+        expect(eventSpy).toHaveBeenCalledWith(
+          undefined,
+          DELETE_PACKAGES_TRACKING_ACTION,
+          expect.any(Object),
+        );
+      });
+    });
+
+    it.each(['confirm', 'cancel'])('resets itemsToBeDeleted when modal emits %s', async (event) => {
+      await findDeletePackagesModal().vm.$emit(event);
+
+      expect(findDeletePackagesModal().props('itemsToBeDeleted')).toHaveLength(0);
+    });
+
+    it('canceling delete tracks the right action', () => {
+      findDeletePackagesModal().vm.$emit('cancel');
+
+      expect(eventSpy).toHaveBeenCalledWith(
+        undefined,
+        CANCEL_DELETE_PACKAGES_TRACKING_ACTION,
+        expect.any(Object),
+      );
     });
   });
 
@@ -190,61 +292,21 @@ describe('packages_list', () => {
     });
   });
 
-  describe('pagination ', () => {
+  describe('pagination', () => {
     beforeEach(() => {
       mountComponent({ pageInfo: { hasPreviousPage: true } });
     });
 
     it('emits prev-page events when the prev event is fired', () => {
-      findPackageListPagination().vm.$emit('prev');
+      findRegistryList().vm.$emit('prev-page');
 
-      expect(wrapper.emitted('prev-page')).toEqual([[]]);
+      expect(wrapper.emitted('prev-page')).toHaveLength(1);
     });
 
     it('emits next-page events when the next event is fired', () => {
-      findPackageListPagination().vm.$emit('next');
+      findRegistryList().vm.$emit('next-page');
 
-      expect(wrapper.emitted('next-page')).toEqual([[]]);
-    });
-  });
-
-  describe('tracking', () => {
-    let eventSpy;
-    const category = 'UI::NpmPackages';
-
-    beforeEach(() => {
-      eventSpy = jest.spyOn(Tracking, 'event');
-      mountComponent();
-      findPackagesListRow().vm.$emit('packageToDelete', firstPackage);
-      return nextTick();
-    });
-
-    it('requesting the delete tracks the right action', () => {
-      expect(eventSpy).toHaveBeenCalledWith(
-        category,
-        REQUEST_DELETE_PACKAGE_TRACKING_ACTION,
-        expect.any(Object),
-      );
-    });
-
-    it('confirming delete tracks the right action', () => {
-      findPackageListDeleteModal().vm.$emit('ok');
-
-      expect(eventSpy).toHaveBeenCalledWith(
-        category,
-        DELETE_PACKAGE_TRACKING_ACTION,
-        expect.any(Object),
-      );
-    });
-
-    it('canceling delete tracks the right action', () => {
-      findPackageListDeleteModal().vm.$emit('cancel');
-
-      expect(eventSpy).toHaveBeenCalledWith(
-        category,
-        CANCEL_DELETE_PACKAGE_TRACKING_ACTION,
-        expect.any(Object),
-      );
+      expect(wrapper.emitted('next-page')).toHaveLength(1);
     });
   });
 });

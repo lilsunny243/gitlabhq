@@ -1,0 +1,5 @@
+---
+# Cop supports --autocorrect.
+RSpec/VariableDefinition:
+  Exclude:
+    - 'spec/presenters/packages/npm/package_presenter_spec.rb'

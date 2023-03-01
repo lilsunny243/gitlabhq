@@ -11,6 +11,10 @@ module QA
             element :pipeline_header, required: true
           end
 
+          view 'app/views/projects/pipelines/_info.html.haml' do
+            element :merge_request_badge_tag
+          end
+
           view 'app/assets/javascripts/pipelines/components/graph/graph_component.vue' do
             element :pipeline_graph, /class.*pipeline-graph.*/ # rubocop:disable QA/ElementWithPattern
           end
@@ -27,16 +31,12 @@ module QA
             element :downstream_title_content
           end
 
-          view 'app/assets/javascripts/reports/components/report_section.vue' do
+          view 'app/assets/javascripts/ci/reports/components/report_section.vue' do
             element :expand_report_button
           end
 
           view 'app/assets/javascripts/vue_shared/components/ci_icon.vue' do
             element :status_icon, 'ci-status-icon-${status}' # rubocop:disable QA/ElementWithPattern
-          end
-
-          view 'app/views/projects/pipelines/_info.html.haml' do
-            element :pipeline_badges
           end
 
           view 'app/assets/javascripts/pipelines/components/graph/job_group_dropdown.vue' do
@@ -48,6 +48,10 @@ module QA
             within_element(:pipeline_header) do
               page.has_content?('running', wait: wait)
             end
+          end
+
+          def has_merge_request_badge_tag?
+            has_element?(:merge_request_badge_tag)
           end
 
           def has_build?(name, status: :success, wait: nil)
@@ -66,12 +70,6 @@ module QA
 
           def has_no_job?(job_name)
             has_no_element?(:job_link, text: job_name)
-          end
-
-          def has_tag?(tag_name)
-            within_element(:pipeline_badges) do
-              has_selector?('.badge', text: tag_name)
-            end
           end
 
           def linked_pipelines

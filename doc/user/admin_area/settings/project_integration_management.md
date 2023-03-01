@@ -1,7 +1,7 @@
 ---
-stage: Ecosystem
+stage: Manage
 group: Integrations
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Project integration management **(FREE)**
@@ -22,13 +22,13 @@ Only the complete settings for an integration can be inherited. Per-field inheri
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2137) in GitLab 13.3 for project-level integrations.
 > - [Introduced](https://gitlab.com/groups/gitlab-org/-/epics/2543) in GitLab 13.6 for group-level integrations.
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select an integration.
 1. Enter configuration details and select **Save changes**.
 
 WARNING:
-This may affect all or most of the groups and projects on your GitLab instance. Please review the details
+This may affect all or most of the groups and projects on your GitLab instance. Review the details
 below.
 
 If this is the first time you are setting up instance-level settings for an integration:
@@ -54,7 +54,7 @@ integration on all non-configured groups and projects by default.
 
 ### Remove an instance-level default setting
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select an integration.
 1. Select **Reset** and confirm.
@@ -68,7 +68,7 @@ Resetting an instance-level default setting removes the integration from all pro
 You can view which projects in your instance use custom settings that [override the instance-level default settings](#use-custom-settings-for-a-group-or-project-integration)
 for an integration.
 
-1. On the top bar, select **Menu > Admin**.
+1. On the top bar, select **Main menu > Admin**.
 1. On the left sidebar, select **Settings > Integrations**.
 1. Select an integration.
 1. Select the **Projects using custom settings** tab.
@@ -82,7 +82,7 @@ for an integration.
 1. Enter configuration details and select **Save changes**.
 
 WARNING:
-This may affect all or most of the subgroups and projects belonging to the group. Please review the details below.
+This may affect all or most of the subgroups and projects belonging to the group. Review the details below.
 
 If this is the first time you are setting up group-level settings for an integration:
 
@@ -122,7 +122,7 @@ Resetting a group-level default setting removes integrations that use default se
 
 1. Navigate to **Project > Settings > Integrations**.
 1. Choose the integration you want to enable or update.
-1. From the drop-down, select **Use default settings**.
+1. From the dropdown list, select **Use default settings**.
 1. Ensure the toggle is set to **Enable integration**.
 1. Select **Save changes**.
 
@@ -130,6 +130,6 @@ Resetting a group-level default setting removes integrations that use default se
 
 1. Navigate to project or group's **Settings > Integrations**.
 1. Choose the integration you want to enable or update.
-1. From the drop-down, select **Use custom settings**.
+1. From the dropdown list, select **Use custom settings**.
 1. Ensure the toggle is set to **Enable integration** and enter all required settings.
 1. Select **Save changes**.

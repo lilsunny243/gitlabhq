@@ -1,7 +1,7 @@
 ---
 stage: Systems
 group: Distribution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference
 ---
 
@@ -20,13 +20,13 @@ are only available internally at GitLab.
 ## Docker
 
 The following were tested on Docker containers running in the cloud. Support Engineers,
-please see [these docs](https://gitlab.com/gitlab-com/dev-resources/tree/master/dev-resources#running-docker-containers)
+see [these docs](https://gitlab.com/gitlab-com/dev-resources/tree/master/dev-resources#running-docker-containers)
 on how to run Docker containers on `dev-resources`. Other setups haven't been tested,
 but contributions are welcome.
 
 ### GitLab
 
-Please see [our official Docker installation method](../../install/docker.md)
+See [our official Docker installation method](../../install/docker.md)
 for how to run GitLab on Docker.
 
 ### SAML
@@ -87,7 +87,7 @@ docker.elastic.co/elasticsearch/elasticsearch:5.5.1
 ```
 
 Then confirm it works in the browser at `curl "http://<IP_ADDRESS>:9200/_cat/health"`.
-Elasticsearch's default username is `elastic` and password is `changeme`.
+In Elasticsearch, the default username is `elastic`, and the default password is `changeme`.
 
 ### Kroki
 

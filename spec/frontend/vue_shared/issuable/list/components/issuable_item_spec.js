@@ -225,7 +225,7 @@ describe('IssuableItem', () => {
             },
           });
 
-          expect(wrapper.findByTestId('issuable-discussions').exists()).toBe(returnValue);
+          expect(wrapper.findByTestId('issuable-comments').exists()).toBe(returnValue);
         },
       );
     });
@@ -489,7 +489,7 @@ describe('IssuableItem', () => {
     it('renders discussions count', () => {
       wrapper = createComponent();
 
-      const discussionsEl = wrapper.find('[data-testid="issuable-discussions"]');
+      const discussionsEl = wrapper.findByTestId('issuable-comments');
 
       expect(discussionsEl.exists()).toBe(true);
       expect(discussionsEl.findComponent(GlLink).attributes()).toMatchObject({
@@ -540,24 +540,6 @@ describe('IssuableItem', () => {
 
         expect(timestampEl.attributes('title')).toBe('Jun 18, 2022 11:30am UTC');
         expect(timestampEl.text()).toBe(wrapper.vm.formattedTimestamp);
-      });
-    });
-
-    describe('when issuable was created within the past 24 hours', () => {
-      it('renders issuable card with a recently-created style', () => {
-        wrapper = createComponent({
-          issuable: { ...mockIssuable, createdAt: '2020-12-10T12:34:56' },
-        });
-
-        expect(wrapper.classes()).toContain('today');
-      });
-    });
-
-    describe('when issuable was created earlier than the past 24 hours', () => {
-      it('renders issuable card without a recently-created style', () => {
-        wrapper = createComponent({ issuable: { ...mockIssuable, createdAt: '2020-12-09' } });
-
-        expect(wrapper.classes()).not.toContain('today');
       });
     });
 

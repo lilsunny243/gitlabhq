@@ -45,7 +45,8 @@ module NotesActions
     respond_to do |format|
       format.json do
         json = {
-          commands_changes: @note.commands_changes&.slice(:emoji_award, :time_estimate, :spend_time)
+          commands_changes: @note.commands_changes&.slice(:emoji_award, :time_estimate, :spend_time),
+          command_names: @note.command_names
         }
 
         if @note.persisted? && return_discussion?
@@ -89,9 +90,7 @@ module NotesActions
   # rubocop:enable Gitlab/ModuleWithInstanceVariables
 
   def destroy
-    if note.editable?
-      Notes::DestroyService.new(project, current_user).execute(note)
-    end
+    Notes::DestroyService.new(project, current_user).execute(note) if note.editable?
 
     respond_to do |format|
       format.js { head :ok }
@@ -102,7 +101,7 @@ module NotesActions
 
   def gather_all_notes
     now = Time.current
-    notes = merge_resource_events(notes_finder.execute.inc_relations_for_view)
+    notes = merge_resource_events(notes_finder.execute.inc_relations_for_view(noteable))
 
     [notes, { last_fetched_at: (now.to_i * MICROSECOND) + now.usec }]
   end
@@ -258,15 +257,14 @@ module NotesActions
   end
 
   def last_fetched_at
-    strong_memoize(:last_fetched_at) do
-      microseconds = request.headers['X-Last-Fetched-At'].to_i
+    microseconds = request.headers['X-Last-Fetched-At'].to_i
 
-      seconds = microseconds / MICROSECOND
-      frac = microseconds % MICROSECOND
+    seconds = microseconds / MICROSECOND
+    frac = microseconds % MICROSECOND
 
-      Time.zone.at(seconds, frac)
-    end
+    Time.zone.at(seconds, frac)
   end
+  strong_memoize_attr :last_fetched_at
 
   def notes_filter
     current_user&.notes_filter_for(params[:target_type])
@@ -285,23 +283,22 @@ module NotesActions
   end
 
   def note_project
-    strong_memoize(:note_project) do
-      next nil unless project
+    return unless project
 
-      note_project_id = params[:note_project_id]
+    note_project_id = params[:note_project_id]
 
-      the_project =
-        if note_project_id.present?
-          Project.find(note_project_id)
-        else
-          project
-        end
+    the_project =
+      if note_project_id.present?
+        Project.find(note_project_id)
+      else
+        project
+      end
 
-      next access_denied! unless can?(current_user, :create_note, the_project)
+    return access_denied! unless can?(current_user, :create_note, the_project)
 
-      the_project
-    end
+    the_project
   end
+  strong_memoize_attr :note_project
 
   def return_discussion?
     Gitlab::Utils.to_boolean(params[:return_discussion])

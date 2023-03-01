@@ -8,8 +8,13 @@ class SearchController < ApplicationController
   include SearchRateLimitable
 
   RESCUE_FROM_TIMEOUT_ACTIONS = [:count, :show, :autocomplete, :aggregations].freeze
+  CODE_SEARCH_LITERALS = %w[blob: extension: path: filename:].freeze
 
-  track_event :show, name: 'i_search_total', destinations: [:redis_hll, :snowplow]
+  track_custom_event :show,
+    name: 'i_search_total',
+    label: 'redis_hll_counters.search.search_total_unique_counts_monthly',
+    action: 'executed',
+    destinations: [:redis_hll, :snowplow]
 
   def self.search_rate_limited_endpoints
     %i[show count autocomplete]
@@ -19,12 +24,19 @@ class SearchController < ApplicationController
 
   before_action :block_anonymous_global_searches, :check_scope_global_search_enabled, except: :opensearch
   skip_before_action :authenticate_user!
+
   requires_cross_project_access if: -> do
     search_term_present = params[:search].present? || params[:term].present?
     search_term_present && !params[:project_id].present?
   end
   before_action :check_search_rate_limit!, only: search_rate_limited_endpoints
 
+  before_action only: :show do
+    push_frontend_feature_flag(:search_blobs_language_aggregation, current_user)
+  end
+  before_action only: :show do
+    update_scope_for_code_search
+  end
   rescue_from ActiveRecord::QueryCanceled, with: :render_timeout
 
   layout 'search'
@@ -35,6 +47,7 @@ class SearchController < ApplicationController
   def show
     @project = search_service.project
     @group = search_service.group
+    @search_service_presenter = Gitlab::View::Presenter::Factory.new(search_service, current_user: current_user).fabricate!
 
     return unless search_term_valid?
 
@@ -43,19 +56,17 @@ class SearchController < ApplicationController
     @search_term = params[:search]
     @sort = params[:sort] || default_sort
 
-    @search_service = Gitlab::View::Presenter::Factory.new(search_service, current_user: current_user).fabricate!
-
-    @search_level = @search_service.level
+    @search_level = @search_service_presenter.level
     @search_type = search_type
 
     @global_search_duration_s = Benchmark.realtime do
-      @scope = @search_service.scope
-      @without_count = @search_service.without_count?
-      @show_snippets = @search_service.show_snippets?
-      @search_results = @search_service.search_results
-      @search_objects = @search_service.search_objects
-      @search_highlight = @search_service.search_highlight
+      @scope = @search_service_presenter.scope
+      @search_results = @search_service_presenter.search_results
+      @search_objects = @search_service_presenter.search_objects
+      @search_highlight = @search_service_presenter.search_highlight
     end
+
+    return if @search_results.respond_to?(:failed?) && @search_results.failed?
 
     Gitlab::Metrics::GlobalSearchSlis.record_apdex(
       elapsed: @global_search_duration_s,
@@ -65,6 +76,17 @@ class SearchController < ApplicationController
     )
 
     increment_search_counters
+  ensure
+    if @search_type
+      # If we raise an error somewhere in the @global_search_duration_s benchmark block, we will end up here
+      # with a 200 status code, but an empty @global_search_duration_s.
+      Gitlab::Metrics::GlobalSearchSlis.record_error_rate(
+        error: @global_search_duration_s.nil? || (status < 200 || status >= 400),
+        search_type: @search_type,
+        search_level: @search_level,
+        search_scope: @scope
+      )
+    end
   end
 
   def count
@@ -93,13 +115,25 @@ class SearchController < ApplicationController
     @ref = params[:project_ref] if params[:project_ref].present?
     @filter = params[:filter]
 
-    render json: search_autocomplete_opts(term, filter: @filter).to_json
+    # Cache the response on the frontend
+    expires_in 1.minute
+
+    render json: Gitlab::Json.dump(search_autocomplete_opts(term, filter: @filter))
   end
 
   def opensearch
   end
 
   private
+
+  def update_scope_for_code_search
+    return if params[:scope] == 'blobs'
+    return unless params[:search].present?
+
+    if CODE_SEARCH_LITERALS.any? { |literal| literal.in? params[:search] }
+      redirect_to search_path(safe_params.except(:controller, :action).merge(scope: 'blobs'))
+    end
+  end
 
   # overridden in EE
   def default_sort
@@ -125,8 +159,7 @@ class SearchController < ApplicationController
   def check_single_commit_result?
     return false if params[:force_search_results]
     return false unless @project.present?
-    # download_code project policy grants user the read_commit ability
-    return false unless Ability.allowed?(current_user, :download_code, @project)
+    return false unless Ability.allowed?(current_user, :read_code, @project)
 
     query = params[:search].strip.downcase
     return false unless Commit.valid_hash?(query)
@@ -185,24 +218,7 @@ class SearchController < ApplicationController
   def check_scope_global_search_enabled
     return unless search_service.global_search?
 
-    search_allowed = case params[:scope]
-                     when 'blobs'
-                       Feature.enabled?(:global_search_code_tab, current_user, type: :ops)
-                     when 'commits'
-                       Feature.enabled?(:global_search_commits_tab, current_user, type: :ops)
-                     when 'issues'
-                       Feature.enabled?(:global_search_issues_tab, current_user, type: :ops)
-                     when 'merge_requests'
-                       Feature.enabled?(:global_search_merge_requests_tab, current_user, type: :ops)
-                     when 'wiki_blobs'
-                       Feature.enabled?(:global_search_wiki_tab, current_user, type: :ops)
-                     when 'users'
-                       Feature.enabled?(:global_search_users_tab, current_user, type: :ops)
-                     else
-                       true
-                     end
-
-    return if search_allowed
+    return if search_service.global_search_enabled_for_scope?
 
     redirect_to search_path, alert: _('Global Search is disabled for this scope')
   end
@@ -226,6 +242,10 @@ class SearchController < ApplicationController
 
   def tracking_namespace_source
     search_service.project&.namespace || search_service.group
+  end
+
+  def tracking_project_source
+    search_service.project
   end
 
   def search_type

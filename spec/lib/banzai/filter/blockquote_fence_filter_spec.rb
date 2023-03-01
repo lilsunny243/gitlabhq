@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-RSpec.describe Banzai::Filter::BlockquoteFenceFilter do
+RSpec.describe Banzai::Filter::BlockquoteFenceFilter, feature_category: :team_planning do
   include FilterSpecHelper
 
-  it 'converts blockquote fences to blockquote lines' do
+  it 'converts blockquote fences to blockquote lines', :unlimited_max_formatted_output_length do
     content = File.read(Rails.root.join('spec/fixtures/blockquote_fence_before.md'))
     expected = File.read(Rails.root.join('spec/fixtures/blockquote_fence_after.md'))
 
@@ -20,14 +20,6 @@ RSpec.describe Banzai::Filter::BlockquoteFenceFilter do
 
   it 'allows trailing whitespace on blockquote fence lines' do
     expect(filter(">>> \ntest\n>>> ")).to eq("\n> test\n")
-  end
-
-  context 'when feature flag is turned off' do
-    it 'does not require a leading or trailing blank line' do
-      stub_feature_flags(markdown_corrected_blockquote: false)
-
-      expect(filter("Foo\n>>>\ntest\n>>>\nBar")).to eq("Foo\n\n> test\n\nBar")
-    end
   end
 
   context 'when incomplete blockquote fences with multiple blocks are present' do

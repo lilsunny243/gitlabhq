@@ -2,12 +2,70 @@
 type: reference
 stage: Data Stores
 group: Global Search
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Troubleshooting Elasticsearch **(PREMIUM SELF)**
 
 Use the following information to troubleshoot Elasticsearch issues.
+
+## Set configurations in the Rails console
+
+See [Starting a Rails console session](../../administration/operations/rails_console.md#starting-a-rails-console-session).
+
+### List attributes
+
+To list all available attributes:
+
+1. Open the Rails console (`gitlab rails c`).
+1. Run the following command:
+
+```ruby
+ApplicationSetting.last.attributes
+```
+
+The output contains all the settings available in [Elasticsearch integration](../../integration/advanced_search/elasticsearch.md), such as `elasticsearch_indexing`, `elasticsearch_url`, `elasticsearch_replicas`, and `elasticsearch_pause_indexing`.
+
+### Set attributes
+
+To set an Elasticsearch integration setting, run a command like:
+
+```ruby
+ApplicationSetting.last.update(elasticsearch_url: '<your ES URL and port>')
+
+#or
+
+ApplicationSetting.last.update(elasticsearch_indexing: false)
+```
+
+### Get attributes
+
+To check if the settings have been set in [Elasticsearch integration](../../integration/advanced_search/elasticsearch.md) or in the Rails console, run a command like:
+
+```ruby
+Gitlab::CurrentSettings.elasticsearch_url
+
+#or
+
+Gitlab::CurrentSettings.elasticsearch_indexing
+```
+
+### Change the password
+
+To change the Elasticsearch password, run the following commands:
+
+```ruby
+es_url = Gitlab::CurrentSettings.current_application_settings
+
+# Confirm the current Elasticsearch URL
+es_url.elasticsearch_url
+
+# Set the Elasticsearch URL
+es_url.elasticsearch_url = "http://<username>:<password>@your.es.host:<port>"
+
+# Save the change
+es_url.save!
+```
 
 ## View logs
 
@@ -38,12 +96,12 @@ Here are some common pitfalls and how to overcome them.
   a Lucene index.
 - **Replicas**: Failover mechanisms that duplicate indices.
 
-## How can I verify that my GitLab instance is using Elasticsearch?
+## How can you verify that your GitLab instance is using Elasticsearch?
 
 There are a couple of ways to achieve that:
 
-- Whenever you perform a search there is a link on the search results page
-  in the top right hand corner saying "Advanced search functionality is enabled".
+- When you perform a search, in the upper-right corner of the search results page,
+  **Advanced search functionality is enabled** is displayed.
   This is always correctly identifying whether the current project/namespace
   being searched is using Elasticsearch.
 
@@ -126,13 +184,13 @@ If reindexing the project shows:
 - Elasticsearch errors or doesn't present any errors at all, reach out to your
   Elasticsearch administrator to check the instance.
 
-### I updated GitLab and now I can't find anything
+### You updated GitLab and now you can't find anything
 
 We continuously make updates to our indexing strategies and aim to support
 newer versions of Elasticsearch. When indexing changes are made, it may
 be necessary for you to [reindex](elasticsearch.md#zero-downtime-reindexing) after updating GitLab.
 
-### I indexed all the repositories but I can't get any hits for my search term in the UI
+### You indexed all the repositories but you can't get any hits for your search term in the UI
 
 Make sure you [indexed all the database data](elasticsearch.md#enable-advanced-search).
 
@@ -154,15 +212,15 @@ More [complex Elasticsearch API calls](https://www.elastic.co/guide/en/elasticse
 
 If the results:
 
-- Sync up, please check that you are using [supported syntax](../../user/search/global_search/advanced_search_syntax.md). Note that Advanced Search does not support [exact substring matching](https://gitlab.com/gitlab-org/gitlab/-/issues/325234).
-- Do not match up, this indicates a problem with the documents generated from the project. It is best to [re-index that project](../advanced_search/elasticsearch.md#indexing-a-range-of-projects-or-a-specific-project)
+- Sync up, check that you are using [supported syntax](../../user/search/advanced_search.md#syntax). Advanced Search does not support [exact substring matching](https://gitlab.com/gitlab-org/gitlab/-/issues/325234).
+- Do not match up, this indicates a problem with the documents generated from the project. It is best to [re-index that project](../advanced_search/elasticsearch.md#indexing-a-range-of-projects-or-a-specific-project).
 
 NOTE:
 The above instructions are not to be used for scenarios that only index a [subset of namespaces](elasticsearch.md#limit-the-number-of-namespaces-and-projects-that-can-be-indexed).
 
 See [Elasticsearch Index Scopes](elasticsearch.md#advanced-search-index-scopes) for more information on searching for specific types of data.
 
-### I indexed all the repositories but then switched Elasticsearch servers and now I can't find anything
+### You indexed all the repositories but then switched Elasticsearch servers and now you can't find anything
 
 You must re-run all the Rake tasks to reindex the database, repositories, and wikis.
 
@@ -170,11 +228,11 @@ You must re-run all the Rake tasks to reindex the database, repositories, and wi
 
 The more data present in your GitLab instance, the longer the indexing process takes.
 
-### There are some projects that weren't indexed, but I don't know which ones
+### There are some projects that weren't indexed, but you don't know which ones
 
 You can run `sudo gitlab-rake gitlab:elastic:projects_not_indexed` to display projects that aren't indexed.
 
-### No new data is added to the Elasticsearch index when I push code
+### No new data is added to the Elasticsearch index when you push code
 
 NOTE:
 This was [fixed](https://gitlab.com/gitlab-org/gitlab/-/merge_requests/35936) in GitLab 13.2 and the Rake task is not available for versions greater than that.
@@ -190,7 +248,7 @@ sudo gitlab-rake gitlab:elastic:clear_locked_projects
 If `ElasticCommitIndexerWorker` Sidekiq workers are failing with this error during indexing, it usually means that Elasticsearch is unable to keep up with the concurrency of indexing request. To address change the following settings:
 
 - To decrease the indexing throughput you can decrease `Bulk request concurrency` (see [Advanced Search settings](elasticsearch.md#advanced-search-configuration)). This is set to `10` by default, but you change it to as low as 1 to reduce the number of concurrent indexing operations.
-- If changing `Bulk request concurrency` didn't help, you can use the [queue selector](../../administration/sidekiq/extra_sidekiq_processes.md#queue-selector) option to [limit indexing jobs only to specific Sidekiq nodes](elasticsearch.md#index-large-instances-with-dedicated-sidekiq-nodes-or-processes), which should reduce the number of indexing requests.
+- If changing `Bulk request concurrency` didn't help, you can use the [routing rules](../../administration/sidekiq/processing_specific_job_classes.md#routing-rules) option to [limit indexing jobs only to specific Sidekiq nodes](elasticsearch.md#index-large-instances-with-dedicated-sidekiq-nodes-or-processes), which should reduce the number of indexing requests.
 
 ### Indexing is very slow or fails with `rejected execution of coordinating operation` messages
 
@@ -251,26 +309,23 @@ When it comes to Elasticsearch, RAM is the key resource. Elasticsearch themselve
 - Ideally, 64 GB of RAM.
 
 For CPU, Elasticsearch recommends at least 2 CPU cores, but Elasticsearch states common
-setups use up to 8 cores. For more details on server specs, check out
-[Elasticsearch's hardware guide](https://www.elastic.co/guide/en/elasticsearch/guide/current/hardware.html).
+setups use up to 8 cores. For more details on server specs, check out the
+[Elasticsearch hardware guide](https://www.elastic.co/guide/en/elasticsearch/guide/current/hardware.html).
 
 Beyond the obvious, sharding comes into play. Sharding is a core part of Elasticsearch.
 It allows for horizontal scaling of indices, which is helpful when you are dealing with
 a large amount of data.
 
 With the way GitLab does indexing, there is a **huge** amount of documents being
-indexed. By utilizing sharding, you can speed up Elasticsearch's ability to locate
-data, since each shard is a Lucene index.
+indexed. By using sharding, you can speed up the ability of Elasticsearch to locate
+data because each shard is a Lucene index.
 
 If you are not using sharding, you are likely to hit issues when you start using
 Elasticsearch in a production environment.
 
-Keep in mind that an index with only one shard has **no scale factor** and will
-likely encounter issues when called upon with some frequency.
-
-If you need to know how many shards, read
-[Elasticsearch's documentation on capacity planning](https://www.elastic.co/guide/en/elasticsearch/guide/2.x/capacity-planning.html),
-as the answer is not straight forward.
+An index with only one shard has **no scale factor** and is likely
+to encounter issues when called upon with some frequency. See the
+[Elasticsearch documentation on capacity planning](https://www.elastic.co/guide/en/elasticsearch/guide/2.x/capacity-planning.html).
 
 The easiest way to determine if sharding is in use is to check the output of the
 [Elasticsearch Health API](https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html):
@@ -389,24 +444,9 @@ however, searches only surface results that can be viewed by the user.
 Advanced Search honors all permission checks in the application by
 filtering out projects that a user does not have access to at search time.
 
-## Access requirements for the self-managed AWS OpenSearch Service
+### Role mapping when using fine-grained access control with AWS Elasticsearch or OpenSearch
 
-To use the self-managed AWS OpenSearch Service with GitLab, configure your instance's domain access policies
-to contain the actions below.
-See [Identity and Access Management in Amazon OpenSearch Service](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/ac.html) for details.
-
-```plaintext
-es:ESHttpDelete
-es:ESHttpGet
-es:ESHttpHead
-es:ESHttpPost
-es:ESHttpPut
-es:ESHttpPatch
-```
-
-## Role-mapping when using AWS Elasticsearch or AWS OpenSearch fine-grained access control
-
-When using fine-grained access control with an IAM role, you might encounter the following error:
+When using fine-grained access control with an IAM role or a role created using OpenSearch Dashboards, you might encounter the following error:
 
 ```plaintext
 {"error":{"root_cause":[{"type":"security_exception","reason":"no permissions for [indices:data/write/bulk] and User [name=arn:aws:iam::xxx:role/INSERT_ROLE_NAME_HERE, backend_roles=[arn:aws:iam::xxx:role/INSERT_ROLE_NAME_HERE], requestedTenant=null]"}],"type":"security_exception","reason":"no permissions for [indices:data/write/bulk] and User [name=arn:aws:iam::xxx:role/INSERT_ROLE_NAME_HERE, backend_roles=[arn:aws:iam::xxx:role/INSERT_ROLE_NAME_HERE], requestedTenant=null]"},"status":403}

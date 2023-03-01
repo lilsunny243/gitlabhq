@@ -5,7 +5,6 @@ module AuthHelper
     alicloud
     atlassian_oauth2
     auth0
-    authentiq
     azure_activedirectory_v2
     azure_oauth2
     bitbucket
@@ -17,7 +16,6 @@ module AuthHelper
     jwt
     openid_connect
     salesforce
-    shibboleth
     twitter
   ).freeze
   LDAP_PROVIDER = /\Aldap/.freeze
@@ -70,11 +68,9 @@ module AuthHelper
   end
 
   def form_based_provider_with_highest_priority
-    @form_based_provider_with_highest_priority ||= begin
-      form_based_provider_priority.each do |provider_regexp|
-        highest_priority = form_based_providers.find { |provider| provider.match?(provider_regexp) }
-        break highest_priority unless highest_priority.nil?
-      end
+    @form_based_provider_with_highest_priority ||= form_based_provider_priority.each do |provider_regexp|
+      highest_priority = form_based_providers.find { |provider| provider.match?(provider_regexp) }
+      break highest_priority unless highest_priority.nil?
     end
   end
 

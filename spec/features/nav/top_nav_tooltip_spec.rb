@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'top nav tooltips', :js do
+RSpec.describe 'top nav tooltips', :js, feature_category: :navigation do
   let_it_be(:user) { create(:user) }
 
   before do
@@ -10,7 +10,8 @@ RSpec.describe 'top nav tooltips', :js do
     visit explore_projects_path
   end
 
-  it 'clicking new dropdown hides tooltip', :aggregate_failures do
+  it 'clicking new dropdown hides tooltip', :aggregate_failures,
+      quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/382786' do
     btn = '#js-onboarding-new-project-link'
 
     page.find(btn).hover

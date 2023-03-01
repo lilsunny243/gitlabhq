@@ -6,16 +6,28 @@ RSpec.describe Import::GithubService do
   let_it_be(:user) { create(:user) }
   let_it_be(:token) { 'complex-token' }
   let_it_be(:access_params) { { github_access_token: 'github-complex-token' } }
-  let_it_be(:params) { { repo_id: 123, new_name: 'new_repo', target_namespace: 'root' } }
+  let(:settings) { instance_double(Gitlab::GithubImport::Settings) }
+  let(:user_namespace_path) { user.namespace_path }
+  let(:optional_stages) { nil }
+  let(:params) do
+    {
+      repo_id: 123,
+      new_name: 'new_repo',
+      target_namespace: user_namespace_path,
+      optional_stages: optional_stages
+    }
+  end
 
   subject(:github_importer) { described_class.new(client, user, params) }
 
-  before do
-    allow(subject).to receive(:authorized?).and_return(true)
-  end
-
   shared_examples 'handles errors' do |klass|
     let(:client) { klass.new(token) }
+    let(:project_double) { instance_double(Project, persisted?: true) }
+
+    before do
+      allow(Gitlab::GithubImport::Settings).to receive(:new).with(project_double).and_return(settings)
+      allow(settings).to receive(:write).with(optional_stages)
+    end
 
     context 'do not raise an exception on input error' do
       let(:exception) { Octokit::ClientError.new(status: 404, body: 'Not Found') }
@@ -56,19 +68,28 @@ RSpec.describe Import::GithubService do
     end
 
     context 'repository size validation' do
-      let(:repository_double) { double(name: 'repository', size: 99) }
+      let(:repository_double) { { name: 'repository', size: 99 } }
 
       before do
+        allow(subject).to receive(:authorized?).and_return(true)
         expect(client).to receive(:repository).and_return(repository_double)
 
         allow_next_instance_of(Gitlab::LegacyGithubImport::ProjectCreator) do |creator|
-          allow(creator).to receive(:execute).and_return(double(persisted?: true))
+          allow(creator).to receive(:execute).and_return(project_double)
         end
       end
 
       context 'when there is no repository size limit defined' do
-        it 'skips the check and succeeds' do
+        it 'skips the check, succeeds, and tracks an access level' do
           expect(subject.execute(access_params, :github)).to include(status: :success)
+          expect(settings).to have_received(:write).with(nil)
+          expect_snowplow_event(
+            category: 'Import::GithubService',
+            action: 'create',
+            label: 'import_access_level',
+            user: user,
+            extra: { import_type: 'github', user_role: 'Owner' }
+          )
         end
       end
 
@@ -81,10 +102,18 @@ RSpec.describe Import::GithubService do
 
         it 'succeeds when the repository is smaller than the limit' do
           expect(subject.execute(access_params, :github)).to include(status: :success)
+          expect(settings).to have_received(:write).with(nil)
+          expect_snowplow_event(
+            category: 'Import::GithubService',
+            action: 'create',
+            label: 'import_access_level',
+            user: user,
+            extra: { import_type: 'github', user_role: 'Not a member' }
+          )
         end
 
         it 'returns error when the repository is larger than the limit' do
-          allow(repository_double).to receive(:size).and_return(101)
+          repository_double[:size] = 101
 
           expect(subject.execute(access_params, :github)).to include(size_limit_error)
         end
@@ -100,27 +129,51 @@ RSpec.describe Import::GithubService do
         context 'when application size limit is defined' do
           it 'succeeds when the repository is smaller than the limit' do
             expect(subject.execute(access_params, :github)).to include(status: :success)
+            expect(settings).to have_received(:write).with(nil)
+            expect_snowplow_event(
+              category: 'Import::GithubService',
+              action: 'create',
+              label: 'import_access_level',
+              user: user,
+              extra: { import_type: 'github', user_role: 'Owner' }
+            )
           end
 
           it 'returns error when the repository is larger than the limit' do
-            allow(repository_double).to receive(:size).and_return(101)
+            repository_double[:size] = 101
 
             expect(subject.execute(access_params, :github)).to include(size_limit_error)
           end
+        end
+      end
+
+      context 'when optional stages params present' do
+        let(:optional_stages) do
+          {
+            single_endpoint_issue_events_import: true,
+            single_endpoint_notes_import: 'false',
+            attachments_import: false
+          }
+        end
+
+        it 'saves optional stages choice to import_data' do
+          subject.execute(access_params, :github)
+
+          expect(settings).to have_received(:write).with(optional_stages)
         end
       end
     end
 
     context 'when import source is disabled' do
       let(:repository_double) do
-        double({
+        {
           name: 'vim',
           description: 'test',
           full_name: 'test/vim',
           clone_url: 'http://repo.com/repo/repo.git',
           private: false,
           has_wiki?: false
-        })
+        }
       end
 
       before do
@@ -160,6 +213,38 @@ RSpec.describe Import::GithubService do
         end
       end
     end
+
+    context 'when target_namespace is blank' do
+      before do
+        params[:target_namespace] = ''
+      end
+
+      it 'raises an exception' do
+        expect { subject.execute(access_params, :github) }.to raise_error(ArgumentError, 'Target namespace is required')
+      end
+    end
+
+    context 'when namespace to import repository into does not exist' do
+      before do
+        params[:target_namespace] = 'unknown_path'
+      end
+
+      it 'returns an error' do
+        expect(github_importer.execute(access_params, :github)).to include(not_existed_namespace_error)
+      end
+    end
+
+    context 'when user has no permissions to import repository into the specified namespace' do
+      let_it_be(:group) { create(:group) }
+
+      before do
+        params[:target_namespace] = group.full_path
+      end
+
+      it 'returns an error' do
+        expect(github_importer.execute(access_params, :github)).to include(taken_namespace_error)
+      end
+    end
   end
 
   context 'when remove_legacy_github_client feature flag is enabled' do
@@ -170,7 +255,7 @@ RSpec.describe Import::GithubService do
     include_examples 'handles errors', Gitlab::GithubImport::Client
   end
 
-  context 'when remove_legacy_github_client feature flag is enabled' do
+  context 'when remove_legacy_github_client feature flag is disabled' do
     before do
       stub_feature_flags(remove_legacy_github_client: false)
     end
@@ -191,6 +276,22 @@ RSpec.describe Import::GithubService do
       status: :error,
       http_status: :bad_request,
       message: "Invalid URL: #{url}"
+    }
+  end
+
+  def not_existed_namespace_error
+    {
+      status: :error,
+      http_status: :unprocessable_entity,
+      message: 'Namespace or group to import repository into does not exist.'
+    }
+  end
+
+  def taken_namespace_error
+    {
+      status: :error,
+      http_status: :unprocessable_entity,
+      message: 'This namespace has already been taken. Choose a different one.'
     }
   end
 end

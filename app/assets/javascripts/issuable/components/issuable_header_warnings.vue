@@ -1,14 +1,19 @@
 <script>
 import { GlIcon, GlTooltipDirective } from '@gitlab/ui';
 import { mapGetters } from 'vuex';
-import { __ } from '~/locale';
-import { IssuableType, WorkspaceType } from '~/issues/constants';
+import { sprintf, __ } from '~/locale';
+import { TYPE_ISSUE, WORKSPACE_PROJECT } from '~/issues/constants';
 import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import ConfidentialityBadge from '~/vue_shared/components/confidentiality_badge.vue';
 
+const NoteableTypeText = {
+  issue: __('issue'),
+  merge_request: __('merge request'),
+};
+
 export default {
-  WorkspaceType,
-  IssuableType,
+  TYPE_ISSUE,
+  WORKSPACE_PROJECT,
   components: {
     GlIcon,
     ConfidentialityBadge,
@@ -40,7 +45,9 @@ export default {
           iconName: 'spam',
           visible: this.hidden,
           dataTestId: 'hidden',
-          tooltip: __('This issue is hidden because its author has been banned'),
+          tooltip: sprintf(__('This %{issuable} is hidden because its author has been banned'), {
+            issuable: NoteableTypeText[this.getNoteableData.targetType],
+          }),
         },
       ];
     },
@@ -53,8 +60,8 @@ export default {
     <confidentiality-badge
       v-if="isConfidential"
       data-testid="confidential"
-      :workspace-type="$options.WorkspaceType.project"
-      :issuable-type="$options.IssuableType.Issue"
+      :workspace-type="$options.WORKSPACE_PROJECT"
+      :issuable-type="$options.TYPE_ISSUE"
     />
     <template v-for="meta in warningIconsMeta">
       <div

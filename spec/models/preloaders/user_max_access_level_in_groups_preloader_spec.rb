@@ -55,6 +55,27 @@ RSpec.describe Preloaders::UserMaxAccessLevelInGroupsPreloader do
 
           let(:expected_query_count) { 0 }
         end
+
+        context 'for groups arising from group shares' do
+          let_it_be(:group4) { create(:group, :private) }
+          let_it_be(:group4_subgroup) { create(:group, :private, parent: group4) }
+
+          let(:groups) { [group4, group4_subgroup] }
+
+          before do
+            create(:group_group_link, :guest, shared_with_group: group1, shared_group: group4)
+          end
+
+          it 'sets the right access level in cache for groups arising from group shares' do
+            described_class.new(groups, user).execute
+
+            groups.each do |group|
+              cached_access_level = group.max_member_access_for_user(user)
+
+              expect(cached_access_level).to eq(Gitlab::Access::GUEST)
+            end
+          end
+        end
       end
     end
   end

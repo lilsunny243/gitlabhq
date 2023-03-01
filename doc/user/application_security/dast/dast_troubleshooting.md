@@ -1,11 +1,11 @@
 ---
 stage: Secure
 group: Dynamic Analysis
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 type: reference, howto
 ---
 
-# Troubleshooting Dynamic Application Security Testing (DAST) **(ULTIMATE)**
+# Troubleshooting DAST proxy-based analyzer **(ULTIMATE)**
 
 The following troubleshooting scenarios have been collected from customer support cases. If you
 experience a problem not addressed here, or the information here does not fix your problem, create a
@@ -20,7 +20,7 @@ A DAST job has two executing processes:
 
 Enable the `DAST_DEBUG` CI/CD variable to debug scripts. This can help when troubleshooting the job,
 and outputs statements indicating what percentage of the scan is complete.
-For details on using variables, see [Overriding the DAST template](index.md#customize-dast-settings).
+For details on using variables, see [Overriding the DAST template](proxy-based.md#customize-dast-settings).
 
 Debug mode of the ZAP server can be enabled using the `DAST_ZAP_LOG_CONFIGURATION` variable.
 The following table outlines examples of values that can be set and the effect that they have on the output that is logged.
@@ -77,7 +77,7 @@ For information on this, see the [general Application Security troubleshooting s
 To avoid overwriting stages from other CI files, newer versions of the DAST CI template do not
 define stages. If you recently started using `DAST.latest.gitlab-ci.yml` or upgraded to a new major
 release of GitLab and began receiving this error, you must define a `dast` stage with your other
-stages. Note that you must have a running application for DAST to scan. If your application is set
+stages. You must have a running application for DAST to scan. If your application is set
 up in your pipeline, it must be deployed in a stage _before_ the `dast` stage:
 
 ```yaml

@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Deploy to a Kubernetes cluster with cluster certificates (DEPRECATED) **(FREE)**
@@ -21,7 +21,7 @@ A Kubernetes cluster can be the destination for a deployment job. If
   the cluster from your jobs using tools such as `kubectl` or `helm`.
 - You don't use the GitLab cluster integration, you can still deploy to your
   cluster. However, you must configure Kubernetes tools yourself
-  using [CI/CD variables](../../../ci/variables/index.md#custom-cicd-variables)
+  using [CI/CD variables](../../../ci/variables/index.md#for-a-project)
   before you can interact with the cluster from your jobs.
 
 ## Deployment variables
@@ -43,7 +43,7 @@ following command in your deployment job script, for Kubernetes to access the re
   ```
 
 The Kubernetes cluster integration exposes these
-[deployment variables](../../../ci/variables/index.md#deployment-variables) in the
+[deployment variables](../../../ci/variables/predefined_variables.md#deployment-variables) in the
 GitLab CI/CD build environment to deployment jobs. Deployment jobs have
 [defined a target environment](../../../ci/environments/index.md).
 
@@ -65,7 +65,7 @@ GitLab CI/CD build environment to deployment jobs. Deployment jobs have
 The Kubernetes integration provides a `KUBECONFIG` with an auto-generated namespace
 to deployment jobs. It defaults to using project-environment specific namespaces
 of the form `<prefix>-<environment>`, where `<prefix>` is of the form
-`<project_name>-<project_id>`. To learn more, read [Deployment variables](#deployment-variables).
+`<project_name>-<project_id>`. For more information, see [Deployment variables](#deployment-variables).
 
 You can customize the deployment namespace in a few ways:
 
@@ -131,7 +131,7 @@ However, sometimes GitLab cannot create them. In such instances, your job can fa
 This job failed because the necessary resources were not successfully created.
 ```
 
-To find the cause of this error when creating a namespace and service account, check the [logs](../../../administration/logs/index.md#kuberneteslog).
+To find the cause of this error when creating a namespace and service account, check the [logs](../../../administration/logs/index.md#kuberneteslog-deprecated).
 
 Reasons for failure include:
 

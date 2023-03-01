@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Contributions Calendar', :js do
+RSpec.describe 'Contributions Calendar', :js, feature_category: :user_profile do
   include MobileHelpers
 
   let(:user) { create(:user) }
@@ -71,6 +71,7 @@ RSpec.describe 'Contributions Calendar', :js do
   end
 
   before do
+    stub_feature_flags(profile_tabs_vue: false)
     sign_in user
   end
 
@@ -143,18 +144,27 @@ RSpec.describe 'Contributions Calendar', :js do
       end
     end
 
-    describe '1 issue creation calendar activity' do
+    describe '1 issue and 1 work item creation calendar activity' do
       before do
-        Issues::CreateService.new(project: contributed_project, current_user: user, params: issue_params, spam_params: nil).execute
+        Issues::CreateService.new(container: contributed_project, current_user: user, params: issue_params, spam_params: nil).execute
+        WorkItems::CreateService.new(
+          container: contributed_project,
+          current_user: user,
+          params: { title: 'new task' },
+          spam_params: nil
+        ).execute
       end
 
-      it_behaves_like 'a day with activity', contribution_count: 1
+      it_behaves_like 'a day with activity', contribution_count: 2
 
       describe 'issue title is shown on activity page' do
         include_context 'visit user page'
 
-        it 'displays calendar activity log', :sidekiq_might_not_need_inline do
-          expect(find('#js-overview .overview-content-list .event-target-title')).to have_content issue_title
+        it 'displays calendar activity log', :sidekiq_inline do
+          expect(all('#js-overview .overview-content-list .event-target-title').map(&:text)).to contain_exactly(
+            match(/#{issue_title}/),
+            match(/new task/)
+          )
         end
       end
     end
@@ -180,7 +190,7 @@ RSpec.describe 'Contributions Calendar', :js do
         push_code_contribution
 
         travel_to(Date.yesterday) do
-          Issues::CreateService.new(project: contributed_project, current_user: user, params: issue_params, spam_params: nil).execute
+          Issues::CreateService.new(container: contributed_project, current_user: user, params: issue_params, spam_params: nil).execute
         end
       end
       include_context 'visit user page'

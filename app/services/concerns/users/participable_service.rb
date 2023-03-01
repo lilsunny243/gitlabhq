@@ -32,11 +32,13 @@ module Users
     end
 
     def groups
+      return [] unless current_user
+
       current_user.authorized_groups.with_route.sort_by(&:path)
     end
 
     def render_participants_as_hash(participants)
-      participants.map(&method(:participant_as_hash))
+      participants.map { |participant| participant_as_hash(participant) }
     end
 
     def participant_as_hash(participant)

@@ -10,7 +10,15 @@ module Types
     end
 
     value 'TASK', value: 'task',
-                  description: 'Task issue type. Available only when feature flag `work_items` is enabled.',
+                  description: 'Task issue type.',
                   alpha: { milestone: '15.2' }
+
+    value 'OBJECTIVE', value: 'objective',
+                       description: 'Objective issue type. Available only when feature flag `okrs_mvc` is enabled.',
+                       alpha: { milestone: '15.6' }
+
+    value 'KEY_RESULT', value: 'key_result',
+                        description: 'Key Result issue type. Available only when feature flag `okrs_mvc` is enabled.',
+                        alpha: { milestone: '15.7' }
   end
 end

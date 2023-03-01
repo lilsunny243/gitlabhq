@@ -53,6 +53,7 @@ module API
       optional :default_project_visibility, type: String, values: Gitlab::VisibilityLevel.string_values, desc: 'The default project visibility'
       optional :default_projects_limit, type: Integer, desc: 'The maximum number of personal projects'
       optional :default_snippet_visibility, type: String, values: Gitlab::VisibilityLevel.string_values, desc: 'The default snippet visibility'
+      optional :disable_admin_oauth_scopes, type: Boolean, desc: 'Stop administrators from connecting to non-trusted OAuth applications.'
       optional :disable_feed_token, type: Boolean, desc: 'Disable display of RSS/Atom and Calendar `feed_tokens`'
       optional :disabled_oauth_sign_in_sources, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Disable certain OAuth sign-in sources'
       optional :domain_denylist_enabled, type: Boolean, desc: 'Enable domain denylist for sign ups'
@@ -65,6 +66,7 @@ module API
         requires :eks_secret_access_key, type: String, desc: 'Secret access key for the EKS integration IAM user'
       end
       optional :email_author_in_body, type: Boolean, desc: 'Some email servers do not support overriding the email sender name. Enable this option to include the name of the author of the issue, merge request or comment in the email body instead.'
+      optional :email_confirmation_setting, type: String, values: ApplicationSetting.email_confirmation_settings.keys, desc: "Email confirmation setting, possible values: `off`, `soft`, and `hard`"
       optional :enabled_git_access_protocol, type: String, values: %w[ssh http nil], desc: 'Allow only the selected protocols to be used for Git access.'
       optional :gitpod_enabled, type: Boolean, desc: 'Enable Gitpod'
       given gitpod_enabled: ->(val) { val } do
@@ -83,13 +85,19 @@ module API
       optional :home_page_url, type: String, desc: 'We will redirect non-logged in users to this page'
       optional :housekeeping_enabled, type: Boolean, desc: 'Enable automatic repository housekeeping (git repack, git gc)'
       given housekeeping_enabled: ->(val) { val } do
-        requires :housekeeping_full_repack_period, type: Integer, desc: "Number of Git pushes after which a full 'git repack' is run."
-        requires :housekeeping_gc_period, type: Integer, desc: "Number of Git pushes after which 'git gc' is run."
-        requires :housekeeping_incremental_repack_period, type: Integer, desc: "Number of Git pushes after which an incremental 'git repack' is run."
+        optional :housekeeping_full_repack_period, type: Integer, desc: "Number of Git pushes after which a full 'git repack' is run."
+        optional :housekeeping_gc_period, type: Integer, desc: "Number of Git pushes after which 'git gc' is run."
+        optional :housekeeping_incremental_repack_period, type: Integer, desc: "Number of Git pushes after which an incremental 'git repack' is run."
+
+        optional :housekeeping_optimize_repository_period, type: Integer, desc: "Number of Git pushes after which Gitaly is asked to optimize a repository."
+
+        # Requires either all three deprecated attributes (housekeeping_full_repack_period, housekeeping_gc_period, housekeeping_incremental_repack_period) or housekeeping_optimize_repository_period
+        all_or_none_of :housekeeping_full_repack_period, :housekeeping_gc_period, :housekeeping_incremental_repack_period
+        exactly_one_of :housekeeping_incremental_repack_period, :housekeeping_optimize_repository_period
       end
       optional :html_emails_enabled, type: Boolean, desc: 'By default GitLab sends emails in HTML and plain text formats so mail clients can choose what format to use. Disable this option if you only want to send emails in plain text format.'
       optional :import_sources, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce,
-                                values: %w[github bitbucket bitbucket_server gitlab google_code fogbugz git gitlab_project gitea manifest phabricator],
+                                values: %w[github bitbucket bitbucket_server gitlab fogbugz git gitlab_project gitea manifest phabricator],
                                 desc: 'Enabled sources for code import during project creation. OmniAuth must be configured for GitHub, Bitbucket, and GitLab.com'
       optional :in_product_marketing_emails_enabled, type: Boolean, desc: 'By default, in-product marketing emails are enabled. To disable these emails, disable this option.'
       optional :invisible_captcha_enabled, type: Boolean, desc: 'Enable Invisible Captcha spam detection during signup.'
@@ -98,6 +106,8 @@ module API
       optional :max_export_size, type: Integer, desc: 'Maximum export size in MB'
       optional :max_import_size, type: Integer, desc: 'Maximum import size in MB'
       optional :max_pages_size, type: Integer, desc: 'Maximum size of pages in MB'
+      optional :max_pages_custom_domains_per_project, type: Integer, desc: 'Maximum number of GitLab Pages custom domains per project'
+      optional :max_terraform_state_size_bytes, type: Integer, desc: "Maximum size in bytes of the Terraform state file. Set this to 0 for unlimited file size."
       optional :metrics_method_call_threshold, type: Integer, desc: 'A method call is only tracked when it takes longer to complete than the given amount of milliseconds.'
       optional :password_authentication_enabled, type: Boolean, desc: 'Flag indicating if password authentication is enabled for the web interface' # support legacy names, can be removed in v5
       optional :password_authentication_enabled_for_web, type: Boolean, desc: 'Flag indicating if password authentication is enabled for the web interface'
@@ -131,13 +141,12 @@ module API
         requires :recaptcha_private_key, type: String, desc: 'Generate private key at http://www.google.com/recaptcha'
       end
       optional :repository_checks_enabled, type: Boolean, desc: "GitLab will periodically run 'git fsck' in all project and wiki repositories to look for silent disk corruption issues."
-      optional :repository_storages_weighted, type: Hash, coerce_with: Validations::Types::HashOfIntegerValues.coerce, desc: 'Storage paths for new projects with a weighted value ranging from 0 to 100'
+      optional :repository_storages_weighted, type: Hash, coerce_with: Validations::Types::HashOfIntegerValues.coerce, desc: 'Storage paths for new projects with a weighted value ranging from 0 to 100', documentation: { type: 'Object', additional_properties: Integer }
       optional :require_two_factor_authentication, type: Boolean, desc: 'Require all users to set up Two-factor authentication'
       given require_two_factor_authentication: ->(val) { val } do
         requires :two_factor_grace_period, type: Integer, desc: 'Amount of time (in hours) that users are allowed to skip forced configuration of two-factor authentication'
       end
       optional :restricted_visibility_levels, type: Array[String], coerce_with: Validations::Types::CommaSeparatedToArray.coerce, desc: 'Selected levels cannot be used by non-admin users for groups, projects or snippets. If the public level is restricted, user profiles are only visible to logged in users.'
-      optional :send_user_confirmation_email, type: Boolean, desc: 'Send confirmation email on sign-up'
       optional :session_expire_delay, type: Integer, desc: 'Session duration in minutes. GitLab restart is required to apply changes.'
       optional :shared_runners_enabled, type: Boolean, desc: 'Enable shared runners for new projects'
       given shared_runners_enabled: ->(val) { val } do
@@ -182,6 +191,10 @@ module API
       optional :group_runner_token_expiration_interval, type: Integer, desc: 'Token expiration interval for group runners, in seconds'
       optional :project_runner_token_expiration_interval, type: Integer, desc: 'Token expiration interval for project runners, in seconds'
       optional :pipeline_limit_per_project_user_sha, type: Integer, desc: "Maximum number of pipeline creation requests allowed per minute per user and commit. Set to 0 for unlimited requests per minute."
+      optional :jira_connect_application_key, type: String, desc: "Application ID of the OAuth application that should be used to authenticate with the GitLab for Jira Cloud app"
+      optional :jira_connect_proxy_url, type: String, desc: "URL of the GitLab instance that should be used as a proxy for the GitLab for Jira Cloud app"
+      optional :bulk_import_enabled, type: Boolean, desc: 'Enable migrating GitLab groups and projects by direct transfer'
+      optional :allow_runner_registration_token, type: Boolean, desc: 'Allow registering runners using a registration token'
 
       Gitlab::SSHPublicKey.supported_types.each do |type|
         optional :"#{type}_key_restriction",

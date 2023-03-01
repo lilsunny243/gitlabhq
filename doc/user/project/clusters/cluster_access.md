@@ -1,7 +1,7 @@
 ---
 stage: Configure
 group: Configure
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Access controls with cluster certificates (RBAC or ABAC) (DEPRECATED) **(FREE)**
@@ -49,16 +49,16 @@ GitLab creates the following resources for RBAC clusters.
 | Name                  | Type                 | Details                                                                                                    | Created when           |
 |:----------------------|:---------------------|:-----------------------------------------------------------------------------------------------------------|:-----------------------|
 | `gitlab`              | `ServiceAccount`     | `default` namespace                                                                                        | Creating a new cluster |
-| `gitlab-admin`        | `ClusterRoleBinding` | [`cluster-admin`](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles) roleRef | Creating a new cluster |
+| `gitlab-admin`        | `ClusterRoleBinding` | [`cluster-admin`](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles) role    | Creating a new cluster |
 | `gitlab-token`        | `Secret`             | Token for `gitlab` ServiceAccount                                                                          | Creating a new cluster |
 | Environment namespace | `Namespace`          | Contains all environment-specific resources                                                                | Deploying to a cluster |
 | Environment namespace | `ServiceAccount`     | Uses namespace of environment                                                                              | Deploying to a cluster |
 | Environment namespace | `Secret`             | Token for environment ServiceAccount                                                                       | Deploying to a cluster |
-| Environment namespace | `RoleBinding`        | [`admin`](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles) roleRef         | Deploying to a cluster |
+| Environment namespace | `RoleBinding`        | [`admin`](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles) role            | Deploying to a cluster |
 
 The environment namespace `RoleBinding` was
 [updated](https://gitlab.com/gitlab-org/gitlab/-/issues/31113) in GitLab 13.6
-to `admin` roleRef. Previously, the `edit` roleRef was used.
+to `admin` role. Previously, the `edit` role was used.
 
 ## ABAC cluster resources
 

@@ -1,7 +1,7 @@
 ---
 stage: Verify
 group: Pipeline Execution
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Merged results pipelines **(PREMIUM)**
@@ -33,7 +33,7 @@ To use merged results pipelines:
   [run jobs in merge request pipelines](merge_request_pipelines.md#prerequisites).
 - Your repository must be a GitLab repository, not an
   [external repository](../ci_cd_for_external_repos/index.md).
-- You must not be using [fast forward merges](../../user/project/merge_requests/fast_forward_merge.md).
+- You must not be using [fast forward merges](../../user/project/merge_requests/methods/index.md).
   [An issue exists](https://gitlab.com/gitlab-org/gitlab/-/issues/26996) to change this behavior.
 
 ## Enable merged results pipelines
@@ -41,10 +41,9 @@ To use merged results pipelines:
 To enable merged results pipelines in a project, you must have at least the
 Maintainer role:
 
-1. On the top bar, select **Menu > Projects** and find your project.
-1. On the left sidebar, select **Settings > General**.
-1. Expand **Merge requests**.
-1. Select **Enable merged results pipelines**.
+1. On the top bar, select **Main menu > Projects** and find your project.
+1. On the left sidebar, select **Settings > Merge requests**.
+1. In the **Merge options** section, select **Enable merged results pipelines**.
 1. Select **Save changes**.
 
 WARNING:

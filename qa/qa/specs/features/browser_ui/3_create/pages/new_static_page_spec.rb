@@ -1,12 +1,22 @@
 # frozen_string_literal: true
+
 module QA
-  RSpec.describe 'Create', :runner, only: { subdomain: :staging } do
+  RSpec.describe 'Create',
+                 :gitlab_pages,
+                 :orchestrated,
+                 except: { job: 'review-qa-*' },
+                 quarantine: {
+                   issue: 'https://gitlab.com/gitlab-org/gitlab/-/issues/383215',
+                   type: :test_environment,
+                   only: { subdomain: 'staging-ref' }
+                 },
+                 feature_flag: { name: 'show_pages_in_deployments_menu' } do
     # TODO: Convert back to :smoke once proved to be stable. Related issue: https://gitlab.com/gitlab-org/gitlab/-/issues/300906
-    describe 'Pages' do
+    describe 'Pages', product_group: :editor do
       let!(:project) do
         Resource::Project.fabricate_via_api! do |project|
-          project.name = 'jekyll-pages-project'
-          project.template_name = :jekyll
+          project.name = 'gitlab-pages-project'
+          project.template_name = :plainhtml
         end
       end
 
@@ -20,13 +30,19 @@ module QA
       end
 
       before do
+        # Pages Menu Experiment currently progress https://gitlab.com/gitlab-org/gitlab/-/merge_requests/98044
+        # Update spec along with Feature Flag Removal.
+        Runtime::Feature.disable(:show_pages_in_deployments_menu)
         Flow::Login.sign_in
-
-        Resource::Runner.fabricate_via_api! do |runner|
+        Resource::ProjectRunner.fabricate_via_api! do |runner|
           runner.project = project
           runner.executor = :docker
         end
         pipeline.visit!
+      end
+
+      after do
+        Runtime::Feature.enable(:show_pages_in_deployments_menu)
       end
 
       it 'creates a Pages website',
@@ -45,7 +61,8 @@ module QA
           pages.go_to_access_page
           Support::Waiter.wait_until(sleep_interval: 2, max_duration: 60, reload_page: page,
                                      retry_on_exception: true) do
-            expect(page).to have_content('Write an awesome description for your new site here.')
+            expect(page).to have_content(
+              'This is a simple plain-HTML website on GitLab Pages, without any fancy static site generator.')
           end
         end
       end

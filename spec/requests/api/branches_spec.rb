@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe API::Branches do
+RSpec.describe API::Branches, feature_category: :source_code_management do
   let_it_be(:user) { create(:user) }
 
   let(:project) { create(:project, :repository, creator: user, path: 'my.project', create_branch: 'ends-with.txt') }
@@ -211,6 +211,38 @@ RSpec.describe API::Branches do
       end
 
       it_behaves_like 'repository branches'
+
+      context 'caching' do
+        it 'caches the query' do
+          get api(route), params: { per_page: 1 }
+
+          expect(API::Entities::Branch).not_to receive(:represent)
+
+          get api(route), params: { per_page: 1 }
+        end
+
+        it 'uses the cache up to 60 minutes' do
+          time_of_request = Time.current
+
+          get api(route), params: { per_page: 1 }
+
+          travel_to time_of_request + 59.minutes do
+            expect(API::Entities::Branch).not_to receive(:represent)
+
+            get api(route), params: { per_page: 1 }
+          end
+        end
+
+        it 'requests for new value after 60 minutes' do
+          get api(route), params: { per_page: 1 }
+
+          travel_to 61.minutes.from_now do
+            expect(API::Entities::Branch).to receive(:represent)
+
+            get api(route), params: { per_page: 1 }
+          end
+        end
+      end
     end
 
     context 'when unauthenticated', 'and project is private' do
@@ -247,7 +279,7 @@ RSpec.describe API::Branches do
 
         expect do
           get api(route, current_user), params: { per_page: 100 }
-        end.not_to exceed_query_limit(control)
+        end.not_to exceed_query_limit(control).with_threshold(1)
       end
     end
 
@@ -306,6 +338,18 @@ RSpec.describe API::Branches do
 
       context 'when repository is disabled' do
         include_context 'disabled repository'
+
+        it_behaves_like '404 response' do
+          let(:request) { get api(route, current_user) }
+        end
+      end
+
+      context 'when branch is ambiguous' do
+        let(:branch_name) { 'prefix' }
+
+        before do
+          project.repository.create_branch('prefix/branch')
+        end
 
         it_behaves_like '404 response' do
           let(:request) { get api(route, current_user) }

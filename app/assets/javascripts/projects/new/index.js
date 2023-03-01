@@ -15,12 +15,16 @@ export function initNewProjectCreation() {
     newProjectGuidelines,
     hasErrors,
     isCiCdAvailable,
+    parentGroupUrl,
+    parentGroupName,
   } = el.dataset;
 
   const props = {
     hasErrors: parseBoolean(hasErrors),
     isCiCdAvailable: parseBoolean(isCiCdAvailable),
     newProjectGuidelines,
+    parentGroupUrl,
+    parentGroupName,
   };
 
   const provide = {
@@ -59,6 +63,8 @@ export function initNewProjectUrlSelect() {
           rootUrl: el.dataset.rootUrl,
           trackLabel: el.dataset.trackLabel,
           userNamespaceId: el.dataset.userNamespaceId,
+          inputId: el.dataset.inputId,
+          inputName: el.dataset.inputName,
         },
         render: (createElement) => createElement(NewProjectUrlSelect),
       }),

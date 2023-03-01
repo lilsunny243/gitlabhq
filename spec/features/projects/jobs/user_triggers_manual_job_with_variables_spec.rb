@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'User triggers manual job with variables', :js do
+RSpec.describe 'User triggers manual job with variables', :js, feature_category: :projects do
   let(:user) { create(:user) }
   let(:user_access_level) { :developer }
   let(:project) { create(:project, :repository, namespace: user.namespace) }
@@ -24,7 +24,7 @@ RSpec.describe 'User triggers manual job with variables', :js do
       find("[data-testid='ci-variable-value']").set('key_value')
     end
 
-    find("[data-testid='trigger-manual-job-btn']").click
+    find("[data-testid='run-manual-job-btn']").click
 
     wait_for_requests
 

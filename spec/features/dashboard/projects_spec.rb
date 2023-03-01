@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'Dashboard Projects' do
+RSpec.describe 'Dashboard Projects', feature_category: :projects do
   let_it_be(:user) { create(:user) }
   let_it_be(:project, reload: true) { create(:project, :repository) }
   let_it_be(:project2) { create(:project, :public) }
@@ -17,6 +17,8 @@ RSpec.describe 'Dashboard Projects' do
       visit dashboard_projects_path
     end
   end
+
+  it_behaves_like "a dashboard page with sidebar", :dashboard_projects_path, :projects
 
   context 'when user has access to the project' do
     it 'shows role badge' do
@@ -101,24 +103,15 @@ RSpec.describe 'Dashboard Projects' do
 
       expect(first('.project-row')).to have_content(project_with_most_stars.title)
     end
-
-    it 'shows tabs to filter by all projects or personal' do
-      visit dashboard_projects_path
-      segmented_button = page.find('.filtered-search-nav .button-filter-group')
-
-      expect(segmented_button).to have_content 'All'
-      expect(segmented_button).to have_content 'Personal'
-    end
   end
 
   context 'when on Starred projects tab', :js do
-    it 'shows the empty state when there are no starred projects', quarantine: 'https://gitlab.com/gitlab-org/gitlab/-/issues/222357' do
+    it 'shows the empty state when there are no starred projects' do
       visit(starred_dashboard_projects_path)
 
       element = page.find('.row.empty-state')
 
       expect(element).to have_content("You don't have starred projects yet.")
-      expect(element.find('.svg-content img')['src']).to have_content('illustrations/starred_empty')
     end
 
     it 'shows only starred projects' do
@@ -140,7 +133,7 @@ RSpec.describe 'Dashboard Projects' do
   end
 
   describe 'with a pipeline', :clean_gitlab_redis_shared_state do
-    let_it_be(:pipeline) { create(:ci_pipeline, project: project, sha: project.commit.sha, ref: project.default_branch) }
+    let!(:pipeline) { create(:ci_pipeline, project: project, sha: project.commit.sha, ref: project.default_branch) }
 
     before do
       # Since the cache isn't updated when a new pipeline is created
@@ -152,7 +145,7 @@ RSpec.describe 'Dashboard Projects' do
     it 'shows that the last pipeline passed' do
       visit dashboard_projects_path
 
-      page.within('.controls') do
+      page.within('[data-testid="project_controls"]') do
         expect(page).to have_xpath("//a[@href='#{pipelines_project_commit_path(project, project.commit, ref: pipeline.ref)}']")
         expect(page).to have_css('.ci-status-link')
         expect(page).to have_css('.ci-status-icon-success')
@@ -164,7 +157,7 @@ RSpec.describe 'Dashboard Projects' do
       it 'does not show the pipeline status' do
         visit dashboard_projects_path
 
-        page.within('.controls') do
+        page.within('[data-testid="project_controls"]') do
           expect(page).not_to have_xpath("//a[@href='#{pipelines_project_commit_path(project, project.commit, ref: pipeline.ref)}']")
           expect(page).not_to have_css('.ci-status-link')
           expect(page).not_to have_css('.ci-status-icon-success')

@@ -1,7 +1,7 @@
 ---
 stage: none
 group: unassigned
-info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/engineering/ux/technical-writing/#assignments
+info: To determine the technical writer assigned to the Stage/Group associated with this page, see https://about.gitlab.com/handbook/product/ux/technical-writing/#assignments
 ---
 
 # Frontend Development Process
@@ -26,7 +26,7 @@ Use your best judgment when to use it and contribute new points through merge re
 - [ ] Check the current set weight of the issue, does it fit your estimate?
 - [ ] Are all [departments](https://about.gitlab.com/handbook/engineering/#engineering-teams) that are needed from your perspective already involved in the issue? (For example is UX missing?)
 - [ ] Is the specification complete? Are you missing decisions? How about error handling/defaults/edge cases? Take your time to understand the needed implementation and go through its flow.
-- [ ] Are all necessary UX specifications available that you will need in order to implement? Are there new UX components/patterns in the designs? Then contact the UI component team early on. How should error messages or validation be handled?
+- [ ] Are all necessary UX specifications available that you will need to implement? Are there new UX components/patterns in the designs? Then contact the UI component team early on. How should error messages or validation be handled?
 - [ ] **Library usage** Use Vuex as soon as you have even a medium state to manage, use Vue router if you need to have different views internally and want to link from the outside. Check what libraries we already have for which occasions.
 - [ ] **Plan your implementation:**
   - [ ] **Architecture plan:** Create a plan aligned with GitLab's architecture, how you are going to do the implementation, for example Vue application setup and its components (through [onion skinning](https://gitlab.com/gitlab-org/gitlab-foss/-/issues/35873#note_39994091)), Store structure and data flow, which existing Vue components can you reuse. It's a good idea to go through your plan with another engineer to refine it.
@@ -45,7 +45,7 @@ Use your best judgment when to use it and contribute new points through merge re
 
 - [ ] Check off tasks on your created task list to keep everyone updated on the progress
 - [ ] [Share your work early with reviewers/maintainers](#share-your-work-early)
-- [ ] Share your work with UXer and Product Manager with Screenshots and/or [GIF's](https://about.gitlab.com/handbook/product/making-gifs/). They are easy to create for you and keep them up to date.
+- [ ] Share your work with UXer and Product Manager with Screenshots and/or [GIF images](https://about.gitlab.com/handbook/product/making-gifs/). They are easy to create for you and keep them up to date.
 - [ ] If you are blocked on something let everyone on the issue know through a comment.
 - [ ] Are you unable to work on this issue for a longer period of time, also let everyone know.
 - [ ] **Documentation** Update/add docs for the new feature, see `docs/`. Ping one of the documentation experts/reviewers
@@ -58,7 +58,7 @@ Use your best judgment when to use it and contribute new points through merge re
 - [ ] Did you check the mobile view?
 - [ ] Check the built webpack bundle (For the report run `WEBPACK_REPORT=true gdk start`, then open `webpack-report/index.html`) if we have unnecessary bloat due to wrong references, including libraries multiple times, etc.. If you need help contact the webpack [domain expert](https://about.gitlab.com/handbook/engineering/frontend/#frontend-domain-experts)
 - [ ] **Tests** Not only greenfield tests - Test also all bad cases that come to your mind.
-- [ ] If you have multiple MR's then also smoke test against the final merge.
+- [ ] If you have multiple MRs then also smoke test against the final merge.
 - [ ] Are there any big changes on how and especially how frequently we use the API then let production know about it
 - [ ] Smoke test of the RC on dev., staging., canary deployments and .com
 - [ ] Follow up on issues that came out of the review. Create issues for discovered edge cases that should be covered in future iterations.

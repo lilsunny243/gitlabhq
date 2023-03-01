@@ -1,13 +1,8 @@
 <script>
-import {
-  GlIntersectionObserver,
-  GlLink,
-  GlSprintf,
-  GlBadge,
-  GlSafeHtmlDirective,
-} from '@gitlab/ui';
+import { GlIntersectionObserver, GlLink, GlSprintf, GlBadge } from '@gitlab/ui';
 import { mapGetters, mapState } from 'vuex';
-import { TYPE_MERGE_REQUEST } from '~/graphql_shared/constants';
+import SafeHtml from '~/vue_shared/directives/safe_html';
+import { TYPENAME_MERGE_REQUEST } from '~/graphql_shared/constants';
 import { convertToGraphQLId } from '~/graphql_shared/utils';
 import glFeatureFlagsMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
 import { isLoggedIn } from '~/lib/utils/common_utils';
@@ -28,13 +23,14 @@ export default {
     ClipboardButton,
   },
   directives: {
-    SafeHtml: GlSafeHtmlDirective,
+    SafeHtml,
   },
   mixins: [glFeatureFlagsMixin()],
   inject: {
     projectPath: { default: null },
     title: { default: '' },
     tabs: { default: () => [] },
+    isFluidLayout: { default: false },
   },
   data() {
     return {
@@ -49,7 +45,7 @@ export default {
       doneFetchingBatchDiscussions: (state) => state.notes.doneFetchingBatchDiscussions,
     }),
     issuableId() {
-      return convertToGraphQLId(TYPE_MERGE_REQUEST, this.getNoteableData.id);
+      return convertToGraphQLId(TYPENAME_MERGE_REQUEST, this.getNoteableData.id);
     },
     issuableIid() {
       return `${this.getNoteableData.iid}`;
@@ -60,11 +56,7 @@ export default {
   },
   watch: {
     discussionTabCounter(val) {
-      if (this.glFeatures.paginatedMrDiscussions) {
-        if (this.doneFetchingBatchDiscussions) {
-          this.discussionCounter = val;
-        }
-      } else {
+      if (this.doneFetchingBatchDiscussions) {
         this.discussionCounter = val;
       }
     },
@@ -85,15 +77,17 @@ export default {
 
 <template>
   <gl-intersection-observer
+    class="gl-relative gl-top-n5"
     @appear="setStickyHeaderVisible(false)"
     @disappear="setStickyHeaderVisible(true)"
   >
     <div
-      v-if="isStickyHeaderVisible"
       class="issue-sticky-header merge-request-sticky-header gl-fixed gl-bg-white gl-border-1 gl-border-b-solid gl-border-b-gray-100 gl-pt-3 gl-display-none gl-md-display-block"
+      :class="{ 'gl-visibility-hidden': !isStickyHeaderVisible }"
     >
       <div
         class="issue-sticky-header-text gl-display-flex gl-flex-direction-column gl-align-items-center gl-mx-auto gl-px-5"
+        :class="{ 'gl-max-w-container-xl': !isFluidLayout }"
       >
         <div class="gl-w-full gl-display-flex gl-align-items-center">
           <status-box :initial-state="getNoteableData.state" issuable-type="merge_request" />
@@ -143,7 +137,12 @@ export default {
               :key="tab[0]"
               :class="{ active: activeTab === tab[0] }"
             >
-              <gl-link :href="tab[2]" :data-action="tab[0]" class="gl-outline-0!" @click="visitTab">
+              <gl-link
+                :href="tab[2]"
+                :data-action="tab[0]"
+                class="gl-outline-0! gl-py-4!"
+                @click="visitTab"
+              >
                 {{ tab[1] }}
                 <gl-badge variant="muted" size="sm">
                   <template v-if="index === 0 && discussionCounter !== 0">

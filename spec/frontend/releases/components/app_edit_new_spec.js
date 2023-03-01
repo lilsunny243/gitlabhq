@@ -5,20 +5,25 @@ import Vuex from 'vuex';
 import { nextTick } from 'vue';
 import { GlDatepicker, GlFormCheckbox } from '@gitlab/ui';
 import originalOneReleaseForEditingQueryResponse from 'test_fixtures/graphql/releases/graphql/queries/one_release_for_editing.query.graphql.json';
+import { HTTP_STATUS_OK } from '~/lib/utils/http_status';
 import { convertOneReleaseGraphQLResponse } from '~/releases/util';
 import { mountExtended } from 'helpers/vue_test_utils_helper';
 import setWindowLocation from 'helpers/set_window_location_helper';
 import { TEST_HOST } from 'helpers/test_constants';
 import ReleaseEditNewApp from '~/releases/components/app_edit_new.vue';
+import { putCreateReleaseNotification } from '~/releases/release_notification_service';
 import AssetLinksForm from '~/releases/components/asset_links_form.vue';
 import ConfirmDeleteModal from '~/releases/components/confirm_delete_modal.vue';
 import { BACK_URL_PARAM } from '~/releases/constants';
 import MarkdownField from '~/vue_shared/components/markdown/field.vue';
+import { ValidationResult } from '~/lib/utils/ref_validator';
 
 const originalRelease = originalOneReleaseForEditingQueryResponse.data.project.release;
 const originalMilestones = originalRelease.milestones;
 const releasesPagePath = 'path/to/releases/page';
 const upcomingReleaseDocsPath = 'path/to/upcoming/release/docs';
+const projectPath = 'project/path';
+jest.mock('~/releases/release_notification_service');
 
 describe('Release edit/new component', () => {
   let wrapper;
@@ -32,6 +37,7 @@ describe('Release edit/new component', () => {
     state = {
       release,
       isExistingRelease: true,
+      projectPath,
       markdownDocsPath: 'path/to/markdown/docs',
       releasesPagePath,
       projectId: '8',
@@ -53,6 +59,7 @@ describe('Release edit/new component', () => {
         assets: {
           links: [],
         },
+        tagNameValidation: new ValidationResult(),
       }),
       formattedReleaseNotes: () => 'these notes are formatted',
     };
@@ -91,14 +98,9 @@ describe('Release edit/new component', () => {
     mock = new MockAdapter(axios);
     gon.api_version = 'v4';
 
-    mock.onGet('/api/v4/projects/8/milestones').reply(200, originalMilestones);
+    mock.onGet('/api/v4/projects/8/milestones').reply(HTTP_STATUS_OK, originalMilestones);
 
     release = convertOneReleaseGraphQLResponse(originalOneReleaseForEditingQueryResponse).data;
-  });
-
-  afterEach(() => {
-    wrapper.destroy();
-    wrapper = null;
   });
 
   const findSubmitButton = () => wrapper.find('button[type=submit]');
@@ -125,7 +127,7 @@ describe('Release edit/new component', () => {
 
     it('renders the description text at the top of the page', () => {
       expect(wrapper.find('.js-subtitle-text').text()).toBe(
-        'Releases are based on Git tags. We recommend tags that use semantic versioning, for example v1.0.0, v2.1.0-pre.',
+        'Releases are based on Git tags. We recommend tags that use semantic versioning, for example 1.0.0, 2.1.0-pre.',
       );
     });
 
@@ -162,6 +164,13 @@ describe('Release edit/new component', () => {
       findForm().trigger('submit');
 
       expect(actions.saveRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it('sets release created notification when the form is submitted', () => {
+      findForm().trigger('submit');
+      const releaseName = originalOneReleaseForEditingQueryResponse.data.project.release.name;
+      expect(putCreateReleaseNotification).toHaveBeenCalledTimes(1);
+      expect(putCreateReleaseNotification).toHaveBeenCalledWith(projectPath, releaseName);
     });
   });
 
@@ -220,7 +229,7 @@ describe('Release edit/new component', () => {
     });
 
     it('renders a checkbox to include release notes', () => {
-      expect(wrapper.find(GlFormCheckbox).exists()).toBe(true);
+      expect(wrapper.findComponent(GlFormCheckbox).exists()).toBe(true);
     });
   });
 
@@ -238,7 +247,7 @@ describe('Release edit/new component', () => {
     beforeEach(factory);
 
     it('renders the asset links portion of the form', () => {
-      expect(wrapper.find(AssetLinksForm).exists()).toBe(true);
+      expect(wrapper.findComponent(AssetLinksForm).exists()).toBe(true);
     });
   });
 

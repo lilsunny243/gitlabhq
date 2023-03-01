@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Deployment do
+RSpec.describe Deployment, feature_category: :continuous_delivery do
   subject { build(:deployment) }
 
   it { is_expected.to belong_to(:project).required }
@@ -28,7 +28,7 @@ RSpec.describe Deployment do
     let(:deployment) { create(:deployment) }
 
     it 'delegates to environment_manual_actions' do
-      expect(deployment.deployable).to receive(:environment_manual_actions).and_call_original
+      expect(deployment.deployable).to receive(:other_manual_actions).and_call_original
 
       deployment.manual_actions
     end
@@ -38,7 +38,7 @@ RSpec.describe Deployment do
     let(:deployment) { create(:deployment) }
 
     it 'delegates to environment_scheduled_actions' do
-      expect(deployment.deployable).to receive(:environment_scheduled_actions).and_call_original
+      expect(deployment.deployable).to receive(:other_scheduled_actions).and_call_original
 
       deployment.scheduled_actions
     end
@@ -164,15 +164,16 @@ RSpec.describe Deployment do
         freeze_time do
           expect(Deployments::HooksWorker)
             .to receive(:perform_async)
-            .with(deployment_id: deployment.id, status: 'running', status_changed_at: Time.current)
+                  .with(hash_including({ 'deployment_id' => deployment.id, 'status' => 'running',
+                                         'status_changed_at' => Time.current.to_s }))
 
           deployment.run!
         end
       end
 
-      it 'executes Deployments::DropOlderDeploymentsWorker asynchronously' do
+      it 'does not execute Deployments::DropOlderDeploymentsWorker' do
         expect(Deployments::DropOlderDeploymentsWorker)
-            .to receive(:perform_async).once.with(deployment.id)
+          .not_to receive(:perform_async).with(deployment.id)
 
         deployment.run!
       end
@@ -200,8 +201,9 @@ RSpec.describe Deployment do
       it 'executes Deployments::HooksWorker asynchronously' do
         freeze_time do
           expect(Deployments::HooksWorker)
-          .to receive(:perform_async)
-          .with(deployment_id: deployment.id, status: 'success', status_changed_at: Time.current)
+            .to receive(:perform_async)
+                  .with(hash_including({ 'deployment_id' => deployment.id, 'status' => 'success',
+                                         'status_changed_at' => Time.current.to_s }))
 
           deployment.succeed!
         end
@@ -231,7 +233,8 @@ RSpec.describe Deployment do
         freeze_time do
           expect(Deployments::HooksWorker)
             .to receive(:perform_async)
-            .with(deployment_id: deployment.id, status: 'failed', status_changed_at: Time.current)
+                  .with(hash_including({ 'deployment_id' => deployment.id, 'status' => 'failed',
+                                         'status_changed_at' => Time.current.to_s }))
 
           deployment.drop!
         end
@@ -261,8 +264,8 @@ RSpec.describe Deployment do
         freeze_time do
           expect(Deployments::HooksWorker)
             .to receive(:perform_async)
-            .with(deployment_id: deployment.id, status: 'canceled', status_changed_at: Time.current)
-
+                  .with(hash_including({ 'deployment_id' => deployment.id, 'status' => 'canceled',
+                                         'status_changed_at' => Time.current.to_s }))
           deployment.cancel!
         end
       end
@@ -361,6 +364,56 @@ RSpec.describe Deployment do
           end
         end
       end
+    end
+  end
+
+  describe '#older_than_last_successful_deployment?' do
+    let_it_be(:project) { create(:project, :repository) }
+    let_it_be(:environment) { create(:environment, project: project) }
+
+    subject { deployment.older_than_last_successful_deployment? }
+
+    context 'when deployment is current deployment' do
+      let(:deployment) { create(:deployment, :success, project: project) }
+
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when deployment is behind current deployment' do
+      let_it_be(:commits) { project.repository.commits('master', limit: 2) }
+
+      let!(:deployment) do
+        create(:deployment, :success, project: project, environment: environment,
+                                      finished_at: 1.year.ago, sha: commits[0].sha)
+      end
+
+      let!(:last_deployment) do
+        create(:deployment, :success, project: project, environment: environment, sha: commits[1].sha)
+      end
+
+      it { is_expected.to be_truthy }
+    end
+
+    context 'when deployment is the same sha as the current deployment' do
+      let!(:deployment) do
+        create(:deployment, :success, project: project, environment: environment, finished_at: 1.year.ago)
+      end
+
+      let!(:last_deployment) do
+        create(:deployment, :success, project: project, environment: environment, sha: deployment.sha)
+      end
+
+      it { is_expected.to be_falsey }
+    end
+
+    context 'when environment is undefined' do
+      let(:deployment) { build(:deployment, :success, project: project, environment: environment) }
+
+      before do
+        deployment.environment = nil
+      end
+
+      it { is_expected.to be_falsey }
     end
   end
 
@@ -535,6 +588,16 @@ RSpec.describe Deployment do
 
       it 'sorts by finished at' do
         expect(described_class.ordered).to eq([deployment1, deployment2, deployment3, deployment4])
+      end
+    end
+
+    describe '.ordered_as_upcoming' do
+      let!(:deployment1) { create(:deployment, status: :running) }
+      let!(:deployment2) { create(:deployment, status: :blocked) }
+      let!(:deployment3) { create(:deployment, status: :created) }
+
+      it 'sorts by ID DESC' do
+        expect(described_class.ordered_as_upcoming).to eq([deployment3, deployment2, deployment1])
       end
     end
 
@@ -861,6 +924,21 @@ RSpec.describe Deployment do
       deployment = create(:deployment, deployable: build, user: deployment_user)
 
       expect(deployment.deployed_by).to eq(build_user)
+    end
+  end
+
+  describe '#triggered_by?' do
+    subject { deployment.triggered_by?(user) }
+
+    let(:user) { create(:user) }
+    let(:deployment) { create(:deployment, user: user) }
+
+    it { is_expected.to eq(true) }
+
+    context 'when deployment triggerer is different' do
+      let(:deployment) { create(:deployment) }
+
+      it { is_expected.to eq(false) }
     end
   end
 
@@ -1267,6 +1345,22 @@ RSpec.describe Deployment do
 
         it_behaves_like 'ignoring build'
       end
+    end
+  end
+
+  describe '#tags' do
+    let_it_be(:project) { create(:project, :repository) }
+    let_it_be(:deployment) { create(:deployment, project: project) }
+
+    subject { deployment.tags }
+
+    it 'will return tags related to this deployment' do
+      expect(project.repository).to receive(:refs_by_oid).with(oid: deployment.sha,
+                                                               limit: 100,
+                                                               ref_patterns: [Gitlab::Git::TAG_REF_PREFIX])
+                                                         .and_return(["#{Gitlab::Git::TAG_REF_PREFIX}test"])
+
+      is_expected.to match_array(['refs/tags/test'])
     end
   end
 

@@ -5,9 +5,12 @@ module ProtectedBranches
     def execute(protected_branch)
       raise Gitlab::Access::AccessDeniedError unless can?(current_user, :destroy_protected_branch, protected_branch)
 
-      protected_branch.destroy.tap { refresh_cache }
+      protected_branch.destroy.tap do
+        refresh_cache
+        after_execute
+      end
     end
   end
 end
 
-ProtectedBranches::DestroyService.prepend_mod_with('ProtectedBranches::DestroyService')
+ProtectedBranches::DestroyService.prepend_mod

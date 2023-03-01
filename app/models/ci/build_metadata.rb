@@ -6,11 +6,18 @@ module Ci
   class BuildMetadata < Ci::ApplicationRecord
     BuildTimeout = Struct.new(:value, :source)
 
+    include Ci::Partitionable
     include Presentable
     include ChronicDurationAttribute
     include Gitlab::Utils::StrongMemoize
+    include IgnorableColumns
 
-    self.table_name = 'ci_builds_metadata'
+    self.table_name = 'p_ci_builds_metadata'
+    self.primary_key = 'id'
+
+    partitionable scope: :build
+
+    ignore_column :runner_machine_id, remove_with: '16.0', remove_after: '2023-04-22'
 
     belongs_to :build, class_name: 'CommitStatus'
     belongs_to :project
@@ -21,13 +28,13 @@ module Ci
     validates :id_tokens, json_schema: { filename: 'build_metadata_id_tokens' }
     validates :secrets, json_schema: { filename: 'build_metadata_secrets' }
 
-    serialize :config_options, Serializers::SymbolizedJson # rubocop:disable Cop/ActiveRecordSerialize
-    serialize :config_variables, Serializers::SymbolizedJson # rubocop:disable Cop/ActiveRecordSerialize
-    serialize :runtime_runner_features, Serializers::SymbolizedJson # rubocop:disable Cop/ActiveRecordSerialize
+    attribute :config_options, :sym_jsonb
+    attribute :config_variables, :sym_jsonb
+    attribute :runtime_runner_features, :sym_jsonb
 
     chronic_duration_attr_reader :timeout_human_readable, :timeout
 
-    scope :scoped_build, -> { where('ci_builds_metadata.build_id = ci_builds.id') }
+    scope :scoped_build, -> { where("#{quoted_table_name}.build_id = #{Ci::Build.quoted_table_name}.id") }
     scope :with_interruptible, -> { where(interruptible: true) }
     scope :with_exposed_artifacts, -> { where(has_exposed_artifacts: true) }
 
@@ -47,21 +54,27 @@ module Ci
     end
 
     def set_cancel_gracefully
-      runtime_runner_features.merge!( { cancel_gracefully: true } )
+      runtime_runner_features.merge!({ cancel_gracefully: true })
     end
 
     def cancel_gracefully?
       runtime_runner_features[:cancel_gracefully] == true
     end
 
+    def enable_debug_trace!
+      self.debug_trace_enabled = true
+      save! if changes.any?
+      true
+    end
+
     private
 
     def set_build_project
-      self.project_id ||= self.build.project_id
+      self.project_id ||= build.project_id
     end
 
     def timeout_with_highest_precedence
-      [(job_timeout || project_timeout), runner_timeout].compact.min_by { |timeout| timeout.value }
+      [(job_timeout || project_timeout), runner_timeout].compact.min_by(&:value)
     end
 
     def project_timeout

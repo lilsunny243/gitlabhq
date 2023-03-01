@@ -1,32 +1,31 @@
 <script>
 import { GlButton } from '@gitlab/ui';
 import { produce } from 'immer';
-import $ from 'jquery';
-import createFlash from '~/flash';
-import toast from '~/vue_shared/plugins/global_toast';
-import { __ } from '~/locale';
+import { createAlert } from '~/flash';
+import { __, s__ } from '~/locale';
 import MergeRequest from '~/merge_request';
-import glFeatureFlagMixin from '~/vue_shared/mixins/gl_feature_flags_mixin';
-import eventHub from '../../event_hub';
+import BoldText from '~/vue_merge_request_widget/components/bold_text.vue';
 import mergeRequestQueryVariablesMixin from '../../mixins/merge_request_query_variables';
 import getStateQuery from '../../queries/get_state.query.graphql';
 import draftQuery from '../../queries/states/draft.query.graphql';
 import removeDraftMutation from '../../queries/toggle_draft.mutation.graphql';
 import StateContainer from '../state_container.vue';
 
+// Export for testing
+export const MSG_SOMETHING_WENT_WRONG = __('Something went wrong. Please try again.');
+export const MSG_MARK_READY = s__('mrWidget|Mark as ready');
+
 export default {
   name: 'WorkInProgress',
   components: {
+    BoldText,
     GlButton,
     StateContainer,
   },
-  mixins: [glFeatureFlagMixin(), mergeRequestQueryVariablesMixin],
+  mixins: [mergeRequestQueryVariablesMixin],
   apollo: {
     userPermissions: {
       query: draftQuery,
-      skip() {
-        return !this.glFeatures.mergeRequestWidgetGraphql;
-      },
       variables() {
         return this.mergeRequestQueryVariables;
       },
@@ -35,7 +34,6 @@ export default {
   },
   props: {
     mr: { type: Object, required: true },
-    service: { type: Object, required: true },
   },
   data() {
     return {
@@ -43,17 +41,8 @@ export default {
       isMakingRequest: false,
     };
   },
-  computed: {
-    canUpdate() {
-      if (this.glFeatures.mergeRequestWidgetGraphql) {
-        return this.userPermissions.updateMergeRequest;
-      }
-
-      return Boolean(this.mr.removeWIPPath);
-    },
-  },
   methods: {
-    removeDraftMutation() {
+    handleRemoveDraft() {
       const { mergeRequestQueryVariables } = this;
 
       this.isMakingRequest = true;
@@ -77,8 +66,8 @@ export default {
             },
           ) {
             if (errors?.length) {
-              createFlash({
-                message: __('Something went wrong. Please try again.'),
+              createAlert({
+                message: MSG_SOMETHING_WENT_WRONG,
               });
 
               return;
@@ -109,6 +98,7 @@ export default {
               errors: [],
               mergeRequest: {
                 __typename: 'MergeRequest',
+                id: this.mr.issuableId,
                 mergeableDiscussionsState: true,
                 title: this.mr.title,
                 draft: false,
@@ -124,60 +114,45 @@ export default {
               },
             },
           }) => {
-            toast(__('Marked as ready. Merging is now allowed.'));
-            $('.merge-request .detail-page-description .title').text(title);
-            eventHub.$emit('MRWidgetUpdateRequested');
+            MergeRequest.toggleDraftStatus(title, true);
           },
         )
         .catch(() =>
-          createFlash({
-            message: __('Something went wrong. Please try again.'),
+          createAlert({
+            message: MSG_SOMETHING_WENT_WRONG,
           }),
         )
         .finally(() => {
           this.isMakingRequest = false;
         });
     },
-    handleRemoveDraft() {
-      if (this.glFeatures.mergeRequestWidgetGraphql) {
-        this.removeDraftMutation();
-      } else {
-        this.isMakingRequest = true;
-        this.service
-          .removeWIP()
-          .then((res) => res.data)
-          .then((data) => {
-            eventHub.$emit('UpdateWidgetData', data);
-            MergeRequest.toggleDraftStatus(this.mr.title, true);
-          })
-          .catch(() => {
-            this.isMakingRequest = false;
-            createFlash({
-              message: __('Something went wrong. Please try again.'),
-            });
-          });
-      }
-    },
   },
+  i18n: {
+    removeDraftStatus: s__(
+      'mrWidget|%{boldStart}Merge blocked:%{boldEnd} Select %{boldStart}Mark as ready%{boldEnd} to remove it from Draft status.',
+    ),
+  },
+  MSG_MARK_READY,
 };
 </script>
 
 <template>
   <state-container :mr="mr" status="failed">
-    <span class="gl-font-weight-bold gl-ml-0! gl-text-body! gl-flex-grow-1">
-      {{ __("Merge blocked: merge request must be marked as ready. It's still marked as draft.") }}
+    <span class="gl-ml-0! gl-text-body! gl-flex-grow-1">
+      <bold-text :message="$options.i18n.removeDraftStatus" />
     </span>
     <template #actions>
       <gl-button
-        v-if="canUpdate"
+        v-if="userPermissions.updateMergeRequest"
         size="small"
         :disabled="isMakingRequest"
         :loading="isMakingRequest"
         variant="confirm"
         class="js-remove-draft gl-md-ml-3 gl-align-self-start"
+        data-testid="removeWipButton"
         @click="handleRemoveDraft"
       >
-        {{ s__('mrWidget|Mark as ready') }}
+        {{ $options.MSG_MARK_READY }}
       </gl-button>
     </template>
   </state-container>

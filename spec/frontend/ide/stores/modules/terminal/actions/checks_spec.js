@@ -10,7 +10,14 @@ import {
 import * as messages from '~/ide/stores/modules/terminal/messages';
 import * as mutationTypes from '~/ide/stores/modules/terminal/mutation_types';
 import axios from '~/lib/utils/axios_utils';
-import httpStatus from '~/lib/utils/http_status';
+import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_FORBIDDEN,
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_NOT_FOUND,
+  HTTP_STATUS_OK,
+  HTTP_STATUS_UNPROCESSABLE_ENTITY,
+} from '~/lib/utils/http_status';
 
 const TEST_PROJECT_PATH = 'lorem/root';
 const TEST_BRANCH_ID = 'main';
@@ -78,7 +85,7 @@ describe('IDE store terminal check actions', () => {
 
   describe('receiveConfigCheckError', () => {
     it('handles error response', () => {
-      const status = httpStatus.UNPROCESSABLE_ENTITY;
+      const status = HTTP_STATUS_UNPROCESSABLE_ENTITY;
       const payload = { response: { status } };
 
       return testAction(
@@ -102,7 +109,7 @@ describe('IDE store terminal check actions', () => {
       );
     });
 
-    [httpStatus.FORBIDDEN, httpStatus.NOT_FOUND].forEach((status) => {
+    [HTTP_STATUS_FORBIDDEN, HTTP_STATUS_NOT_FOUND].forEach((status) => {
       it(`hides tab, when status is ${status}`, () => {
         const payload = { response: { status } };
 
@@ -125,7 +132,7 @@ describe('IDE store terminal check actions', () => {
 
   describe('fetchConfigCheck', () => {
     it('dispatches request and receive', () => {
-      mock.onPost(/.*\/ide_terminals\/check_config/).reply(200, {});
+      mock.onPost(/.*\/ide_terminals\/check_config/).reply(HTTP_STATUS_OK, {});
 
       return testAction(
         actions.fetchConfigCheck,
@@ -140,7 +147,7 @@ describe('IDE store terminal check actions', () => {
     });
 
     it('when error, dispatches request and receive', () => {
-      mock.onPost(/.*\/ide_terminals\/check_config/).reply(400, {});
+      mock.onPost(/.*\/ide_terminals\/check_config/).reply(HTTP_STATUS_BAD_REQUEST, {});
 
       return testAction(
         actions.fetchConfigCheck,
@@ -248,7 +255,9 @@ describe('IDE store terminal check actions', () => {
 
   describe('fetchRunnersCheck', () => {
     it('dispatches request and receive', () => {
-      mock.onGet(/api\/.*\/projects\/.*\/runners/, { params: { scope: 'active' } }).reply(200, []);
+      mock
+        .onGet(/api\/.*\/projects\/.*\/runners/, { params: { scope: 'active' } })
+        .reply(HTTP_STATUS_OK, []);
 
       return testAction(
         actions.fetchRunnersCheck,
@@ -260,7 +269,9 @@ describe('IDE store terminal check actions', () => {
     });
 
     it('does not dispatch request when background is true', () => {
-      mock.onGet(/api\/.*\/projects\/.*\/runners/, { params: { scope: 'active' } }).reply(200, []);
+      mock
+        .onGet(/api\/.*\/projects\/.*\/runners/, { params: { scope: 'active' } })
+        .reply(HTTP_STATUS_OK, []);
 
       return testAction(
         actions.fetchRunnersCheck,
@@ -272,7 +283,9 @@ describe('IDE store terminal check actions', () => {
     });
 
     it('dispatches request and receive, when error', () => {
-      mock.onGet(/api\/.*\/projects\/.*\/runners/, { params: { scope: 'active' } }).reply(500, []);
+      mock
+        .onGet(/api\/.*\/projects\/.*\/runners/, { params: { scope: 'active' } })
+        .reply(HTTP_STATUS_INTERNAL_SERVER_ERROR, []);
 
       return testAction(
         actions.fetchRunnersCheck,

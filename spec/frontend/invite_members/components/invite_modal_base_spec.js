@@ -1,16 +1,15 @@
 import {
-  GlDropdown,
-  GlDropdownItem,
+  GlFormSelect,
   GlDatepicker,
   GlFormGroup,
-  GlSprintf,
   GlLink,
+  GlSprintf,
   GlModal,
   GlIcon,
 } from '@gitlab/ui';
 import { stubComponent } from 'helpers/stub_component';
 import { mockTracking, unmockTracking } from 'helpers/tracking_helper';
-import { shallowMountExtended } from 'helpers/vue_test_utils_helper';
+import { mountExtended, shallowMountExtended } from 'helpers/vue_test_utils_helper';
 import InviteModalBase from '~/invite_members/components/invite_modal_base.vue';
 import ContentTransition from '~/vue_shared/components/content_transition.vue';
 
@@ -18,10 +17,7 @@ import {
   CANCEL_BUTTON_TEXT,
   INVITE_BUTTON_TEXT_DISABLED,
   INVITE_BUTTON_TEXT,
-  CANCEL_BUTTON_TEXT_DISABLED,
   ON_SHOW_TRACK_LABEL,
-  ON_CLOSE_TRACK_LABEL,
-  ON_SUBMIT_TRACK_LABEL,
 } from '~/invite_members/constants';
 
 import { propsData, membersPath, purchasePath } from '../mock_data/modal_base';
@@ -29,24 +25,30 @@ import { propsData, membersPath, purchasePath } from '../mock_data/modal_base';
 describe('InviteModalBase', () => {
   let wrapper;
 
-  const createComponent = (props = {}, stubs = {}) => {
-    wrapper = shallowMountExtended(InviteModalBase, {
+  const createComponent = ({ props = {}, stubs = {}, mountFn = shallowMountExtended } = {}) => {
+    const requiredStubs =
+      mountFn === mountExtended
+        ? {}
+        : {
+            ContentTransition,
+            GlFormSelect: true,
+            GlSprintf,
+            GlFormGroup: stubComponent(GlFormGroup, {
+              props: ['state', 'invalidFeedback'],
+            }),
+          };
+
+    wrapper = mountFn(InviteModalBase, {
       propsData: {
         ...propsData,
         ...props,
       },
       stubs: {
-        ContentTransition,
         GlModal: stubComponent(GlModal, {
           template:
             '<div><slot name="modal-title"></slot><slot></slot><slot name="modal-footer"></slot></div>',
         }),
-        GlDropdown: true,
-        GlDropdownItem: true,
-        GlSprintf,
-        GlFormGroup: stubComponent(GlFormGroup, {
-          props: ['state', 'invalidFeedback'],
-        }),
+        ...requiredStubs,
         ...stubs,
       },
     });
@@ -54,11 +56,10 @@ describe('InviteModalBase', () => {
 
   afterEach(() => {
     wrapper.destroy();
-    wrapper = null;
   });
 
-  const findDropdown = () => wrapper.findComponent(GlDropdown);
-  const findDropdownItems = () => findDropdown().findAllComponents(GlDropdownItem);
+  const findFormSelect = () => wrapper.findComponent(GlFormSelect);
+  const findFormSelectOptions = () => findFormSelect().findAllComponents('option');
   const findDatepicker = () => wrapper.findComponent(GlDatepicker);
   const findLink = () => wrapper.findComponent(GlLink);
   const findIcon = () => wrapper.findComponent(GlIcon);
@@ -69,6 +70,11 @@ describe('InviteModalBase', () => {
   const findActionButton = () => wrapper.find('.js-modal-action-primary');
 
   describe('rendering the modal', () => {
+    let trackingSpy;
+
+    const expectTracking = (action, label = undefined, category = undefined) =>
+      expect(trackingSpy).toHaveBeenCalledWith(category, action, { label, category });
+
     beforeEach(() => {
       createComponent();
     });
@@ -100,16 +106,29 @@ describe('InviteModalBase', () => {
     });
 
     describe('rendering the access levels dropdown', () => {
+      beforeEach(() => {
+        createComponent({
+          mountFn: mountExtended,
+        });
+      });
+
       it('sets the default dropdown text to the default access level name', () => {
-        expect(findDropdown().attributes('text')).toBe('Guest');
+        expect(findFormSelect().exists()).toBe(true);
+        expect(findFormSelect().element.value).toBe('10');
       });
 
       it('renders dropdown items for each accessLevel', () => {
-        expect(findDropdownItems()).toHaveLength(5);
+        expect(findFormSelectOptions()).toHaveLength(5);
       });
     });
 
     describe('rendering the help link', () => {
+      beforeEach(() => {
+        createComponent({
+          mountFn: mountExtended,
+        });
+      });
+
       it('renders the correct link', () => {
         expect(findLink().attributes('href')).toBe(propsData.helpLink);
       });
@@ -129,87 +148,50 @@ describe('InviteModalBase', () => {
     });
 
     it('renders description', () => {
-      createComponent({}, { GlFormGroup });
+      createComponent({ stubs: { GlFormGroup } });
 
-      expect(findMembersFormGroup().text()).toContain(propsData.formGroupDescription);
+      expect(findMembersFormGroup().attributes('description')).toContain(
+        propsData.formGroupDescription,
+      );
     });
 
     describe('when users limit is reached', () => {
-      let trackingSpy;
-
-      const expectTracking = (action, label) =>
-        expect(trackingSpy).toHaveBeenCalledWith('default', action, {
-          label,
-          category: 'default',
-        });
-
       beforeEach(() => {
         createComponent(
-          { usersLimitDataset: { membersPath, purchasePath }, reachedLimit: true },
-          { GlModal, GlFormGroup },
+          { props: { usersLimitDataset: { membersPath, purchasePath, reachedLimit: true } } },
+          { stubs: { GlModal, GlFormGroup } },
         );
       });
 
-      it('renders correct blocks', () => {
-        expect(findIcon().exists()).toBe(true);
-        expect(findDisabledInput().exists()).toBe(true);
-        expect(findDropdown().exists()).toBe(false);
-        expect(findDatepicker().exists()).toBe(false);
-      });
-
-      it('renders correct buttons', () => {
-        const cancelButton = findCancelButton();
-        const actionButton = findActionButton();
-
-        expect(cancelButton.attributes('href')).toBe(purchasePath);
-        expect(cancelButton.text()).toBe(CANCEL_BUTTON_TEXT_DISABLED);
-        expect(actionButton.attributes('href')).toBe(membersPath);
-        expect(actionButton.text()).toBe(INVITE_BUTTON_TEXT_DISABLED);
-      });
-
       it('tracks actions', () => {
-        createComponent({ reachedLimit: true }, { GlFormGroup, GlModal });
+        createComponent({
+          props: { usersLimitDataset: { reachedLimit: true } },
+          stubs: { GlFormGroup, GlModal },
+        });
         trackingSpy = mockTracking(undefined, wrapper.element, jest.spyOn);
 
         const modal = wrapper.findComponent(GlModal);
 
         modal.vm.$emit('shown');
-        expectTracking('render', ON_SHOW_TRACK_LABEL);
-
-        modal.vm.$emit('cancel', { preventDefault: jest.fn() });
-        expectTracking('click_button', ON_CLOSE_TRACK_LABEL);
-
-        modal.vm.$emit('primary', { preventDefault: jest.fn() });
-        expectTracking('click_button', ON_SUBMIT_TRACK_LABEL);
+        expectTracking('render', ON_SHOW_TRACK_LABEL, 'default');
 
         unmockTracking();
-      });
-
-      describe('when free user namespace', () => {
-        it('hides cancel button', () => {
-          createComponent(
-            {
-              usersLimitDataset: { membersPath, purchasePath, userNamespace: true },
-              reachedLimit: true,
-            },
-            { GlModal, GlFormGroup },
-          );
-
-          expect(findCancelButton().exists()).toBe(false);
-        });
       });
     });
 
     describe('when user limit is close on a personal namespace', () => {
       beforeEach(() => {
-        createComponent(
-          {
-            closeToLimit: true,
-            reachedLimit: false,
-            usersLimitDataset: { membersPath, userNamespace: true },
+        createComponent({
+          props: {
+            usersLimitDataset: {
+              membersPath,
+              userNamespace: true,
+              closeToDashboardLimit: true,
+              reachedLimit: false,
+            },
           },
-          { GlModal, GlFormGroup },
-        );
+          stubs: { GlModal, GlFormGroup },
+        });
       });
 
       it('renders correct buttons', () => {
@@ -225,16 +207,16 @@ describe('InviteModalBase', () => {
     });
 
     describe('when users limit is not reached', () => {
-      const textRegex = /Select a role.+Read more about role permissions Access expiration date \(optional\)/;
+      const textRegex = /Select a role\s*Read more about role permissions\s*Access expiration date \(optional\)/;
 
       beforeEach(() => {
-        createComponent({ reachedLimit: false }, { GlModal, GlFormGroup });
+        createComponent({ props: { reachedLimit: false }, stubs: { GlModal, GlFormGroup } });
       });
 
       it('renders correct blocks', () => {
         expect(findIcon().exists()).toBe(false);
         expect(findDisabledInput().exists()).toBe(false);
-        expect(findDropdown().exists()).toBe(true);
+        expect(findFormSelect().exists()).toBe(true);
         expect(findDatepicker().exists()).toBe(true);
         expect(wrapper.findComponent(GlModal).text()).toMatch(textRegex);
       });
@@ -248,7 +230,9 @@ describe('InviteModalBase', () => {
 
   it('with isLoading, shows loading for invite button', () => {
     createComponent({
-      isLoading: true,
+      props: {
+        isLoading: true,
+      },
     });
 
     expect(wrapper.findComponent(GlModal).props('actionPrimary').attributes.loading).toBe(true);
@@ -256,7 +240,9 @@ describe('InviteModalBase', () => {
 
   it('with invalidFeedbackMessage, set members form group exception state', () => {
     createComponent({
-      invalidFeedbackMessage: 'invalid message!',
+      props: {
+        invalidFeedbackMessage: 'invalid message!',
+      },
     });
 
     expect(findMembersFormGroup().props()).toEqual({
