@@ -1306,7 +1306,7 @@ GEM
     safe_yaml (1.0.4)
     safety_net_attestation (0.4.0)
       jwt (~> 2.0)
-    sanitize (6.0.0)
+    sanitize (6.0.1)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
     sass (3.5.5)
