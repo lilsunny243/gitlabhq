@@ -10,6 +10,6 @@ Gem::Specification.new do |s|
   s.require_paths = ['lib']
   s.files         = Dir.glob('lib/**/*.*')
   s.test_files    = Dir.glob('{spec,tests}/**/*.*')
-  s.add_dependency 'sidekiq', '~> 6.1'
+  s.add_dependency 'sidekiq', '>= 6.1', '< 8.0'
   s.add_runtime_dependency 'json', '>= 2.5'
 end
